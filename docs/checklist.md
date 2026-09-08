@@ -22,7 +22,7 @@ Last updated: 2026-09-08
 
 ## Blockers — nothing in P3 starts until these clear
 
-- [ ] **Docker Desktop installed and running** (hard blocker for M00)
+- [x] **Docker Desktop installed and running** (hard blocker for M00) — Docker 29.7.2, Compose v5.5.1, verified 2026-09-08
 - [ ] GitHub remote configured
 - [ ] GitHub auth fixed (MCP currently fails: `Authorization header is badly formatted`)
 - [ ] Cloud accounts: GCP **or** Neon · Cloudflare · Sentry *(needed by end of week 1)*
@@ -36,7 +36,7 @@ Legend: **S**pec approved · **M**igration · **B**ackend · **T**ests green · 
 
 | Module | Est | S | M | B | T | F | G | R | X | U | D |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| M00 Foundation | 1d | [~] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
+| M00 Foundation | 1d | [x] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M01 Identity, Roles & Permissions | 3d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [x] | [ ] | [ ] |
 | M02 Restaurant Setup | 2d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M03 Menu | 3d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
