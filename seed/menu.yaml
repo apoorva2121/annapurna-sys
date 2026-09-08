@@ -1,0 +1,414 @@
+# Menu and dish recipes for "Spice Garden". Prices in INR, exclusive of GST.
+#
+# price / recipe live on the VARIANT, never on the item - a half plate is a different price,
+# a different recipe and a different food cost. See docs/domain-model.md.
+#
+# gst: 5 = standard restaurant rate (no ITC). popularity: relative demand weight used by the
+# order generator; the top 8 dishes carry ~55pc of covers by design.
+# recipe[].ref is an ingredient code or a preparation code.
+
+meta:
+  currency: INR
+  gst_default: 5
+  price_effective: 2026-09-01
+
+categories:
+  - {code: STARTER_VEG,   name: Veg Starters,     seq: 1}
+  - {code: STARTER_NONVEG, name: Non-Veg Starters, seq: 2}
+  - {code: MAIN_VEG,      name: Veg Main Course,  seq: 3}
+  - {code: MAIN_NONVEG,   name: Non-Veg Main Course, seq: 4}
+  - {code: RICE_BREAD,    name: Rice & Breads,    seq: 5}
+  - {code: CHINESE,       name: Chinese,          seq: 6}
+
+items:
+
+  # ================= VEG STARTERS =================
+  - code: PANEER_TIKKA
+    name: Paneer Tikka
+    category: STARTER_VEG
+    food_type: veg
+    station: tandoor
+    popularity: 62
+    variants:
+      - {code: FULL, name: Full, price: 320, gst: 5, prep_minutes: 14,
+         recipe: [{ref: PANEER, qty: 200}, {ref: PREP_TANDMARINADE, qty: 70},
+                  {ref: CAPSICUM, qty: 45}, {ref: ONION, qty: 45}, {ref: BUTTER, qty: 12},
+                  {ref: LEMON, qty: 0.25}, {ref: CORIANDER, qty: 5}]}
+
+  - code: VEG_CRISPY
+    name: Crispy Veg
+    category: STARTER_VEG
+    food_type: veg
+    station: chinese
+    popularity: 34
+    variants:
+      - {code: FULL, name: Full, price: 260, gst: 5, prep_minutes: 11,
+         recipe: [{ref: CABBAGE, qty: 90}, {ref: CARROT, qty: 60}, {ref: CAPSICUM, qty: 50},
+                  {ref: CORNFLOUR, qty: 60}, {ref: MAIDA, qty: 40}, {ref: OIL, qty: 70},
+                  {ref: CHILLISAUCE, qty: 25}, {ref: SALT, qty: 4}]}
+
+  - code: MUSHROOM_TIKKA
+    name: Mushroom Tikka
+    category: STARTER_VEG
+    food_type: veg
+    station: tandoor
+    popularity: 12
+    variants:
+      - {code: FULL, name: Full, price: 300, gst: 5, prep_minutes: 13,
+         recipe: [{ref: MUSHROOM, qty: 190}, {ref: PREP_TANDMARINADE, qty: 65},
+                  {ref: CAPSICUM, qty: 40}, {ref: BUTTER, qty: 10}, {ref: CORIANDER, qty: 5}]}
+
+  # ================= NON-VEG STARTERS =================
+  - code: CHICKEN_TIKKA
+    name: Chicken Tikka
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: tandoor
+    popularity: 71
+    variants:
+      - {code: HALF, name: Half, price: 260, gst: 5, prep_minutes: 15,
+         recipe: [{ref: PREP_CHKN_TIKKA, qty: 160}, {ref: ONION, qty: 35},
+                  {ref: BUTTER, qty: 10}, {ref: LEMON, qty: 0.25}]}
+      - {code: FULL, name: Full, price: 420, gst: 5, prep_minutes: 17,
+         recipe: [{ref: PREP_CHKN_TIKKA, qty: 300}, {ref: ONION, qty: 55},
+                  {ref: BUTTER, qty: 18}, {ref: LEMON, qty: 0.5}, {ref: CORIANDER, qty: 6}]}
+
+  - code: CHICKEN_65
+    name: Chicken 65
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: chinese
+    popularity: 44
+    variants:
+      - {code: FULL, name: Full, price: 340, gst: 5, prep_minutes: 12,
+         recipe: [{ref: CHKN_BONELESS, qty: 210}, {ref: CORNFLOUR, qty: 50}, {ref: EGG, qty: 0.5},
+                  {ref: CURD, qty: 40}, {ref: CHILLIPWD, qty: 8}, {ref: OIL, qty: 90},
+                  {ref: GRNCHILLI, qty: 10}, {ref: CORIANDER, qty: 5}]}
+
+  - code: PRAWN_KOLIWADA
+    name: Prawn Koliwada
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: chinese
+    popularity: 9
+    variants:
+      - {code: FULL, name: Full, price: 460, gst: 5, prep_minutes: 16,
+         recipe: [{ref: PRAWN, qty: 180}, {ref: CORNFLOUR, qty: 45}, {ref: EGG, qty: 0.5},
+                  {ref: CHILLIPWD, qty: 7}, {ref: OIL, qty: 100}, {ref: LEMON, qty: 0.5}]}
+
+  # ================= VEG MAIN COURSE =================
+  # PLANTED SIGNAL 8: "Hidden Gem" - 4.7 rating, very low order volume.
+  - code: MALAI_KOFTA
+    name: Malai Kofta
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    popularity: 11
+    variants:
+      - {code: FULL, name: Full, price: 330, gst: 5, prep_minutes: 12,
+         recipe: [{ref: PREP_WHITE, qty: 180}, {ref: PANEER, qty: 70}, {ref: POTATO, qty: 80},
+                  {ref: KHOYA, qty: 30}, {ref: CASHEW, qty: 15}, {ref: CREAM, qty: 25},
+                  {ref: OIL, qty: 40}, {ref: CORIANDER, qty: 4}]}
+
+  - code: PANEER_BUTTER_MASALA
+    name: Paneer Butter Masala
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    popularity: 88
+    variants:
+      - {code: HALF, name: Half, price: 260, gst: 5, prep_minutes: 9,
+         recipe: [{ref: PREP_MAKHANI, qty: 150}, {ref: PANEER, qty: 110},
+                  {ref: BUTTER, qty: 12}, {ref: CREAM, qty: 15}]}
+      - {code: FULL, name: Full, price: 380, gst: 5, prep_minutes: 10,
+         recipe: [{ref: PREP_MAKHANI, qty: 240}, {ref: PANEER, qty: 180},
+                  {ref: BUTTER, qty: 20}, {ref: CREAM, qty: 25}, {ref: KASURI, qty: 2},
+                  {ref: CORIANDER, qty: 4}]}
+
+  - code: DAL_MAKHANI
+    name: Dal Makhani
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    popularity: 79
+    variants:
+      - {code: HALF, name: Half, price: 220, gst: 5, prep_minutes: 7,
+         recipe: [{ref: PREP_DALMAKHANI, qty: 200}, {ref: BUTTER, qty: 12}, {ref: CREAM, qty: 15}]}
+      - {code: FULL, name: Full, price: 320, gst: 5, prep_minutes: 8,
+         recipe: [{ref: PREP_DALMAKHANI, qty: 330}, {ref: BUTTER, qty: 20}, {ref: CREAM, qty: 25}]}
+
+  - code: KADAI_PANEER
+    name: Kadai Paneer
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    popularity: 47
+    variants:
+      - {code: FULL, name: Full, price: 360, gst: 5, prep_minutes: 11,
+         recipe: [{ref: PREP_YELLOW, qty: 230}, {ref: PANEER, qty: 170}, {ref: CAPSICUM, qty: 70},
+                  {ref: ONION, qty: 50}, {ref: OIL, qty: 20}, {ref: GARAMMSL, qty: 3},
+                  {ref: CORIANDER, qty: 5}]}
+
+  - code: VEG_KOLHAPURI
+    name: Veg Kolhapuri
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    popularity: 21
+    variants:
+      - {code: FULL, name: Full, price: 300, gst: 5, prep_minutes: 12,
+         recipe: [{ref: PREP_YELLOW, qty: 240}, {ref: CAULI, qty: 70}, {ref: CARROT, qty: 50},
+                  {ref: BEANS, qty: 45}, {ref: PEAS, qty: 40}, {ref: POTATO, qty: 60},
+                  {ref: OIL, qty: 25}, {ref: CHILLIPWD, qty: 5}]}
+
+  - code: CHANA_MASALA
+    name: Chana Masala
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    popularity: 26
+    variants:
+      - {code: FULL, name: Full, price: 260, gst: 5, prep_minutes: 8,
+         recipe: [{ref: PREP_YELLOW, qty: 200}, {ref: CHANA, qty: 120}, {ref: OIL, qty: 15},
+                  {ref: GARAMMSL, qty: 3}, {ref: CORIANDER, qty: 4}]}
+
+  - code: PALAK_PANEER
+    name: Palak Paneer
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    popularity: 38
+    variants:
+      - {code: FULL, name: Full, price: 340, gst: 5, prep_minutes: 10,
+         recipe: [{ref: PANEER, qty: 150}, {ref: CREAM, qty: 30}, {ref: PREP_GINGARLIC, qty: 15},
+                  {ref: ONION, qty: 60}, {ref: BUTTER, qty: 15}, {ref: GRNCHILLI, qty: 6},
+                  {ref: GARAMMSL, qty: 3}, {ref: SALT, qty: 4}]}
+
+  # ================= NON-VEG MAIN COURSE =================
+  # PLANTED SIGNAL 9: portion drift - actual makhani consumption runs ~12pc above this recipe.
+  - code: BUTTER_CHICKEN
+    name: Butter Chicken
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    popularity: 100
+    variants:
+      - {code: HALF, name: Half, price: 320, gst: 5, prep_minutes: 10,
+         recipe: [{ref: PREP_MAKHANI, qty: 170}, {ref: PREP_CHKN_TIKKA, qty: 130},
+                  {ref: BUTTER, qty: 15}, {ref: CREAM, qty: 20}]}
+      - {code: FULL, name: Full, price: 470, gst: 5, prep_minutes: 11,
+         recipe: [{ref: PREP_MAKHANI, qty: 270}, {ref: PREP_CHKN_TIKKA, qty: 220},
+                  {ref: BUTTER, qty: 25}, {ref: CREAM, qty: 35}, {ref: KASURI, qty: 2},
+                  {ref: CORIANDER, qty: 5}]}
+
+  - code: CHICKEN_TIKKA_MASALA
+    name: Chicken Tikka Masala
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    popularity: 58
+    variants:
+      - {code: FULL, name: Full, price: 460, gst: 5, prep_minutes: 12,
+         recipe: [{ref: PREP_MAKHANI, qty: 200}, {ref: PREP_YELLOW, qty: 90},
+                  {ref: PREP_CHKN_TIKKA, qty: 220}, {ref: CAPSICUM, qty: 50},
+                  {ref: ONION, qty: 40}, {ref: BUTTER, qty: 18}]}
+
+  - code: KADAI_CHICKEN
+    name: Kadai Chicken
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    popularity: 41
+    variants:
+      - {code: FULL, name: Full, price: 440, gst: 5, prep_minutes: 14,
+         recipe: [{ref: PREP_YELLOW, qty: 250}, {ref: CHKN_CURRCUT, qty: 300},
+                  {ref: CAPSICUM, qty: 70}, {ref: ONION, qty: 50}, {ref: OIL, qty: 25},
+                  {ref: GARAMMSL, qty: 4}, {ref: CORIANDER, qty: 5}]}
+
+  - code: CHICKEN_KORMA
+    name: Chicken Korma
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    popularity: 19
+    variants:
+      - {code: FULL, name: Full, price: 450, gst: 5, prep_minutes: 13,
+         recipe: [{ref: PREP_WHITE, qty: 230}, {ref: CHKN_CURRCUT, qty: 290},
+                  {ref: CREAM, qty: 30}, {ref: CASHEW, qty: 15}, {ref: CARDAMOM, qty: 1}]}
+
+  - code: MUTTON_ROGANJOSH
+    name: Mutton Rogan Josh
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    popularity: 16
+    variants:
+      - {code: FULL, name: Full, price: 680, gst: 5, prep_minutes: 22,
+         recipe: [{ref: PREP_YELLOW, qty: 260}, {ref: MUTTON, qty: 250}, {ref: CURD, qty: 60},
+                  {ref: GHEE, qty: 25}, {ref: CHILLIPWD, qty: 8}, {ref: GARAMMSL, qty: 5},
+                  {ref: CINNAMON, qty: 2}, {ref: CLOVE, qty: 1}]}
+
+  - code: EGG_CURRY
+    name: Egg Curry
+    category: MAIN_NONVEG
+    food_type: egg
+    station: main_kitchen
+    popularity: 14
+    variants:
+      - {code: FULL, name: Full, price: 280, gst: 5, prep_minutes: 9,
+         recipe: [{ref: PREP_YELLOW, qty: 220}, {ref: EGG, qty: 3}, {ref: OIL, qty: 15},
+                  {ref: CORIANDER, qty: 4}]}
+
+  # ================= RICE & BREADS =================
+  # PLANTED SIGNAL 14: 8 complaints in one week, all at dinner peak. The vision doc's own
+  # section 26 example. The AI advisor must reconstruct this unaided.
+  - code: CHICKEN_BIRYANI
+    name: Chicken Biryani
+    category: RICE_BREAD
+    food_type: non_veg
+    station: main_kitchen
+    popularity: 92
+    variants:
+      - {code: FULL, name: Full, price: 420, gst: 5, prep_minutes: 18,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 320}, {ref: CHKN_CURRCUT, qty: 260},
+                  {ref: PREP_BIRISTA, qty: 40}, {ref: CURD, qty: 70}, {ref: GHEE, qty: 25},
+                  {ref: BIRYANIMSL, qty: 12}, {ref: MINT, qty: 8}, {ref: SAFFRON, qty: 0.05},
+                  {ref: PREP_GINGARLIC, qty: 15}]}
+
+  - code: VEG_BIRYANI
+    name: Veg Biryani
+    category: RICE_BREAD
+    food_type: veg
+    station: main_kitchen
+    popularity: 33
+    variants:
+      - {code: FULL, name: Full, price: 320, gst: 5, prep_minutes: 15,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 320}, {ref: CARROT, qty: 50}, {ref: BEANS, qty: 40},
+                  {ref: PEAS, qty: 40}, {ref: CAULI, qty: 50}, {ref: PREP_BIRISTA, qty: 35},
+                  {ref: GHEE, qty: 20}, {ref: BIRYANIMSL, qty: 10}, {ref: MINT, qty: 6}]}
+
+  - code: JEERA_RICE
+    name: Jeera Rice
+    category: RICE_BREAD
+    food_type: veg
+    station: main_kitchen
+    popularity: 51
+    variants:
+      - {code: FULL, name: Full, price: 180, gst: 5, prep_minutes: 5,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 300}, {ref: GHEE, qty: 15}, {ref: CUMIN, qty: 4}]}
+
+  - code: BUTTER_NAAN
+    name: Butter Naan
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    popularity: 96
+    variants:
+      - {code: PIECE, name: Per piece, price: 60, gst: 5, prep_minutes: 4,
+         recipe: [{ref: PREP_NAAN_DOUGH, qty: 110}, {ref: BUTTER, qty: 8}]}
+
+  - code: GARLIC_NAAN
+    name: Garlic Naan
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    popularity: 74
+    variants:
+      - {code: PIECE, name: Per piece, price: 75, gst: 5, prep_minutes: 4,
+         recipe: [{ref: PREP_NAAN_DOUGH, qty: 110}, {ref: BUTTER, qty: 8},
+                  {ref: GARLIC, qty: 6}, {ref: CORIANDER, qty: 3}]}
+
+  - code: TANDOORI_ROTI
+    name: Tandoori Roti
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    popularity: 68
+    variants:
+      - {code: PIECE, name: Per piece, price: 35, gst: 5, prep_minutes: 3,
+         recipe: [{ref: ATTA, qty: 90}, {ref: OIL, qty: 4}, {ref: SALT, qty: 1}]}
+
+  - code: LACHHA_PARATHA
+    name: Lachha Paratha
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    popularity: 29
+    variants:
+      - {code: PIECE, name: Per piece, price: 70, gst: 5, prep_minutes: 5,
+         recipe: [{ref: ATTA, qty: 100}, {ref: GHEE, qty: 18}, {ref: SALT, qty: 1}]}
+
+  # ================= CHINESE =================
+  # PLANTED SIGNAL 7: high volume, ~46pc food cost. Sells well, earns almost nothing.
+  # This is the dish menu engineering must flag for repricing.
+  - code: CHILLI_PANEER
+    name: Chilli Paneer
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    popularity: 69
+    variants:
+      - {code: FULL, name: Full, price: 270, gst: 5, prep_minutes: 11,
+         recipe: [{ref: PANEER, qty: 240}, {ref: CAPSICUM, qty: 80}, {ref: ONION, qty: 70},
+                  {ref: CORNFLOUR, qty: 45}, {ref: SOYSAUCE, qty: 25}, {ref: CHILLISAUCE, qty: 30},
+                  {ref: OIL, qty: 80}, {ref: SPRONION, qty: 15}, {ref: PREP_GINGARLIC, qty: 15}]}
+
+  - code: CHILLI_CHICKEN
+    name: Chilli Chicken
+    category: CHINESE
+    food_type: non_veg
+    station: chinese
+    popularity: 63
+    variants:
+      - {code: FULL, name: Full, price: 360, gst: 5, prep_minutes: 12,
+         recipe: [{ref: CHKN_BONELESS, qty: 220}, {ref: CAPSICUM, qty: 70}, {ref: ONION, qty: 60},
+                  {ref: CORNFLOUR, qty: 45}, {ref: SOYSAUCE, qty: 25}, {ref: CHILLISAUCE, qty: 30},
+                  {ref: OIL, qty: 80}, {ref: EGG, qty: 0.5}, {ref: SPRONION, qty: 15}]}
+
+  - code: HAKKA_NOODLES
+    name: Veg Hakka Noodles
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    popularity: 56
+    variants:
+      - {code: FULL, name: Full, price: 240, gst: 5, prep_minutes: 9,
+         recipe: [{ref: NOODLES, qty: 160}, {ref: CABBAGE, qty: 70}, {ref: CARROT, qty: 50},
+                  {ref: CAPSICUM, qty: 45}, {ref: SPRONION, qty: 20}, {ref: SOYSAUCE, qty: 25},
+                  {ref: VINEGAR, qty: 10}, {ref: OIL, qty: 45}]}
+
+  - code: SCHEZWAN_FRIED_RICE
+    name: Schezwan Fried Rice
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    popularity: 48
+    variants:
+      - {code: FULL, name: Full, price: 260, gst: 5, prep_minutes: 8,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 300}, {ref: PREP_SCHEZ_SAUCE, qty: 45},
+                  {ref: CABBAGE, qty: 50}, {ref: CARROT, qty: 40}, {ref: CAPSICUM, qty: 40},
+                  {ref: SPRONION, qty: 15}, {ref: OIL, qty: 35}]}
+
+  - code: MANCHURIAN_DRY
+    name: Veg Manchurian Dry
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    popularity: 45
+    variants:
+      - {code: FULL, name: Full, price: 250, gst: 5, prep_minutes: 12,
+         recipe: [{ref: CABBAGE, qty: 110}, {ref: CARROT, qty: 70}, {ref: CORNFLOUR, qty: 60},
+                  {ref: MAIDA, qty: 40}, {ref: OIL, qty: 90}, {ref: SOYSAUCE, qty: 20},
+                  {ref: CHILLISAUCE, qty: 25}, {ref: SPRONION, qty: 15}]}
+
+  - code: SCHEZWAN_CHICKEN
+    name: Schezwan Chicken
+    category: CHINESE
+    food_type: non_veg
+    station: chinese
+    popularity: 24
+    variants:
+      - {code: FULL, name: Full, price: 380, gst: 5, prep_minutes: 12,
+         recipe: [{ref: CHKN_BONELESS, qty: 220}, {ref: PREP_SCHEZ_SAUCE, qty: 60},
+                  {ref: CAPSICUM, qty: 60}, {ref: ONION, qty: 50}, {ref: CORNFLOUR, qty: 40},
+                  {ref: OIL, qty: 75}, {ref: SPRONION, qty: 15}]}

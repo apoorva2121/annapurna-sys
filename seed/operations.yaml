@@ -1,0 +1,153 @@
+# Operational master data for Spice Garden: floor layout, stations, tax, shifts, suppliers,
+# wastage reasons and modifiers. All of this is fixed input the order generator needs before it
+# can produce 120 days of history (docs/seed-data.md).
+
+meta:
+  restaurant: SG_KOREGAON
+
+# ---------------------------------------------------------------- floor
+# Sections matter more than they look: shift_assignment.dining_area_id is what makes an "assist"
+# derivable in M17, and the Terrace being slower is the planted explanation for uneven workload.
+dining_areas:
+  - {code: AC_HALL, name: AC Hall,  seq: 1}
+  - {code: TERRACE, name: Terrace,  seq: 2}    # slower turns; the fairness story lives here
+
+restaurant_tables:
+  - {code: T1,  area: AC_HALL, seats: 2}
+  - {code: T2,  area: AC_HALL, seats: 2}
+  - {code: T3,  area: AC_HALL, seats: 4}
+  - {code: T4,  area: AC_HALL, seats: 4}
+  - {code: T5,  area: AC_HALL, seats: 4}
+  - {code: T6,  area: AC_HALL, seats: 6}
+  - {code: T7,  area: AC_HALL, seats: 4}
+  - {code: T8,  area: AC_HALL, seats: 4}
+  - {code: P1,  area: TERRACE, seats: 2}
+  - {code: P2,  area: TERRACE, seats: 4}
+  - {code: P3,  area: TERRACE, seats: 4}
+  - {code: P4,  area: TERRACE, seats: 4}
+  - {code: P5,  area: TERRACE, seats: 2}
+  - {code: P6,  area: TERRACE, seats: 2}
+  # 14 tables, 48 seats - matches docs/seed-data.md
+
+stations:
+  - {code: tandoor,      name: Tandoor,      seq: 1}   # PLANTED SIGNAL 4: +40% prep time at peak
+  - {code: main_kitchen, name: Main Kitchen, seq: 2}
+  - {code: chinese,      name: Chinese,      seq: 3}
+
+# ---------------------------------------------------------------- tax
+# Effective-dated, never edited in place - a rate change must not move historical invoices.
+tax_groups:
+  - {code: GST5,  name: "GST 5% (restaurant, no ITC)", rate: 0.0500, is_inclusive: false, effective_from: 2025-04-01}
+  - {code: GST18, name: "GST 18% (packaged/beverage)", rate: 0.1800, is_inclusive: false, effective_from: 2025-04-01}
+
+# ---------------------------------------------------------------- shifts
+shifts:
+  - {code: MORNING, name: Morning, start: "10:00", end: "16:00"}
+  - {code: EVENING, name: Evening, start: "17:30", end: "00:30"}   # crosses midnight - see ADR 0004
+
+# ---------------------------------------------------------------- suppliers
+# PLANTED SIGNAL 3: Fresh Farms short-delivers 3-5% on ~40% of deliveries. That is the
+# three-way receiving variance the procurement module exists to catch.
+suppliers:
+  - {code: SUP_FRESHFARMS, name: Fresh Farms Vegetables, contact: Ramesh Bhoite, phone: "9011220001", gstin: 27AAACF1234M1ZP, payment_terms_days: 15, supplies: [veg]}
+  - {code: SUP_MEATCO,     name: Pune Meat Company,      contact: Salim Khan,    phone: "9011220002", gstin: 27AAACP5678N1ZQ, payment_terms_days: 7,  supplies: [meat]}
+  - {code: SUP_DAIRYFRESH, name: Dairy Fresh Supplies,   contact: Sunil Kale,    phone: "9011220003", gstin: 27AAACD9012P1ZR, payment_terms_days: 15, supplies: [dairy]}
+  - {code: SUP_GROCERYMART,name: Grocery Mart Wholesale, contact: Ajay Shah,     phone: "9011220004", gstin: 27AAACG3456Q1ZS, payment_terms_days: 30, supplies: [grain, spice, oil]}
+  - {code: SUP_SEAFOOD,    name: Konkan Seafood,         contact: Prakash Naik,  phone: "9011220005", gstin: 27AAACK7890R1ZT, payment_terms_days: 7,  supplies: [meat]}
+
+# ---------------------------------------------------------------- wastage reasons
+# A lookup TABLE, not an enum - the rows carry policy (docs/waste-model.md). The four stages are
+# the whole point: lumping them produces a number nobody can act on.
+wastage_reasons:
+  # receiving
+  - {code: SHORT_DELIVERY,   name: Short delivery,        stage: receiving, requires_photo: true,  requires_approval: true}
+  - {code: QUALITY_REJECT,   name: Quality rejection,     stage: receiving, requires_photo: true,  requires_approval: true}
+  # storage
+  - {code: EXPIRED,          name: Expired,               stage: storage,   requires_photo: true,  requires_approval: true}
+  - {code: SPOILAGE,         name: Spoilage,              stage: storage,   requires_photo: true,  requires_approval: false}
+  - {code: STORAGE_FAILURE,  name: Storage failure,       stage: storage,   requires_photo: true,  requires_approval: true}
+  # prep - the biggest line and the least measured
+  - {code: OVER_PREPARATION, name: Over-preparation,      stage: prep,      requires_photo: false, requires_approval: false}
+  - {code: TRIM_LOSS,        name: Trim loss above standard, stage: prep,   requires_photo: false, requires_approval: false}
+  - {code: BURNT,            name: Burnt / spoiled in prep, stage: prep,    requires_photo: false, requires_approval: false}
+  - {code: PREP_ERROR,       name: Preparation error,     stage: prep,      requires_photo: false, requires_approval: false}
+  # service
+  - {code: WRONG_ORDER,      name: Wrong order made,      stage: service,   requires_photo: false, requires_approval: false}
+  - {code: CUSTOMER_RETURN,  name: Customer returned dish, stage: service,  requires_photo: true,  requires_approval: false}
+  - {code: REMAKE,           name: Remake requested,      stage: service,   requires_photo: false, requires_approval: false}
+
+# NOT wastage. Separate movement types, because lumping them in destroys the variance number
+# (docs/waste-model.md section 4). Listed here so the generator knows they exist.
+non_wastage_movements:
+  - {type: staff_meal,    note: "Staff are fed. Always. ~Rs 18k/month - planted signal 10."}
+  - {type: complimentary, note: "Manager comps. ~Rs 9k/month, 70% by one authoriser - signal 11."}
+
+# ---------------------------------------------------------------- modifiers
+modifier_groups:
+  - code: SPICE_LEVEL
+    name: Spice level
+    min_select: 0
+    max_select: 1
+    is_required: false
+    modifiers:
+      - {name: Mild,          price_delta: 0}
+      - {name: Medium,        price_delta: 0}
+      - {name: Spicy,         price_delta: 0}
+      - {name: Extra spicy,   price_delta: 0}
+
+  - code: JAIN_PREF
+    name: Preparation preference
+    min_select: 0
+    max_select: 1
+    is_required: false
+    modifiers:
+      - {name: Jain (no onion/garlic), price_delta: 0}
+      - {name: No onion,               price_delta: 0}
+      - {name: No garlic,              price_delta: 0}
+
+  - code: ADDONS_GRAVY
+    name: Add-ons
+    min_select: 0
+    max_select: 3
+    is_required: false
+    modifiers:
+      - {name: Extra gravy,   price_delta: 40}
+      - {name: Extra paneer,  price_delta: 70}
+      - {name: Extra cheese,  price_delta: 50}
+      - {name: Extra butter,  price_delta: 20}
+
+  - code: BREAD_OPTS
+    name: Bread options
+    min_select: 0
+    max_select: 2
+    is_required: false
+    modifiers:
+      - {name: Extra butter,  price_delta: 10}
+      - {name: Well done,     price_delta: 0}
+
+# Which groups attach to which categories. The generator expands this to menu_item_modifier_group.
+modifier_attachments:
+  - {categories: [MAIN_VEG, MAIN_NONVEG],   groups: [SPICE_LEVEL, JAIN_PREF, ADDONS_GRAVY]}
+  - {categories: [STARTER_VEG, STARTER_NONVEG, CHINESE], groups: [SPICE_LEVEL, JAIN_PREF]}
+  - {categories: [RICE_BREAD],              groups: [BREAD_OPTS]}
+
+# ---------------------------------------------------------------- incentive scheme (M17 / ADR 0011)
+# Volume is deliberately only 20%. RULE: volume <= accuracy + rating (0.20 <= 0.45). Enforced on
+# save and unit-tested - without it the system pays people to rush.
+incentive_scheme:
+  name: Default fair-contribution scheme
+  period_type: monthly
+  effective_from: 2026-04-01
+  weights:
+    accuracy:   0.25      # controllable
+    rating:     0.20      # controllable
+    volume:     0.20      # controllable, normalised per hour worked
+    speed:      0.15      # controllable (seat-to-order, bill-to-settle)
+    attendance: 0.10      # controllable
+    assists:    0.10      # controllable, DERIVED from order vs assigned section
+  context_only:           # shown beside the score, weight zero - not in the employee's control
+    - kitchen_delay_minutes
+    - section_footfall
+    - average_table_size
+    - tips_received
+  award_types: [cash, leave, shift_preference, meal, recognition_only]

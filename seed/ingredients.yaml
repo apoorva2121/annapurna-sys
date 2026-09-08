@@ -1,0 +1,85 @@
+# Ingredient master for the synthetic restaurant "Spice Garden" (Pune).
+# base_unit: g | ml | unit  - all recipe quantities are in base_unit.
+# price: INR per base_unit at seed start. The generator drifts these over the 120-day window.
+# yield_factor: usable fraction after trim/cleaning loss (1.0 = no loss).
+# shelf_life_days: at normal storage for that item in this restaurant.
+
+meta:
+  currency: INR
+  city: Pune
+  priced_on: 2026-09-01
+
+ingredients:
+
+  # ---- Meat & poultry ----
+  - {code: CHKN_BONELESS, name: Chicken boneless,   base_unit: g,    price: 0.280, yield_factor: 0.95, shelf_life_days: 2,   storage: chilled, category: meat}
+  - {code: CHKN_CURRCUT,  name: Chicken curry cut,  base_unit: g,    price: 0.220, yield_factor: 0.72, shelf_life_days: 2,   storage: chilled, category: meat}
+  - {code: MUTTON,        name: Mutton curry cut,   base_unit: g,    price: 0.780, yield_factor: 0.78, shelf_life_days: 2,   storage: chilled, category: meat}
+  - {code: PRAWN,         name: Prawns medium,      base_unit: g,    price: 0.640, yield_factor: 0.65, shelf_life_days: 1,   storage: frozen,  category: meat}
+  - {code: EGG,           name: Egg,                base_unit: unit, price: 7.000, yield_factor: 0.88, shelf_life_days: 14,  storage: chilled, category: meat}
+
+  # ---- Dairy ----
+  - {code: PANEER,        name: Paneer,             base_unit: g,    price: 0.360, yield_factor: 0.98, shelf_life_days: 4,   storage: chilled, category: dairy}
+  - {code: CREAM,         name: Fresh cream 25pc,   base_unit: ml,   price: 0.240, yield_factor: 1.00, shelf_life_days: 7,   storage: chilled, category: dairy}
+  - {code: MILK,          name: Milk toned,         base_unit: ml,   price: 0.062, yield_factor: 1.00, shelf_life_days: 3,   storage: chilled, category: dairy}
+  - {code: CURD,          name: Curd,               base_unit: g,    price: 0.090, yield_factor: 1.00, shelf_life_days: 5,   storage: chilled, category: dairy}
+  - {code: BUTTER,        name: Butter salted,      base_unit: g,    price: 0.520, yield_factor: 1.00, shelf_life_days: 90,  storage: chilled, category: dairy}
+  - {code: GHEE,          name: Ghee,               base_unit: g,    price: 0.680, yield_factor: 1.00, shelf_life_days: 180, storage: ambient, category: dairy}
+  - {code: CHEESE,        name: Processed cheese,   base_unit: g,    price: 0.480, yield_factor: 1.00, shelf_life_days: 45,  storage: chilled, category: dairy}
+  - {code: KHOYA,         name: Khoya mawa,         base_unit: g,    price: 0.420, yield_factor: 1.00, shelf_life_days: 4,   storage: chilled, category: dairy}
+
+  # ---- Vegetables: short life, high waste. Several planted signals live here. ----
+  - {code: ONION,         name: Onion,              base_unit: g,    price: 0.038, yield_factor: 0.82, shelf_life_days: 14,  storage: ambient, category: veg}
+  - {code: TOMATO,        name: Tomato,             base_unit: g,    price: 0.032, yield_factor: 0.90, shelf_life_days: 5,   storage: chilled, category: veg}
+  - {code: POTATO,        name: Potato,             base_unit: g,    price: 0.026, yield_factor: 0.80, shelf_life_days: 21,  storage: ambient, category: veg}
+  - {code: CAPSICUM,      name: Capsicum green,     base_unit: g,    price: 0.060, yield_factor: 0.78, shelf_life_days: 7,   storage: chilled, category: veg}
+  - {code: GINGER,        name: Ginger,             base_unit: g,    price: 0.120, yield_factor: 0.80, shelf_life_days: 12,  storage: chilled, category: veg}
+  - {code: GARLIC,        name: Garlic,             base_unit: g,    price: 0.140, yield_factor: 0.72, shelf_life_days: 20,  storage: ambient, category: veg}
+  - {code: GRNCHILLI,     name: Green chilli,       base_unit: g,    price: 0.070, yield_factor: 0.92, shelf_life_days: 6,   storage: chilled, category: veg}
+  - {code: CORIANDER,     name: Coriander leaves,   base_unit: g,    price: 0.090, yield_factor: 0.65, shelf_life_days: 3,   storage: chilled, category: veg}
+  - {code: MINT,          name: Mint leaves,        base_unit: g,    price: 0.110, yield_factor: 0.60, shelf_life_days: 3,   storage: chilled, category: veg}
+  - {code: CABBAGE,       name: Cabbage,            base_unit: g,    price: 0.028, yield_factor: 0.85, shelf_life_days: 10,  storage: chilled, category: veg}
+  - {code: CARROT,        name: Carrot,             base_unit: g,    price: 0.042, yield_factor: 0.82, shelf_life_days: 12,  storage: chilled, category: veg}
+  - {code: SPRONION,      name: Spring onion,       base_unit: g,    price: 0.080, yield_factor: 0.75, shelf_life_days: 4,   storage: chilled, category: veg}
+  - {code: MUSHROOM,      name: Button mushroom,    base_unit: g,    price: 0.220, yield_factor: 0.90, shelf_life_days: 4,   storage: chilled, category: veg}
+  - {code: PEAS,          name: Green peas frozen,  base_unit: g,    price: 0.110, yield_factor: 1.00, shelf_life_days: 120, storage: frozen,  category: veg}
+  - {code: CAULI,         name: Cauliflower,        base_unit: g,    price: 0.034, yield_factor: 0.68, shelf_life_days: 7,   storage: chilled, category: veg}
+  - {code: BEANS,         name: French beans,       base_unit: g,    price: 0.058, yield_factor: 0.85, shelf_life_days: 6,   storage: chilled, category: veg}
+  - {code: LEMON,         name: Lemon,              base_unit: unit, price: 4.000, yield_factor: 0.90, shelf_life_days: 12,  storage: chilled, category: veg}
+
+  # ---- Grains, pulses, flour ----
+  - {code: BASMATI,       name: Basmati rice,       base_unit: g,    price: 0.110, yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: grain}
+  - {code: ATTA,          name: Wheat atta,         base_unit: g,    price: 0.042, yield_factor: 1.00, shelf_life_days: 120, storage: ambient, category: grain}
+  - {code: MAIDA,         name: Maida,              base_unit: g,    price: 0.040, yield_factor: 1.00, shelf_life_days: 120, storage: ambient, category: grain}
+  - {code: CORNFLOUR,     name: Cornflour,          base_unit: g,    price: 0.070, yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: grain}
+  - {code: DAL_TOOR,      name: Toor dal,           base_unit: g,    price: 0.150, yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: grain}
+  - {code: DAL_URAD,      name: Urad dal whole,     base_unit: g,    price: 0.130, yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: grain}
+  - {code: RAJMA,         name: Rajma,              base_unit: g,    price: 0.140, yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: grain}
+  - {code: CHANA,         name: Kabuli chana,       base_unit: g,    price: 0.120, yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: grain}
+  - {code: NOODLES,       name: Hakka noodles,      base_unit: g,    price: 0.095, yield_factor: 1.00, shelf_life_days: 180, storage: ambient, category: grain}
+
+  # ---- Oil ----
+  - {code: OIL,           name: Refined oil,        base_unit: ml,   price: 0.135, yield_factor: 1.00, shelf_life_days: 180, storage: ambient, category: oil}
+
+  # ---- Spices and dry goods: the deliberate long tail, 5pc of value ----
+  - {code: SALT,          name: Salt,               base_unit: g,    price: 0.022, yield_factor: 1.00, shelf_life_days: 720, storage: ambient, category: spice}
+  - {code: SUGAR,         name: Sugar,              base_unit: g,    price: 0.048, yield_factor: 1.00, shelf_life_days: 720, storage: ambient, category: spice}
+  - {code: TURMERIC,      name: Turmeric powder,    base_unit: g,    price: 0.280, yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: CHILLIPWD,     name: Red chilli powder,  base_unit: g,    price: 0.320, yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: CORIANDPWD,    name: Coriander powder,   base_unit: g,    price: 0.240, yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: GARAMMSL,      name: Garam masala,       base_unit: g,    price: 0.620, yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: KASURI,        name: Kasuri methi,       base_unit: g,    price: 0.700, yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: CUMIN,         name: Cumin seed,         base_unit: g,    price: 0.480, yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: CARDAMOM,      name: Green cardamom,     base_unit: g,    price: 2.400, yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: BAYLEAF,       name: Bay leaf,           base_unit: g,    price: 0.300, yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: CINNAMON,      name: Cinnamon,           base_unit: g,    price: 0.900, yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: CLOVE,         name: Clove,              base_unit: g,    price: 1.100, yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: TANDMSL,       name: Tandoori masala,    base_unit: g,    price: 0.560, yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: CASHEW,        name: Cashew,             base_unit: g,    price: 0.900, yield_factor: 1.00, shelf_life_days: 120, storage: ambient, category: spice}
+  - {code: SAFFRON,       name: Saffron,            base_unit: g,    price: 320.00, yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: BIRYANIMSL,    name: Biryani masala,     base_unit: g,    price: 0.700, yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: SOYSAUCE,      name: Soy sauce,          base_unit: ml,   price: 0.180, yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: VINEGAR,       name: Vinegar,            base_unit: ml,   price: 0.090, yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: CHILLISAUCE,   name: Red chilli sauce,   base_unit: ml,   price: 0.190, yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: spice}
+  - {code: SCHEZWAN,      name: Schezwan paste,     base_unit: g,    price: 0.340, yield_factor: 1.00, shelf_life_days: 180, storage: chilled, category: spice}
+  - {code: YEAST,         name: Yeast,              base_unit: g,    price: 0.450, yield_factor: 1.00, shelf_life_days: 120, storage: chilled, category: spice}

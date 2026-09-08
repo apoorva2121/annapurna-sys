@@ -1,0 +1,233 @@
+# Tenancy, staff, roles and permissions for the synthetic restaurant "Spice Garden".
+# Two restaurants exist ON PURPOSE: every tenant-isolation test needs a second tenant to fail
+# against, and a bug that only appears with two tenants is the worst bug this product can have.
+#
+# All seeded logins use the password below. Seeded orgs carry is_demo: true and are excluded
+# from every report (docs/seed-data.md).
+
+meta:
+  seed_password: "Staging#2026"
+  is_demo: true
+
+organizations:
+  - code: SPICEGARDEN
+    name: Spice Garden Hospitality
+    slug: spice-garden
+    plan: active
+    billing_email: owner@spicegarden.test
+
+  # Second tenant. Minimal on purpose - it exists to be denied access to the first.
+  - code: TANDOORHOUSE
+    name: Tandoor House
+    slug: tandoor-house
+    plan: trial
+    billing_email: owner@tandoorhouse.test
+
+restaurants:
+  - code: SG_KOREGAON
+    organization: SPICEGARDEN
+    name: Spice Garden - Koregaon Park
+    timezone: Asia/Kolkata
+    currency: INR
+    business_day_start: "05:00"          # ADR 0004. NOT midnight - the 01:30 order books to today.
+    gstin: 27AABCS1429B1ZX
+    address: {line1: "Lane 5, Koregaon Park", city: Pune, state: Maharashtra, pincode: "411001"}
+    fssai_licence: "11522998000123"
+
+  - code: TH_BANER
+    organization: TANDOORHOUSE
+    name: Tandoor House - Baner
+    timezone: Asia/Kolkata
+    currency: INR
+    business_day_start: "05:00"
+    gstin: 27AAFCT2938K1Z9
+    address: {line1: "Baner Road", city: Pune, state: Maharashtra, pincode: "411045"}
+    fssai_licence: "11522998000456"
+
+# ---------------------------------------------------------------- permissions
+# Static catalogue, seeded by migration. Code checks THESE, never a role name (ADR 0007).
+permissions:
+  # orders
+  - {code: order.view,              resource: order,       action: view}
+  - {code: order.create,            resource: order,       action: create}
+  - {code: order.modify,            resource: order,       action: modify}
+  - {code: order.settle,            resource: order,       action: settle}
+  - {code: order.void,              resource: order,       action: void}
+  - {code: order.discount,          resource: order,       action: discount}
+  # kitchen
+  - {code: kot.view,                resource: kot,         action: view}
+  - {code: kot.update,              resource: kot,         action: update}
+  # menu & recipes
+  - {code: menu.view,               resource: menu,        action: view}
+  - {code: menu.manage,             resource: menu,        action: manage}
+  - {code: menu.price,              resource: menu,        action: price}
+  - {code: recipe.view,             resource: recipe,      action: view}
+  - {code: recipe.manage,           resource: recipe,      action: manage}
+  - {code: cost.view,               resource: cost,        action: view}
+  # stock
+  - {code: stock.view,              resource: stock,       action: view}
+  - {code: stock.receive,           resource: stock,       action: receive}
+  - {code: stock.produce,           resource: stock,       action: produce}
+  - {code: stock.adjust,            resource: stock,       action: adjust}
+  - {code: stock.count,             resource: stock,       action: count}
+  - {code: wastage.log,             resource: wastage,     action: log}
+  - {code: wastage.approve,         resource: wastage,     action: approve}
+  # procurement
+  - {code: supplier.view,           resource: supplier,    action: view}
+  - {code: supplier.manage,         resource: supplier,    action: manage}
+  - {code: purchase.manage,         resource: purchase,    action: manage}
+  # people
+  - {code: employee.view,           resource: employee,    action: view}
+  - {code: employee.manage,         resource: employee,    action: manage}
+  - {code: employee.wage.view,      resource: employee,    action: wage_view}   # separately gated
+  - {code: shift.view,              resource: shift,       action: view}
+  - {code: shift.manage,            resource: shift,       action: manage}
+  # customers
+  - {code: customer.view,           resource: customer,    action: view}
+  - {code: customer.manage,         resource: customer,    action: manage}
+  - {code: feedback.view,           resource: feedback,    action: view}
+  - {code: complaint.manage,        resource: complaint,   action: manage}
+  # comms
+  - {code: message.send,            resource: message,     action: send}
+  - {code: task.view,               resource: task,        action: view}
+  - {code: task.assign,             resource: task,        action: assign}
+  - {code: task.complete,           resource: task,        action: complete}
+  # reporting
+  - {code: report.operational.view, resource: report,      action: operational_view}
+  - {code: report.financial.view,   resource: report,      action: financial_view}
+  - {code: audit.view,              resource: audit,       action: view}
+  # performance - ADR 0011
+  - {code: performance.view.own,    resource: performance, action: view_own}    # EVERY role. Always.
+  - {code: performance.view.team,   resource: performance, action: view_team}
+  - {code: performance.publish,     resource: performance, action: publish}
+  - {code: incentive.configure,     resource: incentive,   action: configure}
+  - {code: recognition.award,       resource: recognition, action: award}
+  # admin
+  - {code: restaurant.configure,    resource: restaurant,  action: configure}
+  - {code: role.manage,             resource: role,        action: manage}
+
+# ---------------------------------------------------------------- roles
+# is_system roles cannot be deleted. performance.view.own is on EVERY role by design (ADR 0011):
+# a score an employee cannot see is surveillance; the same score, visible, is feedback.
+roles:
+  - code: owner
+    name: Owner
+    is_system: true
+    permissions: ["*"]
+
+  - code: admin
+    name: Administrator
+    is_system: true
+    permissions:
+      - restaurant.configure
+      - role.manage
+      - employee.view
+      - employee.manage
+      - audit.view
+      - menu.view
+      - performance.view.own
+
+  - code: manager
+    name: Restaurant Manager
+    is_system: true
+    permissions:
+      - order.view, order.create, order.modify, order.settle, order.void, order.discount
+      - kot.view, kot.update
+      - menu.view, menu.manage
+      - recipe.view, cost.view
+      - stock.view, stock.receive, stock.produce, stock.adjust, stock.count
+      - wastage.log, wastage.approve
+      - supplier.view, supplier.manage, purchase.manage
+      - employee.view, employee.manage, shift.view, shift.manage
+      - customer.view, customer.manage, feedback.view, complaint.manage
+      - message.send, task.view, task.assign, task.complete
+      - report.operational.view
+      - performance.view.own, performance.view.team, recognition.award
+    # deliberately NOT granted: menu.price, report.financial.view, employee.wage.view,
+    # incentive.configure, performance.publish - these are the owner's.
+
+  - code: chef
+    name: Chef / Kitchen Manager
+    is_system: true
+    permissions:
+      - kot.view, kot.update
+      - menu.view, recipe.view, recipe.manage
+      - stock.view, stock.produce, wastage.log
+      - message.send, task.view, task.complete
+      - performance.view.own, performance.view.team
+    # NOT granted: any price, cost or financial permission. A chef sees grams, not rupees.
+
+  - code: kitchen_staff
+    name: Kitchen Staff
+    is_system: true
+    permissions:
+      - kot.view, kot.update
+      - recipe.view, stock.view, wastage.log
+      - message.send, task.view, task.complete
+      - performance.view.own
+
+  - code: waiter
+    name: Waiter / Captain
+    is_system: true
+    permissions:
+      - order.view, order.create, order.modify, order.settle
+      - kot.view, menu.view
+      - customer.view, feedback.view
+      - message.send, task.view, task.complete
+      - performance.view.own
+    # NOT granted: order.void, order.discount, cost.view - the classic leakage vectors.
+
+  - code: store_manager
+    name: Inventory / Store Manager
+    is_system: true
+    permissions:
+      - stock.view, stock.receive, stock.produce, stock.adjust, stock.count
+      - wastage.log, wastage.approve
+      - supplier.view, supplier.manage, purchase.manage
+      - recipe.view, message.send, task.view, task.complete
+      - report.operational.view
+      - performance.view.own
+
+  - code: cleaner
+    name: Cleaner / Housekeeping
+    is_system: true
+    permissions:
+      - message.send, task.view, task.complete
+      - performance.view.own
+
+  - code: accountant
+    name: Accountant / Finance
+    is_system: true
+    permissions:
+      - order.view, report.financial.view, report.operational.view
+      - supplier.view, purchase.manage, audit.view
+      - employee.wage.view
+      - performance.view.own
+
+# ---------------------------------------------------------------- employees
+# 16 people. Note who has no login: cleaners and two kitchen staff. An employee without a
+# user_account is normal and must work (ADR 0007) - they are still referenced by tasks,
+# shifts and wastage events.
+employees:
+  - {code: EMP001, name: Rajesh Mehta,    role: owner,         restaurant: SG_KOREGAON, login: owner@spicegarden.test,     phone: "9820011001", joined: 2019-04-01, type: full_time}
+  - {code: EMP002, name: Priya Nair,      role: admin,         restaurant: SG_KOREGAON, login: admin@spicegarden.test,     phone: "9820011002", joined: 2021-06-15, type: full_time}
+  - {code: EMP003, name: Vikram Deshmukh, role: manager,       restaurant: SG_KOREGAON, login: manager@spicegarden.test,   phone: "9820011003", joined: 2020-01-10, type: full_time}
+  - {code: EMP004, name: Arun Kulkarni,   role: chef,          restaurant: SG_KOREGAON, login: chef@spicegarden.test,      phone: "9820011004", joined: 2019-08-20, type: full_time}
+  - {code: EMP005, name: Imran Shaikh,    role: kitchen_staff, restaurant: SG_KOREGAON, login: kitchen1@spicegarden.test,  phone: "9820011005", joined: 2022-02-01, type: full_time}
+  - {code: EMP006, name: Santosh Pawar,   role: kitchen_staff, restaurant: SG_KOREGAON, login: null,                       phone: "9820011006", joined: 2022-07-11, type: full_time}
+  - {code: EMP007, name: Deepak Yadav,    role: kitchen_staff, restaurant: SG_KOREGAON, login: null,                       phone: "9820011007", joined: 2023-03-05, type: part_time}
+  - {code: EMP008, name: Nitin Jadhav,    role: kitchen_staff, restaurant: SG_KOREGAON, login: kitchen2@spicegarden.test,  phone: "9820011008", joined: 2023-09-18, type: full_time}
+  # PLANTED SIGNAL 6: Suresh has ~2.1x the order-accuracy errors of his peers, dinner shifts only.
+  - {code: EMP009, name: Suresh Patil,    role: waiter,        restaurant: SG_KOREGAON, login: waiter1@spicegarden.test,   phone: "9820011009", joined: 2021-11-02, type: full_time}
+  - {code: EMP010, name: Ravi Sharma,     role: waiter,        restaurant: SG_KOREGAON, login: waiter2@spicegarden.test,   phone: "9820011010", joined: 2022-05-14, type: full_time}
+  - {code: EMP011, name: Anil Gaikwad,    role: waiter,        restaurant: SG_KOREGAON, login: waiter3@spicegarden.test,   phone: "9820011011", joined: 2023-01-09, type: full_time}
+  - {code: EMP012, name: Kavita Rane,     role: waiter,        restaurant: SG_KOREGAON, login: waiter4@spicegarden.test,   phone: "9820011012", joined: 2023-06-21, type: part_time}
+  - {code: EMP013, name: Mahesh Bhosale,  role: waiter,        restaurant: SG_KOREGAON, login: waiter5@spicegarden.test,   phone: "9820011013", joined: 2024-02-12, type: part_time}
+  - {code: EMP014, name: Ganesh More,     role: store_manager, restaurant: SG_KOREGAON, login: store@spicegarden.test,     phone: "9820011014", joined: 2020-10-01, type: full_time}
+  - {code: EMP015, name: Sunita Kamble,   role: cleaner,       restaurant: SG_KOREGAON, login: null,                       phone: "9820011015", joined: 2021-03-15, type: full_time}
+  - {code: EMP016, name: Laxmi Waghmare,  role: cleaner,       restaurant: SG_KOREGAON, login: null,                       phone: "9820011016", joined: 2022-11-08, type: part_time}
+  - {code: EMP017, name: Farhan Qureshi,  role: accountant,    restaurant: SG_KOREGAON, login: accounts@spicegarden.test,  phone: "9820011017", joined: 2021-01-20, type: contract}
+
+  # Second tenant. One manager is enough to prove isolation.
+  - {code: TH001,  name: Sameer Joshi,    role: owner,         restaurant: TH_BANER,    login: owner@tandoorhouse.test,    phone: "9820022001", joined: 2022-01-01, type: full_time}
+  - {code: TH002,  name: Neha Kulkarni,   role: manager,       restaurant: TH_BANER,    login: manager@tandoorhouse.test,  phone: "9820022002", joined: 2022-03-01, type: full_time}

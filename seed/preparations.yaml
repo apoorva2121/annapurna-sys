@@ -1,0 +1,186 @@
+# Preparations (sub-recipes) for "Spice Garden". See docs/decisions/0006-preparations-and-sub-recipes.md
+#
+# These are the in-house bases an Indian kitchen makes each morning. Dishes consume them.
+# This is the layer the vision document's flat dish -> ingredient model was missing, and it is
+# where the largest waste line in the restaurant lives.
+#
+# batch_yield / yield_unit : one standard production batch
+# shelf_life_hours         : HOURS, not days. A gravy made from 7-day cream dies in 24-48h.
+# lines[].ref              : an ingredient code, or another preparation code (max nesting depth 3)
+
+meta:
+  currency: INR
+  nesting_depth_limit: 3
+
+preparations:
+
+  - code: PREP_BIRISTA
+    name: Birista (fried onion)
+    station: main_kitchen
+    batch_yield: 1200
+    yield_unit: g
+    shelf_life_hours: 72
+    prep_minutes: 45
+    notes: Depth-2 input to yellow gravy. Yield is low and variable, which is deliberate.
+    lines:
+      - {ref: ONION, qty: 4000, unit: g}
+      - {ref: OIL,   qty: 700,  unit: ml}
+
+  - code: PREP_GINGARLIC
+    name: Ginger garlic paste
+    station: main_kitchen
+    batch_yield: 1000
+    yield_unit: g
+    shelf_life_hours: 96
+    prep_minutes: 20
+    lines:
+      - {ref: GINGER, qty: 560, unit: g}
+      - {ref: GARLIC, qty: 560, unit: g}
+      - {ref: OIL,    qty: 40,  unit: ml}
+
+  # PLANTED SIGNAL 1: this is the preparation over-produced ~35pc every Tue/Wed.
+  # It is the single largest waste line in the synthetic restaurant. See docs/seed-data.md.
+  - code: PREP_MAKHANI
+    name: Makhani gravy
+    station: main_kitchen
+    batch_yield: 8000
+    yield_unit: ml
+    shelf_life_hours: 36
+    prep_minutes: 90
+    notes: Feeds 6 dishes. Tomato price spike (signal 13) hits this base hardest.
+    lines:
+      - {ref: TOMATO,        qty: 5000, unit: g}
+      - {ref: BUTTER,        qty: 600,  unit: g}
+      - {ref: CASHEW,        qty: 400,  unit: g}
+      - {ref: CREAM,         qty: 900,  unit: ml}
+      - {ref: PREP_GINGARLIC, qty: 200, unit: g}
+      - {ref: CHILLIPWD,     qty: 90,   unit: g}
+      - {ref: GARAMMSL,      qty: 45,   unit: g}
+      - {ref: KASURI,        qty: 30,   unit: g}
+      - {ref: SUGAR,         qty: 120,  unit: g}
+      - {ref: SALT,          qty: 90,   unit: g}
+
+  - code: PREP_YELLOW
+    name: Yellow gravy (onion tomato base)
+    station: main_kitchen
+    batch_yield: 8000
+    yield_unit: ml
+    shelf_life_hours: 36
+    prep_minutes: 75
+    notes: Depth-3 chain - ONION -> PREP_BIRISTA -> PREP_YELLOW -> dish.
+    lines:
+      - {ref: PREP_BIRISTA,   qty: 900,  unit: g}
+      - {ref: TOMATO,         qty: 2600, unit: g}
+      - {ref: PREP_GINGARLIC, qty: 260,  unit: g}
+      - {ref: OIL,            qty: 700,  unit: ml}
+      - {ref: TURMERIC,       qty: 60,   unit: g}
+      - {ref: CHILLIPWD,      qty: 110,  unit: g}
+      - {ref: CORIANDPWD,     qty: 140,  unit: g}
+      - {ref: GARAMMSL,       qty: 50,   unit: g}
+      - {ref: SALT,           qty: 100,  unit: g}
+
+  - code: PREP_WHITE
+    name: White gravy (korma base)
+    station: main_kitchen
+    batch_yield: 5000
+    yield_unit: ml
+    shelf_life_hours: 24
+    prep_minutes: 60
+    lines:
+      - {ref: CASHEW,         qty: 700,  unit: g}
+      - {ref: ONION,          qty: 1800, unit: g}
+      - {ref: CURD,           qty: 900,  unit: g}
+      - {ref: CREAM,          qty: 700,  unit: ml}
+      - {ref: PREP_GINGARLIC, qty: 160,  unit: g}
+      - {ref: CARDAMOM,       qty: 18,   unit: g}
+      - {ref: SALT,           qty: 60,   unit: g}
+
+  - code: PREP_TANDMARINADE
+    name: Tandoori marinade
+    station: tandoor
+    batch_yield: 3000
+    yield_unit: g
+    shelf_life_hours: 48
+    prep_minutes: 30
+    lines:
+      - {ref: CURD,           qty: 2000, unit: g}
+      - {ref: PREP_GINGARLIC, qty: 260,  unit: g}
+      - {ref: TANDMSL,        qty: 260,  unit: g}
+      - {ref: CHILLIPWD,      qty: 120,  unit: g}
+      - {ref: OIL,            qty: 260,  unit: ml}
+      - {ref: SALT,           qty: 70,   unit: g}
+      - {ref: LEMON,          qty: 6,    unit: unit}
+
+  - code: PREP_CHKN_TIKKA
+    name: Marinated chicken tikka (raw)
+    station: tandoor
+    batch_yield: 4000
+    yield_unit: g
+    shelf_life_hours: 24
+    prep_minutes: 25
+    lines:
+      - {ref: CHKN_BONELESS,     qty: 3400, unit: g}
+      - {ref: PREP_TANDMARINADE, qty: 900,  unit: g}
+
+  - code: PREP_RICE_BOILED
+    name: Boiled basmati rice
+    station: main_kitchen
+    batch_yield: 6000
+    yield_unit: g
+    shelf_life_hours: 12
+    prep_minutes: 35
+    notes: Twelve-hour life. Routinely over-produced at lunch and dumped at close.
+    lines:
+      - {ref: BASMATI,  qty: 2200, unit: g}
+      - {ref: OIL,      qty: 60,   unit: ml}
+      - {ref: SALT,     qty: 50,   unit: g}
+      - {ref: BAYLEAF,  qty: 8,    unit: g}
+
+  - code: PREP_DALMAKHANI
+    name: Dal makhani base
+    station: main_kitchen
+    batch_yield: 6000
+    yield_unit: ml
+    shelf_life_hours: 48
+    prep_minutes: 240
+    lines:
+      - {ref: DAL_URAD,       qty: 1400, unit: g}
+      - {ref: RAJMA,          qty: 300,  unit: g}
+      - {ref: BUTTER,         qty: 500,  unit: g}
+      - {ref: CREAM,          qty: 600,  unit: ml}
+      - {ref: TOMATO,         qty: 1200, unit: g}
+      - {ref: PREP_GINGARLIC, qty: 160,  unit: g}
+      - {ref: GARAMMSL,       qty: 40,   unit: g}
+      - {ref: SALT,           qty: 80,   unit: g}
+
+  - code: PREP_SCHEZ_SAUCE
+    name: Schezwan sauce base
+    station: chinese
+    batch_yield: 2500
+    yield_unit: ml
+    shelf_life_hours: 96
+    prep_minutes: 40
+    lines:
+      - {ref: SCHEZWAN,       qty: 700,  unit: g}
+      - {ref: CHILLISAUCE,    qty: 500,  unit: ml}
+      - {ref: SOYSAUCE,       qty: 350,  unit: ml}
+      - {ref: VINEGAR,        qty: 180,  unit: ml}
+      - {ref: PREP_GINGARLIC, qty: 200,  unit: g}
+      - {ref: OIL,            qty: 500,  unit: ml}
+      - {ref: SUGAR,          qty: 150,  unit: g}
+
+  - code: PREP_NAAN_DOUGH
+    name: Naan dough
+    station: tandoor
+    batch_yield: 5000
+    yield_unit: g
+    shelf_life_hours: 18
+    prep_minutes: 50
+    lines:
+      - {ref: MAIDA, qty: 3000, unit: g}
+      - {ref: MILK,  qty: 900,  unit: ml}
+      - {ref: CURD,  qty: 400,  unit: g}
+      - {ref: OIL,   qty: 200,  unit: ml}
+      - {ref: YEAST, qty: 30,   unit: g}
+      - {ref: SUGAR, qty: 90,   unit: g}
+      - {ref: SALT,  qty: 55,   unit: g}
