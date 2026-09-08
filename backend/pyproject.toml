@@ -1,0 +1,78 @@
+[project]
+name = "restaurant-os-backend"
+version = "0.1.0"
+description = "Restaurant Management & Intelligence Platform — backend"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "sentry-sdk[fastapi]>=2.19",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "httpx>=0.28",
+    "testcontainers[postgres]>=4.9",
+    "mypy>=1.14",
+    "ruff>=0.8",
+    "pip-audit>=2.7",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+# Rulesets fixed by docs/engineering-standards.md §7. S = bandit security rules.
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "ARG", "PTH", "RUF", "S"]
+
+[tool.ruff.lint.isort]
+# Without this, `app` sorts as a third-party package.
+known-first-party = ["app", "tests"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+# assert is the mechanism of a test, not a security finding
+"tests/**" = ["S101"]
+# alembic's generated scaffolding owns its own style
+"alembic/versions/**" = ["E501"]
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+warn_unused_ignores = true
+disallow_any_generics = true
+show_error_codes = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["testcontainers.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+# Zero warnings is a gate, not an aspiration (docs/engineering-standards.md §7).
+filterwarnings = ["error"]

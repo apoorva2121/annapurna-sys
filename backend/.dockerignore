@@ -1,0 +1,20 @@
+# Keep the build context small and Linux-clean. backend/.venv is a Windows venv: shipping it would
+# both bloat the context and put non-executable binaries next to the ones pip installs.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+node_modules/
+.git/
+.gitignore
+*.md
+.env
+.env.*
+Dockerfile
+.dockerignore

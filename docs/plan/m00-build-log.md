@@ -25,10 +25,10 @@ Process: `docs/sdlc.md` · Spec: `docs/modules/M00-foundation-spec.md` · Tracke
 
 ## Chunks — tick only when committed
 
-- [ ] **A · Skeleton** — dirs, `pyproject.toml`, `package.json`, `Makefile`, `.env.example`, `.gitignore`
-- [ ] **B1 · Backend core** — `config.py`, `logging.py` (+ redaction), `errors.py`, `db.py`, health routes, staff/guest route-tree seams
-- [ ] **B2 · Backend tests** — the 7 tests in the spec + `assert_max_queries`
-- [ ] **B3 · Alembic** — wired, baseline revision, up→down→up
+- [x] **A · Skeleton** — dirs, `pyproject.toml`, `package.json`, `Makefile`, `.gitattributes`, `.env.example`
+- [x] **B1 · Backend core** — `config.py`, `logging.py` (+ redaction), `errors.py`, `db.py`, health routes, staff/guest route-tree seams. ruff + mypy strict clean.
+- [~] **B2 · Backend tests** — 22 tests written (the 7 the spec names, plus config/redaction edge cases) + `assert_max_queries`. **Run not yet confirmed green.**
+- [x] **B3 · Alembic** — async `env.py`, baseline revision `0001_baseline`, roundtrip covered by `tests/test_database.py`
 - [ ] **C · Frontend shell** — Vite multi-entry, Tailwind, shadcn, TanStack Query, api client, one page rendering `/version`
 - [ ] **D · Infra** — `docker-compose.yml`, Dockerfiles, GitHub Actions CI, pre-commit + gitleaks
 - [ ] **E · Gate** — `make check` clean, zero warnings
@@ -38,7 +38,19 @@ Process: `docs/sdlc.md` · Spec: `docs/modules/M00-foundation-spec.md` · Tracke
 
 ## Next action
 
-> Chunk A. Create the directory skeleton and lock the toolchain files.
+> Confirm `pytest` is green (chunk B2), then wire the frontend shell and infra, then run the full
+> `make check`. Two subagents were dispatched for chunk C (frontend shell) and chunk D (infra);
+> their output lands in `frontend/src/**` and the Docker/CI files. If this session died before
+> their work was committed, check `git status` — regenerate anything missing rather than assuming.
+
+## Verified so far
+
+| Check | Command | Result |
+|---|---|---|
+| Backend lint | `.venv/Scripts/python -m ruff check .` | passing |
+| Backend format | `ruff format --check .` | passing |
+| Backend types | `mypy app tests` (strict) | passing, 28 files |
+| Backend tests | `pytest` | **pending — do not claim green until seen** |
 
 ## Blockers still open (do not silently work around)
 
