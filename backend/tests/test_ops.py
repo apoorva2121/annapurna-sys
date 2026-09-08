@@ -8,8 +8,7 @@ import logging
 
 from httpx import AsyncClient
 
-from app.core.logging import JsonFormatter
-from app.main import REQUEST_ID_HEADER
+from app.core.logging import REQUEST_ID_HEADER, JsonFormatter
 
 
 async def test_health_is_ok_without_touching_a_dependency(client: AsyncClient) -> None:

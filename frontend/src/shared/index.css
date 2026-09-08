@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * The six semantic colours are fixed across all four surfaces (docs/ui/conventions.md, vision
+ * doc section 28) and are stored as bare HSL triples because tailwind.config.ts wraps them in
+ * hsl(). Values are picked to clear WCAG AA against --background: the KDS is read at two metres
+ * through steam, so contrast is a functional requirement here, not a compliance one.
+ *
+ * Light theme only for now. A dark theme is a second block keyed off an attribute on :root, not a
+ * second stylesheet.
+ */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --border: 214 32% 91%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 38%;
+
+    /* Alert severity, everywhere. Red is never a decorative accent: critical means act now. */
+    --critical: 0 72% 41%;
+    --warning: 25 90% 40%;
+    --caution: 45 93% 33%;
+    --info: 217 91% 42%;
+    --success: 142 72% 27%;
+    --neutral: 215 16% 38%;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground;
+  }
+}

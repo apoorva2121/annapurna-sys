@@ -36,7 +36,7 @@ Legend: **S**pec approved · **M**igration · **B**ackend · **T**ests green · 
 
 | Module | Est | S | M | B | T | F | G | R | X | U | D |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| M00 Foundation | 1d | [x] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
+| M00 Foundation | 1d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [ ] |
 | M01 Identity, Roles & Permissions | 3d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [x] | [ ] | [ ] |
 | M02 Restaurant Setup | 2d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M03 Menu | 3d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |

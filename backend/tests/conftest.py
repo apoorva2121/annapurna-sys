@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import os
 
-os.environ.setdefault("ENV", "local")
-os.environ.setdefault("DEBUG", "false")
-os.environ.setdefault("LOG_LEVEL", "INFO")
-# Deliberately unroutable. Most tests must not need a database, and /ready has to be provably 503
-# when one is absent.
-os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@127.0.0.1:1/test")
+os.environ["ENV"] = "local"
+os.environ["DEBUG"] = "false"
+os.environ["LOG_LEVEL"] = "INFO"
+# Assigned, not setdefault: a DATABASE_URL inherited from the environment (CI used to export a
+# reachable one) would make test_ready_fails_when_the_database_is_unreachable pass locally and fail
+# in CI. Tests that need a real database take it from the `postgres_url` fixture, explicitly.
+os.environ["DATABASE_URL"] = "postgresql+asyncpg://test:test@127.0.0.1:1/test"
 
 from collections.abc import AsyncIterator, Iterator
 
@@ -41,7 +42,7 @@ async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
 def postgres_url() -> Iterator[str]:
     """One real Postgres per test run. Never SQLite — this product depends on timestamptz,
     NUMERIC, partial indexes, jsonb and FOR UPDATE, none of which SQLite models faithfully."""
-    from testcontainers.postgres import PostgresContainer
+    from testcontainers.community.postgres import PostgresContainer
 
     with PostgresContainer("postgres:16-alpine", driver="asyncpg") as container:
         yield container.get_connection_url()

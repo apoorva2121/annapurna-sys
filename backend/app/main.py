@@ -20,11 +20,10 @@ from app.api.v1.guest import router as guest_router
 from app.api.v1.staff import router as staff_router
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
-from app.core.logging import configure_logging, request_id_var
+from app.core.logging import REQUEST_ID_HEADER, configure_logging, request_id_var
 
 logger = logging.getLogger(__name__)
 
-REQUEST_ID_HEADER = "X-Request-Id"
 # A client-supplied request id is echoed into every log line, so it is validated rather than
 # trusted — an unbounded header value is a log-injection vector.
 _SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -36,6 +35,19 @@ def _resolve_request_id(incoming: str | None) -> str:
     return uuid4().hex
 
 
+def route_template(request: Request) -> str:
+    """The full path with parameter values replaced by their names.
+
+    scope["route"].path is relative to the router it was registered on, so it renders a staff route
+    and a guest route identically — the one distinction this product cannot afford to blur
+    (ADR 0009). Rebuilding from the concrete path keeps the prefix and keeps cardinality low.
+    """
+    path = request.url.path
+    for name, value in (request.scope.get("path_params") or {}).items():
+        path = path.replace(str(value), "{" + name + "}", 1)
+    return path
+
+
 async def request_context_middleware(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
@@ -43,17 +55,19 @@ async def request_context_middleware(
     """Generate the request id at the edge, thread it through every log line, return it in the
     response header. When a bug is reported, this one value finds everything."""
     request_id = _resolve_request_id(request.headers.get(REQUEST_ID_HEADER))
+    # The contextvar is reset as this middleware unwinds, which is too early for the 500 handler
+    # running above us in ServerErrorMiddleware. request.state lives in the ASGI scope and survives.
+    request.state.request_id = request_id
     token = request_id_var.set(request_id)
     started = time.perf_counter()
     try:
         response = await call_next(request)
     finally:
         duration_ms = round((time.perf_counter() - started) * 1000, 2)
-        route = request.scope.get("route")
         logger.info(
             "http.request",
             extra={
-                "route": f"{request.method} {getattr(route, 'path', request.url.path)}",
+                "route": f"{request.method} {route_template(request)}",
                 "duration_ms": duration_ms,
             },
         )

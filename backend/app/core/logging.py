@@ -16,6 +16,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 REDACTED = "[redacted]"
+# Lives here rather than in main.py so the error handlers can use it without importing the app.
+REQUEST_ID_HEADER = "X-Request-Id"
 _MAX_DEPTH = 6
 
 # Scrubbed wholesale by key name, per docs/observability.md §1.
@@ -33,8 +35,17 @@ SENSITIVE_KEYS = frozenset(
     }
 )
 
-# Indian mobile numbers: ten digits opening 6-9, optionally +91/0091 prefixed, optionally split.
-_PHONE = re.compile(r"(?<!\d)(?:(?:\+|00)?91[-\s]?)?[6-9]\d{2}[-\s]?\d{3}[-\s]?\d{4}(?!\d)")
+# Indian mobile numbers: ten digits opening 6-9, optionally +91/0091 prefixed. The three groupings
+# are spelled out rather than allowing separators anywhere, because a permissive pattern also eats
+# unrelated digit runs — and a log with every number redacted is as useless as one with none.
+_CC = r"(?:(?:\+|00)?91[-\s]?)?"
+_PHONE = re.compile(
+    r"(?<!\d)(?:"
+    rf"{_CC}[6-9]\d{{9}}"  # 9876543210
+    rf"|{_CC}[6-9]\d{{4}}[-\s]\d{{5}}"  # 98765 43210
+    rf"|{_CC}[6-9]\d{{2}}[-\s]\d{{3}}[-\s]\d{{4}}"  # 987 654 3210
+    r")(?!\d)"
+)
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _GSTIN = re.compile(r"(?<![A-Z0-9])\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]Z[A-Z0-9](?![A-Z0-9])")
 

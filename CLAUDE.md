@@ -33,12 +33,16 @@ docs/       product/ decisions/ ui/ plan/
 make dev            # docker compose up: api, db, frontend
 make test           # pytest + vitest
 make lint           # ruff + mypy + eslint + tsc
+make check          # the blocking gate: lint + test + docs/seed audits + dep audits
 make migrate        # alembic upgrade head
 make revision m="…" # alembic autogenerate
 make seed           # demo restaurant with menu, recipes, stock, orders
 ```
 
-Run `make lint` before saying work is done. Never edit a migration that has been applied on staging — write a new one.
+Run `make check` before saying work is done — it is the blocking gate (lint + tests + audits).
+`make lint` is the fast subset for use while working.
+
+Never edit a migration that has been applied on staging — write a new one.
 
 ## Invariants — violating any of these is a bug, not a style choice
 

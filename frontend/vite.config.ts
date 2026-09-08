@@ -1,8 +1,7 @@
-/// <reference types="vitest" />
 import path from 'node:path';
 
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 
 // ADR 0009 — staff and guest are two applications, not two roles. They are separate Rollup entry
 // points so the guest bundle can never contain staff code: no admin routes to discover, no

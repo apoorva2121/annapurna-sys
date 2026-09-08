@@ -1,0 +1,19 @@
+# node_modules is never copied in: the host tree is Windows-built and its esbuild/rollup binaries
+# cannot execute in a Linux container. `npm ci` rebuilds it inside the image instead.
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+coverage/
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.git/
+.gitignore
+*.md
+.env
+.env.*
+Dockerfile
+.dockerignore

@@ -32,9 +32,9 @@ ENV PYTHONUNBUFFERED=1 \
 # Stamped by the build so GET /api/v1/version can answer without a .git directory in the image.
 # See docs/observability.md; pass with `docker build --build-arg GIT_SHA=$(git rev-parse HEAD)`.
 ARG GIT_SHA=unknown
-ARG BUILD_TIME=unknown
+ARG BUILT_AT=unknown
 ENV GIT_SHA=${GIT_SHA} \
-    BUILD_TIME=${BUILD_TIME}
+    BUILT_AT=${BUILT_AT}
 
 # Non-root. A container that can write its own code is a container an attacker can rewrite.
 RUN useradd --create-home --uid 1000 appuser

@@ -15,7 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core.logging import request_id_var
+from app.core.logging import REQUEST_ID_HEADER, request_id_var
 
 logger = logging.getLogger(__name__)
 
@@ -52,60 +52,83 @@ class PermissionDeniedError(AppError):
     status_code = status.HTTP_403_FORBIDDEN
 
 
+def request_id_for(request: Request) -> str | None:
+    """The contextvar is reset as the exception unwinds the request middleware, which is too early
+    for the 500 handler running above it in ServerErrorMiddleware. request.state lives in the ASGI
+    scope and survives, so it is the primary source and the contextvar the fallback."""
+    from_state = getattr(request.state, "request_id", None)
+    if isinstance(from_state, str):
+        return from_state
+    return request_id_var.get()
+
+
 def build_envelope(
-    code: str, message: str, details: dict[str, Any] | None = None
+    code: str,
+    message: str,
+    details: dict[str, Any] | None = None,
+    request_id: str | None = None,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {"code": code, "message": message, "details": details or {}}
-    request_id = request_id_var.get()
-    if request_id is not None:
-        body["request_id"] = request_id
+    resolved = request_id if request_id is not None else request_id_var.get()
+    if resolved is not None:
+        body["request_id"] = resolved
     return body
+
+
+def _respond(status_code: int, body: dict[str, Any]) -> JSONResponse:
+    response = JSONResponse(status_code=status_code, content=body)
+    request_id = body.get("request_id")
+    if isinstance(request_id, str):
+        # The error path is where this header matters most; the middleware never gets to set it
+        # when the request raised.
+        response.headers[REQUEST_ID_HEADER] = request_id
+    return response
 
 
 def register_error_handlers(app: FastAPI) -> None:
     """Install the envelope on every error path, including the ones nobody wrote deliberately."""
 
-    # FastAPI fixes these handler signatures; the request argument is unused but required.
     @app.exception_handler(AppError)
-    async def _app_error(request: Request, exc: AppError) -> JSONResponse:  # noqa: ARG001
-        return JSONResponse(
-            status_code=exc.status_code,
-            content=build_envelope(exc.code, exc.message, exc.details),
+    async def _app_error(request: Request, exc: AppError) -> JSONResponse:
+        return _respond(
+            exc.status_code,
+            build_envelope(exc.code, exc.message, exc.details, request_id_for(request)),
         )
 
     @app.exception_handler(RequestValidationError)
-    async def _validation_error(
-        request: Request,  # noqa: ARG001
-        exc: RequestValidationError,
-    ) -> JSONResponse:
+    async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
         # Field-level detail is safe: it describes the caller's own payload, not our internals.
         fields = [
-            {"field": ".".join(str(p) for p in err["loc"][1:]), "problem": err["msg"]}
-            for err in exc.errors()
+            {"field": ".".join(str(part) for part in error["loc"][1:]), "problem": error["msg"]}
+            for error in exc.errors()
         ]
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content=build_envelope(
-                "request.invalid", "The request was not valid.", {"fields": fields}
+        return _respond(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            build_envelope(
+                "request.invalid",
+                "The request was not valid.",
+                {"fields": fields},
+                request_id_for(request),
             ),
         )
 
     @app.exception_handler(StarletteHTTPException)
-    async def _http_error(
-        request: Request,  # noqa: ARG001
-        exc: StarletteHTTPException,
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=exc.status_code,
-            content=build_envelope(f"http.{exc.status_code}", str(exc.detail)),
+    async def _http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        return _respond(
+            exc.status_code,
+            build_envelope(
+                f"http.{exc.status_code}", str(exc.detail), None, request_id_for(request)
+            ),
         )
 
     @app.exception_handler(Exception)
-    async def _unhandled(request: Request, exc: Exception) -> JSONResponse:  # noqa: ARG001
+    async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
         # The traceback goes to the log, where the request_id ties it to the user's report. The
         # caller gets a reference, never an internal detail.
         logger.exception("unhandled_exception", extra={"error_type": type(exc).__name__})
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=build_envelope("internal.error", "Something went wrong."),
+        return _respond(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            build_envelope(
+                "internal.error", "Something went wrong.", None, request_id_for(request)
+            ),
         )
