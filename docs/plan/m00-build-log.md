@@ -47,10 +47,10 @@ Process: `docs/sdlc.md` · Spec: `docs/modules/M00-foundation-spec.md` · Tracke
 |---|---|
 | `ruff check` + `ruff format --check` | clean |
 | `mypy app tests` (strict) | clean, 28 files |
-| `pytest` | **23 passed** (incl. migration up→down→up on real Postgres via testcontainers) |
+| `pytest` | **34 passed**, **97% coverage** (floor of 95% enforced in the gate) |
 | `eslint --max-warnings 0` | clean |
 | `tsc --noEmit` | clean |
-| `vitest` | **3 passed** |
+| `vitest` | **10 passed** |
 | `vite build` | succeeds, 59.11 KB gzipped |
 | `make check` | clean |
 | `scripts/audit_docs.py` | 0 issues |

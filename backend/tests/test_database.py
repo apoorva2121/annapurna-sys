@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,13 @@ from alembic.config import Config
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from app.core.config import get_settings
+from app.core.db import (
+    database_reachable,
+    get_engine,
+    get_sessionmaker,
+    migrations_at_head,
+)
 from tests.helpers.queries import assert_max_queries
 
 _BACKEND = Path(__file__).resolve().parents[1]
@@ -50,3 +58,58 @@ async def test_query_counter_fails_when_the_budget_is_exceeded(postgres_url: str
                 await conn.execute(text("SELECT 1"))
     finally:
         await engine.dispose()
+
+
+def test_readiness_is_true_against_a_migrated_database(
+    postgres_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The failure path of /ready was covered from the start; the success path was not, which left
+    the deploy gate's actual green condition unproven."""
+    command.upgrade(_alembic_config(postgres_url), "head")
+
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    get_settings.cache_clear()
+    get_engine.cache_clear()
+    get_sessionmaker.cache_clear()
+
+    async def _check() -> tuple[bool, bool]:
+        reachable = await database_reachable()
+        at_head = await migrations_at_head()
+        await get_engine().dispose()
+        return reachable, at_head
+
+    try:
+        reachable, at_head = asyncio.run(_check())
+    finally:
+        get_settings.cache_clear()
+        get_engine.cache_clear()
+        get_sessionmaker.cache_clear()
+
+    assert reachable is True
+    assert at_head is True
+
+
+def test_migrations_at_head_is_false_before_any_migration_runs(
+    postgres_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    command.downgrade(_alembic_config(postgres_url), "base")
+
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    get_settings.cache_clear()
+    get_engine.cache_clear()
+    get_sessionmaker.cache_clear()
+
+    async def _check() -> bool:
+        at_head = await migrations_at_head()
+        await get_engine().dispose()
+        return at_head
+
+    try:
+        at_head = asyncio.run(_check())
+    finally:
+        command.upgrade(_alembic_config(postgres_url), "head")
+        get_settings.cache_clear()
+        get_engine.cache_clear()
+        get_sessionmaker.cache_clear()
+
+    assert at_head is False

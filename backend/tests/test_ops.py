@@ -6,9 +6,15 @@ import io
 import json
 import logging
 
+import pytest
+from fastapi import Request
 from httpx import AsyncClient
 
+from app.core.config import Settings
 from app.core.logging import REQUEST_ID_HEADER, JsonFormatter
+from app.main import configure_sentry, route_template
+
+_DB_URL = "postgresql+asyncpg://user:pw@localhost:5432/db"
 
 
 async def test_health_is_ok_without_touching_a_dependency(client: AsyncClient) -> None:
@@ -59,3 +65,53 @@ async def test_an_unsafe_client_request_id_is_replaced(client: AsyncClient) -> N
     response = await client.get("/api/v1/health", headers={REQUEST_ID_HEADER: "x" * 200})
     assert response.headers[REQUEST_ID_HEADER] != "x" * 200
     assert len(response.headers[REQUEST_ID_HEADER]) == 32
+
+
+def test_route_template_replaces_parameter_values_with_their_names() -> None:
+    """Regression: the middleware logged scope["route"].path, which is router-relative and renders
+    a staff route and a guest route identically (ADR 0009)."""
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/staff/orders/1042",
+        "headers": [],
+        "query_string": b"",
+        "path_params": {"order_id": "1042"},
+        "server": ("test", 80),
+        "scheme": "http",
+    }
+    assert route_template(Request(scope)) == "/api/v1/staff/orders/{order_id}"
+
+
+def test_sentry_is_not_initialised_without_a_dsn(monkeypatch: pytest.MonkeyPatch) -> None:
+    called = False
+
+    def _init(**_kwargs: object) -> None:
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr("app.main.sentry_sdk.init", _init)
+    configure_sentry(Settings(_env_file=None, env="local", database_url=_DB_URL))
+    assert called is False
+
+
+def test_sentry_is_initialised_with_pii_disabled_when_a_dsn_is_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _init(**kwargs: object) -> None:
+        captured.update(kwargs)
+
+    monkeypatch.setattr("app.main.sentry_sdk.init", _init)
+    configure_sentry(
+        Settings(
+            _env_file=None,
+            env="local",
+            database_url=_DB_URL,
+            sentry_dsn="https://key@example.test/1",
+        )
+    )
+    # PII scrubbing is configured before the first event is sent, not after.
+    assert captured["send_default_pii"] is False
+    assert captured["environment"] == "local"

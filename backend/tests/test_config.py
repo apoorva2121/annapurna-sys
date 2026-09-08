@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 from pydantic import ValidationError
 
@@ -47,3 +49,26 @@ def test_unknown_setting_is_rejected() -> None:
     with pytest.raises(ValidationError):
         # mypy is right that this argument does not exist; rejecting it at runtime is the test.
         Settings(_env_file=None, env="local", database_url=_VALID_URL, notasetting="x")  # type: ignore[call-arg]
+
+
+def test_version_fields_read_the_env_vars_the_image_actually_sets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GIT_SHA", "abc1234")
+    monkeypatch.setenv("BUILT_AT", "2026-09-09T04:00:00+00:00")
+    settings = Settings(_env_file=None, env="local", database_url=_VALID_URL)
+    assert settings.git_sha == "abc1234"
+    assert settings.built_at == "2026-09-09T04:00:00+00:00"
+
+
+def test_dockerfile_stamps_exactly_the_names_settings_reads() -> None:
+    """Regression: the image stamped BUILD_TIME while Settings reads BUILT_AT, so /version
+    reported "unknown" in every built image and no test noticed. Driving the assertion off
+    model_fields means renaming the setting breaks this test rather than the deployed image."""
+    dockerfile = (pathlib.Path(__file__).resolve().parents[1] / "Dockerfile").read_text(
+        encoding="utf-8"
+    )
+    for field in ("git_sha", "built_at"):
+        assert field in Settings.model_fields
+        name = field.upper()
+        assert f"{name}=${{{name}}}" in dockerfile, f"Dockerfile does not stamp {name}"

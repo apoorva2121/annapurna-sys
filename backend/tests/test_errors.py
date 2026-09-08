@@ -8,7 +8,8 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from app.core.errors import ConflictError
+from app.core.errors import AppError, ConflictError, build_envelope
+from app.core.logging import request_id_var
 
 INTERNAL_DETAIL = "password authentication failed for host 10.0.0.5"
 
@@ -72,3 +73,26 @@ async def test_unknown_route_uses_the_envelope(error_client: AsyncClient) -> Non
     response = await error_client.get("/api/v1/nothing-here")
     assert response.status_code == 404
     assert response.json()["code"] == "http.404"
+
+
+def test_app_error_status_code_can_be_overridden_per_instance() -> None:
+    error = AppError("stock.insufficient", "Not enough stock.", status_code=422)
+    assert error.status_code == 422
+    # The class default must not be mutated by an instance override.
+    assert AppError.status_code == 400
+
+
+def test_app_error_defaults_details_to_an_empty_dict() -> None:
+    assert AppError("a.b", "message").details == {}
+
+
+def test_envelope_falls_back_to_the_contextvar_when_no_id_is_passed() -> None:
+    token = request_id_var.set("ctx-id")
+    try:
+        assert build_envelope("a.b", "message")["request_id"] == "ctx-id"
+    finally:
+        request_id_var.reset(token)
+
+
+def test_envelope_omits_request_id_when_there_is_none() -> None:
+    assert "request_id" not in build_envelope("a.b", "message")
