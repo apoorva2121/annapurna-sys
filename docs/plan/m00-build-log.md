@@ -55,6 +55,7 @@ Process: `docs/sdlc.md` · Spec: `docs/modules/M00-foundation-spec.md` · Tracke
 | `make check` | clean |
 | `docker compose up` cold start | `db` healthy → `migrate` exits 0 → `api` healthy; `/ready` **200** with no manual step |
 | request id end to end | same id in the `X-Request-Id` header, the error body, and the log line |
+| `make smoke` | 9/9 checks pass against the running stack |
 | `scripts/audit_docs.py` | 0 issues |
 
 ## Defects found and fixed during this module
@@ -85,6 +86,17 @@ Each was a real bug caught by a test or by review, not a style change:
 10. **`make migrate`, `revision` and `seed` ran on the host**, where `db` does not resolve and
     `backend/.env` does not exist — they would have failed the first time anyone used them. They
     now run inside the compose network.
+11. **The UI returned HTTP 500 — reported by the user, not by any test.** `vite.config.ts`
+    hardcoded the proxy target to `http://localhost:8000`, but inside the compose network the dev
+    server is its own host, so `localhost` is the web container, where nothing listens. Confirmed
+    from inside the container: `localhost:8000` refused, `api:8000` returned `{"status":"ok"}`.
+    The target is now `VITE_API_PROXY_TARGET`, set to `http://api:8000` by compose.
+
+**The pattern behind 9, 10 and 11:** all three lived in the composed system, and all three were
+invisible to a fully green suite, because every test runs against testcontainers rather than against
+the stack a person opens. `scripts/smoke.py` (`make smoke`) now covers that gap — it checks the API
+directly, the error envelope, the request-id chain, and crucially the API *through* the web server,
+which is the path a browser actually takes.
 
 ## Blockers still open (do not silently work around)
 

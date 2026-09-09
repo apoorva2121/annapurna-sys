@@ -20,6 +20,7 @@ help:
 	@echo "test     pytest + vitest"
 	@echo "lint     ruff + mypy + eslint + tsc, zero warnings"
 	@echo "check    the blocking gate: lint + test + audits"
+	@echo "smoke    check a running stack end to end (needs make dev)"
 	@echo "migrate  alembic upgrade head"
 	@echo "seed     demo restaurant with menu, recipes, stock, orders"
 
@@ -69,6 +70,10 @@ fmt:
 check: lint test audit-docs audit-deps
 	@echo ""
 	@echo "make check: clean"
+
+# Against a running stack, not test doubles. Unit tests cannot see the composed system.
+smoke:
+	python scripts/smoke.py
 
 audit-docs:
 	python scripts/audit_docs.py

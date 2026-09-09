@@ -94,6 +94,10 @@ services:
       target: dev
     depends_on:
       - api
+    environment:
+      # `localhost` inside this container is this container. The API is reachable only by its
+      # compose service name, exactly as `db` is for the api service.
+      VITE_API_PROXY_TARGET: http://api:8000
     ports:
       - "5173:5173"
     volumes:
