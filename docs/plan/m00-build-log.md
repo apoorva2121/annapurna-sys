@@ -53,6 +53,8 @@ Process: `docs/sdlc.md` · Spec: `docs/modules/M00-foundation-spec.md` · Tracke
 | `vitest` | **10 passed** |
 | `vite build` | succeeds, 59.11 KB gzipped |
 | `make check` | clean |
+| `docker compose up` cold start | `db` healthy → `migrate` exits 0 → `api` healthy; `/ready` **200** with no manual step |
+| request id end to end | same id in the `X-Request-Id` header, the error body, and the log line |
 | `scripts/audit_docs.py` | 0 issues |
 
 ## Defects found and fixed during this module
@@ -76,6 +78,13 @@ Each was a real bug caught by a test or by review, not a style change:
    CI's redundant postgres service is gone.
 7. **`grid-cols-[auto,1fr]`** emits invalid CSS (Tailwind arbitrary values need `_`, not `,`).
 8. **4 moderate CVEs in react-router** — upgraded to v7 while nothing imports it yet.
+9. **`make dev` produced a stack that was never ready.** Nothing applied the migration, so a cold
+   start served `503 {"ready":false,...,"migrations_at_head":false}` — /ready doing its job while
+   the stack was unusable. A one-shot `migrate` service now runs between db-healthy and api-start.
+   Found only by actually running the containers, which no test does.
+10. **`make migrate`, `revision` and `seed` ran on the host**, where `db` does not resolve and
+    `backend/.env` does not exist — they would have failed the first time anyone used them. They
+    now run inside the compose network.
 
 ## Blockers still open (do not silently work around)
 

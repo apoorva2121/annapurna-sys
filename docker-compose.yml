@@ -34,6 +34,21 @@ services:
       retries: 10
       start_period: 10s
 
+  migrate:
+    # Runs once, to completion, then exits. api waits for it, so `make dev` yields a stack whose
+    # /ready is green rather than one that needs a remembered follow-up command. Production runs
+    # migrations as an explicit deploy step, not at container boot, so replicas cannot race.
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    restart: "no"
+
   api:
     build:
       context: ./backend
@@ -44,6 +59,8 @@ services:
         # Not `depends_on: [db]` — that waits for the container, not for Postgres to accept
         # connections. The api asserts its config and migration state at boot and would exit.
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     env_file: .env
     environment:
       # WINDOWS TRAP 2 — inotify events do not cross the Windows/WSL2 filesystem boundary, so

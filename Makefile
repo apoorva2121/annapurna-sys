@@ -79,14 +79,16 @@ audit-deps:
 	$(NPM) audit --audit-level=high
 
 # ---------------------------------------------------------------- database
+# These run inside the container: the compose network is where `db` resolves, and .env lives at
+# the repo root rather than in backend/. Requires the stack to be up (`make dev`).
 migrate:
-	cd backend && "$(PY)" -m alembic upgrade head
+	docker compose run --rm migrate
 
 revision:
-	cd backend && "$(PY)" -m alembic revision --autogenerate -m "$(m)"
+	docker compose run --rm api python -m alembic revision --autogenerate -m "$(m)"
 
 seed:
-	cd backend && "$(PY)" -m app.seed
+	docker compose run --rm api python -m app.seed
 
 clean:
 	rm -rf $(VENV) frontend/node_modules frontend/dist backend/.pytest_cache backend/.mypy_cache backend/.ruff_cache

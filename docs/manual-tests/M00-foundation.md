@@ -26,7 +26,7 @@ and PII does not reach the logs.
 
 | # | Step | Expected | P/F |
 |---|---|---|---|
-| A1 | `make dev` in a fresh terminal | Three containers build and start: `db`, `api`, `web`. `db` reports healthy before `api` starts. | ☐ |
+| A1 | `make dev` in a fresh terminal | Four containers: `db` starts and reports healthy, `migrate` runs the migration and **exits 0**, then `api` and `web` start. `api` reports healthy. | ☐ |
 | A2 | Open `http://localhost:5173` | The page loads and shows the version panel — git SHA, build time, env `local`. It is deliberately plain. | ☐ |
 | A3 | Look at the page again | It shows **real data fetched from the API**, not a hardcoded string. Confirm by stopping the `api` container and reloading: the page must show its error state, not a blank screen. | ☐ |
 | A4 | Restart `api`, reload the page | Recovers to the success state without a hard refresh loop. | ☐ |
