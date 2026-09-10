@@ -20,6 +20,9 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 _CATALOGUE_PATH = Path(__file__).with_name("permissions.json")
 
+# Fail closed: anything we cannot identify is treated as the least senior thing there is.
+MOST_JUNIOR_RANK = 9_999
+
 
 class PermissionCode(StrEnum):
     """The permissions M01 declares. Mirrors permissions.json, asserted by a test."""
@@ -56,6 +59,11 @@ class RoleSpec(BaseModel):
 
     code: str
     name: str
+    # Seniority. Lower is more senior; see `may_assign_rank`. This is what stops privilege
+    # escalation, because permissions alone cannot: in M01 a manager and an owner hold the same
+    # seven permissions, so a "you may not grant what you do not hold" rule would permit a manager
+    # to make themselves an owner.
+    rank: int
     description: str
     permissions: tuple[str, ...]
 
@@ -106,3 +114,24 @@ def permissions_for_role(role_code: str) -> frozenset[str]:
         if role.code == role_code:
             return frozenset(role.permissions)
     return frozenset()
+
+
+def rank_for_role(role_code: str) -> int:
+    """The seniority of a role. An unknown role is treated as the most junior possible, so a bad
+    lookup can never accidentally confer authority."""
+    for role in CATALOGUE.roles:
+        if role.code == role_code:
+            return role.rank
+    return MOST_JUNIOR_RANK
+
+
+def may_assign_rank(actor_rank: int, target_rank: int) -> bool:
+    """May someone of `actor_rank` grant a role of `target_rank`?
+
+    Sideways and downward, never upward. A manager may appoint another manager or any junior role
+    — lateral appointment is not escalation — but may not create anyone more senior than
+    themselves. Combined with the service's refusal to let anyone edit their own roles, this closes
+    both the direct route (promote myself) and the indirect one (promote an ally, have them
+    promote me).
+    """
+    return target_rank >= actor_rank

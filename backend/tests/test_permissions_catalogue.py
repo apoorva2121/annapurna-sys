@@ -15,9 +15,12 @@ from pydantic import ValidationError
 from app.core.enums import RoleCode
 from app.core.permissions import (
     CATALOGUE,
+    MOST_JUNIOR_RANK,
     Catalogue,
     PermissionCode,
+    may_assign_rank,
     permissions_for_role,
+    rank_for_role,
 )
 
 _VALID_PERMISSION = {
@@ -35,6 +38,7 @@ def _catalogue(**overrides: object) -> dict[str, object]:
             {
                 "code": "owner",
                 "name": "Owner",
+                "rank": 0,
                 "description": "Holds everything.",
                 "permissions": ["employee.view"],
             }
@@ -76,14 +80,15 @@ def test_owner_holds_every_permission() -> None:
     }
 
 
-def test_only_owner_and_admin_can_assign_roles() -> None:
-    # The escalation path. No operational role may hold this (M01 spec, threat table).
+def test_role_assignment_is_held_by_owner_admin_and_manager_only() -> None:
+    """A manager appoints staff, because the owner is not on site at 7am. What stops that being an
+    escalation path is `rank`, not this permission — see the ladder tests below."""
     holders = {
         role.code
         for role in CATALOGUE.roles
         if PermissionCode.EMPLOYEE_ROLE_ASSIGN in role.permissions
     }
-    assert holders == {RoleCode.OWNER.value, RoleCode.ADMIN.value}
+    assert holders == {RoleCode.OWNER.value, RoleCode.ADMIN.value, RoleCode.MANAGER.value}
 
 
 @pytest.mark.parametrize(
@@ -96,13 +101,54 @@ def test_operational_roles_cannot_read_the_staff_list(role_code: RoleCode) -> No
     assert PermissionCode.EMPLOYEE_VIEW not in permissions_for_role(role_code)
 
 
-def test_manager_can_staff_a_shift_but_not_promote_anyone() -> None:
-    # The approved decision: a manager runs the floor at 7am when the owner is not there, but
-    # cannot make themselves an owner.
+def test_manager_can_staff_a_shift_and_appoint_people() -> None:
     manager = permissions_for_role(RoleCode.MANAGER)
     assert PermissionCode.EMPLOYEE_CREATE in manager
     assert PermissionCode.EMPLOYEE_PASSWORD_RESET in manager
-    assert PermissionCode.EMPLOYEE_ROLE_ASSIGN not in manager
+    assert PermissionCode.EMPLOYEE_ROLE_ASSIGN in manager
+
+
+class TestTheSeniorityLadder:
+    """`rank` is the control that makes granting employee.role.assign to a manager safe.
+
+    Worth being explicit about why permissions alone cannot do this job: in M01 a manager and an
+    owner hold the *same seven permissions*, so the usual "you may not grant a permission you do
+    not hold" rule would happily let a manager make themselves an owner. The ladder is what
+    distinguishes them.
+    """
+
+    def test_every_role_declares_a_rank(self) -> None:
+        assert all(isinstance(role.rank, int) for role in CATALOGUE.roles)
+
+    def test_the_owner_is_the_most_senior_role(self) -> None:
+        assert rank_for_role(RoleCode.OWNER) == min(role.rank for role in CATALOGUE.roles)
+
+    def test_a_manager_cannot_appoint_an_owner_or_an_admin(self) -> None:
+        manager = rank_for_role(RoleCode.MANAGER)
+        assert not may_assign_rank(manager, rank_for_role(RoleCode.OWNER))
+        assert not may_assign_rank(manager, rank_for_role(RoleCode.ADMIN))
+
+    def test_a_manager_can_appoint_junior_staff(self) -> None:
+        manager = rank_for_role(RoleCode.MANAGER)
+        for junior in (RoleCode.CHEF, RoleCode.WAITER, RoleCode.CLEANER, RoleCode.ACCOUNTANT):
+            assert may_assign_rank(manager, rank_for_role(junior)), junior
+
+    def test_a_manager_can_appoint_another_manager(self) -> None:
+        # Lateral appointment is not escalation, and a head manager hiring a shift manager is a
+        # normal Tuesday.
+        manager = rank_for_role(RoleCode.MANAGER)
+        assert may_assign_rank(manager, manager)
+
+    def test_an_owner_can_appoint_anyone(self) -> None:
+        owner = rank_for_role(RoleCode.OWNER)
+        assert all(may_assign_rank(owner, role.rank) for role in CATALOGUE.roles)
+
+    def test_an_unknown_role_is_treated_as_the_most_junior(self) -> None:
+        # Fail closed: a role we cannot identify must never confer authority.
+        assert rank_for_role("director_of_vibes") == MOST_JUNIOR_RANK
+        assert not may_assign_rank(
+            rank_for_role("director_of_vibes"), rank_for_role(RoleCode.OWNER)
+        )
 
 
 class TestTheGuardsActuallyFire:
@@ -115,6 +161,7 @@ class TestTheGuardsActuallyFire:
                 {
                     "code": "owner",
                     "name": "Owner",
+                    "rank": 0,
                     "description": "Holds everything.",
                     # The realistic failure: a transposition nobody notices in review.
                     "permissions": ["employee.veiw"],
@@ -142,6 +189,7 @@ class TestTheGuardsActuallyFire:
         role = {
             "code": "owner",
             "name": "Owner",
+            "rank": 0,
             "description": "Holds everything.",
             "permissions": ["employee.view"],
         }

@@ -91,6 +91,11 @@ role
   code                text NN                    -- owner|admin|manager|chef|kitchen_staff|
                                                  -- waiter|store_manager|cleaner|accountant
   name                text NN
+  rank                smallint NN default 100    -- seniority, lower is more senior. Nobody may
+                                                 -- grant a role more senior than their own, and
+                                                 -- nobody may edit their own roles at all. This,
+                                                 -- not the permission set, is what stops a manager
+                                                 -- promoting themselves to owner.
   description         text                       -- shown on the role-assignment screen
   is_system           bool NN default false      -- cannot be deleted
   UQ (organization_id, code)

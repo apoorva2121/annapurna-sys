@@ -92,3 +92,17 @@ async def test_the_owner_role_can_do_everything_the_catalogue_defines(
 ) -> None:
     grants = await _seeded_grants(db_session)
     assert grants[RoleCode.OWNER.value] == {permission.code for permission in CATALOGUE.permissions}
+
+
+async def test_the_seniority_ladder_reached_the_database(db_session: AsyncSession) -> None:
+    """`rank` is only a security control if the value the service reads is the one in the file.
+
+    The service compares the actor's stored rank against the target role's stored rank. If seeding
+    dropped the column, every role would sit at the same default — and a manager could appoint an
+    owner, silently, with every other test still green.
+    """
+    rows = await db_session.execute(
+        text("SELECT code, rank FROM role WHERE organization_id IS NULL")
+    )
+    seeded = {str(code): int(rank) for code, rank in rows.all()}
+    assert seeded == {role.code: role.rank for role in CATALOGUE.roles}

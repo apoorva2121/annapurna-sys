@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, Index, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, ForeignKey, Index, SmallInteger, Text, UniqueConstraint, text
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -42,6 +42,10 @@ class Role(TimestampedUUIDMixin, Base):
     )
     code: Mapped[str] = mapped_column(Text, nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
+    # Seniority, lower being more senior. Stored rather than read from permissions.json so that a
+    # custom role an organization defines later carries its own place in the ladder. Nobody may
+    # grant a role more senior than their own; see app/core/permissions.may_assign_rank.
+    rank: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="100")
     description: Mapped[str | None] = mapped_column(Text)
     is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 

@@ -6,7 +6,14 @@
     "that should hold it. A role granting a permission that is not in the list fails the build, so a",
     "typo cannot silently remove someone's access.",
     "",
-    "Changes take effect through a migration, not a redeploy of code — the catalogue is seeded into",
+    "`rank` is the seniority ladder, and it is what stops privilege escalation. Lower is more",
+    "senior. Nobody may grant a role more senior than their own, and nobody may change their own",
+    "roles at all - so a manager can appoint another manager or any junior role, but cannot make",
+    "themselves or anyone else an owner. Permissions alone cannot express this: in M01 a manager",
+    "and an owner hold the same seven permissions, so without rank a manager could promote",
+    "themselves. Change a number here to change the ladder.",
+    "",
+    "Changes take effect through a migration, not a redeploy of code - the catalogue is seeded into",
     "the `permission`, `role` and `role_permission` tables so that access control is version",
     "controlled and diffable (ADR 0007). Run `make revision` after editing.",
     "",
@@ -16,7 +23,6 @@
     "`owner` and `admin` hold identical permissions today. They diverge in later modules, where",
     "financial reporting is owner-only."
   ],
-
   "permissions": [
     {
       "code": "employee.view",
@@ -61,11 +67,11 @@
       "description": "Read the role and permission catalogue, for the role-assignment screen."
     }
   ],
-
   "roles": [
     {
       "code": "owner",
       "name": "Owner",
+      "rank": 0,
       "description": "The person whose money is at risk. Holds everything, always.",
       "permissions": [
         "employee.view",
@@ -80,6 +86,7 @@
     {
       "code": "admin",
       "name": "Administrator",
+      "rank": 10,
       "description": "The owner's delegate for system configuration. Trusted, not operational.",
       "permissions": [
         "employee.view",
@@ -94,12 +101,14 @@
     {
       "code": "manager",
       "name": "Manager",
-      "description": "Runs the floor. Can staff a shift at 7am when the owner is not on site, but cannot promote anyone — including themselves.",
+      "rank": 20,
+      "description": "Runs the floor. Staffs a shift at 7am when the owner is not on site, and appoints junior roles and other managers — but can never promote anyone above manager, nor change their own roles. Every assignment is written to the audit trail.",
       "permissions": [
         "employee.view",
         "employee.create",
         "employee.edit",
         "employee.deactivate",
+        "employee.role.assign",
         "employee.password.reset",
         "role.view"
       ]
@@ -107,38 +116,48 @@
     {
       "code": "chef",
       "name": "Chef",
+      "rank": 30,
       "description": "Runs the kitchen and needs to know who is on. Reads the staff list, changes nothing.",
-      "permissions": ["employee.view"]
+      "permissions": [
+        "employee.view"
+      ]
     },
     {
       "code": "kitchen_staff",
       "name": "Kitchen Staff",
+      "rank": 40,
       "description": "Cooks to tickets. Nothing in M01.",
       "permissions": []
     },
     {
       "code": "waiter",
       "name": "Waiter",
+      "rank": 40,
       "description": "Takes orders. Staff records carry phone numbers and dates of birth, so no access here.",
       "permissions": []
     },
     {
       "code": "store_manager",
       "name": "Store Manager",
+      "rank": 30,
       "description": "Runs the store room and supplier relationships. Manages stock, not people.",
       "permissions": []
     },
     {
       "code": "cleaner",
       "name": "Cleaner",
+      "rank": 40,
       "description": "Referenced by tasks and shifts. Frequently has no login at all.",
       "permissions": []
     },
     {
       "code": "accountant",
       "name": "Accountant",
+      "rank": 30,
       "description": "Reads the staff list because payroll needs to know who is employed. Changes nothing about them.",
-      "permissions": ["employee.view"]
+      "permissions": [
+        "employee.view"
+      ]
     }
   ]
 }

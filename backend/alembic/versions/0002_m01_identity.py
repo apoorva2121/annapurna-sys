@@ -78,10 +78,11 @@ def _seed_catalogue() -> None:
         connection.execute(
             sa.text(
                 """
-                INSERT INTO role (id, organization_id, code, name, description, is_system)
-                VALUES (:id, NULL, :code, :name, :description, true)
+                INSERT INTO role (id, organization_id, code, name, rank, description, is_system)
+                VALUES (:id, NULL, :code, :name, :rank, :description, true)
                 ON CONFLICT (code) WHERE organization_id IS NULL DO UPDATE
                     SET name = EXCLUDED.name,
+                        rank = EXCLUDED.rank,
                         description = EXCLUDED.description,
                         updated_at = now()
                 """
@@ -90,6 +91,7 @@ def _seed_catalogue() -> None:
                 "id": uuid.uuid4(),
                 "code": role["code"],
                 "name": role["name"],
+                "rank": role["rank"],
                 "description": role["description"],
             },
         )
@@ -203,6 +205,7 @@ def upgrade() -> None:
         sa.Column("organization_id", sa.UUID(), nullable=True),
         sa.Column("code", sa.Text(), nullable=False),
         sa.Column("name", sa.Text(), nullable=False),
+        sa.Column("rank", sa.SmallInteger(), server_default="100", nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("is_system", sa.Boolean(), nullable=False),
         sa.Column("id", sa.UUID(), nullable=False),
