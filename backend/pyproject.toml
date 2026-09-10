@@ -12,6 +12,10 @@ dependencies = [
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
     "sentry-sdk[fastapi]>=2.19",
+    # argon2id is the M01 spec's requirement and OWASP's current recommendation for password
+    # storage. The reference implementation, rather than a hand-rolled KDF.
+    "argon2-cffi>=23.1",
+    "pyjwt>=2.10",
 ]
 
 [project.optional-dependencies]

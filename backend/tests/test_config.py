@@ -29,6 +29,36 @@ def test_boot_fails_on_a_synchronous_database_driver() -> None:
         Settings(_env_file=None, env="local", database_url="postgresql://user:pw@localhost/db")
 
 
+def test_boot_fails_when_staging_keeps_the_development_jwt_secret() -> None:
+    """The default secret is in this repository. Shipping it would let anyone who can read the
+    source mint an owner token for any restaurant, so it must not survive leaving local."""
+    with pytest.raises(ValidationError, match="JWT_SECRET must be set explicitly"):
+        Settings(_env_file=None, env="staging", database_url=_VALID_URL)
+
+
+def test_boot_fails_on_a_jwt_secret_too_short_to_sign_safely() -> None:
+    # RFC 7518 §3.2. PyJWT only warns, and nobody reads a warning in a production log.
+    with pytest.raises(ValidationError, match="at least 32 bytes"):
+        Settings(_env_file=None, env="staging", database_url=_VALID_URL, jwt_secret="too-short")  # noqa: S106
+
+
+def test_a_real_secret_is_accepted_in_staging() -> None:
+    settings = Settings(
+        _env_file=None,
+        env="staging",
+        database_url=_VALID_URL,
+        jwt_secret="a" * 32,
+    )
+    assert settings.jwt_secret.get_secret_value() == "a" * 32
+
+
+def test_the_jwt_secret_is_not_printed_by_repr() -> None:
+    """SecretStr, so an exception rendering Settings — or a debugger, or a Sentry frame — cannot
+    put the signing key in a log."""
+    settings = Settings(_env_file=None, env="local", database_url=_VALID_URL, jwt_secret="b" * 40)
+    assert "b" * 40 not in repr(settings)
+
+
 def test_debug_is_allowed_locally() -> None:
     settings = Settings(_env_file=None, env="local", debug=True, database_url=_VALID_URL)
     assert settings.debug is True
