@@ -13,7 +13,11 @@ from sqlalchemy import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import get_settings
-from app.models.base import Base
+
+# Imported for its side effect: app.models registers every model on Base.metadata. Importing
+# app.models.base alone would give autogenerate an empty metadata and a migration that drops
+# every table.
+from app.models import Base
 
 config = context.config
 target_metadata = Base.metadata

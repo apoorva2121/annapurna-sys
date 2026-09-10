@@ -154,6 +154,13 @@ class TestTheGuardsActuallyFire:
             Catalogue.model_validate(_catalogue(rolez=[]))
 
 
+def test_an_unknown_role_grants_nothing() -> None:
+    # Fail closed. A role code that is not in the catalogue — a typo, or a custom role removed
+    # from the file — must resolve to no permissions rather than raising, so a bad lookup denies
+    # access instead of returning a 500 that someone retries until it works.
+    assert permissions_for_role("sous_chef_de_partie") == frozenset()
+
+
 def test_every_permission_code_constant_exists_in_the_catalogue() -> None:
     # PermissionCode is what the code references; the JSON is what the migration seeds. If they
     # drift, a route checks a permission no role can ever hold.

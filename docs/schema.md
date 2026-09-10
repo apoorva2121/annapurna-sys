@@ -64,12 +64,14 @@ user_account                                     -- authentication ONLY. ADR 000
 
 user_session
   user_account_id     uuid NN FK→user_account
-  refresh_token_hash  text NN UQ
+  refresh_token_hash  text NN UQ                 -- hashed: a database dump yields no live session
+  family_id           uuid NN                    -- every rotation of one login's token shares this
   device_info         jsonb
   ip_address          inet
   expires_at          timestamptz NN
   revoked_at          timestamptz
   IX (user_account_id, expires_at)
+  IX (user_account_id) WHERE revoked_at IS NULL  -- the revocation sweep on deactivate
 
 employee                                         -- business profile. Login is optional.
   organization_id     uuid NN FK→organization
@@ -89,8 +91,11 @@ role
   code                text NN                    -- owner|admin|manager|chef|kitchen_staff|
                                                  -- waiter|store_manager|cleaner|accountant
   name                text NN
+  description         text                       -- shown on the role-assignment screen
   is_system           bool NN default false      -- cannot be deleted
   UQ (organization_id, code)
+  UQ (code) WHERE organization_id IS NULL        -- NULL does not constrain in a UNIQUE, and the
+                                                 -- system templates are exactly the NULL rows
 
 permission                                       -- static catalogue, seeded by migration
   code                text NN UQ                 -- 'order.void', 'stock.adjust',
@@ -634,6 +639,10 @@ shift_assignment
 
 ```
 audit_log                                        -- APPEND-ONLY. Written by a service decorator.
+                                                 -- Table created in M01, not M14: M01 introduces
+                                                 -- role grants, deactivations and password resets,
+                                                 -- which are exactly what an insider would use.
+                                                 -- M14 still owns the decorator, /audit and the UI.
   restaurant_id       uuid                       -- nullable: org-level actions exist
   actor_employee_id   uuid FK→employee
   action              text NN                    -- 'order.void', 'recipe.update', 'stock.adjust'
