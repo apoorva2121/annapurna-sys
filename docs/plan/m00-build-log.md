@@ -34,12 +34,16 @@ Process: `docs/sdlc.md` · Spec: `docs/modules/M00-foundation-spec.md` · Tracke
 - [x] **E · Gate** — `make check` clean
 - [x] **F · Adversarial review** — findings below, all fixed
 - [x] **G · Manual script** — `docs/manual-tests/M00-foundation.md`
-- [ ] **H · User manual pass** — *requires you; M00 is NOT done without it*
+- [x] **H · User manual pass** — 24/24 steps passed, 2026-09-10, local Docker Compose. No failures.
+      `docs/manual-tests/M00-foundation.md` Result section filled in.
 
 ## Next action
 
-> **You run `docs/manual-tests/M00-foundation.md`** (~20 min, local Docker Compose — 23 steps).
-> Report failures as step number → expected → saw. After that: the day-2 staging deploy, then M01.
+> M00's code, tests, gate, review and manual pass are all done. The **one item still open is the
+> staging deploy** (acceptance criterion 10), deferred to day 2 by agreement — see
+> `docs/decisions/0005-deployment-target.md` for the target (GCP Cloud Run + Neon + Cloudflare).
+> Do that, then M00's `D` (Done) column ticks and M01 Identity begins. M01's spec is already
+> written and awaiting approval: `docs/modules/M01-identity-spec.md`.
 
 ## Verified — commands actually run, output actually seen
 
