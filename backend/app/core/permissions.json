@@ -1,0 +1,144 @@
+{
+  "_readme": [
+    "The access-control catalogue. This file is the source of truth for who can do what.",
+    "",
+    "Editing it: add a permission to the `permissions` list, then list its `code` under every role",
+    "that should hold it. A role granting a permission that is not in the list fails the build, so a",
+    "typo cannot silently remove someone's access.",
+    "",
+    "Changes take effect through a migration, not a redeploy of code — the catalogue is seeded into",
+    "the `permission`, `role` and `role_permission` tables so that access control is version",
+    "controlled and diffable (ADR 0007). Run `make revision` after editing.",
+    "",
+    "Roles with no permissions listed are real roles that simply have nothing to do in M01. They",
+    "gain permissions as later modules land (a waiter gets order.create in M07).",
+    "",
+    "`owner` and `admin` hold identical permissions today. They diverge in later modules, where",
+    "financial reporting is owner-only."
+  ],
+
+  "permissions": [
+    {
+      "code": "employee.view",
+      "resource": "employee",
+      "action": "view",
+      "description": "See the staff list and open an individual employee record."
+    },
+    {
+      "code": "employee.create",
+      "resource": "employee",
+      "action": "create",
+      "description": "Add a new employee, optionally with a login."
+    },
+    {
+      "code": "employee.edit",
+      "resource": "employee",
+      "action": "edit",
+      "description": "Change an employee's name, contact details or employment terms."
+    },
+    {
+      "code": "employee.deactivate",
+      "resource": "employee",
+      "action": "deactivate",
+      "description": "Deactivate or reactivate an employee. Deactivating ends every open session immediately."
+    },
+    {
+      "code": "employee.role.assign",
+      "resource": "employee.role",
+      "action": "assign",
+      "description": "Grant or remove an employee's roles at a restaurant. This is the privilege-escalation path — hold it narrowly."
+    },
+    {
+      "code": "employee.password.reset",
+      "resource": "employee.password",
+      "action": "reset",
+      "description": "Set a new password for another employee. Ends all of that person's other sessions."
+    },
+    {
+      "code": "role.view",
+      "resource": "role",
+      "action": "view",
+      "description": "Read the role and permission catalogue, for the role-assignment screen."
+    }
+  ],
+
+  "roles": [
+    {
+      "code": "owner",
+      "name": "Owner",
+      "description": "The person whose money is at risk. Holds everything, always.",
+      "permissions": [
+        "employee.view",
+        "employee.create",
+        "employee.edit",
+        "employee.deactivate",
+        "employee.role.assign",
+        "employee.password.reset",
+        "role.view"
+      ]
+    },
+    {
+      "code": "admin",
+      "name": "Administrator",
+      "description": "The owner's delegate for system configuration. Trusted, not operational.",
+      "permissions": [
+        "employee.view",
+        "employee.create",
+        "employee.edit",
+        "employee.deactivate",
+        "employee.role.assign",
+        "employee.password.reset",
+        "role.view"
+      ]
+    },
+    {
+      "code": "manager",
+      "name": "Manager",
+      "description": "Runs the floor. Can staff a shift at 7am when the owner is not on site, but cannot promote anyone — including themselves.",
+      "permissions": [
+        "employee.view",
+        "employee.create",
+        "employee.edit",
+        "employee.deactivate",
+        "employee.password.reset",
+        "role.view"
+      ]
+    },
+    {
+      "code": "chef",
+      "name": "Chef",
+      "description": "Runs the kitchen and needs to know who is on. Reads the staff list, changes nothing.",
+      "permissions": ["employee.view"]
+    },
+    {
+      "code": "kitchen_staff",
+      "name": "Kitchen Staff",
+      "description": "Cooks to tickets. Nothing in M01.",
+      "permissions": []
+    },
+    {
+      "code": "waiter",
+      "name": "Waiter",
+      "description": "Takes orders. Staff records carry phone numbers and dates of birth, so no access here.",
+      "permissions": []
+    },
+    {
+      "code": "store_manager",
+      "name": "Store Manager",
+      "description": "Runs the store room and supplier relationships. Manages stock, not people.",
+      "permissions": []
+    },
+    {
+      "code": "cleaner",
+      "name": "Cleaner",
+      "description": "Referenced by tasks and shifts. Frequently has no login at all.",
+      "permissions": []
+    },
+    {
+      "code": "accountant",
+      "name": "Accountant",
+      "description": "Reads the staff list because payroll needs to know who is employed. Changes nothing about them.",
+      "permissions": ["employee.view"]
+    }
+  ]
+}
