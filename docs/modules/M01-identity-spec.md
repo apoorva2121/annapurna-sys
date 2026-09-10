@@ -86,10 +86,20 @@ GET    /staff/permissions       the catalogue, for the role-assignment UI
 permission-aware navigation without it, and the alternative — the client inferring permissions from
 a role name — is the exact anti-pattern ADR 0007 forbids.
 
-**Minimal seed** (`make seed`): one organization, **two restaurants** (Spice Garden and Tandoor
-House), and the five logins `docs/manual-tests/M01-identity.md` already names. Two restaurants is
-not padding — probe D1, the cross-tenant test, cannot run without a second tenant. The full seed
-generator remains M15.
+**Minimal seed** (`make seed`): **two organizations** — Spice Garden Hospitality (with the
+restaurant Spice Garden) and Tandoor House (with the restaurant Tandoor House) — and the five
+logins `docs/manual-tests/M01-identity.md` already names. The full seed generator remains M15.
+
+> Corrected during implementation. This section originally read "one organization, two
+> restaurants", which contradicts `docs/seed-data.md`: *"A second organization, Tandoor House,
+> exists on purpose... every tenant-isolation test needs a second tenant to fail against."*
+> seed-data.md is the authoritative P1 artefact and describes the stronger boundary, so it wins.
+>
+> Isolation is nevertheless enforced at **both** levels, because the threat table below names
+> "a manager reads another branch's staff" as an attack in its own right: the organization is the
+> hard tenant boundary, and within an organization an employee is visible only at a restaurant
+> they are assigned to. A chain with two branches in one organization therefore does not leak
+> staff between them, even though month 1 ships no multi-branch features.
 
 ### Frontend — staff bundle
 
