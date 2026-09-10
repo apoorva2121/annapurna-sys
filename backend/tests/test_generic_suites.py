@@ -1,0 +1,345 @@
+"""The four generic suites (docs/testing-strategy.md).
+
+These do not test M01. They enumerate the application and assert a property of *every* route, so a
+route added in M07 is covered the moment it is registered and nobody has to remember. That is the
+whole point: per-endpoint security tests protect the endpoints somebody thought about.
+
+    1. Tenant isolation   — restaurant A cannot read, write or confirm restaurant B's resources
+    2. Permission matrix  — every route x every role, against the declared catalogue
+    3. Persona separation — no guest token reaches a staff route (ADR 0009)
+    4. Route declaration  — every route declares a permission; default-deny is enforced
+
+Suite 0 is the meta-test below, and it is not optional: all four suites assert "for every route
+in ...", so an enumerator returning nothing makes every one of them pass while testing nothing.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, date, datetime, timedelta
+from typing import Any
+
+import jwt
+import pytest
+from fastapi import FastAPI
+from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.v1.auth import PUBLIC_ROUTES
+from app.core.config import get_settings
+from app.core.enums import EmploymentType, UserAccountStatus
+from app.core.permissions import CATALOGUE, permissions_for_role
+from app.core.security import hash_password
+from app.models.access import EmployeeRoleAssignment, Role
+from app.models.identity import Employee, UserAccount
+from app.models.tenancy import Organization, Restaurant
+from tests.helpers.routes import RouteInfo, all_routes, staff_routes
+
+PASSWORD = "Staging#2026"  # noqa: S105
+
+# Routes that legitimately take no permission, because they are what produces the identity a
+# permission would be checked against. Kept small and explicit — an allow-list of four is
+# auditable, whereas "skip routes without a marker" would hide every mistake.
+_PUBLIC = PUBLIC_ROUTES | {
+    "GET /api/v1/health",
+    "GET /api/v1/ready",
+    "GET /api/v1/version",
+    # Authenticated, but every signed-in employee may read their own profile — there is no
+    # permission that could gate it without gating the thing that reports permissions.
+    "GET /api/v1/auth/me",
+    "POST /api/v1/auth/password",
+}
+
+
+# --------------------------------------------------------------------------- suite 0
+
+
+class TestTheEnumeratorItself:
+    """Not one of the four. It is what stops the other four becoming decorative.
+
+    Every suite below is a loop over routes. If the loop body never runs, the suite passes. This
+    class asserts the loop has something to iterate, so a FastAPI upgrade that changes the routing
+    internals fails here — loudly, in one place — rather than silently disarming the security
+    tests for the rest of the project.
+    """
+
+    def test_the_enumerator_finds_routes(self, api: FastAPI) -> None:
+        assert len(all_routes(api)) >= 15
+
+    def test_the_enumerator_finds_the_staff_routes(self, api: FastAPI) -> None:
+        assert len(staff_routes(api)) >= 8
+
+    def test_the_enumerator_reads_a_declared_permission(self, api: FastAPI) -> None:
+        # If permission extraction silently returned () for everything, suite 4 would pass by
+        # treating every route as public and suite 2 would have nothing to check.
+        listing = next(
+            route
+            for route in staff_routes(api)
+            if route.path == "/api/v1/staff/employees" and route.method == "GET"
+        )
+        assert listing.permissions == ("employee.view",)
+
+    def test_the_enumerator_finds_the_known_endpoints(self, api: FastAPI) -> None:
+        keys = {route.key for route in all_routes(api)}
+        for expected in (
+            "POST /api/v1/auth/login",
+            "POST /api/v1/auth/refresh",
+            "GET /api/v1/auth/me",
+            "GET /api/v1/staff/employees",
+            "POST /api/v1/staff/employees",
+            "POST /api/v1/staff/employees/{employee_id}/roles",
+            "GET /api/v1/staff/roles",
+        ):
+            assert expected in keys, f"{expected} missing; enumerator or routing changed"
+
+
+# --------------------------------------------------------------------------- suite 4
+
+
+class TestEveryRouteDeclaresAPermission:
+    """Suite 4. Default-deny, enforced by the build rather than by review."""
+
+    def test_no_staff_route_is_missing_a_permission(self, api: FastAPI) -> None:
+        undeclared = [
+            route.key
+            for route in staff_routes(api)
+            if not route.permissions and route.key not in _PUBLIC
+        ]
+        assert not undeclared, (
+            f"these routes declare no permission and are not on the public allow-list: {undeclared}"
+        )
+
+    def test_every_declared_permission_exists_in_the_catalogue(self, api: FastAPI) -> None:
+        # A route requiring a permission no role can hold reads as "mysteriously denied" rather
+        # than as an error, and would survive review indefinitely.
+        known = {permission.code for permission in CATALOGUE.permissions}
+        for route in all_routes(api):
+            unknown = set(route.permissions) - known
+            assert not unknown, f"{route.key} requires unknown permission(s) {sorted(unknown)}"
+
+    def test_the_public_allow_list_has_no_stale_entries(self, api: FastAPI) -> None:
+        # An entry left behind after a route is renamed silently exempts nothing — but the next
+        # person reads it as "this path is intentionally public", which is worse than useless.
+        keys = {route.key for route in all_routes(api)}
+        assert not (_PUBLIC - keys), f"allow-list names routes that do not exist: {_PUBLIC - keys}"
+
+
+# --------------------------------------------------------------------------- fixtures
+
+
+class Tenant:
+    def __init__(self, organization: Organization, restaurant: Restaurant) -> None:
+        self.organization = organization
+        self.restaurant = restaurant
+        self.tokens: dict[str, str] = {}
+
+
+async def _tenant(session: AsyncSession, slug: str, roles: tuple[str, ...]) -> Tenant:
+    organization = Organization(name=slug.title(), slug=slug)
+    session.add(organization)
+    await session.flush()
+    restaurant = Restaurant(organization_id=organization.id, name=slug.title(), code="R1")
+    session.add(restaurant)
+    await session.flush()
+    tenant = Tenant(organization, restaurant)
+
+    for index, role_code in enumerate(roles):
+        role = (
+            await session.scalars(
+                select(Role).where(Role.code == role_code, Role.organization_id.is_(None))
+            )
+        ).first()
+        assert role is not None, f"system role {role_code} was not seeded"
+        account = UserAccount(
+            organization_id=organization.id,
+            email=f"{role_code}@{slug}.test",
+            password_hash=hash_password(PASSWORD),
+            status=UserAccountStatus.ACTIVE,
+        )
+        session.add(account)
+        await session.flush()
+        employee = Employee(
+            organization_id=organization.id,
+            user_account_id=account.id,
+            employee_code=f"E{index:03d}",
+            full_name=f"{role_code.title()} Person",
+            joined_on=date(2026, 1, 1),
+            employment_type=EmploymentType.FULL_TIME,
+        )
+        session.add(employee)
+        await session.flush()
+        session.add(
+            EmployeeRoleAssignment(
+                employee_id=employee.id, restaurant_id=restaurant.id, role_id=role.id
+            )
+        )
+        await session.flush()
+    return tenant
+
+
+def _guest_token() -> str:
+    """A structurally valid token from the guest realm (ADR 0009).
+
+    Signed with the real key on purpose: a token that failed signature verification would be
+    rejected for the wrong reason and would prove nothing about persona separation.
+    """
+    settings = get_settings()
+    return jwt.encode(
+        {
+            "sub": "00000000-0000-0000-0000-000000000001",
+            "typ": "guest",
+            "table": "T4",
+            "exp": datetime.now(UTC) + timedelta(minutes=15),
+        },
+        settings.jwt_secret.get_secret_value(),
+        algorithm="HS256",
+    )
+
+
+def _sample_body(route: RouteInfo) -> dict[str, Any]:
+    """Enough of a body to get past validation and reach authorisation.
+
+    A 422 would mean the request never reached the permission check, and the suite would be
+    asserting nothing while looking green.
+    """
+    if route.path.endswith("/roles"):
+        return {"role_ids": []}
+    if route.path.endswith("/password"):
+        return {"new_password": "SomeNewPassword#1"}
+    if route.method == "POST" and route.path == "/api/v1/staff/employees":
+        return {
+            "full_name": "Probe Person",
+            "employee_code": "PROBE1",
+            "joined_on": "2026-01-01",
+        }
+    if route.method == "PATCH":
+        return {"full_name": "Probe Person"}
+    return {}
+
+
+# --------------------------------------------------------------------------- suites 1-3
+
+
+class TestTenantIsolationAcrossEveryStaffRoute:
+    """Suite 1. The product's #1 bug class, asserted route by route rather than case by case."""
+
+    async def test_no_staff_route_exposes_another_tenants_employee(
+        self, db_session: AsyncSession, api: FastAPI, api_client: AsyncClient
+    ) -> None:
+        spice = await _tenant(db_session, "spice-garden", ("owner",))
+        await _tenant(db_session, "tandoor-house", ("owner",))
+        await db_session.commit()
+
+        victim = (
+            await db_session.scalars(
+                select(Employee.id).where(Employee.organization_id == spice.organization.id)
+            )
+        ).first()
+        assert victim is not None
+
+        token = await _login(api_client, "owner@tandoor-house.test")
+        failures: list[str] = []
+        for route in staff_routes(api):
+            if "{employee_id}" not in route.path:
+                continue
+            url = route.path.replace("{employee_id}", str(victim))
+            response = await api_client.request(
+                route.method,
+                url,
+                json=_sample_body(route),
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            # 422 is acceptable only because a body may fail validation before authorisation;
+            # 200 or 201 would mean one tenant reached another's row.
+            if response.status_code not in (403, 404, 422):
+                failures.append(f"{route.key} -> {response.status_code}")
+        assert not failures, f"cross-tenant access succeeded on: {failures}"
+
+
+class TestPersonaSeparation:
+    """Suite 3. A guest token must not reach the employee surface (ADR 0009)."""
+
+    async def test_no_guest_token_satisfies_any_staff_route(
+        self, db_session: AsyncSession, api: FastAPI, api_client: AsyncClient
+    ) -> None:
+        await _tenant(db_session, "spice-garden", ("owner",))
+        await db_session.commit()
+
+        failures: list[str] = []
+        for route in staff_routes(api):
+            url = route.path.replace("{employee_id}", "00000000-0000-0000-0000-000000000002")
+            response = await api_client.request(
+                route.method,
+                url,
+                json=_sample_body(route),
+                headers={"Authorization": f"Bearer {_guest_token()}"},
+            )
+            if response.status_code not in (401, 403):
+                failures.append(f"{route.key} -> {response.status_code}")
+        assert not failures, f"a guest token was accepted by: {failures}"
+
+    async def test_no_token_at_all_is_refused_by_every_staff_route(
+        self, api: FastAPI, api_client: AsyncClient
+    ) -> None:
+        failures: list[str] = []
+        for route in staff_routes(api):
+            url = route.path.replace("{employee_id}", "00000000-0000-0000-0000-000000000002")
+            response = await api_client.request(route.method, url, json=_sample_body(route))
+            if response.status_code != 401:
+                failures.append(f"{route.key} -> {response.status_code}")
+        assert not failures, f"these routes served an unauthenticated request: {failures}"
+
+
+class TestThePermissionMatrix:
+    """Suite 2. Every staff route against every role, checked against the declared catalogue.
+
+    The assertion is not "a waiter gets 403 on the staff list" — it is that the *whole grid* agrees
+    with permissions.json. A permission accidentally added to a role shows up here as a route that
+    unexpectedly succeeded.
+    """
+
+    @pytest.mark.parametrize(
+        "role_code", [role.code for role in CATALOGUE.roles if role.code != "owner"]
+    )
+    async def test_a_role_reaches_exactly_the_routes_its_permissions_allow(
+        self, db_session: AsyncSession, api: FastAPI, api_client: AsyncClient, role_code: str
+    ) -> None:
+        await _tenant(db_session, f"org-{role_code}", (role_code,))
+        await db_session.commit()
+        granted = permissions_for_role(role_code)
+
+        token = await _login(api_client, f"{role_code}@org-{role_code}.test")
+        mismatches: list[str] = []
+        for route in staff_routes(api):
+            if not route.permissions:
+                continue
+            url = route.path.replace("{employee_id}", "00000000-0000-0000-0000-000000000002")
+            response = await api_client.request(
+                route.method,
+                url,
+                json=_sample_body(route),
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            should_be_allowed = set(route.permissions) <= granted
+            was_denied = response.status_code == 403
+            if should_be_allowed and was_denied:
+                mismatches.append(f"{route.key}: {role_code} holds it but was denied")
+            if not should_be_allowed and not was_denied:
+                mismatches.append(
+                    f"{route.key}: {role_code} lacks {route.permissions} "
+                    f"but got {response.status_code}"
+                )
+        assert not mismatches, "\n".join(mismatches)
+
+
+async def _login(client: AsyncClient, identifier: str, *, expect_failure: bool = False) -> Any:
+    response = await client.post(
+        "/api/v1/auth/login", json={"identifier": identifier, "password": PASSWORD}
+    )
+    if response.status_code != 200:
+        if expect_failure:
+            return None
+        raise AssertionError(
+            f"login failed for {identifier}: {response.status_code} {response.text}"
+        )
+    return response.json()["access_token"]

@@ -92,3 +92,23 @@ class EmployeeRepository(OrgScopedRepository[Employee]):
             self.scoped().where(Employee.user_account_id == user_account_id)
         )
         return result.first()
+
+    async def get_assigned_here(self, employee_id: uuid.UUID) -> Employee | None:
+        """The stricter lookup, used to rebuild the actor from a token on every request.
+
+        Unlike `get`, this has no "unassigned employees are visible" exception. That exception
+        exists so a manager can see the person they just created; extending it to the actor path
+        would mean an employee with no role anywhere could act at any restaurant in the
+        organization. They would resolve to zero permissions and be refused anyway, but a
+        structural rule beats relying on a downstream check.
+        """
+        assigned_here = exists(
+            select(EmployeeRoleAssignment.id).where(
+                EmployeeRoleAssignment.employee_id == Employee.id,
+                EmployeeRoleAssignment.restaurant_id == self.scope.restaurant_id,
+            )
+        )
+        result = await self.session.scalars(
+            self.scoped().where(Employee.id == employee_id, assigned_here)
+        )
+        return result.first()

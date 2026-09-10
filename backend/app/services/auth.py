@@ -16,6 +16,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,9 +44,17 @@ logger = logging.getLogger(__name__)
 _REJECTED_CODE = "auth.invalid_credentials"
 _REJECTED_MESSAGE = "Invalid login or password."
 
-# Verified against when no account matches, so an unknown address costs the same time as a wrong
-# password. Hashed once at import, not per request.
-_DECOY_HASH = hash_password("a-password-nobody-has-and-nobody-needs-to-guess")
+
+@lru_cache
+def _decoy_hash() -> str:
+    """Verified against when no account matches, so an unknown identifier costs the same time as a
+    wrong password.
+
+    Computed on first use rather than at import: hashing at import time would make this module
+    unimportable without a full Settings (breaking any tooling that merely reads the routing
+    table) and would put an argon2 hash on the critical path of every process start.
+    """
+    return hash_password("a-password-nobody-has-and-nobody-needs-to-guess")
 
 
 class InvalidCredentialsError(AppError):
@@ -87,7 +96,7 @@ class AuthService:
         if account is None:
             # Spend the time anyway. A fast rejection here is a timing oracle that undoes the
             # identical error message entirely.
-            verify_password(password, _DECOY_HASH)
+            verify_password(password, _decoy_hash())
             raise InvalidCredentialsError
 
         self._reject_if_locked(account)

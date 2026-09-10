@@ -16,6 +16,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import health
+from app.api.v1 import auth
 from app.api.v1.guest import router as guest_router
 from app.api.v1.staff import router as staff_router
 from app.core.config import Settings, get_settings
@@ -115,6 +116,9 @@ def create_app() -> FastAPI:
     register_error_handlers(app)
 
     app.include_router(health.router, prefix="/api/v1")
+    # Auth sits outside /staff because it is what produces the identity /staff requires. Mounting
+    # it inside would mean the login route lived behind the dependency it exists to satisfy.
+    app.include_router(auth.router, prefix="/api/v1/auth")
     app.include_router(staff_router, prefix="/api/v1/staff")
     app.include_router(guest_router, prefix="/api/v1/guest")
     return app

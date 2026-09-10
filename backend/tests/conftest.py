@@ -27,6 +27,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.core.db import get_session
 from app.main import create_app
 
 _BACKEND = Path(__file__).resolve().parents[1]
@@ -64,6 +65,36 @@ def migrated_url(postgres_url: str) -> str:
     config.set_main_option("sqlalchemy.url", postgres_url)
     command.upgrade(config, "head")
     return postgres_url
+
+
+@pytest.fixture
+async def api(db_session: AsyncSession) -> AsyncIterator[FastAPI]:
+    """The real application, wired to the test transaction.
+
+    `get_session` is overridden so handlers read and write the same rolled-back transaction the
+    test set its fixtures up in. Without this the API would open its own connection to the
+    unreachable URL that conftest sets deliberately, and every request would fail for a reason that
+    has nothing to do with what is being tested.
+
+    Handlers still call `commit()`. Under join_transaction_mode="create_savepoint" that releases a
+    savepoint rather than the outer transaction, so a handler's write is visible to the rest of the
+    test and is still discarded when the test ends.
+    """
+    application = create_app()
+
+    async def _session_override() -> AsyncIterator[AsyncSession]:
+        yield db_session
+
+    application.dependency_overrides[get_session] = _session_override
+    yield application
+    application.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def api_client(api: FastAPI) -> AsyncIterator[AsyncClient]:
+    transport = ASGITransport(app=api)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
 
 
 @pytest.fixture
