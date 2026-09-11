@@ -30,7 +30,11 @@ dev = [
     "httpx>=0.28",
     "testcontainers[postgres]>=4.9",
     "mypy>=1.14",
-    "ruff>=0.8",
+    # Pinned exactly, not floored. ruff's rule set changes between minor versions, so a floor means
+    # `make lint` and the pre-commit hook can disagree about whether the same file is clean — and
+    # the one that runs on the developer's machine is not the one that gates CI. The pin must equal
+    # the `rev` in .pre-commit-config.yaml; `tests/test_toolchain_pins.py` fails when they drift.
+    "ruff==0.16.6",
     "pip-audit>=2.7",
     "types-PyYAML>=6.0",
 ]

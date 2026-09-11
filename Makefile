@@ -12,7 +12,7 @@ NPM := npm --prefix frontend
 
 .DEFAULT_GOAL := help
 .PHONY: help setup dev down logs test test-api test-web lint lint-api lint-web fmt check \
-	    migrate revision seed audit-docs audit-deps clean
+	    migrate revision seed audit-docs audit-deps lock clean
 
 help:
 	@echo "setup    install backend venv + frontend deps"
@@ -24,11 +24,17 @@ help:
 	@echo "migrate  alembic upgrade head"
 	@echo "seed     demo restaurant with menu, recipes, stock, orders"
 
+# uv installs from backend/uv.lock, so every machine and every CI run gets the same versions.
+# `uv sync` creates backend/.venv itself; the pip bootstrap exists only to obtain uv.
 setup:
-	python -m venv $(VENV)
-	"$(PY)" -m pip install --quiet --upgrade pip
-	"$(PY)" -m pip install --quiet -e "backend[dev]"
-	$(NPM) install
+	python -m pip install --quiet --upgrade uv
+	uv sync --project backend
+	$(NPM) ci
+
+# Re-resolve dependencies after editing backend/pyproject.toml. The lockfile is committed, so this
+# is a deliberate act with a diff to review, not something a build does silently.
+lock:
+	uv lock --project backend
 
 dev:
 	docker compose up --build

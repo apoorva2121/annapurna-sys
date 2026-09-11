@@ -15,12 +15,25 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
+# uv installs from the lockfile. `pip install .` resolved fresh on every build, which meant two
+# builds of the same commit could ship different dependency versions — and this project has already
+# been bitten by that: FastAPI 0.141 changed router flattening and made all four generic suites
+# iterate an empty list, passing while testing nothing (M9, G-10).
+RUN pip install uv==0.12.13
+
 WORKDIR /src
-# pyproject.toml is the single source of dependency truth (there is no requirements.txt). Only the
-# two inputs `pip install .` needs are copied, so editing a doc or a test does not re-resolve deps.
-COPY pyproject.toml ./
+# pyproject.toml and uv.lock are the dependency inputs. Copied alone, before the source, so editing
+# a module or a doc does not invalidate the dependency layer.
+COPY pyproject.toml uv.lock ./
+# --frozen refuses to update the lockfile: if it disagrees with pyproject.toml the build fails here
+# rather than silently resolving something new. --no-dev keeps pytest and ruff out of the image.
+# UV_PROJECT_ENVIRONMENT puts the packages in the venv the runtime stage copies.
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+RUN uv sync --frozen --no-dev --no-install-project
+
 COPY app ./app
-RUN pip install .
+# The project itself, without touching dependencies again.
+RUN uv sync --frozen --no-dev
 
 # ---------------------------------------------------------------- runtime
 FROM python:3.13-slim AS runtime

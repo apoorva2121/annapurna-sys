@@ -94,9 +94,13 @@ query. We do not rely on unguessable UUIDs for authorisation.
   every registered route declares one.
 
 ### A06 Vulnerable Components
-- Locked dependencies (`uv.lock`, `package-lock.json`), committed.
+- Locked dependencies (`backend/uv.lock`, `frontend/package-lock.json`), committed, and
+  installed **frozen** — `uv sync --frozen` and `npm ci` in CI and in the image, so a build can
+  never resolve a version the tests never saw. `backend/tests/test_toolchain_pins.py` fails when a
+  lockfile is missing or older than `pyproject.toml`. [built: M01-R]
 - `pip-audit` and `npm audit` in CI; a high/critical finding fails the build.
 - Renovate for scheduled updates. Minimal dependency count — every library is attack surface.
+  [planned: M16]
 
 ### A07 Identification & Authentication Failures
 - Short-lived access JWT (15 min) + rotating refresh token (30 days), revocable server-side.
