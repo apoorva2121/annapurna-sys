@@ -289,6 +289,8 @@ Written 2026-09-11, precise enough to build against:
 
 - `docs/product/briefs/indian-fnb-lexicon.md`
 - `docs/product/briefs/indian-demand-calendar.md`
+- `docs/product/briefs/insight-engine.md` — the modelling service, and the argument against
+  building it schema-agnostic
 
 Both are built on one shared discipline, and it is the reason either is worth having: **the artefact
 must refuse to be confidently wrong.** A pack-unit conversion carries a range and a provenance; a
