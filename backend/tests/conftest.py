@@ -17,6 +17,7 @@ os.environ["LOG_LEVEL"] = "INFO"
 # in CI. Tests that need a real database take it from the `postgres_url` fixture, explicitly.
 os.environ["DATABASE_URL"] = "postgresql+asyncpg://test:test@127.0.0.1:1/test"
 
+import asyncio
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
@@ -25,6 +26,7 @@ from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.db import get_session
@@ -95,6 +97,45 @@ async def api_client(api: FastAPI) -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=api)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
+
+
+@pytest.fixture
+async def fresh_database(postgres_url: str) -> AsyncIterator[str]:
+    """An empty, migrated database of its own, dropped afterwards.
+
+    For the handful of tests that must observe **real commit boundaries**. The `db_session` fixture
+    below wraps everything in one transaction that is never committed, which is exactly right for
+    isolation and exactly wrong for proving that a write survives the request that made it — a
+    rolled-back write is still visible inside the transaction that made it.
+
+    The lockout counter is the case that proved this matters: it had a green test and did not work.
+    """
+    import uuid as _uuid
+
+    name = f"t_{_uuid.uuid4().hex[:12]}"
+    admin = create_async_engine(postgres_url, isolation_level="AUTOCOMMIT")
+    try:
+        async with admin.connect() as connection:
+            await connection.execute(text(f'CREATE DATABASE "{name}"'))
+    finally:
+        await admin.dispose()
+
+    url = postgres_url.rsplit("/", 1)[0] + f"/{name}"
+    config = Config(str(_BACKEND / "alembic.ini"))
+    config.set_main_option("script_location", str(_BACKEND / "alembic"))
+    config.set_main_option("sqlalchemy.url", url)
+    # In a thread: alembic's async env.py calls asyncio.run(), which cannot nest inside the loop
+    # this fixture runs in.
+    await asyncio.to_thread(command.upgrade, config, "head")
+
+    yield url
+
+    admin = create_async_engine(postgres_url, isolation_level="AUTOCOMMIT")
+    try:
+        async with admin.connect() as connection:
+            await connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+    finally:
+        await admin.dispose()
 
 
 @pytest.fixture

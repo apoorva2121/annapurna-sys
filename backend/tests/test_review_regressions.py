@@ -222,6 +222,42 @@ class TestSeedDoesNotResurrectRemovedRoles:
         )
 
 
+class TestSeedRespectsIdentifiersItDidNotCreate:
+    """The seed writes `UserAccount` rows directly, so it bypasses `_create_login`'s global check.
+
+    Bounded by `_refuse_outside_local`, so this is demo breakage rather than a security hole — but
+    the failure is the silent kind: `make seed` reports success and the owner it just "created"
+    can never sign in, because two accounts now match that identifier.
+    """
+
+    async def test_it_refuses_when_another_account_already_holds_a_seeded_identifier(
+        self, db_session: AsyncSession
+    ) -> None:
+        from app.core.enums import UserAccountStatus
+        from app.models.identity import UserAccount
+        from app.models.tenancy import Organization
+        from app.seed.identity import ConflictingSeedIdentifierError, seed_identity
+
+        squatter = Organization(name="Somebody Else", slug="somebody-else")
+        db_session.add(squatter)
+        await db_session.flush()
+        db_session.add(
+            UserAccount(
+                organization_id=squatter.id,
+                email="owner@spicegarden.test",
+                status=UserAccountStatus.ACTIVE,
+            )
+        )
+        await db_session.flush()
+
+        with pytest.raises(ConflictingSeedIdentifierError) as caught:
+            await seed_identity(db_session)
+
+        # The message has to name the identifier, or the person running `make seed` has no way to
+        # find the row that is blocking it.
+        assert "owner@spicegarden.test" in str(caught.value)
+
+
 async def _actor_for(session: AsyncSession, world: World, role_code: str) -> Actor:
     """Build the Actor the service expects, the way current_actor would."""
     employee = world.employees[role_code]

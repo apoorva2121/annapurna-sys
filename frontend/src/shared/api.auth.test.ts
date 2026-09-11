@@ -188,6 +188,24 @@ describe('a 401', () => {
     expect(refreshCalls).toHaveLength(1);
   });
 
+  it('does not end the session when the refresh fails for a reason that is not the session', async () => {
+    // A 502 from a proxy during a deploy is not "your session expired" — it is "come back in ten
+    // seconds". Signing someone out for it is a mid-service lockout caused by our own deployment,
+    // and it is inconsistent with a dropped connection, which already propagates as an error
+    // rather than ending the session.
+    setAccessToken('a-perfectly-good-token');
+    mockFetchSequence(
+      unauthorised(),
+      new Response('<html>502 Bad Gateway</html>', { status: 502 }),
+    );
+    const expired = vi.fn();
+    onSessionExpired(expired);
+
+    await apiGet('/staff/employees').catch(() => undefined);
+
+    expect(expired).not.toHaveBeenCalled();
+  });
+
   it('does not try to refresh a failed login', async () => {
     // A wrong password is a 401 the user must see, not a session to repair. Refreshing here would
     // turn "Invalid login or password" into a confusing second failure.

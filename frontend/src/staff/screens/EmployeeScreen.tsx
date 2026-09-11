@@ -149,9 +149,14 @@ function Roles({ employee }: { employee: Employee }): ReactElement {
           before the catalogue arrives it is the empty array — and the server reads `role_ids: []`
           as an authoritative full-set replacement. Tapping Save in that window deletes every
           assignment, revokes every session, and leaves the person unable to sign in at all, while
-          reporting success. */}
+          reporting success.
+
+          The condition is "is the catalogue in hand", not "is the query healthy": the catalogue is
+          cached for an hour, so a failed *background* refetch leaves perfectly good data on screen
+          and must not disable a button the user can correctly press. Unticking every box and
+          saving remains a real operation — this guards the accident, not the intent. */}
       <Button
-        disabled={setRoles.isPending || roles.isPending || roles.isError}
+        disabled={setRoles.isPending || roles.data === undefined}
         onClick={() => {
           setRoles.mutate(current);
         }}

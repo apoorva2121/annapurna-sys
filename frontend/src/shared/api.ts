@@ -177,19 +177,25 @@ async function negotiate(): Promise<string | null> {
     : null;
   const token = typeof body?.access_token === 'string' ? body.access_token : null;
 
-  if (token === null) {
-    // Either the refresh was refused, or it succeeded with a body carrying no token — a contract
-    // break rather than an expired session, but indistinguishable from here and identical in
-    // effect: there is no usable credential. Both must end the session. Clearing the token without
-    // saying so would leave the UI looking signed in with nothing behind it, and every subsequent
-    // request failing for a reason the user cannot see.
-    accessToken = null;
-    sessionExpired?.();
-    return null;
+  if (token !== null) {
+    accessToken = token;
+    return token;
   }
 
-  accessToken = token;
-  return token;
+  // No usable credential came back, but *why* decides what to do about it.
+  //
+  // 401 is the server saying this session is over: forget the token so nothing replays it, and
+  // tell the app, which redirects to login.
+  //
+  // Anything else — a 502 from a proxy mid-deploy, an HTML error page, a 200 whose body carries no
+  // token — is a fault, not an expiry. Ending the session for it would sign people out of a
+  // working session because of our own deployment, during service. A dropped connection already
+  // behaves this way (`send` throws before reaching here), and these should not differ.
+  if (response.status === 401) {
+    accessToken = null;
+    sessionExpired?.();
+  }
+  return null;
 }
 
 /**

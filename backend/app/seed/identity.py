@@ -37,6 +37,7 @@ from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
 from app.models.identity import Employee, UserAccount
 from app.models.tenancy import Organization, Restaurant
+from app.repositories.account import UserAccountRepository
 from app.seed.loader import (
     EmployeeRecord,
     OrganizationRecord,
@@ -46,6 +47,10 @@ from app.seed.loader import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class ConflictingSeedIdentifierError(RuntimeError):
+    """An identifier the seed wants is already held by an account it did not create."""
 
 
 class MissingSystemRoleError(RuntimeError):
@@ -301,6 +306,21 @@ async def _login(
     )
     if existing is not None:
         return existing.id
+
+    # The same global rule `_create_login` enforces, for the same reason: login resolves an
+    # identifier across every organization, so a second holder anywhere makes both unresolvable.
+    # Without this the seed could quietly create the collision it is protected from creating
+    # through the API — a developer who had added `owner@spicegarden.test` under another
+    # organization would get a seed that reports success and an owner who can never sign in.
+    #
+    # Loud, not skipped: a demo world that silently lacks a working owner login is worse than one
+    # that refuses to build and says why.
+    for identifier in (email, record.phone):
+        if identifier and await UserAccountRepository(session).identifier_is_taken(identifier):
+            raise ConflictingSeedIdentifierError(
+                f"{identifier!r} is already used by an account outside the seed. "
+                "Drop the database and re-seed, or remove that account."
+            )
 
     account = UserAccount(
         organization_id=organization_id,

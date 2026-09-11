@@ -155,12 +155,25 @@ class AuthService:
         )
 
     async def _record_failure(self, account: UserAccount) -> None:
+        """The one write in this service that commits itself, and it has to.
+
+        Everywhere else the API layer owns the transaction and commits on success. A failed login
+        has no success: the caller raises `InvalidCredentialsError`, FastAPI tears the request
+        down, and `get_session` closes the session without committing — taking this increment with
+        it. The counter then never reaches the threshold, no matter how many attempts are made, and
+        the lockout in `docs/security.md` silently does nothing. That is how this shipped, with a
+        green test: the test drove the service inside one transaction it never rolled back, so a
+        write that could not survive a request was still visible to the assertion that followed it.
+
+        Committing here is safe because nothing else is pending — login only reads until this
+        point — and because this record must outlive precisely the failure that produces it.
+        """
         settings = get_settings()
         account.failed_attempts += 1
         if account.failed_attempts >= settings.lockout_threshold:
             account.locked_until = datetime.now(UTC) + timedelta(minutes=settings.lockout_minutes)
             logger.warning("auth.account_locked", extra={"account_id": str(account.id)})
-        await self.session.flush()
+        await self.session.commit()
 
     async def _record_success(self, account: UserAccount) -> None:
         # Cleared, so yesterday's four typos plus today's one do not lock someone out mid-service.

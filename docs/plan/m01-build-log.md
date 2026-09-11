@@ -23,9 +23,10 @@ Spec: `docs/modules/M01-identity-spec.md` · Branch: `feat/m01-identity` (off `f
 | I · frontend: login, staff list, employee form, roles, profile | ✅ done | `3a11a35` |
 | J · adversarial review, manual test script, `make check` | ✅ done | `d80e268` |
 
-**262 backend tests · 97.2% coverage · 34 frontend tests · ruff, mypy, eslint, tsc clean.**
-**`make check` clean.** Eight defects fixed after the code was "done" — three from my own
-adversarial review, five from an independent one (11–18 below).
+**268 backend tests · 97.1% coverage · 35 frontend tests · ruff, mypy, eslint, tsc clean.**
+**`make check` clean.** Nine defects fixed after the code was "done" — three from my own
+adversarial review, five from an independent one, and **one from running the manual script by
+hand, which was the most serious of the nine** (11–19 below).
 
 **Remaining before M01 can be called done: your manual pass** (`docs/manual-tests/M01-identity.md`,
 ~25 minutes). Everything else in the Definition of Done is met.
@@ -191,6 +192,40 @@ The pattern worth keeping: **three of these five were made invisible by a commen
 asserted safety.** A docstring explaining why a scope is correct, a flag called `is_demo`, a
 symmetric-looking pair of methods. Reading for intent is how you miss them; the second reader had
 no intent to read for.
+
+### 19. The account lockout never worked — found by running the manual script, not by a test
+
+The worst defect in the module, found last, by doing by hand what the manual script asks a human
+to do: five wrong passwords, then the right one. The right one signed in.
+
+`_record_failure` incremented `failed_attempts` and flushed. The login endpoint commits only on
+success — so `InvalidCredentialsError` tore the request down, `get_session` closed the session
+without committing, and the increment went with it. Five wrong passwords left `failed_attempts` at
+**0** in a real database. Acceptance criterion 3 and the credential-stuffing control in
+`docs/security.md` did nothing whatsoever, in production, from the day they were written.
+
+`_record_failure` now commits itself. It is the only write in that service which does, and the
+docstring says why: the record must outlive precisely the failure that produces it.
+
+**Why every other check missed it.** `test_lockout` was green. It drove the service inside the
+shared `db_session` transaction, which is never rolled back — so a write that could not survive a
+request was still perfectly visible to the assertion that followed it. `make check` was green. Two
+independent reviews read this code and did not see it, because on the page the logic is correct;
+only the transaction boundary is wrong, and that is not visible in the function.
+
+This is the third time in one module that a test passed for a reason unrelated to the behaviour it
+claimed to cover. The first two were found by mutation testing, this one by using the product. The
+rule that generalises:
+
+> **A test that shares a transaction with the code under test cannot prove durability.**
+> If the property is "this survives the request", the test must cross a real commit boundary.
+
+`tests/conftest.py` now offers `fresh_database` for exactly that, and
+`tests/test_lockout_persistence.py` uses one session per attempt — the shape a real client has.
+
+The other lesson is cheaper to state and worth more: **the manual script found what the automated
+suite, the type checker, two static reviews and a green gate all missed.** It is not a formality at
+the end of the module.
 
 ### Two tests that were lying, found by mutation testing
 

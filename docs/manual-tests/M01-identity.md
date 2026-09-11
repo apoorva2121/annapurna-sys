@@ -9,6 +9,27 @@
 
 ---
 
+## What I already ran, and what still needs you
+
+I drove the API and the browser through the mechanical steps before handing this over, so your time
+goes on the parts a script cannot do. **This is information, not permission to skip** — if you have
+25 minutes, run the whole thing; the last defect in this module (the lockout, number 19 in the
+build log) was found by doing exactly these steps by hand after every automated check was green.
+
+| Section | State |
+|---|---|
+| **A · happy path** | Partly — I verified A1–A6 and A12–A13 in a browser. **A7–A11 (add, assign a role, deactivate, include-deactivated) still want a human.** |
+| **B · validation** | B1, B2, B3, B4, B6, B7, B8 verified against the API. **B5 and B9 want your eyes** — B9 especially: are the messages actually readable? |
+| **C · permissions** | C1–C3 verified in a browser as the waiter; C6 and C7 verified against the API. **C4 (chef) and C5 (manager) still want a human.** |
+| **D · security probes** | D1, D2, D3, D5 verified. **Please still do D1 yourself** — it is the one failure that stops everything, and it is worth you seeing it refuse. **D6 and D7 need a browser.** |
+| **E · usability** | Not run. **Entirely yours** — needs a real phone, in a real hand. |
+| **F · exploratory** | Not run. **Entirely yours**, and the highest-value ten minutes here. |
+
+If you are short of time, do **D1, A7–A11, C4, C5, E2, E4** and the F charter. That is about ten
+minutes and covers everything I could not.
+
+---
+
 ## Preconditions
 
 ```

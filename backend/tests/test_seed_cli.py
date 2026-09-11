@@ -17,47 +17,15 @@ Each test gets its own database rather than the shared migrated one, because thi
 from __future__ import annotations
 
 import asyncio
-import uuid
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import Callable, Iterator
 
 import pytest
-from alembic import command
-from alembic.config import Config
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import get_settings
 from app.seed.__main__ import run
 from tests.conftest import _BACKEND
-
-
-@pytest.fixture
-async def fresh_database(postgres_url: str) -> AsyncIterator[str]:
-    """An empty, migrated database of its own, dropped afterwards."""
-    name = f"seed_cli_{uuid.uuid4().hex[:12]}"
-    admin = create_async_engine(postgres_url, isolation_level="AUTOCOMMIT")
-    try:
-        async with admin.connect() as connection:
-            await connection.execute(text(f'CREATE DATABASE "{name}"'))
-    finally:
-        await admin.dispose()
-
-    url = postgres_url.rsplit("/", 1)[0] + f"/{name}"
-    config = Config(str(_BACKEND / "alembic.ini"))
-    config.set_main_option("script_location", str(_BACKEND / "alembic"))
-    config.set_main_option("sqlalchemy.url", url)
-    # In a thread for the same reason the entry point is: alembic's async env.py calls
-    # asyncio.run(), which will not nest inside the loop this fixture is running in.
-    await asyncio.to_thread(command.upgrade, config, "head")
-
-    yield url
-
-    admin = create_async_engine(postgres_url, isolation_level="AUTOCOMMIT")
-    try:
-        async with admin.connect() as connection:
-            await connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
-    finally:
-        await admin.dispose()
 
 
 @pytest.fixture
