@@ -30,7 +30,9 @@ from datetime import time
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.enums import UserAccountStatus
+from app.core.errors import AppError
 from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
 from app.models.identity import Employee, UserAccount
@@ -80,6 +82,7 @@ async def seed_identity(session: AsyncSession, data: SeedData | None = None) -> 
     Does not commit — the caller owns the transaction, which is what lets the test suite seed
     inside a transaction it rolls back.
     """
+    _refuse_outside_local()
     data = data or load_seed_data()
     roles = await _system_roles_by_code(session)
 
@@ -92,6 +95,11 @@ async def seed_identity(session: AsyncSession, data: SeedData | None = None) -> 
             session, org_record, data.is_demo
         )
         counts.organizations += created
+
+    # Explicit, because the next loop reads `organization.id` to build restaurants. It works
+    # without this line, on autoflush — but only by accident of statement ordering, and an
+    # accident is not something the next person should have to re-derive.
+    await session.flush()
 
     for restaurant_record in data.restaurants:
         organization = organizations[restaurant_record.organization]
@@ -118,6 +126,32 @@ async def seed_identity(session: AsyncSession, data: SeedData | None = None) -> 
     )
     logger.info("seed.identity.complete", extra={"summary": summary})
     return summary
+
+
+def _refuse_outside_local() -> None:
+    """Refuse to build the demo world anywhere but a developer's machine.
+
+    Every seeded login is `status=ACTIVE` with a password that is committed to this repository, in
+    a file whose own header prints it. On staging that is an owner account for anyone who has read
+    the source — which is defect 5 in this module's build log (the committed JWT secret that would
+    have shipped to staging) wearing different clothes.
+
+    `is_demo` is not the control people assume it is: it keeps these organizations out of reports,
+    and does nothing whatsoever about signing in.
+
+    No override flag, deliberately, for the same reason `Settings` offers none for the JWT secret.
+    Seeding a real environment should require changing this code and thinking about why.
+    """
+    settings = get_settings()
+    if settings.is_local:
+        return
+    raise AppError(
+        "seed.not_local",
+        f"Refusing to seed demo data when ENV={settings.env.value}. Every seeded login uses a "
+        "password committed to this repository; creating them outside local would hand an owner "
+        "account to anyone who can read the source.",
+        status_code=400,
+    )
 
 
 class _Counter:
@@ -217,20 +251,27 @@ async def _employee(
             Employee.employee_code == record.code,
         )
     )
-    if employee is None:
-        account_id = await _login(session, organization_id, record, password, counts)
-        employee = Employee(
-            organization_id=organization_id,
-            user_account_id=account_id,
-            employee_code=record.code,
-            full_name=record.name,
-            phone=record.phone,
-            joined_on=record.joined,
-            employment_type=record.employment_type,
-        )
-        session.add(employee)
-        await session.flush()
-        counts.employees += 1
+    if employee is not None:
+        # Already here, so their roles belong to whoever has been running the restaurant since.
+        # Re-asserting the YAML would undo real decisions: demote someone through the UI, run
+        # `make seed` again for an unrelated reason, and they are silently a manager once more —
+        # with no audit row, because the seed writes none. The seed builds the world once; it does
+        # not manage it afterwards.
+        return
+
+    account_id = await _login(session, organization_id, record, password, counts)
+    employee = Employee(
+        organization_id=organization_id,
+        user_account_id=account_id,
+        employee_code=record.code,
+        full_name=record.name,
+        phone=record.phone,
+        joined_on=record.joined,
+        employment_type=record.employment_type,
+    )
+    session.add(employee)
+    await session.flush()
+    counts.employees += 1
 
     await _assignment(session, employee.id, restaurant.id, role.id, counts)
 

@@ -126,14 +126,7 @@ class AuthService:
         in two organizations is refused the same way — safe, and rare enough that the fix is
         backlogged rather than built (docs/backlog.md).
         """
-        normalised = identifier.strip().lower()
-        matches = (
-            await self.session.scalars(
-                select(UserAccount).where(
-                    (UserAccount.email == normalised) | (UserAccount.phone == identifier.strip())
-                )
-            )
-        ).all()
+        matches = await self.accounts.find_all_by_identifier(identifier)
         if len(matches) > 1:
             logger.warning("auth.ambiguous_identifier", extra={"match_count": len(matches)})
             return None
@@ -145,7 +138,14 @@ class AuthService:
         remaining = account.locked_until - datetime.now(UTC)
         minutes = max(1, round(remaining.total_seconds() / 60))
         # A distinct code here, because being locked out is something the person needs to
-        # understand — and it is only reachable by someone who already knows the address exists.
+        # understand and act on.
+        #
+        # It does cost something: this runs before the password is verified, so five wrong guesses
+        # against a real identifier return 429 while an identifier that does not exist returns 401
+        # — an enumeration oracle that the identical-failure work elsewhere in this file otherwise
+        # closes. Accepted for now because the alternative is refusing to tell a locked-out person
+        # why they cannot sign in, mid-service, which is worse for a restaurant. Recorded in
+        # docs/backlog.md rather than left as a comment nobody revisits.
         raise AppError(
             "auth.locked",
             f"Too many failed attempts. Try again in about {minutes} minute"

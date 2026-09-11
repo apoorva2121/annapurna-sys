@@ -144,8 +144,14 @@ function Roles({ employee }: { employee: Employee }): ReactElement {
       {setRoles.isError && <Notice tone="critical" {...errorProps(setRoles.error)} />}
       {setRoles.isSuccess && <Notice tone="success" title={strings.employee.rolesSaved} />}
 
+      {/* Disabled until the catalogue is here, and this is a data-loss guard rather than polish.
+          `current` is built by matching the employee's role codes against the catalogue's ids, so
+          before the catalogue arrives it is the empty array — and the server reads `role_ids: []`
+          as an authoritative full-set replacement. Tapping Save in that window deletes every
+          assignment, revokes every session, and leaves the person unable to sign in at all, while
+          reporting success. */}
       <Button
-        disabled={setRoles.isPending}
+        disabled={setRoles.isPending || roles.isPending || roles.isError}
         onClick={() => {
           setRoles.mutate(current);
         }}

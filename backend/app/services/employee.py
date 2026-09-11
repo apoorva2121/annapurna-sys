@@ -34,7 +34,7 @@ from app.models.access import EmployeeRoleAssignment, Role
 from app.models.audit import AuditLog
 from app.models.identity import Employee, UserAccount
 from app.repositories.access import AccessRepository
-from app.repositories.account import UserSessionRepository
+from app.repositories.account import UserAccountRepository, UserSessionRepository
 from app.repositories.employee import EmployeeRepository
 
 
@@ -64,6 +64,7 @@ class EmployeeService:
         self.session = session
         self.access = AccessRepository(session)
         self.sessions = UserSessionRepository(session)
+        self.accounts = UserAccountRepository(session)
 
     def _repository(self, actor: Actor) -> EmployeeRepository:
         return EmployeeRepository(self.session, actor.scope)
@@ -166,15 +167,15 @@ class EmployeeService:
         email = identifier.lower() if is_email else None
         phone = None if is_email else identifier
 
-        clash = (
-            await self.session.scalars(
-                select(UserAccount).where(
-                    UserAccount.organization_id == actor.organization_id,
-                    (UserAccount.email == email) if is_email else (UserAccount.phone == phone),
-                )
-            )
-        ).first()
-        if clash is not None:
+        # Checked across every organization, not just this one. Uniqueness in the database is per
+        # tenant, but *login resolution* is global — so two tenants holding one identifier is an
+        # ambiguity the login form cannot resolve, and it refuses both. An org-scoped check here
+        # let a tenant create that collision deliberately and lock another tenant's owner out of
+        # their account permanently, using nothing but their email address.
+        #
+        # The message never says which organization holds it; that would turn this form into an
+        # oracle for which addresses exist elsewhere in the product.
+        if await self.accounts.identifier_is_taken(identifier):
             raise ConflictError(
                 "employee.login_taken", "That phone number or email is already in use."
             )
@@ -252,6 +253,11 @@ class EmployeeService:
         employee = await self._repository(actor).get_for_update(employee_id)
         if employee is None:
             raise _not_found()
+        # The same guard deactivation uses. Without it a manager can undo an owner's offboarding
+        # decision — not an escalation by itself, since the sessions stay revoked, but it is
+        # attacker 1 and 4 in docs/security.md getting a dismissed colleague back on the payroll.
+        self._reject_if_more_senior(actor, await self._rank_of(employee, actor))
+
         employee.is_active = True
         employee.deactivated_at = None
         await self.session.flush()

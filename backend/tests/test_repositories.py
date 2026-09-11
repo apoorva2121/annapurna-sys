@@ -278,28 +278,72 @@ class TestListing:
 
 
 class TestAccountLookup:
-    async def test_an_identifier_from_another_organization_does_not_resolve(
+    """Identifier resolution is **global**, and creating a login is what must keep it unambiguous.
+
+    This used to be org-scoped, with the reasoning that a global lookup would let one tenant
+    confirm an address is registered to another. That reasoning was wrong in an instructive way:
+    login never used this method — it built the same query inline, without the organization filter,
+    because the login form asks for an identifier and not a tenant. So the scoped method protected
+    nothing and made the clash check in `_create_login` look safe while it let one tenant take an
+    identifier belonging to another and lock its owner out permanently.
+
+    The confirmation risk is real but is answered where it actually arises: the staff form says
+    only "already in use" and never which organization holds it.
+    """
+
+    async def test_it_finds_every_organization_holding_an_identifier(
         self, db_session: AsyncSession
     ) -> None:
-        """Login resolves an identifier before any password is checked, and it resolves it inside
-        one organization. A globally unique lookup would let one tenant confirm that an address is
-        registered to another."""
+        """Login needs *all* the matches, because more than one means it must refuse rather than
+        guess which tenant the person meant."""
         spice = await _tenant(db_session, "spice-garden")
         tandoor = await _tenant(db_session, "tandoor-house")
-        account = UserAccount(
-            organization_id=spice.organization.id,
-            email="owner@spicegarden.test",
-            status=UserAccountStatus.ACTIVE,
-        )
-        db_session.add(account)
+        for tenant in (spice, tandoor):
+            db_session.add(
+                UserAccount(
+                    organization_id=tenant.organization.id,
+                    email="shared@example.test",
+                    status=UserAccountStatus.ACTIVE,
+                )
+            )
         await db_session.flush()
 
         from app.repositories.account import UserAccountRepository
 
-        found = await UserAccountRepository(db_session).find_by_identifier(
-            "owner@spicegarden.test", organization_id=tandoor.organization.id
+        found = await UserAccountRepository(db_session).find_all_by_identifier(
+            "shared@example.test"
         )
-        assert found is None
+
+        assert len(found) == 2
+
+    async def test_an_identifier_held_by_another_tenant_counts_as_taken(
+        self, db_session: AsyncSession
+    ) -> None:
+        """The check that closes the lockout attack. Someone else's identifier is not available,
+        whatever organization the person asking belongs to."""
+        spice = await _tenant(db_session, "spice-garden")
+        await _tenant(db_session, "tandoor-house")
+        db_session.add(
+            UserAccount(
+                organization_id=spice.organization.id,
+                email="owner@spicegarden.test",
+                status=UserAccountStatus.ACTIVE,
+            )
+        )
+        await db_session.flush()
+
+        from app.repositories.account import UserAccountRepository
+
+        assert await UserAccountRepository(db_session).identifier_is_taken("owner@spicegarden.test")
+
+    async def test_an_unused_identifier_is_free(self, db_session: AsyncSession) -> None:
+        await _tenant(db_session, "spice-garden")
+
+        from app.repositories.account import UserAccountRepository
+
+        assert not await UserAccountRepository(db_session).identifier_is_taken(
+            "nobody@example.test"
+        )
 
     async def test_a_phone_resolves_the_same_way_an_email_does(
         self, db_session: AsyncSession
@@ -316,8 +360,6 @@ class TestAccountLookup:
 
         from app.repositories.account import UserAccountRepository
 
-        found = await UserAccountRepository(db_session).find_by_identifier(
-            "+919876543210", organization_id=spice.organization.id
-        )
-        assert found is not None
-        assert found.id == account.id
+        found = await UserAccountRepository(db_session).find_all_by_identifier("+919876543210")
+
+        assert [row.id for row in found] == [account.id]

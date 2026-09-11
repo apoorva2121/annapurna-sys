@@ -23,20 +23,29 @@ class UserAccountRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def find_by_identifier(
-        self, identifier: str, *, organization_id: uuid.UUID
-    ) -> UserAccount | None:
-        """One lookup for email or phone — the login form asks for whichever the person has.
+    async def find_all_by_identifier(self, identifier: str) -> Sequence[UserAccount]:
+        """Every account matching an email or phone, across all organizations.
 
-        Scoped to one organization because uniqueness is per tenant: a global lookup would let one
-        restaurant group confirm that an address is registered to another.
+        Global on purpose, and it is the *only* honest scope for this question. The login form asks
+        for an identifier and not a tenant, so resolution has to search everywhere — which means
+        two tenants holding the same identifier is an ambiguity the product cannot resolve, and
+        therefore something creation has to prevent.
+
+        Returning every match rather than the first is what lets both callers do their job: login
+        refuses an ambiguous match, and creating a login refuses to *become* one. An earlier
+        org-scoped version of this method looked safer and was the reason a tenant could take an
+        identifier belonging to another and lock its owner out permanently.
         """
         normalised = identifier.strip().lower()
         query = select(UserAccount).where(
-            UserAccount.organization_id == organization_id,
-            or_(UserAccount.email == normalised, UserAccount.phone == identifier.strip()),
+            or_(UserAccount.email == normalised, UserAccount.phone == identifier.strip())
         )
-        return (await self.session.scalars(query)).first()
+        return (await self.session.scalars(query)).all()
+
+    async def identifier_is_taken(self, identifier: str) -> bool:
+        """Whether anyone, anywhere, already signs in with this. Never says who — that would make
+        the staff form an oracle for which addresses exist in other tenants."""
+        return bool(await self.find_all_by_identifier(identifier))
 
     async def get(self, account_id: uuid.UUID) -> UserAccount | None:
         return await self.session.get(UserAccount, account_id)

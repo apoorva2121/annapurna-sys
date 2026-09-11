@@ -17,6 +17,7 @@ from app.api.deps import SessionDep, require_permission
 from app.core.actor import Actor
 from app.core.permissions import PermissionCode
 from app.models.identity import Employee
+from app.repositories.base import DEFAULT_PAGE_SIZE
 from app.schemas.identity import (
     EmployeeCreateRequest,
     EmployeeListResponse,
@@ -85,7 +86,11 @@ async def list_employees(
     items = [_shape(employee, roles[employee.id]) for employee in employees]
     # Only offer a cursor when the page was full; otherwise the client makes one more round trip
     # to learn what it already knows.
-    next_cursor = items[-1].id if len(items) == (limit or 50) else None
+    # DEFAULT_PAGE_SIZE rather than a literal 50: the repository decides the page size, and a
+    # second copy of that number here would silently stop matching the day it changes — the client
+    # would then be told there is no next page when there is, and the rest of the roster would
+    # simply not exist as far as the UI is concerned.
+    next_cursor = items[-1].id if len(items) == (limit or DEFAULT_PAGE_SIZE) else None
     return EmployeeListResponse(items=items, next_cursor=next_cursor)
 
 

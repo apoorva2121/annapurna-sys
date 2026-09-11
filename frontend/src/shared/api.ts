@@ -172,15 +172,22 @@ function refreshOnce(): Promise<string | null> {
 
 async function negotiate(): Promise<string | null> {
   const response = await send('POST', REFRESH_PATH);
-  if (!response.ok) {
-    // The session is genuinely over. Forget the token so nothing replays it, and tell the app,
-    // which redirects to login.
+  const body = response.ok
+    ? ((await readJson(response)) as { access_token?: unknown } | null)
+    : null;
+  const token = typeof body?.access_token === 'string' ? body.access_token : null;
+
+  if (token === null) {
+    // Either the refresh was refused, or it succeeded with a body carrying no token — a contract
+    // break rather than an expired session, but indistinguishable from here and identical in
+    // effect: there is no usable credential. Both must end the session. Clearing the token without
+    // saying so would leave the UI looking signed in with nothing behind it, and every subsequent
+    // request failing for a reason the user cannot see.
     accessToken = null;
     sessionExpired?.();
     return null;
   }
-  const body = (await readJson(response)) as { access_token?: unknown } | null;
-  const token = typeof body?.access_token === 'string' ? body.access_token : null;
+
   accessToken = token;
   return token;
 }
