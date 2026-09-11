@@ -81,6 +81,9 @@ class SessionResponse(_Schema):
     restaurant: RestaurantSummary
     roles: list[str]
     permissions: list[str]
+    # Somebody else set this password; the client sends the person to change it. Not a refusal —
+    # an account that cannot sign in cannot have its password changed by its owner (P1-6).
+    password_change_required: bool = False
 
 
 class MeResponse(_Schema):

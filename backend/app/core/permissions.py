@@ -23,6 +23,10 @@ _CATALOGUE_PATH = Path(__file__).with_name("permissions.json")
 # Fail closed: anything we cannot identify is treated as the least senior thing there is.
 MOST_JUNIOR_RANK = 9_999
 
+# The top of the ladder. Named rather than written as a bare 0 because `may_reset_password` turns
+# on it, and "0" in a comparison there reads as an off-by-one rather than as "the owner".
+OWNER_RANK = 0
+
 
 class PermissionCode(StrEnum):
     """The permissions M01 declares. Mirrors permissions.json, asserted by a test."""
@@ -135,3 +139,24 @@ def may_assign_rank(actor_rank: int, target_rank: int) -> bool:
     promote me).
     """
     return target_rank >= actor_rank
+
+
+def may_reset_password(actor_rank: int, target_rank: int) -> bool:
+    """May someone of `actor_rank` set a new password for someone of `target_rank`?
+
+    **Stricter than `may_assign_rank`, and deliberately so.** Appointing a peer is not escalation —
+    a manager may appoint another manager. *Acting as* a peer is, because a password is the ability
+    to be that person: every order, void, discount and audit row afterwards names the victim, and
+    nothing distinguishes it from them doing it themselves (P1-6).
+
+    So this requires **strictly** more senior, with one exception: two owners. Rank 0 is the top of
+    the ladder, and a rule of "strictly more senior" would leave co-owners unable to help each other
+    and an owner locked out of their own restaurant with no recovery path at all — which in a
+    business with no support desk means the product is gone.
+
+    Note this is about *authority*, not visibility; the caller has already established that the
+    actor may see the target, and `most_senior_rank_anywhere` is what it must pass as `target_rank`.
+    """
+    if actor_rank == OWNER_RANK and target_rank == OWNER_RANK:
+        return True
+    return actor_rank < target_rank

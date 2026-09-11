@@ -104,6 +104,9 @@ export const strings = {
     submit: 'Change password',
     submitting: 'Changing…',
     changed: 'Password changed. Your other devices have been signed out.',
+    mustChange: 'Change your password now',
+    mustChangeWhy:
+      'Someone else set this password for you, so they know it. Until you change it, anything done with your account will look like you did it.',
   },
 
   errors: {

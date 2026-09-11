@@ -169,10 +169,15 @@ async def set_roles(
     session: SessionDep,
 ) -> EmployeeResponse:
     service = EmployeeService(session)
-    await service.set_roles(actor, employee_id, payload.role_ids)
-    await session.commit()
+    # Read before the change, not after: see below.
     employee = await service.get_employee(actor, employee_id)
-    return await _render(service, employee, actor.restaurant_id)
+    roles = await service.set_roles(actor, employee_id, payload.role_ids)
+    await session.commit()
+    # Rendered from what we already hold rather than re-reading through the visibility filter.
+    # Removing someone's last role at this restaurant makes them invisible here by definition, so
+    # a re-read answered 404 for a change that had just succeeded — the legitimate case being an
+    # owner taking a waiter off this branch's roster.
+    return _shape(employee, list(roles))
 
 
 @router.post("/{employee_id}/password", status_code=status.HTTP_204_NO_CONTENT)

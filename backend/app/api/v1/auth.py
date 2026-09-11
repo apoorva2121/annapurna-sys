@@ -77,6 +77,7 @@ def _session_response(result: LoginResult) -> SessionResponse:
         restaurant=RestaurantSummary.model_validate(result.restaurant),
         roles=list(result.role_codes),
         permissions=sorted(result.permissions),
+        password_change_required=result.password_change_required,
     )
 
 

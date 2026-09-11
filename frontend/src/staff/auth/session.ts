@@ -24,6 +24,9 @@ export type SessionResponse = {
   restaurant: RestaurantSummary;
   roles: string[];
   permissions: string[];
+  /** Somebody else set this password. The person is signed in — an account nobody can sign in to
+   *  cannot have its password changed by its owner — but is asked to change it immediately. */
+  password_change_required: boolean;
 };
 
 /** What GET /auth/me answers — the same picture, minus the credential. */
@@ -40,6 +43,7 @@ export type MeResponse = {
  *  every guarded element. */
 export type Session = {
   employeeId: string;
+  passwordChangeRequired: boolean;
   fullName: string;
   employeeCode: string;
   restaurant: RestaurantSummary;
@@ -50,6 +54,7 @@ export type Session = {
 export function sessionFromMe(response: MeResponse): Session {
   return {
     employeeId: response.employee_id,
+    passwordChangeRequired: false,
     fullName: response.full_name,
     employeeCode: response.employee_code,
     restaurant: response.restaurant,
@@ -67,14 +72,18 @@ export function sessionFromMe(response: MeResponse): Session {
  * blank until the next page reload quietly repaired it, which is a defect that survives
  * development precisely because developers reload constantly.
  */
-async function profile(): Promise<Session> {
-  return sessionFromMe(await apiGet<MeResponse>('/auth/me'));
+async function profile(passwordChangeRequired = false): Promise<Session> {
+  return {
+    ...sessionFromMe(await apiGet<MeResponse>('/auth/me')),
+    passwordChangeRequired,
+  };
 }
 
 export async function login(identifier: string, password: string): Promise<Session> {
   const response = await apiPost<SessionResponse>('/auth/login', { identifier, password });
   setAccessToken(response.access_token);
-  return await profile();
+  // Carried from the login response: /auth/me describes the person, not the credential.
+  return await profile(response.password_change_required);
 }
 
 /**
@@ -88,7 +97,7 @@ export async function restore(): Promise<Session | null> {
   try {
     const response = await apiPost<SessionResponse>('/auth/refresh');
     setAccessToken(response.access_token);
-    return await profile();
+    return await profile(response.password_change_required);
   } catch {
     setAccessToken(null);
     return null;

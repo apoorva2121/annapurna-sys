@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.actor import Actor
 from app.core.enums import EmploymentType, UserAccountStatus
 from app.core.errors import AppError, ConflictError, NotFoundError, PermissionDeniedError
-from app.core.permissions import may_assign_rank
+from app.core.permissions import may_assign_rank, may_reset_password
 from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
 from app.models.audit import AuditLog
@@ -201,6 +201,9 @@ class EmployeeService:
         employee = await self._repository(actor).get_for_update(employee_id)
         if employee is None:
             raise _not_found()
+        # P1-6: this had no seniority check at all. A name and a phone number are not harmless —
+        # the name prints on a bill and the number is how a supplier reaches that person.
+        self._reject_if_more_senior(actor, await self._rank_of(employee, actor))
 
         before = {field: getattr(employee, field) for field in changes}
         for field, value in changes.items():
@@ -286,6 +289,11 @@ class EmployeeService:
         employee = await self._repository(actor).get_for_update(employee_id)
         if employee is None:
             raise _not_found()
+        # Judged organization-wide, before anything is deleted (P1-2). The per-assignment check
+        # below only ever saw the roles held *at this branch*, so a branch manager could strip the
+        # junior role a senior person happened to hold there — and, because the loop deletes as it
+        # goes, the deletion happened before anything noticed who they really were.
+        self._reject_if_more_senior(actor, await self._rank_of(employee, actor))
 
         roles = await self._load_roles(actor, role_ids)
         for role in roles:
@@ -352,8 +360,14 @@ class EmployeeService:
         return list(roles)
 
     async def _rank_of(self, employee: Employee, actor: Actor) -> int:
-        resolved = await self.access.resolve(employee.id, actor.restaurant_id)
-        return resolved.rank
+        """Organization-wide, never branch-local (P1-2, G-4).
+
+        `actor` is no longer consulted and is kept only so the call sites read the same. Resolving
+        the target's rank at the *actor's* restaurant is what let a branch manager take over anyone
+        senior who also held a junior role at that branch.
+        """
+        _ = actor
+        return await self.access.most_senior_rank_anywhere(employee.id)
 
     def _reject_if_more_senior(self, actor: Actor, target_rank: int) -> None:
         if not may_assign_rank(actor.rank, target_rank):
@@ -373,7 +387,13 @@ class EmployeeService:
         employee = await self._repository(actor).get_for_update(employee_id)
         if employee is None:
             raise _not_found()
-        self._reject_if_more_senior(actor, await self._rank_of(employee, actor))
+        if not may_reset_password(actor.rank, await self._rank_of(employee, actor)):
+            # Stricter than every other guard here, because a password is not authority *over* a
+            # person, it is the ability to *be* them (P1-6). See permissions.may_reset_password.
+            raise PermissionDeniedError(
+                "employee.more_senior",
+                "You cannot set a password for this person. Ask someone more senior.",
+            )
 
         if employee.user_account_id is None:
             raise AppError(
@@ -387,6 +407,9 @@ class EmployeeService:
 
         account.password_hash = hash_password(new_password)
         account.status = UserAccountStatus.ACTIVE
+        # Somebody else now knows this password. The flag ends that the first time the account's
+        # real owner signs in and changes it (P1-6).
+        account.password_reset_required = True
         # A reset also clears a lockout — otherwise the fix for "I am locked out" does not fix it.
         account.failed_attempts = 0
         account.locked_until = None

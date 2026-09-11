@@ -67,6 +67,14 @@ export default function ProfileScreen(): ReactElement {
 
       <form onSubmit={onSubmit} className="flex max-w-md flex-col gap-4" noValidate>
         <h2 className="text-lg font-semibold">{strings.profile.changePassword}</h2>
+        {/* Someone else set this password and still knows it. Said plainly rather than nudged,
+            because the person needs to understand that until they act, anything done with their
+            account is attributed to them. */}
+        {session.passwordChangeRequired && (
+          <Notice tone="critical" title={strings.profile.mustChange}>
+            {strings.profile.mustChangeWhy}
+          </Notice>
+        )}
         <Field
           label={strings.profile.currentPassword}
           type="password"

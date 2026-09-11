@@ -61,6 +61,12 @@ class UserAccount(TimestampedUUIDMixin, Base):
     # The column exists from day one so enabling MFA later is a feature, not a migration on a live
     # table. No enrolment flow in M01 (M01 spec, Not in scope).
     mfa_secret: Mapped[str | None] = mapped_column(Text)
+    # Set when somebody else sets this account's password, cleared when its owner changes it. The
+    # reset itself is legitimate; what this ends is the standing ability of whoever performed it to
+    # sign in as this person afterwards (P1-6).
+    password_reset_required: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     failed_attempts: Mapped[int] = mapped_column(
         SmallInteger, nullable=False, default=0, server_default="0"

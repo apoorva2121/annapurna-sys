@@ -72,6 +72,9 @@ class LoginResult:
     permissions: frozenset[str]
     rank: int
     role_codes: tuple[str, ...]
+    # True when somebody else set this password. The client routes to the change-password screen;
+    # the server does not refuse the session, because a person who cannot sign in cannot change it.
+    password_change_required: bool = False
 
 
 class AuthService:
@@ -254,6 +257,7 @@ class AuthService:
             permissions=permissions,
             rank=resolved.rank,
             role_codes=resolved.role_codes,
+            password_change_required=account.password_reset_required,
         )
 
     # ---------------------------------------------------------------- refresh
@@ -352,6 +356,8 @@ class AuthService:
             )
 
         account.password_hash = hash_password(new_password)
+        # Whatever anyone else knew is now stale, so the requirement is satisfied.
+        account.password_reset_required = False
         await self.session.flush()
         await self.sessions.revoke_all_for_account(account.id, except_session_id=current_session_id)
         await self.session.flush()

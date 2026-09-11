@@ -40,6 +40,7 @@ function mockApi(routes: Record<string, () => Response>): void {
 
 const LOGIN_RESPONSE = {
   access_token: 'tok',
+  password_change_required: false,
   expires_in_seconds: 900,
   employee_id: 'e1',
   full_name: 'Rajesh Mehta',
@@ -111,5 +112,31 @@ describe('restoring on a cold load', () => {
     mockApi({ '/auth/refresh': () => json({ code: 'auth.session_invalid', message: 'no' }, 401) });
 
     await expect(restore()).resolves.toBeNull();
+  });
+});
+
+describe('a password somebody else set', () => {
+  it('is carried into the session so the profile screen can say so', async () => {
+    // /auth/me describes the person, not the credential — the flag only ever arrives on the login
+    // or refresh response, so it has to survive the hop through profile().
+    mockApi({
+      '/auth/login': () => json({ ...LOGIN_RESPONSE, password_change_required: true }),
+      '/auth/me': () => json(ME_RESPONSE),
+    });
+
+    const session = await login('waiter@spicegarden.test', 'a-temporary-password');
+
+    expect(session.passwordChangeRequired).toBe(true);
+  });
+
+  it('is not set for an ordinary sign-in', async () => {
+    mockApi({
+      '/auth/login': () => json(LOGIN_RESPONSE),
+      '/auth/me': () => json(ME_RESPONSE),
+    });
+
+    const session = await login('owner@spicegarden.test', 'Staging#2026');
+
+    expect(session.passwordChangeRequired).toBe(false);
   });
 });

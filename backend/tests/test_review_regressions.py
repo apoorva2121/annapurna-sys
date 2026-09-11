@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
 from app.core.errors import AppError, PermissionDeniedError
+from app.models.access import EmployeeRoleAssignment
 from app.models.identity import Employee
 from app.repositories.access import AccessRepository
 from app.services.auth import AuthService
@@ -312,6 +313,265 @@ class TestFailedRequestsPersistTheirBookkeeping:
             "the session family survived a replayed refresh token — the revocation was rolled back "
             "with the 401 that reported it"
         )
+
+
+class TestSeniorityIsOrganizationWide:
+    """Authority over a global resource is judged across the whole organization (G-4, P1-2).
+
+    Roles are per branch. A **password**, a **login** and an **employment** are not — they are one
+    account, and whoever controls them controls the person everywhere. Judging those by the rank the
+    target happens to hold *at the actor's branch* is the bug.
+
+    The attack it allowed: an org admin (rank 10 at head office) who also helps out as a `waiter`
+    (rank 40) at branch B is visible to B's managers and resolves to rank 40 there. A manager at B
+    resets their password — `may_assign_rank(20, 40)` is true — signs in as them, and arrives at
+    head office holding admin permissions. Every audit row afterwards names the victim.
+
+    Every test here is run against the two-branch fixture (G-17). Against a single-branch fixture
+    they all pass while the hole is open, which is precisely what happened.
+    """
+
+    async def _senior_at_head_office_junior_at_the_branch(
+        self, session: AsyncSession
+    ) -> tuple[World, str]:
+        """The owner is an owner at R1 and a waiter at R2. A manager exists only at R2."""
+        world = await _world(
+            session,
+            "owner",
+            second_branch=True,
+            at_second={"branch_manager": "manager"},
+            also_at_second={"owner": "waiter"},
+        )
+        return world, "branch_manager"
+
+    async def test_a_branch_manager_cannot_reset_a_senior_person_s_password(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The takeover itself. This is the one that matters."""
+        world, attacker = await self._senior_at_head_office_junior_at_the_branch(db_session)
+        token = await _token(api_client, attacker)
+
+        response = await api_client.post(
+            f"/api/v1/staff/employees/{world.employees['owner'].id}/password",
+            headers=_auth(token),
+            json={"new_password": "i-am-taking-over"},
+        )
+
+        assert response.status_code == 403, (
+            "a branch manager reset the password of someone who outranks them organization-wide — "
+            "they can now sign in as that person"
+        )
+
+    async def test_the_victim_s_password_still_works_afterwards(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """A 403 that changed the password anyway would satisfy the test above and lose the
+        account, so this asserts the victim can still sign in."""
+        world, attacker = await self._senior_at_head_office_junior_at_the_branch(db_session)
+        token = await _token(api_client, attacker)
+
+        await api_client.post(
+            f"/api/v1/staff/employees/{world.employees['owner'].id}/password",
+            headers=_auth(token),
+            json={"new_password": "i-am-taking-over"},
+        )
+
+        assert await _token(api_client, "owner")
+
+    async def test_a_branch_manager_cannot_deactivate_a_senior_person(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        world, attacker = await self._senior_at_head_office_junior_at_the_branch(db_session)
+        token = await _token(api_client, attacker)
+
+        response = await api_client.post(
+            f"/api/v1/staff/employees/{world.employees['owner'].id}/deactivate",
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 403
+
+    async def test_a_branch_manager_cannot_strip_a_senior_person_s_roles(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """Asserted on the surviving roles, not only on the status code.
+
+        A status-only assertion is unsafe here: stripping the victim's last role at this branch
+        makes them invisible to the very next read, so a *successful* attack answers 404. The test
+        would then pass on the symptom of the thing it is meant to prevent.
+        """
+        world, attacker = await self._senior_at_head_office_junior_at_the_branch(db_session)
+        owner_id = world.employees["owner"].id
+        token = await _token(api_client, attacker)
+
+        response = await api_client.post(
+            f"/api/v1/staff/employees/{owner_id}/roles",
+            headers=_auth(token),
+            json={"role_ids": []},
+        )
+
+        surviving = (
+            await db_session.scalars(
+                select(EmployeeRoleAssignment).where(EmployeeRoleAssignment.employee_id == owner_id)
+            )
+        ).all()
+        assert len(list(surviving)) == 2, (
+            "the branch manager deleted the owner's role assignments — including the owner role at "
+            "head office, which they can neither see nor hold"
+        )
+        assert response.status_code == 403
+
+    async def test_a_branch_manager_cannot_edit_a_senior_person_s_details(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """`update_employee` had no seniority check at all (P1-6). A name and a phone number are
+        not harmless: they are how a person is identified on a bill and reached by a supplier."""
+        world, attacker = await self._senior_at_head_office_junior_at_the_branch(db_session)
+        token = await _token(api_client, attacker)
+
+        response = await api_client.patch(
+            f"/api/v1/staff/employees/{world.employees['owner'].id}",
+            headers=_auth(token),
+            json={"full_name": "Not Their Name"},
+        )
+
+        assert response.status_code == 403
+
+
+class TestPasswordResetRequiresStrictSeniority:
+    """Resetting a peer's password is a lateral takeover (P1-6).
+
+    `may_assign_rank` permits equal rank, which is right for appointing: a manager may appoint
+    another manager, and lateral appointment is not escalation. It is wrong for a password, because
+    acting *as* a peer is indistinguishable in the audit trail from that peer acting.
+    """
+
+    async def test_a_manager_cannot_reset_another_manager_s_password(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        # The peer is at the actor's own branch, deliberately: a person the actor cannot see is
+        # refused by visibility, and a 404 would let this test pass without the guard existing.
+        world = await _world(db_session, "owner", "manager", at_first={"peer": "manager"})
+        token = await _token(api_client, "manager")
+
+        response = await api_client.post(
+            f"/api/v1/staff/employees/{world.employees['peer'].id}/password",
+            headers=_auth(token),
+            json={"new_password": "acting-as-my-peer"},
+        )
+
+        assert response.status_code == 403, (
+            "a manager reset a peer manager's password — every action they take as that person is "
+            "attributed to the victim"
+        )
+
+    async def test_an_owner_may_still_reset_another_owner_s_password(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The deliberate exception. Rank 0 is the top, so 'strictly more senior' would leave two
+        owners unable to help each other and a locked-out owner with no recovery at all."""
+        world = await _world(db_session, "owner", at_first={"co": "owner"})
+        token = await _token(api_client, "owner")
+
+        response = await api_client.post(
+            f"/api/v1/staff/employees/{world.employees['co'].id}/password",
+            headers=_auth(token),
+            json={"new_password": "a-fine-new-password"},
+        )
+
+        assert response.status_code == 204, response.text
+
+    async def test_an_owner_may_reset_a_junior_password(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        world = await _world(db_session, "owner", "waiter")
+        token = await _token(api_client, "owner")
+
+        response = await api_client.post(
+            f"/api/v1/staff/employees/{world.employees['waiter'].id}/password",
+            headers=_auth(token),
+            json={"new_password": "a-fine-new-password"},
+        )
+
+        assert response.status_code == 204, response.text
+
+
+class TestAResetPasswordMustBeChanged:
+    """A reset hands someone else's account to whoever performed it, until it is changed.
+
+    Without this, an owner who resets a waiter's password to something temporary can sign in as
+    that waiter indefinitely — and every order, void and discount is attributed to the waiter. The
+    reset is legitimate; the standing ability to impersonate is not.
+    """
+
+    async def test_the_next_login_says_the_password_must_change(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        world = await _world(db_session, "owner", "waiter")
+        owner = await _token(api_client, "owner")
+
+        reset = await api_client.post(
+            f"/api/v1/staff/employees/{world.employees['waiter'].id}/password",
+            headers=_auth(owner),
+            json={"new_password": "a-temporary-password"},
+        )
+        assert reset.status_code == 204, reset.text
+
+        signed_in = await api_client.post(
+            "/api/v1/auth/login",
+            json={"identifier": "waiter@spice-garden.test", "password": "a-temporary-password"},
+        )
+
+        assert signed_in.status_code == 200, signed_in.text
+        assert signed_in.json()["password_change_required"] is True
+
+    async def test_changing_it_clears_the_requirement(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        world = await _world(db_session, "owner", "waiter")
+        owner = await _token(api_client, "owner")
+        await api_client.post(
+            f"/api/v1/staff/employees/{world.employees['waiter'].id}/password",
+            headers=_auth(owner),
+            json={"new_password": "a-temporary-password"},
+        )
+        api_client.cookies.clear()
+        first = await api_client.post(
+            "/api/v1/auth/login",
+            json={"identifier": "waiter@spice-garden.test", "password": "a-temporary-password"},
+        )
+
+        changed = await api_client.post(
+            "/api/v1/auth/password",
+            headers=_auth(first.json()["access_token"]),
+            json={
+                "current_password": "a-temporary-password",
+                "new_password": "one-only-i-know",
+            },
+        )
+        assert changed.status_code == 204, changed.text
+
+        api_client.cookies.clear()
+        again = await api_client.post(
+            "/api/v1/auth/login",
+            json={"identifier": "waiter@spice-garden.test", "password": "one-only-i-know"},
+        )
+
+        assert again.json()["password_change_required"] is False
+
+    async def test_an_ordinary_login_is_not_flagged(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The flag must mean something. If every login carried it, the client would learn to
+        ignore it."""
+        await _world(db_session, "owner")
+
+        signed_in = await api_client.post(
+            "/api/v1/auth/login",
+            json={"identifier": "owner@spice-garden.test", "password": PASSWORD},
+        )
+
+        assert signed_in.json()["password_change_required"] is False
 
 
 class TestSeedRespectsIdentifiersItDidNotCreate:

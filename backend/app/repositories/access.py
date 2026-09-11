@@ -82,6 +82,30 @@ class AccessRepository:
         )
         return (await self.session.scalars(query)).all()
 
+    async def most_senior_rank_anywhere(self, employee_id: uuid.UUID) -> int:
+        """This person's seniority across the whole organization, ignoring branch.
+
+        Used for **account-level** authority: the password, the login and the employment are one
+        thing per person, however many branches they work at. `resolve()` answers the branch-local
+        question and is right for branch-local resources; using it for an account is the bug
+        (P1-2, G-4).
+
+        The attack it allowed: an admin at head office who also covers shifts as a waiter at
+        branch B resolves to *waiter* rank there, so B's manager outranks them locally and may
+        reset their password — then signs in as an admin. Rank is `min`, because seniority is the
+        best role you hold, not the average.
+
+        `MOST_JUNIOR_RANK` for someone holding no role anywhere: fails closed, and is the newly
+        created employee nobody has assigned yet.
+        """
+        rank = await self.session.scalar(
+            select(func.min(Role.rank))
+            .select_from(EmployeeRoleAssignment)
+            .join(Role, Role.id == EmployeeRoleAssignment.role_id)
+            .where(EmployeeRoleAssignment.employee_id == employee_id)
+        )
+        return MOST_JUNIOR_RANK if rank is None else int(rank)
+
     async def roles_for_employees(
         self, employee_ids: Sequence[uuid.UUID], restaurant_id: uuid.UUID
     ) -> dict[uuid.UUID, list[str]]:

@@ -26,12 +26,22 @@ PASSWORD = "Staging#2026"  # noqa: S105
 
 
 class World:
-    """One organization, one restaurant, and a person per role that the tests need."""
+    """One organization, one or two restaurants, and a person per role that the tests need."""
 
     def __init__(self, organization: Organization, restaurant: Restaurant) -> None:
         self.organization = organization
         self.restaurant = restaurant
+        # The second branch, present only when the test asked for one. Guardrail G-17: anything
+        # touching identity is tested against two branches, because rank is per branch while a
+        # password, a login and an employment are not — and a single-branch fixture cannot tell
+        # those apart. P1-2 passed every test in this file for exactly that reason.
+        self.branch: Restaurant | None = None
         self.employees: dict[str, Employee] = {}
+
+    @property
+    def second(self) -> Restaurant:
+        assert self.branch is not None, "this test needs _world(..., second_branch=True)"
+        return self.branch
 
 
 async def _role(session: AsyncSession, code: str) -> Role:
@@ -42,7 +52,22 @@ async def _role(session: AsyncSession, code: str) -> Role:
     return role
 
 
-async def _world(session: AsyncSession, *roles: str, slug: str = "spice-garden") -> World:
+async def _world(
+    session: AsyncSession,
+    *roles: str,
+    slug: str = "spice-garden",
+    second_branch: bool = False,
+    at_first: dict[str, str] | None = None,
+    at_second: dict[str, str] | None = None,
+    also_at_second: dict[str, str] | None = None,
+) -> World:
+    """The organization, its branches, and one person per role at the first branch.
+
+    `second_branch` adds restaurant `R2` in the same organization. `also_at_second` additionally
+    gives a person a *second, junior* role there — `{"owner": "waiter"}` makes the owner a waiter at
+    R2, which is the shape P1-2 exploited: branch-local rank said 40, the account was rank 0, and
+    every guard consulted the branch (G-17).
+    """
     organization = Organization(name=slug.title(), slug=slug)
     session.add(organization)
     await session.flush()
@@ -51,35 +76,81 @@ async def _world(session: AsyncSession, *roles: str, slug: str = "spice-garden")
     await session.flush()
     world = World(organization, restaurant)
 
+    if second_branch:
+        branch = Restaurant(organization_id=organization.id, name=f"{slug.title()} Two", code="R2")
+        session.add(branch)
+        await session.flush()
+        world.branch = branch
+
     for index, role_code in enumerate(roles):
+        employee = await _person(session, world, index, role_code, role_code, restaurant)
+        world.employees[role_code] = employee
+
+    # Extra people at the first branch, keyed by their own name — for a second holder of a role
+    # that `roles` already names, e.g. a peer manager. Keeping them at R1 matters: a person the
+    # actor cannot see is refused by visibility (404) rather than by seniority (403), and a test
+    # that accepts either proves nothing about the guard it claims to test.
+    for offset, (key, role_code) in enumerate((at_first or {}).items()):
+        world.employees[key] = await _person(
+            session, world, 200 + offset, key, role_code, restaurant
+        )
+
+    # People who exist only at the second branch, keyed by their own name so a test can take a
+    # token for them: _world(..., at_second={"branch_manager": "manager"}).
+    for offset, (key, role_code) in enumerate((at_second or {}).items()):
+        employee = await _person(session, world, 100 + offset, key, role_code, world.second)
+        world.employees[key] = employee
+
+    # An extra, usually junior, role at the second branch for someone who already exists.
+    for key, role_code in (also_at_second or {}).items():
         role = await _role(session, role_code)
-        account = UserAccount(
-            organization_id=organization.id,
-            email=f"{role_code}@{slug}.test",
-            password_hash=hash_password(PASSWORD),
-            status=UserAccountStatus.ACTIVE,
-        )
-        session.add(account)
-        await session.flush()
-        employee = Employee(
-            organization_id=organization.id,
-            user_account_id=account.id,
-            employee_code=f"E{index:03d}",
-            full_name=f"{role_code.replace('_', ' ').title()}",
-            joined_on=date(2026, 1, 1),
-            employment_type=EmploymentType.FULL_TIME,
-        )
-        session.add(employee)
-        await session.flush()
         session.add(
             EmployeeRoleAssignment(
-                employee_id=employee.id, restaurant_id=restaurant.id, role_id=role.id
+                employee_id=world.employees[key].id,
+                restaurant_id=world.second.id,
+                role_id=role.id,
             )
         )
-        await session.flush()
-        world.employees[role_code] = employee
+    await session.flush()
+
     await session.commit()
     return world
+
+
+async def _person(
+    session: AsyncSession,
+    world: World,
+    index: int,
+    key: str,
+    role_code: str,
+    restaurant: Restaurant,
+) -> Employee:
+    role = await _role(session, role_code)
+    account = UserAccount(
+        organization_id=world.organization.id,
+        email=f"{key}@{world.organization.slug}.test",
+        password_hash=hash_password(PASSWORD),
+        status=UserAccountStatus.ACTIVE,
+    )
+    session.add(account)
+    await session.flush()
+    employee = Employee(
+        organization_id=world.organization.id,
+        user_account_id=account.id,
+        employee_code=f"E{index:03d}",
+        full_name=key.replace("_", " ").title(),
+        joined_on=date(2026, 1, 1),
+        employment_type=EmploymentType.FULL_TIME,
+    )
+    session.add(employee)
+    await session.flush()
+    session.add(
+        EmployeeRoleAssignment(
+            employee_id=employee.id, restaurant_id=restaurant.id, role_id=role.id
+        )
+    )
+    await session.flush()
+    return employee
 
 
 async def _token(client: AsyncClient, role_code: str, slug: str = "spice-garden") -> str:
