@@ -28,7 +28,10 @@ Spec: `docs/modules/M01-identity-spec.md` · Branch: `feat/m01-identity` (off `f
 adversarial review, five from an independent one, and **one from running the manual script by
 hand, which was the most serious of the nine** (11–19 below).
 
-**Remaining before M01 can be called done: your manual pass** (`docs/manual-tests/M01-identity.md`,
+**M01 IS DONE.** Manual pass clean on 2026-09-11, no findings. Post-audit hardening R1, R2 and
+R8a are also done (`docs/audit/remediation-plan.md`), so the M02 gate is clear.
+
+~~Remaining before M01 can be called done: your manual pass~~ (`docs/manual-tests/M01-identity.md`,
 ~25 minutes). Everything else in the Definition of Done is met.
 
 ### What chunk H did
@@ -277,8 +280,8 @@ The Definition of Done in `docs/sdlc.md` is met on every line **except the last 
 - [x] Permission declared on every route; tenant scoping through repositories only
 - [x] Audit entries for every permission-affecting change
 - [x] Manual script written
-- [ ] **You have run it and every step passes** ← the only thing outstanding
-- [ ] Exploratory charter done and findings triaged
+- [x] **You have run it and every step passes** — manual pass clean, 2026-09-11
+- [x] Exploratory charter done and findings triaged — no findings
 
 Run `docs/manual-tests/M01-identity.md` (~25 min). Report failures as step number + expected + saw.
 Every bug found there gets a regression test written **before** the fix.
