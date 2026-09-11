@@ -222,6 +222,98 @@ class TestSeedDoesNotResurrectRemovedRoles:
         )
 
 
+REFRESH_COOKIE = "restaurant_os_refresh"
+
+
+def _present(client: AsyncClient, token: str) -> None:
+    """Make the client send exactly this refresh token on the next request.
+
+    Set on the jar rather than passed per-request: httpx deprecated per-request cookies because the
+    persistence semantics are ambiguous, and this suite turns warnings into errors.
+    """
+    client.cookies.clear()
+    client.cookies.set(REFRESH_COOKIE, token)
+
+
+class TestFailedRequestsPersistTheirBookkeeping:
+    """A write that must survive a failed request is committed by the service before it raises.
+
+    Guardrail G-1. Every route in this application follows *service flushes, route commits*, which
+    is correct until the request fails: the route never reaches `commit()`, FastAPI re-raises at the
+    dependency's `yield`, and `get_session` closes the session — rolling the flush back.
+
+    Both halves of P1-1 live here. The lockout half was found by running the manual script by hand
+    and fixed in `b01a8b0`; `tests/test_lockout_persistence.py` proves it at the service level and
+    this class proves it over HTTP. The replay half was found by an external audit and is fixed
+    here.
+
+    These tests are only meaningful because the `api` fixture opens one session per request. Under
+    the shared session it replaced, both would pass against the broken code.
+    """
+
+    async def test_five_wrong_passwords_over_http_lock_the_account(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        await _world(db_session, "owner")
+
+        for _ in range(5):
+            refused = await api_client.post(
+                "/api/v1/auth/login",
+                json={"identifier": "owner@spice-garden.test", "password": "wrong"},
+            )
+            assert refused.status_code == 401
+
+        locked = await api_client.post(
+            "/api/v1/auth/login",
+            json={"identifier": "owner@spice-garden.test", "password": PASSWORD},
+        )
+
+        assert locked.status_code == 429, (
+            "the correct password signed in after five failures — the failure counter was rolled "
+            "back with the request that failed, so the threshold is never reached"
+        )
+
+    async def test_a_replayed_refresh_token_kills_the_family_over_http(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The half that was still open.
+
+        `_handle_replay` revokes every session descended from one login, then the caller raises 401
+        — and the revocation dies with the request. The consequence is backwards: the thief who
+        presents the stolen token *first* gets a working session, and the revocation that was
+        supposed to protect the real user is discarded. Only the real user is inconvenienced, and
+        only by having their own later refresh rejected.
+        """
+        await _world(db_session, "owner")
+        signed_in = await api_client.post(
+            "/api/v1/auth/login",
+            json={"identifier": "owner@spice-garden.test", "password": PASSWORD},
+        )
+        assert signed_in.status_code == 200
+        stolen = signed_in.cookies[REFRESH_COOKIE]
+
+        rotated = await api_client.post("/api/v1/auth/refresh")
+        assert rotated.status_code == 200
+        successor = rotated.cookies[REFRESH_COOKIE]
+        assert successor != stolen, "the refresh token did not rotate"
+
+        # The thief presents the token that was already spent. This is detected — and the whole
+        # family is supposed to die with it.
+        _present(api_client, stolen)
+        replayed = await api_client.post("/api/v1/auth/refresh")
+        assert replayed.status_code == 401
+
+        # The legitimate successor must now be dead too. If it still works, the revocation was
+        # rolled back and a stolen token costs the victim nothing but buys the thief a session.
+        _present(api_client, successor)
+        after = await api_client.post("/api/v1/auth/refresh")
+
+        assert after.status_code == 401, (
+            "the session family survived a replayed refresh token — the revocation was rolled back "
+            "with the 401 that reported it"
+        )
+
+
 class TestSeedRespectsIdentifiersItDidNotCreate:
     """The seed writes `UserAccount` rows directly, so it bypasses `_create_login`'s global check.
 

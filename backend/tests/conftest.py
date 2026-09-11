@@ -27,7 +27,12 @@ from alembic.config import Config
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncConnection,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from app.core.db import get_session
 from app.main import create_app
@@ -70,22 +75,27 @@ def migrated_url(postgres_url: str) -> str:
 
 
 @pytest.fixture
-async def api(db_session: AsyncSession) -> AsyncIterator[FastAPI]:
-    """The real application, wired to the test transaction.
+async def api(db_connection: AsyncConnection) -> AsyncIterator[FastAPI]:
+    """The real application, wired to the test's transaction but **not** to the test's session.
 
-    `get_session` is overridden so handlers read and write the same rolled-back transaction the
-    test set its fixtures up in. Without this the API would open its own connection to the
-    unreachable URL that conftest sets deliberately, and every request would fail for a reason that
-    has nothing to do with what is being tested.
+    Each request opens its own session and closes it when the request ends — exactly what
+    `app.core.db.get_session` does in production. That is the whole point of this fixture, and it is
+    guardrail G-2.
 
-    Handlers still call `commit()`. Under join_transaction_mode="create_savepoint" that releases a
-    savepoint rather than the outer transaction, so a handler's write is visible to the rest of the
-    test and is still discarded when the test ends.
+    The previous version yielded one long-lived session to every request. It looked harmless and it
+    made this suite unable to see a rollback: a handler that flushed and then raised left its work
+    visible to the next request and to the assertions, because nothing ever closed the session. The
+    account lockout shipped inoperative underneath 262 passing tests for exactly that reason
+    (P1-1) — the counter was rolled back in production and survived in the tests.
+
+    With a session per request, a handler that forgets to commit fails here instead of in a
+    restaurant.
     """
     application = create_app()
 
     async def _session_override() -> AsyncIterator[AsyncSession]:
-        yield db_session
+        async with _session_factory(db_connection)() as session:
+            yield session
 
     application.dependency_overrides[get_session] = _session_override
     yield application
@@ -139,28 +149,47 @@ async def fresh_database(postgres_url: str) -> AsyncIterator[str]:
 
 
 @pytest.fixture
-async def db_session(migrated_url: str) -> AsyncIterator[AsyncSession]:
-    """A session whose work is rolled back when the test ends.
+async def db_connection(migrated_url: str) -> AsyncIterator[AsyncConnection]:
+    """One connection and one outer transaction per test, rolled back at the end.
 
-    Everything runs inside one outer transaction that is never committed, so tests share a single
-    migrated database without seeing each other's rows and without truncation between them.
+    Sessions are built *from* this rather than being the unit of isolation themselves, which is what
+    lets the test and the application hold separate sessions over the same rolled-back transaction —
+    the arrangement production has, where every request gets its own session against a shared pool.
     """
     engine = create_async_engine(migrated_url)
     try:
         async with engine.connect() as connection:
             transaction = await connection.begin()
-            # join_transaction_mode="create_savepoint" is what makes constraint tests possible: an
-            # IntegrityError rolls the session back to its savepoint instead of destroying the
-            # outer transaction, so the fixture can still clean up afterwards. Without it, every
-            # test that asserts the database rejects something dies in teardown.
-            factory = async_sessionmaker(
-                bind=connection,
-                expire_on_commit=False,
-                join_transaction_mode="create_savepoint",
-            )
-            async with factory() as session:
-                yield session
+            yield connection
             if transaction.is_active:
                 await transaction.rollback()
     finally:
         await engine.dispose()
+
+
+def _session_factory(connection: AsyncConnection) -> async_sessionmaker[AsyncSession]:
+    # join_transaction_mode="create_savepoint" is what makes constraint tests possible: an
+    # IntegrityError rolls the session back to its savepoint instead of destroying the outer
+    # transaction, so the fixture can still clean up afterwards. Without it, every test that asserts
+    # the database rejects something dies in teardown.
+    #
+    # It is also what makes the honest `api` fixture below work: a handler's commit() releases its
+    # savepoint rather than the outer transaction, and a handler that *fails* rolls back to that
+    # savepoint — discarding exactly what production would discard.
+    return async_sessionmaker(
+        bind=connection,
+        expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
+
+
+@pytest.fixture
+async def db_session(db_connection: AsyncConnection) -> AsyncIterator[AsyncSession]:
+    """The session a test uses to arrange its own fixtures and assert against afterwards.
+
+    Note it is *not* the session the application uses — see `api`. After a request, re-read through
+    this session rather than trusting an object it loaded earlier: the two sessions have separate
+    identity maps, and that is the point.
+    """
+    async with _session_factory(db_connection)() as session:
+        yield session

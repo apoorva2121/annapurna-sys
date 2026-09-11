@@ -47,8 +47,8 @@ Rules of engagement for the session (the human enforces these):
 
 | Chunk | What | Findings | State | Commit |
 |---|---|---|---|---|
-| R1 | Transactions and the honest test harness | P1-1, P1-9 | ☐ **NEXT** — half done: lockout commit landed (`b01a8b0`); replay revocation and the per-request `api` fixture still open. **Argon2 (P1-9) drops out of this chunk** — deferred to measured load or M08 | `b01a8b0` (part) |
-| R2 | Seniority is organization-wide | P1-2, P1-6 | ☐ then this. Includes the two-branch/two-org fixture (G-17), which is most of the work | — |
+| R1 | Transactions and the honest test harness | P1-1 | ☑ **done** — `api` opens one session per request; both halves of P1-1 have HTTP-level tests; `_handle_replay` commits its revocation. 270 tests, `make check` clean. **P1-9 (argon2) was removed from this chunk** and deferred to measured load or M08 | `b01a8b0` + `734997e` |
+| R2 | Seniority is organization-wide | P1-2, P1-6 | ☐ **NEXT**. Includes the two-branch/two-org fixture (G-17), which is most of the work | — |
 | R8a | Lockfile only — `uv lock`, frozen installs, pinned ruff | M9 | ☐ then this | — |
 | — | **M02 may start here** | — | — | — |
 | R3 | Sentry and redaction | P1-4, M3 | ⏸ deferred → the deploy, or the day `SENTRY_DSN` is set. Interim: it stays unset | — |

@@ -298,6 +298,15 @@ class AuthService:
         if known is None:
             return
         revoked = await self.sessions.revoke_family(known.family_id)
+        # Committed here, like the failure counter, and for the same reason (G-1): the caller is
+        # about to raise 401 and the route will never reach its own commit, so without this the
+        # revocation is rolled back by the very response that reports it.
+        #
+        # The consequence of getting this wrong is backwards, which is what made it easy to miss:
+        # the thief who presents the stolen token *first* is handed a working session, while the
+        # only person inconvenienced is the real owner, whose next refresh is refused. The whole
+        # point of killing the family is that neither party keeps a session.
+        await self.session.commit()
         logger.warning(
             "auth.refresh_token_replayed",
             extra={"family_id": str(known.family_id), "sessions_revoked": revoked},
