@@ -1,26 +1,36 @@
 # M01 · Identity, Roles & Permissions — Manual Test
 
-**Worked example.** Written before the module is built so the format is agreed up front. Step
-numbers and expected values will be confirmed against the real screens when M01 ships.
+**Module:** M01 · **Est. time:** 25 min · **Tester:** you · **Environment:** local Compose
 
-**Module:** M01 · **Est. time:** 25 min · **Tester:** you · **Environment:** staging
+> **Rewritten against the built module.** The original was written before the code existed, as a
+> format demonstration, and said its step values would be confirmed when M01 shipped. They are now.
+> What changed and why is listed at the bottom under *Changes from the pre-build draft* — read that
+> if you remember the old steps, skip it otherwise.
 
 ---
 
 ## Preconditions
 
-- Staging URL: `https://staging.<app>.dev` (I will fill this in at handover)
+```
+make dev        # api, db and web; wait for all three
+make seed       # idempotent, safe to re-run
+```
+
+- Open **http://localhost:5173**. There is no staging URL yet; the day-2 deploy slipped and the M01
+  spec's risk table says plainly that this must not block the module.
 - Seeded logins — all use password `Staging#2026`:
 
-| Login | Role | Restaurant |
-|---|---|---|
-| `owner@spicegarden.test` | Owner | Spice Garden |
-| `manager@spicegarden.test` | Manager | Spice Garden |
-| `waiter1@spicegarden.test` | Waiter | Spice Garden |
-| `chef@spicegarden.test` | Chef | Spice Garden |
-| `manager@tandoorhouse.test` | Manager | **Tandoor House** (a second restaurant, for isolation tests) |
+| Login | Also works as | Role | Restaurant |
+|---|---|---|---|
+| `owner@spicegarden.test` | `9820011001` | Owner | Spice Garden |
+| `manager@spicegarden.test` | `9820011003` | Manager | Spice Garden |
+| `waiter1@spicegarden.test` | `9820011009` | Waiter | Spice Garden |
+| `chef@spicegarden.test` | `9820011004` | Chef | Spice Garden |
+| `manager@tandoorhouse.test` | `9820022002` | Manager | **Tandoor House** (a second organization) |
 
 - Use a private/incognito window so nothing is cached between roles.
+- **Every login accepts the phone number as well as the email.** Most waiters and kitchen staff in a
+  real restaurant have no email they check, so please use a phone number for at least one sign-in.
 
 ---
 
@@ -28,19 +38,23 @@ numbers and expected values will be confirmed against the real screens when M01 
 
 | # | Step | Expected | P/F |
 |---|---|---|---|
-| A1 | Open the staging URL | Login screen. No data visible before login. | ☐ |
-| A2 | Log in as `owner@spicegarden.test` | Lands on the Owner dashboard. Top bar reads "Spice Garden". | ☐ |
-| A3 | Read the user menu (top right) | Shows your name and the role "Owner" | ☐ |
-| A4 | Open Settings → Staff | A list of employees with name, role, active status | ☐ |
-| A5 | Tap "Add employee". Fill: name `Test Waiter`, phone `9000000001`, role `Waiter`, joined today. Save | Employee appears in the list, marked Active | ☐ |
-| A6 | Open `Test Waiter`, change role to `Captain`… if no Captain role exists, change to `Manager`. Save | Role updates in the list without a page reload | ☐ |
-| A7 | Deactivate `Test Waiter` | Row shows Inactive. **Still in the list** — not deleted. | ☐ |
-| A8 | Log out | Returns to login. | ☐ |
-| A9 | Press the browser Back button | **No dashboard data visible.** Login screen or a redirect to it. | ☐ |
+| A1 | Open the app | Login screen. No restaurant name, no data of any kind before signing in. | ☐ |
+| A2 | Sign in as `owner@spicegarden.test` | Lands on a page headed **"Spice Garden - Koregaon Park"**, and "Signed in as Rajesh Mehta". | ☐ |
+| A3 | Read the top bar | Shows the restaurant name, and links for Staff and Your profile. | ☐ |
+| A4 | Open **Your profile** | Your name, **employee code `EMP001`**, restaurant, roles, and the full list of what you can do. | ☐ |
+| A5 | Open **Staff** | 19 employees. Each row shows name, code, role, and Active. | ☐ |
+| A6 | Find `Santosh Pawar` and `Deepak Yadav` | Both marked **"No login"**. They are real employees who never sign in — that has to work (ADR 0007). | ☐ |
+| A7 | Tap **Add employee**. Name `Test Waiter`, code `TEST01`, phone `9000000001`, joined today. Leave the login field **blank**. Save | Lands on the new employee's page. No password was required. | ☐ |
+| A8 | On that page, tick **Waiter** under Roles and save | "Roles updated." | ☐ |
+| A9 | Go back to Staff | `Test Waiter` is listed, Active, role `waiter`. | ☐ |
+| A10 | Open `Test Waiter` and press **Deactivate** | Row becomes Inactive. | ☐ |
+| A11 | Back to Staff | `Test Waiter` is **gone from the list**. Tick **Include deactivated** — he reappears, marked Inactive. | ☐ |
+| A12 | Sign out | Returns to the login screen. | ☐ |
+| A13 | Press the browser **Back** button | **No data visible.** Login screen, or a redirect to it. | ☐ |
 
-> A7 and A9 matter more than they look. A7 verifies we deactivate rather than delete
-> (ADR 0008) — historical orders must keep pointing at that person. A9 catches cached
-> pages leaking after logout.
+> A10–A11 matter more than they look. They verify we deactivate rather than delete (ADR 0008) —
+> historical orders must keep pointing at that person. A13 catches cached pages leaking after
+> sign-out.
 
 ---
 
@@ -48,13 +62,20 @@ numbers and expected values will be confirmed against the real screens when M01 
 
 | # | Step | Expected | P/F |
 |---|---|---|---|
-| B1 | Log in with a correct email and a wrong password | "Invalid email or password." **Not** "wrong password" — it must not confirm the email exists. | ☐ |
-| B2 | Log in with an email that does not exist | The **same** message as B1, word for word | ☐ |
-| B3 | Get the password wrong 5 times in a row | Account locks with a clear message saying roughly how long | ☐ |
-| B4 | Add an employee with no name | Inline error next to the field. Nothing saved. | ☐ |
-| B5 | Add an employee with phone `12345` | Inline error: not a valid phone number | ☐ |
-| B6 | Add a second employee with a phone already in use | Clear message that the number is taken | ☐ |
-| B7 | Anywhere an error appeared — read it | Plain English. No error codes, no SQL, no stack trace, no table names. | ☐ |
+| B1 | Sign in with a correct email and a wrong password | "Invalid login or password." **Not** "wrong password" — it must not confirm the address exists. | ☐ |
+| B2 | Sign in with an email that does not exist | The **same** message as B1, word for word. | ☐ |
+| B3 | Get the password wrong **5 times** for `chef@spicegarden.test` | Locks, with a message saying roughly how long (about 15 minutes). | ☐ |
+| B4 | Still locked out, now type the **correct** password | Still refused, and still tells you how long. | ☐ |
+| B5 | As owner, add an employee with the name left blank | Refused before it is sent. Nothing saved. | ☐ |
+| B6 | Add an employee with phone `12345` | "not a valid phone number". Nothing saved. | ☐ |
+| B7 | Add an employee with employee code `EMP001` (already used) | Clear message that the code is in use. | ☐ |
+| B8 | Add an employee with login `owner@spicegarden.test` (already used) | Clear message that the phone number or email is in use. | ☐ |
+| B9 | Re-read every error you saw | Plain English. No error codes in the sentence, no SQL, no stack trace, no table names. | ☐ |
+
+> **Two employees may share a contact phone number, deliberately.** Only a *login* identifier has to
+> be unique. Two brothers working in a family restaurant on one phone is ordinary, and refusing it
+> would be the software telling the restaurant it is wrong about its own staff. B8 is the
+> uniqueness that actually matters.
 
 ---
 
@@ -62,26 +83,33 @@ numbers and expected values will be confirmed against the real screens when M01 
 
 | # | Step | Expected | P/F |
 |---|---|---|---|
-| C1 | Log in as `waiter1@` | Lands on the **waiter** screen, not the dashboard | ☐ |
-| C2 | Look at the navigation | No Settings, no Staff, no Reports, no financial figures | ☐ |
-| C3 | As waiter, open Settings → Staff **by typing the URL directly** | Blocked. A clear "You don't have access" — **not** a blank page or a crash. | ☐ |
-| C4 | Log in as `chef@` | Kitchen screen. No prices, no margins, no staff management. | ☐ |
-| C5 | Log in as `manager@` | Operational screens **and** staff management. No owner-only financials. | ☐ |
-| C6 | Log in as `owner@` | Everything | ☐ |
+| C1 | Sign in as `waiter1@` — **use the phone number `9820011009`** | Signs in. Lands on the restaurant page with **no Staff link**, and a note saying nothing is assigned to them yet. | ☐ |
+| C2 | Look at the top bar as the waiter | Only "Your profile". No Staff. | ☐ |
+| C3 | As the waiter, type `http://localhost:5173/staff` into the address bar | **"You do not have access to this."** — a readable refusal, not a blank page, not a crash. | ☐ |
+| C4 | Sign in as `chef@` | Has a Staff link and can read the list — a chef needs to know who is on. Opening a person shows **no** edit form, no roles, no deactivate. | ☐ |
+| C5 | Sign in as `manager@spicegarden.test` | Full staff management: add, edit, assign roles, deactivate. | ☐ |
+| C6 | As the manager, open `Rajesh Mehta` (the owner) and try to change his roles | Refused: you cannot change someone more senior than you. | ☐ |
+| C7 | As the manager, open **your own** record and try to change your roles | Refused: you cannot change your own roles. | ☐ |
+
+> C6 and C7 are the seniority ladder. In M01 a manager and an owner hold the *same seven
+> permissions*, so permissions alone cannot stop a manager promoting themselves — `role.rank` is
+> what does, and these two steps are the only place you can see it working.
 
 ---
 
 ## D · Security probes
 
-Two minutes, and they verify the controls in `docs/security.md` for real.
+Five minutes, and they verify the controls in `docs/security.md` for real.
 
 | # | Step | Expected | P/F |
 |---|---|---|---|
-| D1 | As `manager@spicegarden`, copy an employee's URL (with its id). Log out. Log in as `manager@tandoorhouse`. Paste that URL. | **Denied or not-found.** If you can see a Spice Garden employee from Tandoor House, stop testing and tell me immediately — that is the most serious bug this product can have. | ☐ |
-| D2 | As `waiter1@`, open DevTools → Network. Find any API call. Copy its URL, change the path to `/api/v1/staff/employees`, open it in a tab. | `403`. Not data. | ☐ |
-| D3 | Log in as `waiter1@` in window 1. In window 2 as `owner@`, deactivate that waiter. Back in window 1, click anything. | Waiter is logged out **immediately** — not on next login | ☐ |
-| D4 | Log in, copy the URL after login, log out, paste the URL in a fresh tab | Login screen. No data. | ☐ |
-| D5 | On the login screen, open DevTools → Network, log in, inspect the response | No password, no password hash anywhere in the response | ☐ |
+| D1 | As `manager@spicegarden`, open any employee and **copy the URL** (it has an id in it). Sign out. Sign in as `manager@tandoorhouse.test`. Paste that URL. | **"That employee was not found."** If you can see a Spice Garden employee from Tandoor House, stop testing and tell me immediately — that is the most serious bug this product can have. | ☐ |
+| D2 | Sign in as `waiter1@`. Open DevTools → Network. Visit `http://localhost:8000/api/v1/staff/employees` in a tab. | `401` or `403`. **Not** data. | ☐ |
+| D3 | Sign in as `waiter1@` in window 1. In window 2, as `owner@`, deactivate Suresh Patil. Back in window 1, reload. | The waiter is signed out. Not "on next login". | ☐ |
+| D4 | Sign in, copy the URL you land on, sign out, paste it into a fresh tab | Login screen. No data. | ☐ |
+| D5 | On the login screen, open DevTools → Network, sign in, inspect the response body | No password, no password hash, no refresh token anywhere in it. | ☐ |
+| D6 | In DevTools → Application → Cookies, find `restaurant_os_refresh` | Marked **HttpOnly**. In the Console, `document.cookie` does **not** show it. | ☐ |
+| D7 | While signed in, press **F5** | You stay signed in. (This is the refresh cookie doing its job — the access token did not survive the reload.) | ☐ |
 
 ---
 
@@ -89,11 +117,11 @@ Two minutes, and they verify the controls in `docs/security.md` for real.
 
 | # | Step | Expected | P/F |
 |---|---|---|---|
-| E1 | Time yourself logging in from a cold start | Under 10 seconds including typing | ☐ |
-| E2 | Do the whole login on a phone, one-handed | Every control reachable with a thumb; nothing needs zoom | ☐ |
-| E3 | Turn off wifi, try to log in | A clear "You appear to be offline" — **not** a spinner forever, not a raw error | ☐ |
-| E4 | Add an employee on a phone | Form is usable; the keyboard does not cover the field you are typing in | ☐ |
-| E5 | Look at the staff list on a phone | Readable without horizontal scrolling | ☐ |
+| E1 | Time yourself signing in from a cold start | Under 10 seconds including typing. | ☐ |
+| E2 | Do the whole sign-in on a phone, one-handed | Every control reachable with a thumb; nothing needs zoom. | ☐ |
+| E3 | Turn off wifi, try to sign in | "You appear to be offline…" — **not** a spinner forever, not a raw error. | ☐ |
+| E4 | Add an employee on a phone | Form is usable; the keyboard does not cover the field you are typing in. | ☐ |
+| E5 | Look at the staff list on a phone | Readable without horizontal scrolling. | ☐ |
 
 ---
 
@@ -101,10 +129,9 @@ Two minutes, and they verify the controls in `docs/security.md` for real.
 
 **Goal: get into something you should not be able to reach, or make the app show a broken screen.**
 
-Suggested: log in as the waiter and go looking for anything with money on it. Use the browser Back
-and Forward buttons aggressively. Open two roles in two windows and act in both. Refresh mid-action.
-Submit a form twice quickly. Rotate the phone mid-form. Type a very long name. Paste emoji into
-every field.
+Suggested: sign in as the waiter and go looking for anything you should not see. Use Back and
+Forward aggressively. Open two roles in two windows and act in both. Refresh mid-action. Submit a
+form twice quickly. Rotate the phone mid-form. Type a very long name. Paste emoji into every field.
 
 **Write down anything that felt wrong, even if nothing broke.** Slow, confusing, too many taps,
 unclear wording — all findings.
@@ -118,9 +145,41 @@ Notes:
 
 ---
 
+## Known gaps in M01 — not bugs, please do not report these
+
+- **No waiter or kitchen screen.** A waiter and a chef land on the same plain page. Ordering is
+  M07, the kitchen display is M08.
+- **No "reset someone else's password" button.** The endpoint and the permission exist; the screen
+  is not in M01's frontend scope.
+- **No forgotten-password flow.** No email or SMS provider is wired until M14. An owner resets a
+  staff password; a forgotten owner password is a support action in month 1.
+- **No MFA enrolment.** The column exists; the flow is backlogged.
+- **Roles are assigned after creating a person, not during.** Deliberate: folding role assignment
+  into create would let anyone holding `employee.create` grant roles as a side effect and bypass the
+  seniority ladder entirely.
+
+---
+
+## Changes from the pre-build draft
+
+Recorded so the difference is auditable rather than quietly rewritten.
+
+| Old step | Why it changed |
+|---|---|
+| "Lands on the Owner dashboard" | There is no dashboard in M01. It lands on a page naming the restaurant, which is what acceptance criterion 1 actually asks for. |
+| "Settings → Staff" | Settings is M02. Staff is a top-level link. |
+| Set the role while adding an employee | Role assignment is a separate, separately-permissioned step, for the reason in the Known gaps list. Split into A7 and A8. |
+| "change role to `Captain`" | No Captain role exists. The nine system roles are fixed by `docs/schema.md` §1; `waiter` is named "Waiter / Captain". |
+| "Deactivated row stays in the list" | It leaves the default list and returns under **Include deactivated**. The row is never deleted, which is what ADR 0008 requires; showing inactive staff by default would put leavers in front of a manager every day. |
+| "Waiter lands on the waiter screen" / "Chef lands on the kitchen screen" | M07 and M08. What M01 must get right is that neither is offered staff management, and C3 checks the refusal is readable. |
+| "second employee with a phone already in use" | `employee.phone` is deliberately not unique — see the note under section B. Replaced by B7 (duplicate employee code) and B8 (duplicate login), which are the constraints that exist. |
+| — | D6 and D7 are new: the httpOnly cookie and surviving a page reload were not covered, and both are load-bearing for the session design. |
+
+---
+
 ## Result
 
-- Steps passed: ____ / 30
+- Steps passed: ____ / 41
 - Failures (step number → what you expected → what you saw):
 
 ```
