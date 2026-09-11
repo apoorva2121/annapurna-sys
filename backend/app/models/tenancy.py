@@ -65,6 +65,10 @@ class Restaurant(TimestampedUUIDMixin, Base):
         Time, nullable=False, default=time(5, 0), server_default="05:00"
     )
     gstin: Mapped[str | None] = mapped_column(Text)
+    # A column rather than a key in `settings` (finding S13). It prints on every bill and is a
+    # legal requirement for a food business in India — that is not configuration. M01's seed put it
+    # in `settings` only because no column existed yet; migration 0004 moves it.
+    fssai_licence: Mapped[str | None] = mapped_column(Text)
     address: Mapped[dict[str, object] | None] = mapped_column(JSONB)
     settings: Mapped[dict[str, object]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}"

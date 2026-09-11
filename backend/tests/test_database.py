@@ -113,3 +113,62 @@ def test_migrations_at_head_is_false_before_any_migration_runs(
         get_sessionmaker.cache_clear()
 
     assert at_head is False
+
+
+async def test_the_fssai_licence_survives_a_downgrade(postgres_url: str) -> None:
+    """Migration 0004 moves a legally required number out of a JSON blob and into a column.
+
+    A downgrade that simply dropped the column would delete an FSSAI licence that prints on every
+    bill, so 0004's downgrade returns it to `settings` first. Asserted because "reversible" has to
+    mean "without losing data", not merely "the table is gone again".
+    """
+    config = _alembic_config(postgres_url)
+    await asyncio.to_thread(command.upgrade, config, "head")
+
+    engine = create_async_engine(postgres_url)
+    try:
+        async with engine.begin() as conn:
+            organization_id = (
+                await conn.execute(
+                    text(
+                        "INSERT INTO organization (id, name, slug, plan, is_demo) "
+                        "VALUES (gen_random_uuid(), 'Licence Co', 'licence-co', 'trial', true) "
+                        "RETURNING id"
+                    )
+                )
+            ).scalar_one()
+            await conn.execute(
+                text(
+                    # timezone, currency and is_active carry Python-side defaults rather than
+                    # server ones, so a raw INSERT has to supply them.
+                    "INSERT INTO restaurant "
+                    "  (id, organization_id, name, code, timezone, currency, is_active, "
+                    "   fssai_licence) "
+                    "VALUES (gen_random_uuid(), :org, 'Licence Test', 'LIC1', 'Asia/Kolkata', "
+                    "        'INR', true, '11522998000123')"
+                ),
+                {"org": organization_id},
+            )
+
+        await asyncio.to_thread(command.downgrade, config, "0003_password_reset_required")
+
+        async with engine.begin() as conn:
+            stored = (
+                await conn.execute(
+                    text("SELECT settings ->> 'fssai_licence' FROM restaurant WHERE code = 'LIC1'")
+                )
+            ).scalar_one()
+        assert stored == "11522998000123", (
+            "the downgrade dropped the FSSAI licence instead of returning it to settings"
+        )
+
+        await asyncio.to_thread(command.upgrade, config, "head")
+        async with engine.begin() as conn:
+            restored = (
+                await conn.execute(text("SELECT fssai_licence FROM restaurant WHERE code = 'LIC1'"))
+            ).scalar_one()
+            await conn.execute(text("DELETE FROM restaurant WHERE code = 'LIC1'"))
+            await conn.execute(text("DELETE FROM organization WHERE slug = 'licence-co'"))
+        assert restored == "11522998000123"
+    finally:
+        await engine.dispose()

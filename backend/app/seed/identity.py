@@ -231,9 +231,10 @@ async def _restaurant(
         business_day_start=time(hour, minute),
         gstin=record.gstin,
         address=record.address,
-        # No column of its own yet; M02 owns restaurant settings and will give it one if it earns
-        # one. Losing it here would mean re-entering it from the YAML later.
-        settings={"fssai_licence": record.fssai_licence} if record.fssai_licence else {},
+        # A column since migration 0004 (finding S13). It prints on every bill and is a legal
+        # requirement, so it is not settings.
+        fssai_licence=record.fssai_licence,
+        settings={},
     )
     session.add(restaurant)
     return restaurant, 1

@@ -51,3 +51,21 @@ class RoleCode(StrEnum):
     STORE_MANAGER = "store_manager"
     CLEANER = "cleaner"
     ACCOUNTANT = "accountant"
+
+
+class TableStatus(StrEnum):
+    """Live state of one table on the floor.
+
+    `reserved` is set by hand by a manager taking a walk-in booking (M02 spec decision 3). There is
+    no reservation system behind it and it does not pretend to be one — the alternative was dropping
+    the value, and a manager blocking a table for 8pm is how small restaurants actually work.
+
+    `cleaning` and `out_of_service` are distinct on purpose: one clears in five minutes, the other
+    means a broken table that should not be offered until someone fixes it.
+    """
+
+    FREE = "free"
+    OCCUPIED = "occupied"
+    RESERVED = "reserved"
+    CLEANING = "cleaning"
+    OUT_OF_SERVICE = "out_of_service"

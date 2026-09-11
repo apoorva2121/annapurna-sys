@@ -54,3 +54,19 @@ export const RoleCode = {
   ACCOUNTANT: 'accountant',
 } as const;
 export type RoleCode = (typeof RoleCode)[keyof typeof RoleCode];
+
+/**
+ * Live state of one table on the floor.
+ *
+ * `reserved` is set by hand by a manager taking a walk-in booking — there is no reservation system
+ * behind it. `cleaning` clears in five minutes; `out_of_service` means a broken table nobody should
+ * be offered.
+ */
+export const TableStatus = {
+  FREE: 'free',
+  OCCUPIED: 'occupied',
+  RESERVED: 'reserved',
+  CLEANING: 'cleaning',
+  OUT_OF_SERVICE: 'out_of_service',
+} as const;
+export type TableStatus = (typeof TableStatus)[keyof typeof TableStatus];
