@@ -1,6 +1,6 @@
 # Remediation Plan — M01-R · post-audit hardening
 
-**Status: R1 and R2 done; R8a (lockfile) next, then M02 may start.**
+**Status: R1, R2 and R8a done. The gate is clear — M02 may start.**
 
 Findings and rationale: `docs/audit/2026-09-11-findings.md`. Rules that came out of them:
 `docs/engineering-guardrails.md`. This file is the *work*, in order, and it is
@@ -51,8 +51,8 @@ Rules of engagement for the session (the human enforces these):
 |---|---|---|---|---|
 | R1 | Transactions and the honest test harness | P1-1 | ☑ **done** — `api` opens one session per request; both halves of P1-1 have HTTP-level tests; `_handle_replay` commits its revocation. 270 tests, `make check` clean. **P1-9 (argon2) was removed from this chunk** and deferred to measured load or M08 | `b01a8b0` + `bf5ab60` |
 | R2 | Seniority is organization-wide | P1-2, P1-6 | ☑ **done** — org-wide rank, guards on update/set_roles/reset, `may_reset_password`, `password_reset_required` (migration 0003), two-branch fixture (G-17). Also fixed a 404 on legitimately removing a last role | `5ee7b49` |
-| R8a | Lockfile only — `uv lock`, frozen installs, pinned ruff | M9 | ☐ **NEXT** | — |
-| — | **M02 may start here** | — | — | — |
+| R8a | Lockfile only — `uv lock`, frozen installs, pinned ruff | M9 | ☑ **done** — uv.lock (80 packages), ruff pinned to the pre-commit rev, image and CI install frozen, `tests/test_toolchain_pins.py` guards all four | `ee98f31` |
+| — | **M02 may start here** — gate cleared | — | ✅ | — |
 | R3 | Sentry and redaction | P1-4, M3 | ⏸ deferred → the deploy, or the day `SENTRY_DSN` is set. Interim: it stays unset | — |
 | R4 | One origin; production smoke; headers | P1-3, M8 | ⏸ deferred → merged into R7; the code cannot be verified without deploying it | — |
 | R5 | Lockout; plan and status enforcement; auth audit | P1-5, P1-10, M1, M5 | ⏸ deferred → a public URL exists. **Scope cut**: per-IP budget only, not the lockout redesign (external-review §5) | — |
