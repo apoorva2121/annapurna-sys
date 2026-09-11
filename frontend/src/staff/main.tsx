@@ -5,9 +5,11 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 
 import '@shared/index.css';
 import { queryClient } from '@shared/queryClient';
+import { AuthProvider } from '@staff/auth/AuthProvider';
 
 import App from './App';
 
@@ -20,8 +22,14 @@ if (rootElement === null) {
 
 createRoot(rootElement).render(
   <StrictMode>
+    {/* QueryClientProvider wraps AuthProvider, not the other way round: the provider clears the
+        query cache on sign-in and sign-out, so it needs a client above it. */}
     <QueryClientProvider client={queryClient}>
-      <App />
+      <BrowserRouter>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,
 );

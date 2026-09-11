@@ -1,0 +1,22 @@
+// The permission strings the staff app knows about, mirroring `app/core/permissions.json`.
+//
+// Deliberately NOT in enums.ts: that file is mirrored member-for-member against
+// `app/core/enums.py` by `backend/tests/test_enum_mirror.py`, and permissions live in
+// `app/core/permissions.py` instead. Adding them there would fail that test for being an enum the
+// Python side does not have.
+//
+// These exist so a component writes `can(Permission.EMPLOYEE_VIEW)` rather than a loose string a
+// typo can silently disable. They are *presentation only* — the server authorises every request
+// regardless, and the UI merely avoids showing doors that will not open (M01 spec).
+
+export const Permission = {
+  EMPLOYEE_VIEW: 'employee.view',
+  EMPLOYEE_CREATE: 'employee.create',
+  EMPLOYEE_EDIT: 'employee.edit',
+  EMPLOYEE_DEACTIVATE: 'employee.deactivate',
+  EMPLOYEE_ROLE_ASSIGN: 'employee.role.assign',
+  EMPLOYEE_PASSWORD_RESET: 'employee.password.reset',
+  ROLE_VIEW: 'role.view',
+} as const;
+
+export type Permission = (typeof Permission)[keyof typeof Permission];

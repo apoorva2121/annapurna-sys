@@ -34,6 +34,7 @@ describe('apiGet', () => {
 
     expect(result.git_sha).toBe('abc1234');
     expect(fetchSpy).toHaveBeenCalledWith('/api/v1/version', {
+      method: 'GET',
       headers: { Accept: 'application/json' },
     });
   });

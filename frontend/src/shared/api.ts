@@ -6,6 +6,13 @@
 // CORS-only code path exists that production never exercises.
 const API_BASE = '/api/v1';
 
+const REFRESH_PATH = '/auth/refresh';
+
+// The auth handshake itself must never trigger a refresh. A wrong password is a 401 the user has
+// to see, not a session to repair — and refreshing on /auth/refresh's own 401 is a loop by
+// construction.
+const NEVER_REFRESH: ReadonlySet<string> = new Set(['/auth/login', REFRESH_PATH, '/auth/logout']);
+
 /** The failure envelope every backend error uses (docs/engineering-standards.md section 4). */
 export type ApiError = {
   code: string;
@@ -31,6 +38,30 @@ export class ApiClientError extends Error {
     this.requestId = error.requestId;
   }
 }
+
+// ---------------------------------------------------------------- session state
+//
+// The access token lives in a module variable and nowhere else — never localStorage, never a
+// non-httpOnly cookie (M01 spec). Script injected into the page can read both of those; it cannot
+// read this any more easily than it can read anything else in the heap, and crucially the token
+// dies with the tab. The refresh token is never here at all: it is an httpOnly cookie the browser
+// attaches to /auth requests and JavaScript cannot see.
+
+let accessToken: string | null = null;
+let sessionExpired: (() => void) | null = null;
+let refreshInFlight: Promise<string | null> | null = null;
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+}
+
+/** Registered by the auth provider, so the client can say "this session is over" without importing
+ *  the router. Passing null unregisters, which is what a test teardown wants. */
+export function onSessionExpired(handler: (() => void) | null): void {
+  sessionExpired = handler;
+}
+
+// ---------------------------------------------------------------- error mapping
 
 type ErrorEnvelope = {
   code: string;
@@ -85,17 +116,33 @@ function toApiError(status: number, body: unknown, requestId: string | null): Ap
   };
 }
 
-/**
- * GET a JSON resource from the API.
- *
- * Money arrives as a STRING (`"1240.00"`) and stays one all the way to the formatter. Nothing here
- * coerces response values, because parsing a rupee amount into a JavaScript number puts a float in
- * front of money (docs/engineering-standards.md section 4, CLAUDE.md invariant 3).
- */
-export async function apiGet<T>(path: string): Promise<T> {
-  let response: Response;
+async function errorFrom(response: Response): Promise<ApiClientError> {
+  const body = await readJson(response);
+  return new ApiClientError(
+    toApiError(response.status, body, response.headers.get('X-Request-Id')),
+  );
+}
+
+// ---------------------------------------------------------------- transport
+
+type Method = 'GET' | 'POST' | 'PATCH';
+
+async function send(method: Method, path: string, body?: unknown): Promise<Response> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+  if (accessToken !== null) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  const init: RequestInit = { method, headers };
+  if (body !== undefined) {
+    init.body = JSON.stringify(body);
+  }
+
   try {
-    response = await fetch(`${API_BASE}${path}`, { headers: { Accept: 'application/json' } });
+    return await fetch(`${API_BASE}${path}`, init);
   } catch {
     // Restaurant networks drop constantly. A dead network has to surface as a coded error rather
     // than a bare TypeError, since every error state renders `code` and nothing may fail silently
@@ -105,13 +152,87 @@ export async function apiGet<T>(path: string): Promise<T> {
       message: 'Could not reach the server. Check the connection and try again.',
     });
   }
+}
+
+/**
+ * Exchange the refresh cookie for a new access token. At most one of these runs at a time.
+ *
+ * The single-flight matters more than it looks. Several widgets mount together, all 401, and all
+ * want a refresh — but refresh *rotates* the token, so the second and third calls are replays of a
+ * token already spent. The backend treats a replayed refresh token as theft and revokes the entire
+ * session family (`AuthService._handle_replay`), which would log the user out for the crime of
+ * loading a page with three panels on it.
+ */
+function refreshOnce(): Promise<string | null> {
+  refreshInFlight ??= negotiate().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+async function negotiate(): Promise<string | null> {
+  const response = await send('POST', REFRESH_PATH);
+  if (!response.ok) {
+    // The session is genuinely over. Forget the token so nothing replays it, and tell the app,
+    // which redirects to login.
+    accessToken = null;
+    sessionExpired?.();
+    return null;
+  }
+  const body = (await readJson(response)) as { access_token?: unknown } | null;
+  const token = typeof body?.access_token === 'string' ? body.access_token : null;
+  accessToken = token;
+  return token;
+}
+
+/**
+ * One request, with at most one refresh-and-replay behind it.
+ *
+ * "At most one" is the whole contract. There is no retry counter and no loop here on purpose: the
+ * only path that re-sends is the single `if` below, so a dead session costs two requests and then
+ * an error, however many components are mounted.
+ */
+async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
+  let response = await send(method, path, body);
+
+  if (response.status === 401 && !NEVER_REFRESH.has(path)) {
+    const token = await refreshOnce();
+    if (token !== null) {
+      response = await send(method, path, body);
+    }
+    // If the refresh failed we deliberately fall through holding the ORIGINAL 401, so the caller
+    // sees why the request failed rather than a second-hand message about the refresh.
+  }
 
   if (!response.ok) {
-    const body = await readJson(response);
-    const requestId = response.headers.get('X-Request-Id');
-    throw new ApiClientError(toApiError(response.status, body, requestId));
+    throw await errorFrom(response);
+  }
+
+  // 204 is what logout, password change, deactivate and reactivate answer. `.json()` on an empty
+  // body throws, and that throw would be reported as a failed mutation of something that worked.
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   const data: unknown = await response.json();
   return data as T;
+}
+
+/**
+ * GET a JSON resource from the API.
+ *
+ * Money arrives as a STRING (`"1240.00"`) and stays one all the way to the formatter. Nothing here
+ * coerces response values, because parsing a rupee amount into a JavaScript number puts a float in
+ * front of money (docs/engineering-standards.md section 4, CLAUDE.md invariant 3).
+ */
+export function apiGet<T>(path: string): Promise<T> {
+  return request<T>('GET', path);
+}
+
+export function apiPost<T = void>(path: string, body?: unknown): Promise<T> {
+  return request<T>('POST', path, body);
+}
+
+export function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  return request<T>('PATCH', path, body);
 }
