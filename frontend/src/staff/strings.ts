@@ -104,6 +104,99 @@ export const strings = {
       'Someone else set this password for you, so they know it. Until you change it, anything done with your account will look like you did it.',
   },
 
+  setup: {
+    navSettings: 'Settings',
+    navFloor: 'Floor plan',
+    navStations: 'Kitchen stations',
+    navTax: 'Tax rates',
+
+    restaurant: {
+      title: 'Restaurant settings',
+      loading: 'Loading settings…',
+      timezone: 'Timezone',
+      timezoneHint:
+        'An IANA name, such as Asia/Kolkata. Every date in the product is worked out from this.',
+      currency: 'Currency',
+      businessDayStart: 'The business day starts at',
+      // Not a tooltip. ADR 0004 calls this the setting owners misunderstand most, and the sentence
+      // below is computed from the value on screen rather than written out — see businessDayExample.
+      businessDayExample: (time: string, day: string, counts: string): string =>
+        `An order at ${time} on ${day} counts towards ${counts}'s sales.`,
+      businessDayMidnight:
+        'At midnight the business day is the calendar day. A restaurant that serves past midnight will see last night’s late orders counted against today.',
+      businessDayWhy:
+        'Most restaurants serve past midnight. Setting this after closing time keeps a night’s takings on one report instead of splitting them across two days.',
+      gstin: 'GSTIN',
+      fssai: 'FSSAI licence number',
+      fssaiHint: 'Prints on every bill. Required for a food business in India.',
+      address: 'Address',
+      save: 'Save settings',
+      saving: 'Saving…',
+      saved: 'Settings saved.',
+    },
+
+    floor: {
+      title: 'Floor plan',
+      areasTitle: 'Dining areas',
+      areasEmpty: 'No dining areas yet. Add one before adding tables.',
+      addArea: 'Add a dining area',
+      areaName: 'Area name',
+      areaNamePlaceholder: 'AC Hall',
+      creating: 'Adding…',
+      moveUp: 'Move up',
+      moveDown: 'Move down',
+      deactivate: 'Deactivate',
+      reactivate: 'Reactivate',
+      showInactive: 'Show deactivated',
+      inactive: 'Deactivated',
+      tablesTitle: 'Tables',
+      tablesEmpty: 'No tables in this area yet.',
+      addTable: 'Add a table',
+      tableCode: 'Table',
+      tableCodePlaceholder: 'T4',
+      seats: 'Seats',
+      status: 'Status',
+      inArea: 'Area',
+      // ADR 0008, and the reason deactivation is offered instead of deletion.
+      neverDeleted:
+        'Nothing here is deleted. A table that took an order last year still has to resolve when that order is read.',
+    },
+
+    stations: {
+      title: 'Kitchen stations',
+      empty: 'No stations yet. Add the sections a ticket can be sent to.',
+      add: 'Add a station',
+      code: 'Code',
+      codeHint:
+        'Permanent. The menu routes dishes by this, so it cannot change once dishes point at it. Lower case, no spaces.',
+      name: 'Name',
+      nameHint: 'Shown on the kitchen display. Safe to change at any time.',
+    },
+
+    tax: {
+      title: 'Tax rates',
+      empty: 'No tax rates yet.',
+      add: 'Add a tax rate',
+      name: 'Name',
+      rate: 'Rate',
+      ratePercent: 'Percent',
+      rateHint: 'As a percentage, e.g. 5 for GST 5%.',
+      inclusive: 'Menu prices already include this tax',
+      effectiveFrom: 'Starts on',
+      effectiveTo: 'Ends on',
+      current: 'Current',
+      superseded: 'Superseded',
+      supersede: 'Replace this rate',
+      supersedeHint:
+        'A rate is never edited. Replacing it closes this one the day before the new one starts, so an invoice from last month still cites the rate that was charged.',
+      renameOnly: 'Rename',
+      renameHint:
+        'Only the name can change. The rate and the dates are fixed once the rate exists.',
+      immutable:
+        'Rates are never edited in place. Every order line copies the rate it was charged, and an invoice cites it.',
+    },
+  },
+
   errors: {
     title: 'Something went wrong',
     forbidden: 'You do not have access to this.',

@@ -5,11 +5,15 @@ import { Permission } from '@shared/permissions';
 import { RequireAuth, RequirePermission } from '@staff/auth/guards';
 import { AppShell } from '@staff/components/AppShell';
 import EmployeeScreen from '@staff/screens/EmployeeScreen';
+import FloorPlanScreen from '@staff/screens/FloorPlanScreen';
 import HomeScreen from '@staff/screens/HomeScreen';
 import LoginScreen from '@staff/screens/LoginScreen';
 import NewEmployeeScreen from '@staff/screens/NewEmployeeScreen';
 import ProfileScreen from '@staff/screens/ProfileScreen';
+import RestaurantSettingsScreen from '@staff/screens/RestaurantSettingsScreen';
 import StaffListScreen from '@staff/screens/StaffListScreen';
+import StationsScreen from '@staff/screens/StationsScreen';
+import TaxRatesScreen from '@staff/screens/TaxRatesScreen';
 
 /**
  * The staff application's routes.
@@ -54,6 +58,41 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.EMPLOYEE_VIEW}>
               <EmployeeScreen />
+            </RequirePermission>
+          }
+        />
+
+        {/* Setup. One permission for the whole surface — owner and admin only, because a manager
+            runs a shift and changing what a day means or what tax is charged is not that. */}
+        <Route
+          path="settings"
+          element={
+            <RequirePermission permission={Permission.RESTAURANT_CONFIGURE}>
+              <RestaurantSettingsScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="settings/floor"
+          element={
+            <RequirePermission permission={Permission.RESTAURANT_CONFIGURE}>
+              <FloorPlanScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="settings/stations"
+          element={
+            <RequirePermission permission={Permission.RESTAURANT_CONFIGURE}>
+              <StationsScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="settings/tax"
+          element={
+            <RequirePermission permission={Permission.RESTAURANT_CONFIGURE}>
+              <TaxRatesScreen />
             </RequirePermission>
           }
         />

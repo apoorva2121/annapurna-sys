@@ -133,3 +133,65 @@ export function businessDateOf(moment: Date, timeZone: string, dayStartsAt: stri
 export function businessToday(timeZone: string, dayStartsAt: string, now = new Date()): string {
   return businessDateOf(now, timeZone, dayStartsAt);
 }
+
+/**
+ * A worked example of what a given `business_day_start` actually does.
+ *
+ * ADR 0004 calls this the setting owners misunderstand most, and the M02 spec asks for a worked
+ * example under the control rather than a tooltip: a label reading "05:00" teaches nobody what
+ * 05:00 means for last night's takings.
+ *
+ * The sentence is **computed by `businessDateOf`**, not written out. That is the point — an
+ * explanation hand-written as prose is a second statement of the rule, free to drift from the
+ * first, and the person reading it has no way to tell which one the server obeys. This one is
+ * wrong only if the function itself is wrong.
+ *
+ * Returns `null` at midnight, where there is no late-night window to illustrate and the honest
+ * thing is to say the business day matches the calendar day rather than invent an example.
+ *
+ * Takes no timezone, deliberately. The example demonstrates the *rule*, which is identical in every
+ * zone; computing it in UTC keeps the weekday names stable and avoids implying that the answer
+ * depends on where the restaurant is when it does not.
+ */
+export function businessDayExample(
+  dayStartsAt: string,
+): { orderTime: string; orderDay: string; countsToward: string } | null {
+  const startSeconds = startOfDaySeconds(dayStartsAt);
+  if (startSeconds === 0) {
+    return null;
+  }
+  // 01:30 whenever the start is later than that — the time an owner actually pictures when they
+  // think about last night, and the one the M02 spec uses. For the unusual case of a start at or
+  // before 01:30, half an hour earlier, so the example stays inside the window it is illustrating.
+  const HALF_PAST_ONE = 90 * 60;
+  const exampleSeconds =
+    startSeconds > HALF_PAST_ONE ? HALF_PAST_ONE : Math.max(0, startSeconds - 30 * 60);
+
+  // A known Tuesday, so the weekday names in the sentence are real rather than asserted.
+  const tuesday = new Date(Date.UTC(2026, 2, 10));
+  const local = new Date(
+    Date.UTC(
+      tuesday.getUTCFullYear(),
+      tuesday.getUTCMonth(),
+      tuesday.getUTCDate(),
+      Math.floor(exampleSeconds / 3600),
+      Math.floor((exampleSeconds % 3600) / 60),
+    ),
+  );
+  const businessDate = businessDateOf(local, 'UTC', dayStartsAt);
+  const weekday = (at: Date): string =>
+    at.toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'UTC' });
+
+  return {
+    orderTime: local.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'UTC',
+    }),
+    orderDay: weekday(local),
+    // Parsed back through UTC so the weekday is read from the date the rule produced, not from a
+    // second calculation that could disagree with it.
+    countsToward: weekday(new Date(`${businessDate}T00:00:00Z`)),
+  };
+}

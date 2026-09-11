@@ -17,6 +17,8 @@ export const Permission = {
   EMPLOYEE_ROLE_ASSIGN: 'employee.role.assign',
   EMPLOYEE_PASSWORD_RESET: 'employee.password.reset',
   ROLE_VIEW: 'role.view',
+  // M02. The whole setup surface sits behind this one: settings, floor, stations, tax.
+  RESTAURANT_CONFIGURE: 'restaurant.configure',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

@@ -27,6 +27,17 @@ export function AppShell(): ReactElement {
         </Link>
         <nav className="flex flex-wrap items-center gap-x-4">
           {can(Permission.EMPLOYEE_VIEW) && <Link to="/staff">{strings.nav.staff}</Link>}
+          {/* Four links rather than one, because they are four different jobs done at four
+              different times — the floor changes when tables move, tax when a rate changes, and a
+              manager should be able to reach the one they came for without reading a submenu. */}
+          {can(Permission.RESTAURANT_CONFIGURE) && (
+            <>
+              <Link to="/settings">{strings.setup.navSettings}</Link>
+              <Link to="/settings/floor">{strings.setup.navFloor}</Link>
+              <Link to="/settings/stations">{strings.setup.navStations}</Link>
+              <Link to="/settings/tax">{strings.setup.navTax}</Link>
+            </>
+          )}
           <Link to="/profile">{strings.nav.profile}</Link>
         </nav>
         <button

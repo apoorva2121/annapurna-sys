@@ -1,0 +1,257 @@
+// Every query and mutation for the setup surface. Components never call the API client directly
+// (docs/engineering-standards.md §5) — they use these hooks.
+//
+// Keys are the API's JSON keys verbatim, as everywhere else in this app: no camelCase mapping
+// layer until a real feature needs one, because a mapper is a second place for the contract to be
+// wrong.
+//
+// **A rate is a string, both ways.** `"0.0500"` is five percent. It arrives as a string because the
+// server sends `Decimal` that way, and it is sent back as a string because parsing it to a
+// JavaScript number and re-serialising is exactly how 0.0500 becomes 0.05000000000000001 on some
+// bill, some day (CLAUDE.md invariant 3).
+
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query';
+
+import { apiGet, apiPatch, apiPost } from '@shared/api';
+
+export type Restaurant = {
+  id: string;
+  name: string;
+  code: string;
+  timezone: string;
+  currency: string;
+  business_day_start: string;
+  gstin: string | null;
+  fssai_licence: string | null;
+  address: string | null;
+};
+
+export type RestaurantChanges = {
+  timezone?: string;
+  currency?: string;
+  business_day_start?: string;
+  gstin?: string | null;
+  fssai_licence?: string | null;
+  address?: string | null;
+};
+
+export type DiningArea = {
+  id: string;
+  name: string;
+  seq: number;
+  is_active: boolean;
+};
+
+export type RestaurantTable = {
+  id: string;
+  dining_area_id: string;
+  code: string;
+  seats: number;
+  status: 'free' | 'occupied' | 'reserved' | 'cleaning' | 'out_of_service';
+  is_active: boolean;
+};
+
+export type Station = {
+  id: string;
+  code: string;
+  name: string;
+  seq: number;
+  is_active: boolean;
+};
+
+export type TaxGroup = {
+  id: string;
+  name: string;
+  rate: string;
+  is_inclusive: boolean;
+  effective_from: string;
+  effective_to: string | null;
+};
+
+type Page<T> = { items: T[]; next_cursor: string | null };
+
+// One key prefix for the whole surface, so any mutation can invalidate everything setup-related
+// without knowing which screens are mounted. Cheap: these lists are small and rarely change.
+const SETUP_KEY = ['staff', 'setup'] as const;
+
+function useInvalidateSetup(): () => Promise<void> {
+  const queryClient = useQueryClient();
+  return async () => {
+    await queryClient.invalidateQueries({ queryKey: SETUP_KEY });
+  };
+}
+
+// --------------------------------------------------------------------------- the restaurant
+
+export function useRestaurant(): UseQueryResult<Restaurant> {
+  return useQuery({
+    queryKey: [...SETUP_KEY, 'restaurant'],
+    queryFn: () => apiGet<Restaurant>('/staff/restaurant'),
+  });
+}
+
+export function useUpdateRestaurant(): UseMutationResult<Restaurant, Error, RestaurantChanges> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RestaurantChanges) => apiPatch<Restaurant>('/staff/restaurant', body),
+    onSuccess: async () => {
+      // Not just the setup surface: `timezone` and `business_day_start` are carried in the session
+      // and every business date the browser computes reads them. A stale session after this write
+      // would have the app disagreeing with the server about what day it is.
+      await queryClient.invalidateQueries({ queryKey: SETUP_KEY });
+      await queryClient.invalidateQueries({ queryKey: ['session'] });
+    },
+  });
+}
+
+// --------------------------------------------------------------------------- dining areas
+
+export function useDiningAreas(includeInactive = false): UseQueryResult<Page<DiningArea>> {
+  return useQuery({
+    queryKey: [...SETUP_KEY, 'dining-areas', { includeInactive }],
+    queryFn: () =>
+      apiGet<Page<DiningArea>>(
+        `/staff/setup/dining-areas${includeInactive ? '?include_inactive=true' : ''}`,
+      ),
+  });
+}
+
+export function useCreateDiningArea(): UseMutationResult<DiningArea, Error, { name: string }> {
+  const invalidate = useInvalidateSetup();
+  return useMutation({
+    mutationFn: (body) => apiPost<DiningArea>('/staff/setup/dining-areas', body),
+    onSuccess: invalidate,
+  });
+}
+
+export type DiningAreaChanges = { name?: string; seq?: number; is_active?: boolean };
+
+export function useUpdateDiningArea(): UseMutationResult<
+  DiningArea,
+  Error,
+  { id: string; changes: DiningAreaChanges }
+> {
+  const invalidate = useInvalidateSetup();
+  return useMutation({
+    mutationFn: ({ id, changes }) =>
+      apiPatch<DiningArea>(`/staff/setup/dining-areas/${id}`, changes),
+    onSuccess: invalidate,
+  });
+}
+
+// --------------------------------------------------------------------------- tables
+
+export function useTables(diningAreaId?: string): UseQueryResult<Page<RestaurantTable>> {
+  return useQuery({
+    queryKey: [...SETUP_KEY, 'tables', { diningAreaId: diningAreaId ?? null }],
+    queryFn: () =>
+      apiGet<Page<RestaurantTable>>(
+        `/staff/setup/tables${diningAreaId === undefined ? '' : `?dining_area_id=${diningAreaId}`}`,
+      ),
+  });
+}
+
+export type NewTable = { dining_area_id: string; code: string; seats: number };
+
+export function useCreateTable(): UseMutationResult<RestaurantTable, Error, NewTable> {
+  const invalidate = useInvalidateSetup();
+  return useMutation({
+    mutationFn: (body) => apiPost<RestaurantTable>('/staff/setup/tables', body),
+    onSuccess: invalidate,
+  });
+}
+
+export type TableChanges = {
+  dining_area_id?: string;
+  code?: string;
+  seats?: number;
+  status?: RestaurantTable['status'];
+  is_active?: boolean;
+};
+
+export function useUpdateTable(): UseMutationResult<
+  RestaurantTable,
+  Error,
+  { id: string; changes: TableChanges }
+> {
+  const invalidate = useInvalidateSetup();
+  return useMutation({
+    mutationFn: ({ id, changes }) =>
+      apiPatch<RestaurantTable>(`/staff/setup/tables/${id}`, changes),
+    onSuccess: invalidate,
+  });
+}
+
+// --------------------------------------------------------------------------- stations
+
+export function useStations(includeInactive = false): UseQueryResult<Page<Station>> {
+  return useQuery({
+    queryKey: [...SETUP_KEY, 'stations', { includeInactive }],
+    queryFn: () =>
+      apiGet<Page<Station>>(
+        `/staff/setup/stations${includeInactive ? '?include_inactive=true' : ''}`,
+      ),
+  });
+}
+
+export type NewStation = { code: string; name: string };
+
+export function useCreateStation(): UseMutationResult<Station, Error, NewStation> {
+  const invalidate = useInvalidateSetup();
+  return useMutation({
+    mutationFn: (body) => apiPost<Station>('/staff/setup/stations', body),
+    onSuccess: invalidate,
+  });
+}
+
+export type StationChanges = { name?: string; seq?: number; is_active?: boolean };
+
+export function useUpdateStation(): UseMutationResult<
+  Station,
+  Error,
+  { id: string; changes: StationChanges }
+> {
+  const invalidate = useInvalidateSetup();
+  return useMutation({
+    mutationFn: ({ id, changes }) => apiPatch<Station>(`/staff/setup/stations/${id}`, changes),
+    onSuccess: invalidate,
+  });
+}
+
+// --------------------------------------------------------------------------- tax
+
+export function useTaxGroups(): UseQueryResult<Page<TaxGroup>> {
+  return useQuery({
+    queryKey: [...SETUP_KEY, 'tax-groups'],
+    queryFn: () => apiGet<Page<TaxGroup>>('/staff/setup/tax-groups'),
+  });
+}
+
+export type NewTaxGroup = {
+  name: string;
+  rate: string;
+  is_inclusive: boolean;
+  effective_from: string;
+  supersedes_id?: string;
+};
+
+export function useCreateTaxGroup(): UseMutationResult<TaxGroup, Error, NewTaxGroup> {
+  const invalidate = useInvalidateSetup();
+  return useMutation({
+    mutationFn: (body) => apiPost<TaxGroup>('/staff/setup/tax-groups', body),
+    onSuccess: invalidate,
+  });
+}
+
+export function useRenameTaxGroup(): UseMutationResult<
+  TaxGroup,
+  Error,
+  { id: string; name: string }
+> {
+  const invalidate = useInvalidateSetup();
+  return useMutation({
+    mutationFn: ({ id, name }) => apiPatch<TaxGroup>(`/staff/setup/tax-groups/${id}`, { name }),
+    onSuccess: invalidate,
+  });
+}

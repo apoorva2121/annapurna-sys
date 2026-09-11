@@ -18,8 +18,8 @@ Before any code: `docs/engineering-guardrails.md` and `.claude/skills/restaurant
 | B | The business-day helper, both languages (M11) | ✅ done | `38ba3bd` |
 | C | Repositories, services, API — first use of `RestaurantScopedRepository` | ✅ done | `c086e59` |
 | D | shadcn components M02 needs: Select, Dialog/Sheet, Table, Switch, Label | ✅ done | `e9caff2` |
-| E | Four screens | ⬅ **NEXT** | — |
-| F | `POST /auth/switch` (S12) · theme settings · ~~`reserved` by hand (S14)~~ done in C | ☐ | — |
+| E | Four screens | ✅ done | see below |
+| F | `POST /auth/switch` (S12) · theme settings · ~~`reserved` by hand (S14)~~ done in C | ⬅ **NEXT** | — |
 | G | Manual script, adversarial review, `make check` | ☐ | — |
 
 **Chunk B wanted high model effort** — see *Why B is the risky one* below. Everything else is
@@ -226,3 +226,60 @@ That file exists for a narrower reason than "test the components": `shadcn add` 
 files. An adaptation that is only described in a docstring returns to the generated default on the
 next upgrade, silently. Anything a docstring here asserts that the code could stop doing belongs in
 that test.
+
+---
+
+## What chunk E actually cost
+
+Four screens, an API layer of 15 hooks, 25 new frontend tests. 98 frontend tests in total; the staff
+bundle is 129 KB gzipped against a 250 KB budget, up from 90.6 KB — Radix's Select and Dialog are
+most of the difference, and that is the price of rule 4.
+
+### The worked example is computed, not written
+
+ADR 0004 calls `business_day_start` the setting owners misunderstand most, and the spec asks for a
+worked example under the control rather than a tooltip. The obvious implementation is a sentence in
+the strings file. That sentence would be a **second statement of the rule** — free to drift from the
+first, with no way for the reader to tell which one the server obeys, and stale the moment anyone
+changes the value on screen.
+
+So `businessDayExample()` derives it by running `businessDateOf`, the same function the server
+mirrors. It is wrong only if the rule itself is wrong. At 05:00 it produces exactly the spec's
+sentence: *"An order at 01:30 am on Tuesday counts towards Monday's sales."* At midnight it returns
+`null` and the screen says the business day is the calendar day, rather than inventing an example
+for a case that has none.
+
+### A test that would have proved nothing
+
+The test for the above originally changed the control from 05:00 to **02:00** and asserted the
+sentence still read "01:30 am". It passed — and would have passed against a hardcoded string, because
+the example is anchored at 1:30am for *any* start later than 1:30am. The test's name claimed it
+proved re-computation; its assertion proved nothing of the sort.
+
+Rewritten to use 01:00, where the example has to move to 12:30 am. Verified by replacing the computed
+sentence with a hardcoded one: that test fails and the other five still pass, which is precisely why
+it is the one that matters.
+
+This is the fourth time in M02 that a test has claimed more than it asserted. The pattern is now
+familiar enough to name as a check: **pick the input where the right implementation and the wrong one
+disagree — if you cannot name that input, the test is decoration.**
+
+### A deliberate deviation from the approved spec
+
+The spec says "dining areas and tables (drag to reorder)". This ships move-up/move-down buttons.
+Recorded in `docs/backlog.md` with the reasoning rather than done quietly: drag needs a library and
+needs a keyboard path built alongside it to be usable, buttons *are* that keyboard path, they work
+with a glove and a steamed screen, and they write the same `seq`. Adding drag later is additive.
+
+Also recorded there: reordering is two `PATCH`es and is not atomic. If the second fails two areas
+share a `seq`; the list stays deterministic because the query orders by `(seq, id)`, so nothing
+breaks visibly — but the order is not what was asked for and nothing says so. Both backlog rows want
+the same fix, a `reorder` endpoint taking the whole ordering.
+
+### jsdom needed two polyfills
+
+`ResizeObserver` and `scrollIntoView` do not exist in jsdom, and Radix reaches for both. Every test
+rendering a Switch, Select or Dialog died with `ReferenceError: ResizeObserver is not defined` —
+a failure about the environment that reads like a failure about the component. Stubbed in
+`test-setup.ts`, with a note that jsdom has no layout, so anything genuinely depending on measured
+size cannot be tested there at all and belongs in a browser test.
