@@ -155,3 +155,61 @@ The context a reviewer needs in order to weight correctly:
 | Identifier uniqueness | Application-level for now; a global unique index is declined because the proper fix is a per-tenant login surface, after which the index must come off again | `docs/backlog.md` |
 | Lockout semantics | Hard lock, 15-minute auto-unlock, owner/admin clears instantly | M01 spec, open decision 3 |
 | Manual pass vs staging | The DoD addendum requires staging. The local pass still runs first, because it is cheap and finds usability defects before remediation churns the code | Human's call, 2026-09-11 |
+
+---
+
+## 8 · M02 · Restaurant Setup — state at hand-off, 2026-09-11
+
+Read this before reviewing M02. It is not a defence; it is a map of what is already known, so review
+time goes on what is not.
+
+### Already found and fixed in M02 — please do not re-report as new
+
+Six defects. Five of them **read as working and were not**, which is the pattern worth attacking:
+
+| Defect | What made it invisible |
+|---|---|
+| The IANA tz database was a host feature, not a dependency | green in the container, `ValueError: Unknown timezone 'Asia/Kolkata'` on Windows |
+| `NewEmployeeScreen` defaulted "joined on" to the browser's UTC date — *yesterday* for 5½ hours a day in India | the comment admitted it was a placeholder; nothing tested it and no test rendered the screen |
+| `test_permission_seed` could not fail for the reason its docstring advertised | migration 0002 *reads* `permissions.json`, and the test DB is built by running migrations, so the two can never disagree |
+| The tenant-isolation suite covered none of M02 | it matched `{employee_id}` and `continue`d past everything else; 24 staff routes, 6 probed, 4 id-bearing routes skipped |
+| `make seed` produced an empty floor | M02's master data sat in `seed/operations.yaml` since M00, validated, loaded by nothing |
+| `POST /auth/switch` was unreachable in the demo world | the seed's two restaurants are in two *different* organizations, so nobody worked at two branches and the switcher rendered nothing |
+
+### Known and deliberately not fixed — argue with the reasoning, not the existence
+
+1. **A superseded tax rate has nothing pointing at its successor.** `menu_item_variant.tax_group_id`
+   references one `tax_group` row; a rate change creates a new row and closes the old. On a
+   changeover every menu item points at the closed row. History is safe (`order_line.tax_rate` is
+   copied at order time) but the forward step is undesigned. `operations.yaml` already carries a
+   `code` (`GST5`) that is the obvious family key; the schema has no column for it.
+   **Not fixed because** it changes an approved schema and M06 is the first module that depends on
+   it. *If you think this should have been fixed inside M02, say so plainly — it is the single
+   highest-value thing to argue about in this module.*
+
+2. **Reordering the floor is ↑/↓ buttons, not drag**, against the approved spec, and it is **two
+   PATCHes and not atomic**. Both in `docs/backlog.md` with reasoning; both want the same
+   `reorder` endpoint taking the whole ordering.
+
+3. **`switch_restaurant` fabricates a `session_id`** it does not use. Harmless today, dishonest
+   tomorrow. Backlogged.
+
+### What to weight heavily in M02
+
+- **Anything that looks correct and is not.** That is this module's whole failure mode. A test whose
+  name claims more than its assertion proves is worth more than three style findings.
+- **The business-day rule** (`backend/app/core/business_day.py`, `frontend/src/shared/businessDay.ts`).
+  It exists twice by design. If those two can ever disagree, every figure in M13/M15/M17 inherits it
+  and nothing downstream can detect it.
+- **Tenant isolation on the setup routes**, and on `POST /auth/switch` in particular — it is the one
+  endpoint whose entire job is to change tenant scope.
+- **Transaction boundaries**: services flush, routes commit. A write that must survive a failed
+  request has to commit itself.
+
+### What to weight lightly
+
+- **Comment and docstring density.** It is deliberate and documented (`docs/engineering-standards.md`).
+  A comment that is *factually wrong about the adjacent code* is a genuine and high-value finding —
+  three real bugs here hid behind exactly that. A comment that merely exists is not.
+- **Test verbosity.** Same reasoning.
+- Anything already listed above as known.
