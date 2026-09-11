@@ -23,7 +23,9 @@ Spec: `docs/modules/M01-identity-spec.md` · Branch: `feat/m01-identity` (off `f
 | I · frontend: login, staff list, employee form, roles, profile | ✅ done | `3a11a35` |
 | J · adversarial review, manual test script, `make check` | ✅ done | `d80e268` |
 
-**252 backend tests · 97.2% coverage · 31 frontend tests · ruff, mypy, eslint, tsc clean.**
+**262 backend tests · 97.2% coverage · 34 frontend tests · ruff, mypy, eslint, tsc clean.**
+**`make check` clean.** Eight defects fixed after the code was "done" — three from my own
+adversarial review, five from an independent one (11–18 below).
 
 **Remaining before M01 can be called done: your manual pass** (`docs/manual-tests/M01-identity.md`,
 ~25 minutes). Everything else in the Definition of Done is met.
@@ -153,6 +155,42 @@ Each was a real bug, caught by a test or by running the thing — not a style ch
     cursor; the screen ignored it. A sixty-person restaurant would have shown fifty with nothing on
     screen to suggest otherwise — a silent failure, which engineering-standards §5 forbids, and
     invisible against demo data of nineteen.
+
+### Found by an independent review, after I had read the diff twice
+
+The five below are the argument for a second reader. I had reviewed this code adversarially and
+found 11–13 above; I read straight past every one of these.
+
+14. **Any tenant could permanently lock any other tenant's user out.** Login resolves an identifier
+    across all organizations and refuses an ambiguous match — safe alone. The clash check when
+    *creating* a login was scoped to the actor's own organization. So a trial tenant adds an
+    employee whose login is a real tenant's owner email, and that owner can never sign in again:
+    no lockout message, no self-service recovery, database edit only. The attacker needs a trial
+    account and the victim's email address.
+
+    What made it invisible: `UserAccountRepository.find_by_identifier` was org-scoped and carried a
+    confident docstring explaining why that was safer. It was also **dead code** — AuthService had
+    been building the same query inline *without* the organization filter. The safe-looking
+    repository method was protecting nothing while making the real check look considered.
+
+15. **Saving roles before the catalogue loaded stripped every role**, revoked every session, and
+    left the person unable to sign in — displayed as a green "Roles updated." The selection maps
+    role codes to catalogue ids, so an empty catalogue means an empty selection, and the server
+    correctly treats `role_ids: []` as a full-set replacement. The Save button sat outside the
+    loading guard.
+
+16. **`make seed` would have run against staging**, creating 15 active logins whose password is
+    committed to this repository. Defect 5 in this same list, wearing different clothes. `is_demo`
+    excludes them from reports and does nothing about signing in.
+
+17. **Re-running the seed resurrected roles a human had removed**, with no audit row.
+
+18. **`reactivate_employee` had no seniority check** while `deactivate_employee` did.
+
+The pattern worth keeping: **three of these five were made invisible by a comment or a name that
+asserted safety.** A docstring explaining why a scope is correct, a flag called `is_demo`, a
+symmetric-looking pair of methods. Reading for intent is how you miss them; the second reader had
+no intent to read for.
 
 ### Two tests that were lying, found by mutation testing
 
