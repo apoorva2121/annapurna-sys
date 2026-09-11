@@ -282,3 +282,20 @@ Indian retail analytics. C is internal quality infrastructure with no external m
 **A, then B. Hold C until there is a model to evaluate.** A has a near-term consumer — the
 bill-to-ledger feature — which is what stops it becoming shelfware. B rots slowly and needs an
 annual refresh, so it can wait behind A without cost.
+
+## Briefs
+
+Written 2026-09-11, precise enough to build against:
+
+- `docs/product/briefs/indian-fnb-lexicon.md`
+- `docs/product/briefs/indian-demand-calendar.md`
+
+Both are built on one shared discipline, and it is the reason either is worth having: **the artefact
+must refuse to be confidently wrong.** A pack-unit conversion carries a range and a provenance; a
+festival date carries a citation or is absent. A model asked for either will answer precisely and
+without hesitation, and a precise wrong number reaching the stock ledger destroys the
+theoretical-versus-actual variance this product exists to sell.
+
+So both briefs make calibration an acceptance criterion rather than a quality. Coverage is easy to
+generate and easy to measure, which is exactly why optimising for it produces a dataset that looks
+excellent and cannot be trusted.
