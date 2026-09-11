@@ -3,7 +3,7 @@ import { type FormEvent, type ReactElement, useState } from 'react';
 
 import { useAuth } from '@staff/auth/AuthContext';
 import { changePassword } from '@staff/auth/session';
-import { Button } from '@staff/components/Button';
+import { Button } from '@shared/ui/button';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { errorProps } from '@staff/components/errorProps';

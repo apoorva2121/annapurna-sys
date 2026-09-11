@@ -11,7 +11,7 @@ import {
   useUpdateEmployee,
 } from '@staff/api/staff';
 import { useAuth } from '@staff/auth/AuthContext';
-import { Button } from '@staff/components/Button';
+import { Button } from '@shared/ui/button';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { errorProps } from '@staff/components/errorProps';
@@ -123,7 +123,7 @@ function Roles({ employee }: { employee: Employee }): ReactElement {
         <ul className="space-y-1">
           {roles.data?.map((role) => (
             <li key={role.id}>
-              <label className="flex min-h-12 items-center gap-3">
+              <label className="flex min-h-target items-center gap-3">
                 <input
                   type="checkbox"
                   className="size-5"
@@ -179,7 +179,7 @@ function Activation({ employee }: { employee: Employee }): ReactElement {
       )}
       {setActive.isError && <Notice tone="critical" {...errorProps(setActive.error)} />}
       <Button
-        variant={employee.is_active ? 'danger' : 'secondary'}
+        variant={employee.is_active ? 'destructive' : 'secondary'}
         disabled={setActive.isPending}
         onClick={() => {
           setActive.mutate(!employee.is_active);

@@ -7,7 +7,7 @@ import { cn } from '@shared/cn';
  *
  * The label is a real `<label htmlFor>` and the error is wired through `aria-describedby`, so a
  * screen reader announces the problem with the field rather than leaving a red border to carry the
- * meaning on its own. `min-h-12` keeps it thumb-sized on a phone.
+ * meaning on its own. `min-h-target` keeps it thumb-sized on whichever surface it renders on.
  */
 export function Field({
   label,
@@ -42,9 +42,9 @@ export function Field({
         aria-invalid={error !== undefined}
         aria-describedby={describedBy === '' ? undefined : describedBy}
         className={cn(
-          'min-h-12 rounded border bg-background px-3',
+          'min-h-target rounded-md border bg-card px-3',
           'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
-          error === undefined ? 'border-border' : 'border-critical',
+          error === undefined ? 'border-input' : 'border-critical',
           className,
         )}
         {...rest}

@@ -1,34 +1,42 @@
+/* Tokens are the whole design system's data. Nothing else in this file declares a value.
+   First, because CSS requires @import before any other rule — placed after the @tailwind
+   directives it is silently dropped, and the entire theme layer vanishes from the bundle with no
+   error anywhere. */
+@import './theme/tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/*
- * The six semantic colours are fixed across all four surfaces (docs/ui/conventions.md, vision
- * doc section 28) and are stored as bare HSL triples because tailwind.config.ts wraps them in
- * hsl(). Values are picked to clear WCAG AA against --background: the KDS is read at two metres
- * through steam, so contrast is a functional requirement here, not a compliance one.
- *
- * Light theme only for now. A dark theme is a second block keyed off an attribute on :root, not a
- * second stylesheet.
- */
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
-    --border: 214 32% 91%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 38%;
-
-    /* Alert severity, everywhere. Red is never a decorative accent: critical means act now. */
-    --critical: 0 72% 41%;
-    --warning: 25 90% 40%;
-    --caution: 45 93% 33%;
-    --info: 217 91% 42%;
-    --success: 142 72% 27%;
-    --neutral: 215 16% 38%;
+  * {
+    @apply border-border;
   }
 
   body {
     @apply bg-background font-sans text-foreground;
+    /* Every number that will be compared down a column has to be the same width, or a table of
+       rupee amounts reads as ragged no matter how it is aligned. */
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Focus is never removed, only restyled. The ring is jamun and deliberately lighter than the
+     brand fill so it stays visible on a phone in a dim dining room. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* docs/ui/conventions.md: one thing may move on its own, and only to say something arrived.
+     Everyone who has asked not to see motion gets none of it. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { EmploymentType } from '@shared/enums';
 import { useCreateEmployee } from '@staff/api/staff';
-import { Button } from '@staff/components/Button';
+import { Button } from '@shared/ui/button';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { errorProps } from '@staff/components/errorProps';

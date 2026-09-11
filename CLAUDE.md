@@ -8,6 +8,8 @@ Read before working on the matching area:
 `docs/domain-model.md` (concepts) · `docs/schema.md` (tables, columns, indexes) ·
 `docs/waste-model.md` · `docs/customer-experience.md` ·
 `docs/onboarding-cold-start.md` · `docs/seed-data.md` · `docs/ui/conventions.md` ·
+`docs/ui/design-system.md` (tokens, theming, components — and the `restaurant-ui` skill, which
+is offered automatically to any session touching `frontend/`) ·
 `docs/engineering-standards.md` · `docs/security.md` · `docs/observability.md` ·
 `docs/testing-strategy.md`
 

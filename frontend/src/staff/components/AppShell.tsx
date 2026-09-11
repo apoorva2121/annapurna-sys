@@ -31,7 +31,7 @@ export function AppShell(): ReactElement {
         </nav>
         <button
           type="button"
-          className="ml-auto min-h-12 underline disabled:opacity-60"
+          className="ml-auto min-h-target underline disabled:opacity-60"
           disabled={signingOut}
           onClick={() => {
             setSigningOut(true);

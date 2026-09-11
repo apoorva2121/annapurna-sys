@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { Permission } from '@shared/permissions';
 import { useEmployees } from '@staff/api/staff';
 import { useAuth } from '@staff/auth/AuthContext';
-import { Button } from '@staff/components/Button';
+import { Button } from '@shared/ui/button';
 import { QueryState } from '@staff/components/QueryState';
 import { strings } from '@staff/strings';
 
@@ -28,18 +28,15 @@ export default function StaffListScreen(): ReactElement {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">{strings.staff.title}</h1>
         {can(Permission.EMPLOYEE_CREATE) && (
-          // A link, not a button wrapping a link: it navigates, so it must be openable in a new
-          // tab and reachable the way every other link is. Styled to match Button's target size.
-          <Link
-            to="/staff/new"
-            className="inline-flex min-h-12 items-center justify-center rounded bg-foreground px-4 font-medium text-background"
-          >
-            {strings.staff.add}
-          </Link>
+          // `asChild` renders the Link with the button's appearance. It navigates, so it has to
+          // stay a link — openable in a new tab, and not a <Link> illegally nested in a <button>.
+          <Button asChild>
+            <Link to="/staff/new">{strings.staff.add}</Link>
+          </Button>
         )}
       </div>
 
-      <label className="flex min-h-12 items-center gap-2">
+      <label className="flex min-h-target items-center gap-2">
         <input
           type="checkbox"
           className="size-5"
@@ -66,7 +63,7 @@ export default function StaffListScreen(): ReactElement {
               <li key={employee.id}>
                 <Link
                   to={`/staff/${employee.id}`}
-                  className="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-1 p-3 hover:bg-muted"
+                  className="flex min-h-target flex-wrap items-center gap-x-4 gap-y-1 p-3 hover:bg-muted"
                 >
                   <span className="font-medium">{employee.full_name}</span>
                   <span className="font-mono text-sm text-muted-foreground">

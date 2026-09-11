@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 
 import { ApiClientError } from '@shared/api';
 import { useAuth } from '@staff/auth/AuthContext';
-import { Button } from '@staff/components/Button';
+import { Button } from '@shared/ui/button';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { strings } from '@staff/strings';

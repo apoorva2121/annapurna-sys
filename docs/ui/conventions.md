@@ -30,8 +30,10 @@ it; §36's "what happened?" is worthless if it dead-ends at a total.
 
 ## Tokens and system
 
-Tailwind + shadcn/ui. The component library **is** the design system — do not hand-roll a component
-that shadcn provides. Colour semantics, fixed across all four surfaces (from vision doc §28):
+Tailwind + shadcn/ui, adopted properly on 2026-09-11 — `docs/ui/design-system.md` is the reference
+for what exists, and `frontend/src/shared/theme/tokens.css` is the only place a value is written
+down. The component library **is** the design system — do not hand-roll a component that shadcn
+provides. Colour semantics, fixed across all four surfaces (from vision doc §28):
 
 `critical` red · `warning` amber · `caution` yellow · `info` blue · `success` green · `neutral` slate
 
