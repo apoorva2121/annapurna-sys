@@ -25,7 +25,6 @@ export const strings = {
   },
 
   nav: {
-    home: 'Home',
     staff: 'Staff',
     profile: 'Your profile',
     signOut: 'Sign out',
@@ -45,10 +44,6 @@ export const strings = {
     empty: 'No employees yet. Add the first one with “Add employee”.',
     emptyInactive: 'Nobody has been deactivated.',
     showInactive: 'Include deactivated',
-    columnName: 'Name',
-    columnCode: 'Code',
-    columnRoles: 'Roles',
-    columnStatus: 'Status',
     active: 'Active',
     inactive: 'Inactive',
     noLogin: 'No login',
@@ -65,7 +60,6 @@ export const strings = {
     employeeCode: 'Employee code',
     phone: 'Phone number',
     joinedOn: 'Joined on',
-    employmentType: 'Employment',
     loginIdentifier: 'Login (phone or email)',
     loginHint: 'Optional. Leave blank for someone who never signs in — a cleaner, for example.',
     initialPassword: 'Initial password',
@@ -74,7 +68,6 @@ export const strings = {
     saving: 'Saving…',
     create: 'Add employee',
     creating: 'Adding…',
-    created: 'Employee added.',
     saved: 'Saved.',
     deactivate: 'Deactivate',
     deactivating: 'Deactivating…',
@@ -88,7 +81,6 @@ export const strings = {
     rolesSave: 'Save roles',
     rolesSaving: 'Saving roles…',
     rolesSaved: 'Roles updated.',
-    notFound: 'That employee was not found.',
   },
 
   profile: {
@@ -116,8 +108,5 @@ export const strings = {
     title: 'Something went wrong',
     forbidden: 'You do not have access to this.',
     forbiddenHint: 'If you think you should, ask an owner or manager to check your roles.',
-    notFound: 'That page does not exist.',
-    retry: 'Try again',
-    required: 'This is required.',
   },
 } as const;

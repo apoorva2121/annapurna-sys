@@ -119,10 +119,3 @@ class UserSessionRepository:
             await self.session.execute(query.values(revoked_at=datetime.now(UTC))),
         )
         return result.rowcount
-
-    async def live_for_account(self, user_account_id: uuid.UUID) -> Sequence[UserSession]:
-        query = select(UserSession).where(
-            UserSession.user_account_id == user_account_id,
-            UserSession.revoked_at.is_(None),
-        )
-        return (await self.session.scalars(query)).all()

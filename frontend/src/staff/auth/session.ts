@@ -51,7 +51,7 @@ export type Session = {
   permissions: ReadonlySet<string>;
 };
 
-export function sessionFromMe(response: MeResponse): Session {
+function sessionFromMe(response: MeResponse): Session {
   return {
     employeeId: response.employee_id,
     passwordChangeRequired: false,
