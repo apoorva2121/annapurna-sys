@@ -103,6 +103,11 @@ services:
       # `localhost` inside this container is this container. The API is reachable only by its
       # compose service name, exactly as `db` is for the api service.
       VITE_API_PROXY_TARGET: http://api:8000
+      # WINDOWS TRAP 4 — inotify events do not cross the Windows/WSL2 boundary, and Vite has its
+      # own watcher, so the api service's WATCHFILES_FORCE_POLLING does not help here. Without
+      # this the dev server serves a stale file forever and the browser silently disagrees with
+      # the editor. See frontend/vite.config.ts.
+      VITE_FORCE_POLLING: "true"
     ports:
       - "5173:5173"
     volumes:

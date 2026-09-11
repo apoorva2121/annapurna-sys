@@ -16,9 +16,13 @@
  *    (docs/ui/frontend-architecture-and-ux-strategy.md §3.5). Red means "act now" in November too.
  * 3. Per-surface tokens — set by `data-surface`, orthogonal to the theme.
  *
- * A theme is a `[data-theme="…"]` block that re-declares layer 1. It cannot add CSS, cannot target
- * a component, and cannot reach layers 2 or 3. That is what makes a festive theme a config change
- * rather than a rewrite.
+ * A theme is an entry in `themes.ts`. It overrides a few of layer 1's values at runtime and cannot
+ * add CSS, target a component, or reach layers 2 and 3 — `applyTheme` only writes the keys listed
+ * in `THEMEABLE`, so that is a structural limit rather than a convention.
+ *
+ * The light values below are the baseline every theme overrides, and choosing the default theme
+ * *clears* those overrides rather than re-applying a copy — which is why the default look is
+ * defined here and nowhere else.
  *
  * Values are bare HSL triples because Tailwind wraps them in `hsl(… / <alpha-value>)`, which is
  * what keeps opacity utilities working.
@@ -85,6 +89,15 @@
     --duration-base: 180ms;
     --duration-slow: 240ms;
     --easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+    /* Page rhythm, from the theme. Taste, not physics — kept separate from `--density`, which
+       the *surface* sets, so choosing a theme never discards a waiter's roomier spacing. Neither
+       touches `--target-min`: a touch target is a fact about a thumb. */
+    --theme-density: 1;
+
+    /* What screens actually use, as `p-page` and `gap-page`. Surface × theme, so a roomy surface
+       under a dense theme still reads as roomier than a dense surface under the same theme. */
+    --page-gap: calc(1rem * var(--density) * var(--theme-density));
   }
 
   /*
@@ -143,63 +156,5 @@
     /* Read at two metres, tapped with a glove. */
     --target-min: 4rem; /* 64px */
     --density: 1.5;
-  }
-
-  /*
-   * ── DARK ─────────────────────────────────────────────────────────────────────────────────────
-   * Shipped now, deliberately, rather than left as an assertion that "themes are easy later".
-   * Applying a second theme end to end is the only thing that proves the token layer works; a
-   * single-theme system that claims to be themeable is a claim, not an architecture.
-   *
-   * It is also the one people will actually want first: a manager reconciling cash at 1am and a
-   * phone on a dim floor.
-   */
-  [data-theme='dark'] {
-    color-scheme: dark;
-
-    --background: 222 30% 9%;
-    --foreground: 210 20% 96%;
-
-    --card: 222 26% 13%;
-    --card-foreground: 210 20% 96%;
-    --popover: 222 26% 13%;
-    --popover-foreground: 210 20% 96%;
-
-    --muted: 222 20% 18%;
-    --muted-foreground: 215 18% 68%;
-
-    --primary: 210 20% 96%;
-    --primary-foreground: 222 47% 11%;
-
-    --secondary: 222 20% 18%;
-    --secondary-foreground: 210 20% 96%;
-
-    /* Jamun lifts in the dark: a 32% fill on a 9% background is barely a colour. */
-    --accent: 322 28% 20%;
-    --accent-foreground: 322 60% 88%;
-    --brand: 322 45% 58%;
-    --brand-foreground: 222 47% 11%;
-    --ring: 322 55% 62%;
-
-    --border: 222 18% 24%;
-    --input: 222 16% 32%;
-
-    --destructive: 0 72% 58%;
-    --destructive-foreground: 222 47% 11%;
-
-    /* The alert set is re-declared at dark lightnesses. The *meanings* are locked; the values have
-       to move or red on a dark background fails contrast and stops being readable at all. */
-    --critical: 0 75% 62%;
-    --critical-soft: 0 45% 18%;
-    --warning: 25 85% 58%;
-    --warning-soft: 25 45% 16%;
-    --caution: 45 85% 55%;
-    --caution-soft: 45 40% 15%;
-    --info: 213 85% 65%;
-    --info-soft: 213 45% 18%;
-    --success: 142 55% 52%;
-    --success-soft: 142 35% 14%;
-    --neutral: 215 18% 68%;
-    --neutral-soft: 222 20% 18%;
   }
 }

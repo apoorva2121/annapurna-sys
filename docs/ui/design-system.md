@@ -101,25 +101,68 @@ because it must never be covered: a waiter who cannot see they are offline keeps
 
 ## 3. Theming
 
-A theme is a `[data-theme="…"]` block that re-declares the semantic colours. It cannot add CSS,
-cannot target a component, and cannot reach the locked or per-surface layers.
+A theme is an **entry in a config file**, applied at runtime by writing a handful of CSS custom
+properties onto `<html>`. It cannot add CSS, target a component, or reach the locked and
+per-surface layers. Components never re-render for a theme change — the browser repaints custom
+properties — and no component ever learns that a theme exists.
 
-**Shipped: `light` and `dark`.** Dark exists now rather than later on purpose — applying a second
-theme end to end is the only thing that proves the token layer works, and a single-theme system
-that claims to be themeable is a claim, not an architecture. It is also what people want first: a
-manager reconciling cash at 1am.
+`tokens.css` holds the light baseline and the locked layer, and **nothing else defines a theme**:
+choosing the default *clears* the overrides rather than applying a second copy of the same values.
 
-`src/shared/theme/theme.ts` resolves (device choice → OS preference) and applies. Components never
-re-render for a theme change; the browser repaints custom properties.
+### Adding a theme
 
-**Guarded by `theme.test.ts`:** every colour the light theme declares must be re-declared by every
-other theme. A theme that omits one inherits the light value, which nothing else catches — it type
-checks, lints, builds and passes. Shape, type and motion tokens are deliberately *shared*, so the
-test checks colours only.
+**Add an entry to `src/shared/theme/themes.ts`. Nothing else.** It appears in the picker on the
+profile screen and applies on click.
 
-**Not built yet:** festive themes, scheduling by business date, contrast and hue-distance
-validation, the settings picker. Each is a config file on top of this layer rather than a refactor;
-the design is in the strategy document §3.
+A theme is a set of *overrides* on the light baseline, not a full palette — say what makes it feel
+different and everything else stays as it was. A value you never give cannot be wrong.
+
+```ts
+{
+  id: 'monsoon',
+  name: 'Monsoon',
+  description: 'Cool slate and deep teal, tighter and crisper.',
+  appearance: 'light',
+  colors: { background: '200 24% 97%', brand: '188 62% 26%', /* … */ },
+  radius: '0.25rem',
+  density: 0.95,
+}
+```
+
+| Lever | Effect |
+|---|---|
+| `colors` | surfaces, text, brand, borders. Bare HSL triples — `"36 45% 97%"` |
+| `radius` | corner roundness; after the background, the most visible single lever |
+| `density` | page rhythm. Multiplies `p-page`/`gap-page`. **Not** touch targets — those are physical |
+| `appearance` | drives `color-scheme`, so scrollbars and form controls follow |
+
+**Shipped: `light` (Steel), `dark`, `deepavali`, `monsoon`.** More than one exists deliberately —
+applying a second theme end to end is the only thing that proves the layer works, and a system
+with one theme that claims to be themeable is a claim, not an architecture.
+
+### What a theme cannot do
+
+`applyTheme` writes only the keys in `THEMEABLE`, so this is structural rather than a convention.
+Out of reach: the six alert colours, `--target-min`, the z-index ladder, layout, component
+structure and copy. A theme is paint.
+
+### Two guards
+
+- **Contrast.** Every pair that decides whether a screen can be read — text on background, on
+  card, on muted, and each foreground on its fill — is computed against WCAG AA (4.5:1). A theme
+  below it is **not applied**: it falls back to the default and says why in the console. Without
+  this, a config whose values are each reasonable can still render an app nobody can use, and it
+  would type-check, lint, build and pass.
+- **Inheritance.** Anything a theme omits inherits the baseline, so the contrast check runs over
+  the merged result rather than over the config alone.
+
+`theme.test.ts` runs both over every shipped theme, so a bad config fails the build rather than a
+shift.
+
+**Not built yet:** scheduling a festive theme by business date and a restaurant-wide default —
+both belong with M02's settings screen, and both are an insertion into `resolveTheme` rather than a
+redesign. Hue-distance validation (an accent must sit ≥25° from every alert hue) is designed in the
+strategy document §3.5 and not implemented; today it is a review question.
 
 ## 4. Components
 

@@ -36,10 +36,11 @@ afterwards is how a screen ends up with four competing primary actions.
    paint: it may repaint surfaces and the brand colour and nothing else.
    *Enforced:* `src/shared/theme/theme.test.ts`.
 
-3. **Every theme declares every colour.** A theme that omits one inherits the light value, which on
-   a dark background is somewhere between wrong and unreadable — and nothing else catches it: it
-   type-checks, lints, builds and passes.
-   *Enforced:* the parity test in `theme.test.ts`.
+3. **Add a theme by adding an entry to `src/shared/theme/themes.ts`, and nothing else.** It is a
+   set of overrides on the light baseline; whatever it omits it inherits. Never add a
+   `[data-theme]` block to CSS — that would put themes in two places.
+   *Enforced:* `theme.test.ts` computes contrast over every shipped theme's merged result and
+   refuses any pair below 4.5:1.
 
 4. **Do not hand-roll what shadcn/ui provides.** `npx shadcn@latest add <component>` puts the
    source in `src/shared/ui/`, where it is yours to edit. Adapt it to our tokens and the touch
@@ -74,7 +75,8 @@ afterwards is how a screen ends up with four competing primary actions.
 Do not cite these as if they exist, and do not add a rule that depends on them:
 
 - the `/design` gallery route and its screenshot tests — planned with M07
-- the theme *engine*: festive themes, scheduling by business date, contrast and hue-distance
-  validation, the settings picker — planned with M02's settings screen. The token layer they need
-  is done, so each is a config file rather than a refactor.
+- scheduling a festive theme by business date, and a restaurant-wide default — planned with M02's
+  settings screen. Themes themselves, the per-device picker and contrast validation exist.
+- hue-distance validation (an accent ≥25° from every alert hue) — designed, not implemented; today
+  it is a review question rather than a check.
 - per-surface type scales — only `--target-min` and `--density` vary by surface today

@@ -75,6 +75,9 @@ export default {
         // column, which only works if the digits are the same width.
         mono: 'var(--font-mono)',
       },
+      // Page rhythm: surface density × theme density. `p-page` and `gap-page` rather than an
+      // arbitrary value per screen, so nobody hand-tunes padding and the two levers compose.
+      spacing: { page: 'var(--page-gap)' },
       // The minimum touch target for the current surface. `min-h-target` rather than a hard-coded
       // height means one component is correct on a phone, a laptop and a wall tablet.
       minHeight: { target: 'var(--target-min)' },

@@ -19,7 +19,7 @@ export function AppShell(): ReactElement {
 
   return (
     <div className="min-h-screen">
-      <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border p-4">
+      <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border p-page">
         {/* The restaurant name is the tenant, on every screen. If tenant scoping ever broke, this
             is where it would be visible first. */}
         <Link to="/" className="font-semibold">
@@ -44,7 +44,7 @@ export function AppShell(): ReactElement {
         </button>
       </header>
 
-      <main className="mx-auto max-w-3xl p-4">
+      <main className="mx-auto max-w-3xl p-page">
         <Outlet />
       </main>
     </div>

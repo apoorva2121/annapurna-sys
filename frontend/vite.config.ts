@@ -28,6 +28,17 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    // WINDOWS TRAP 4 — the same inotify problem docker-compose.yml documents for the API, and
+    // Vite has its own watcher so WATCHFILES_FORCE_POLLING does not cover it. Without polling,
+    // edits made on the Windows host never reach the container's watcher: the dev server keeps
+    // serving the previous version of a file, HMR stays silent, and the only symptom is a browser
+    // that disagrees with the editor. Costly to diagnose, one line to prevent.
+    //
+    // Opt-in via the environment so a native (non-container) `npm run dev` keeps inotify and does
+    // not burn a core polling the filesystem.
+    ...(process.env.VITE_FORCE_POLLING === 'true'
+      ? { watch: { usePolling: true, interval: 300 } }
+      : {}),
     // The API is same-origin in production; the proxy keeps it same-origin in dev too, so no
     // CORS-only code path exists that production never exercises.
     //

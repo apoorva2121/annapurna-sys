@@ -7,6 +7,7 @@ import { Button } from '@shared/ui/button';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { errorProps } from '@staff/components/errorProps';
+import { ThemePicker } from '@staff/components/ThemePicker';
 import { strings } from '@staff/strings';
 
 /**
@@ -64,6 +65,8 @@ export default function ProfileScreen(): ReactElement {
             ))}
         </ul>
       </section>
+
+      <ThemePicker />
 
       <form onSubmit={onSubmit} className="flex max-w-md flex-col gap-4" noValidate>
         <h2 className="text-lg font-semibold">{strings.profile.changePassword}</h2>
