@@ -1,20 +1,15 @@
 import { type FormEvent, type ReactElement, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { businessToday } from '@shared/businessDay';
 import { EmploymentType } from '@shared/enums';
 import { useCreateEmployee } from '@staff/api/staff';
+import { useAuth } from '@staff/auth/AuthContext';
 import { Button } from '@shared/ui/button';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { errorProps } from '@staff/components/errorProps';
 import { strings } from '@staff/strings';
-
-function today(): string {
-  // The business day is the restaurant's, not the browser's — but M01 has no business-day helper
-  // yet and "joined on" is a date a human picks rather than a timestamp we derive. ISO, because
-  // that is what the API takes.
-  return new Date().toISOString().slice(0, 10);
-}
 
 /**
  * Add an employee, with or without a login.
@@ -26,11 +21,21 @@ function today(): string {
 export default function NewEmployeeScreen(): ReactElement {
   const navigate = useNavigate();
   const create = useCreateEmployee();
+  const { session } = useAuth();
 
   const [fullName, setFullName] = useState('');
   const [employeeCode, setEmployeeCode] = useState('');
   const [phone, setPhone] = useState('');
-  const [joinedOn, setJoinedOn] = useState(today());
+  // The restaurant's today, not the browser's. Between local midnight and 05:30 IST those are
+  // different days, and the browser's answer is yesterday — a wrong joining date recorded by
+  // someone who accepted a default that looked entirely reasonable. `session` is never null here
+  // (RequireAuth guards the route), but the fallback keeps the field usable rather than crashing
+  // the screen if that ever stops being true.
+  const [joinedOn, setJoinedOn] = useState(() =>
+    session === null || session === undefined
+      ? new Date().toISOString().slice(0, 10)
+      : businessToday(session.restaurant.timezone, session.restaurant.business_day_start),
+  );
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [initialPassword, setInitialPassword] = useState('');
 

@@ -7,7 +7,7 @@ necessary — a manager who can appoint people is one bug away from being able t
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, time
 from typing import Any
 
 import pytest
@@ -873,3 +873,59 @@ class TestRolesCatalogue:
         response = await api_client.get("/api/v1/staff/roles", headers=_auth(token))
 
         assert response.status_code == 403
+
+
+class TestTheSessionCarriesTheBusinessDay:
+    """`business_day_start` travels with the restaurant summary, or the browser cannot apply it.
+
+    The frontend needs a business date *before* it makes any request — the default in a date field,
+    the heading over today's figures. `frontend/src/shared/businessDay.ts` computes it, and it needs
+    both halves of the rule: the zone, which the summary already carried, and the start time, which
+    it did not. Without this field the UI has no honest option but the browser's own clock, which is
+    how "joined on" came to default to yesterday for five and a half hours a day in India.
+
+    Asserted on both the login response and `/auth/me`, because the app builds a session from either
+    one and a field present in only one of them is a bug that appears on refresh and not on login.
+    """
+
+    async def test_login_answers_with_the_business_day_start(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        await _world(db_session, "owner")
+
+        response = await api_client.post(
+            "/api/v1/auth/login",
+            json={"identifier": "owner@spice-garden.test", "password": PASSWORD},
+        )
+
+        assert response.status_code == 200
+        restaurant = response.json()["restaurant"]
+        # 05:00, the default in ADR 0004 — serialised as a time, not as a number of minutes.
+        assert restaurant["business_day_start"] == "05:00:00"
+        assert restaurant["timezone"] == "Asia/Kolkata"
+
+    async def test_me_answers_with_it_too(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+
+        response = await api_client.get("/api/v1/auth/me", headers=_auth(token))
+
+        assert response.status_code == 200
+        assert response.json()["restaurant"]["business_day_start"] == "05:00:00"
+
+    async def test_a_restaurant_that_opens_its_day_at_a_different_hour_says_so(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The field has to be read from the row, not defaulted client-side. A constant in the
+        frontend would pass every test above and be wrong for the first restaurant that changes it.
+        """
+        world = await _world(db_session, "owner")
+        world.restaurant.business_day_start = time(3, 30)
+        await db_session.flush()
+
+        token = await _token(api_client, "owner")
+        response = await api_client.get("/api/v1/auth/me", headers=_auth(token))
+
+        assert response.json()["restaurant"]["business_day_start"] == "03:30:00"

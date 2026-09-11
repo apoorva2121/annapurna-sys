@@ -42,6 +42,19 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH"
 
+# Empty on purpose: it clears zoneinfo's system search path, so every ZoneInfo lookup resolves from
+# the `tzdata` package pinned in uv.lock rather than from the base image's /usr/share/zoneinfo.
+#
+# Without it the image reads Debian's copy of the IANA database while a developer on Windows — which
+# has no system copy — reads the locked one, so one commit can apply two different versions of a
+# timezone rule. `business_date_of` decides which day each order's takings land in; that is not a
+# calculation allowed to vary by host.
+#
+# It also makes a missing dependency loud rather than silent: drop `tzdata` from pyproject.toml and
+# ZoneInfo raises here instead of quietly falling back to whatever the OS happens to ship. The same
+# choice app/core/business_day.py makes when it refuses an unknown zone rather than assuming UTC.
+ENV PYTHONTZPATH=""
+
 # Stamped by the build so GET /api/v1/version can answer without a .git directory in the image.
 # See docs/observability.md; pass with `docker build --build-arg GIT_SHA=$(git rev-parse HEAD)`.
 ARG GIT_SHA=unknown

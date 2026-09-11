@@ -15,6 +15,9 @@ locally fails in CI for a rule that did not exist yesterday.
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
@@ -52,14 +55,55 @@ def test_the_ruff_pin_and_the_pre_commit_hook_agree() -> None:
     )
 
 
-def test_a_lockfile_exists_and_is_not_older_than_the_dependency_list() -> None:
+def _uv_executable() -> Path | None:
+    """uv, wherever it is. `shutil.which` alone misses it: on Windows the venv's Scripts directory
+    is on PATH only for a shell that activated it, and pytest is often started by its full path."""
+    found = shutil.which("uv")
+    if found:
+        return Path(found)
+    for directory in ("Scripts", "bin"):
+        for name in ("uv.exe", "uv"):
+            candidate = Path(sys.prefix) / directory / name
+            if candidate.is_file():
+                return candidate
+    return None
+
+
+def test_a_lockfile_exists() -> None:
+    assert (_BACKEND / "uv.lock").is_file(), (
+        "backend/uv.lock is missing — run `uv lock` in backend/"
+    )
+
+
+def test_the_lockfile_resolves_the_current_dependency_list() -> None:
     """`uv.lock` is what makes a build reproducible; a stale one is worse than none, because it
-    claims a reproducibility the resolver is quietly ignoring."""
-    lock = _BACKEND / "uv.lock"
-    assert lock.is_file(), "backend/uv.lock is missing — run `uv lock` in backend/"
-    assert lock.stat().st_mtime >= (_BACKEND / "pyproject.toml").stat().st_mtime, (
-        "backend/uv.lock is older than pyproject.toml — a dependency changed without re-locking; "
-        "run `uv lock`"
+    claims a reproducibility the resolver is quietly ignoring.
+
+    This asks uv whether the lock still satisfies `pyproject.toml`, rather than comparing the two
+    files' modification times. mtime was wrong in both directions: it failed on an edit to a comment
+    in `pyproject.toml`, where the only remedy is to `touch` a file — which teaches people that this
+    gate is noise to be worked around — and it passed on a genuinely stale lock that anything had
+    since rewritten for an unrelated reason. A gate whose green means "the timestamps are in a
+    pleasing order" is not a gate.
+
+    `uv lock --check` is what the Dockerfile's `uv sync --frozen` will enforce at build time, so
+    this fails here rather than at a deploy.
+    """
+    uv = _uv_executable()
+    assert uv is not None, (
+        "uv was not found on PATH or in this virtualenv, so lockfile freshness cannot be checked. "
+        "uv is required to build this project — see backend/Dockerfile and the Makefile."
+    )
+    result = subprocess.run(  # noqa: S603 - our own executable, no shell, no user input
+        [str(uv), "lock", "--check"],
+        cwd=_BACKEND,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        "backend/uv.lock no longer resolves backend/pyproject.toml — a dependency changed without "
+        f"re-locking. Run `uv lock` in backend/.\n{result.stdout}{result.stderr}"
     )
 
 

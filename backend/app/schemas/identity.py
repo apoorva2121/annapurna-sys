@@ -12,7 +12,7 @@ Two rules run through every schema here, both security controls rather than styl
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -64,6 +64,13 @@ class RestaurantSummary(_ReadSchema):
     code: str
     timezone: str
     currency: str
+    # Both halves of the business-day rule travel together, because either one alone is useless.
+    # The browser has to produce a business date before it can make a request — the default in a
+    # date field, the heading over today's figures — and `frontend/src/shared/businessDay.ts` needs
+    # the zone *and* the start time to do it. Without this the UI falls back to the browser's clock,
+    # which is how "joined on" came to default to yesterday for five and a half hours a day in
+    # India. ADR 0004.
+    business_day_start: time
 
 
 class SessionResponse(_Schema):

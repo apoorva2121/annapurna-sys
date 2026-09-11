@@ -15,15 +15,66 @@ Before any code: `docs/engineering-guardrails.md` and `.claude/skills/restaurant
 | Chunk | What | State | Commit |
 |---|---|---|---|
 | A | Migration: 4 tables + `restaurant.fssai_licence` (S13) | ✅ done | `4a3c048` |
-| B | The business-day helper, both languages (M11) | ⬅ **NEXT — wants high effort** | — |
-| C | Repositories, services, API — first use of `RestaurantScopedRepository` | ☐ | — |
+| B | The business-day helper, both languages (M11) | ✅ done | see below |
+| C | Repositories, services, API — first use of `RestaurantScopedRepository` | ⬅ **NEXT** | — |
 | D | shadcn components M02 needs: Select, Dialog/Sheet, Table, Switch, Label | ☐ | — |
 | E | Four screens | ☐ | — |
 | F | `POST /auth/switch` (S12) · theme settings · `reserved` by hand (S14) | ☐ | — |
 | G | Manual script, adversarial review, `make check` | ☐ | — |
 
-**Chunk B wants high model effort** — see *Why B is the risky one* below. Everything else is
+**Chunk B wanted high model effort** — see *Why B is the risky one* below. Everything else is
 medium.
+
+"Both languages" is Python and TypeScript — not SQL. There is no Postgres function in this module:
+`business_date` is denormalised at insert by the application, so nothing in SQL needs to compute it
+until M07 has orders to insert.
+
+### What chunk B actually cost
+
+The Python function was the small half. Four things came out of it that the chunk table did not
+predict:
+
+**1 · The IANA database was a host feature, not a dependency.** Sixteen of the first eighteen tests
+failed on Windows with `ValueError: Unknown timezone 'Asia/Kolkata'`. `zoneinfo` reads the operating
+system's copy, Debian ships one and Windows ships none — so the suite was green in the container and
+red on the machine writing it. `tzdata` is now a runtime dependency, and `PYTHONTZPATH=""` in the
+Dockerfile stops the image reading Debian's copy instead of the locked one. The first half fixes the
+crash; the second half is the one that matters, because two hosts reading two different copies can
+disagree about a timezone rule while both look perfectly healthy. Verified in a built image:
+`TZPATH = ()`, `tzdata 2026.3`, same answer as the host.
+
+**2 · `business_day_start` was not in the API contract.** The browser cannot apply the rule with the
+zone alone, and the frontend helper is the whole point of M11 riding along here. Added to
+`RestaurantSummary`, asserted on *both* `/auth/login` and `/auth/me` — a field present in only one of
+them is a bug that appears on refresh and not on login.
+
+**3 · Two frontend session fixtures had silently drifted from the contract.** They were untyped
+object literals, so TypeScript inferred their shape instead of checking it against
+`RestaurantSummary`, and they went on describing a response the server no longer sends. Now typed;
+confirmed that removing a field fails compilation.
+
+**4 · Defect 1 of M02 — `NewEmployeeScreen` defaulted "joined on" to the browser's UTC date.**
+Between local midnight and 05:30 IST that is *yesterday*, so anyone adding staff on a late shift
+recorded a joining date one day early, pre-filled and looking entirely reasonable. The existing
+comment admitted the placeholder; nothing tested it, and no test rendered the screen at all.
+
+### Two tests that lied, and the lesson repeating
+
+`test_it_disagrees_with_utc_truncation_across_the_business_boundary` asserted that the business date
+and the UTC date were **equal**, and said in a comment that they agreed by coincidence — under a name
+claiming it proved they diverge. A reviewer reading the name would have believed the divergence was
+covered. Replaced with a pair that is verified to reject each wrong implementation: truncating in UTC
+fails one, truncating in local time fails the other, and neither can be caught by testing against the
+other.
+
+Then the same mistake happened again in the new frontend tests, and was caught the same way — by
+running them against the old implementation instead of trusting a green run. Three of five passed
+with the bug still in place.
+
+**The rule this chunk earned:** a test that has never been observed to fail is not evidence. Both
+defects were invisible to a green suite and obvious the moment the implementation was reverted under
+them. This is the third appearance of the project's recurring lesson — a name or docstring asserting
+a property the adjacent code does not provide.
 
 ---
 

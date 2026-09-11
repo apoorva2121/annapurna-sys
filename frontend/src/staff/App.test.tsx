@@ -14,15 +14,19 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthProvider } from '@staff/auth/AuthProvider';
+import type { RestaurantSummary } from '@staff/auth/session';
 
 import App from './App';
 
-const RESTAURANT = {
+// Typed, so that a field added to the API contract fails to compile here rather than leaving this
+// fixture quietly describing a response the server stopped sending.
+const RESTAURANT: RestaurantSummary = {
   id: 'r1',
   name: 'Spice Garden - Koregaon Park',
   code: 'SG_KOREGAON',
   timezone: 'Asia/Kolkata',
   currency: 'INR',
+  business_day_start: '05:00:00',
 };
 
 const OWNER_PERMISSIONS = [

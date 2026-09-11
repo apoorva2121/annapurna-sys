@@ -12,6 +12,9 @@ export type RestaurantSummary = {
   code: string;
   timezone: string;
   currency: string;
+  /** `HH:MM:SS`. Travels with `timezone` because neither half of the business-day rule is any use
+   *  alone — see `@shared/businessDay`. A restaurant's day starts here, not at midnight (ADR 0004). */
+  business_day_start: string;
 };
 
 /** What POST /auth/login and POST /auth/refresh answer. No refresh token: that is an httpOnly

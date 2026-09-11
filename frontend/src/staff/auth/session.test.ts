@@ -10,13 +10,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setAccessToken } from '@shared/api';
 
 import { login, restore } from './session';
+import type { RestaurantSummary } from './session';
 
-const RESTAURANT = {
+// Typed, so that a field added to the API contract fails to compile here rather than leaving this
+// fixture quietly describing a response the server stopped sending.
+const RESTAURANT: RestaurantSummary = {
   id: 'r1',
   name: 'Spice Garden - Koregaon Park',
   code: 'SG_KOREGAON',
   timezone: 'Asia/Kolkata',
   currency: 'INR',
+  business_day_start: '05:00:00',
 };
 
 function json(body: unknown, status = 200): Response {
