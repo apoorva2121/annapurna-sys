@@ -67,8 +67,12 @@ async def test_it_seeds_an_empty_database_and_reports_success(
 
     counts = await _counts(fresh_database)
     assert counts["organization"] == 2
+    assert counts["restaurant"] == 3
     assert counts["employee"] == 19
-    assert counts["employee_role_assignment"] == 19
+    # 20 assignments for 19 employees: one person (EMP003) holds a role at both Spice Garden
+    # branches. That is the only reason `POST /auth/switch` can be exercised by hand at all — the
+    # switcher renders nothing for someone who works at a single restaurant (M02, finding S12).
+    assert counts["employee_role_assignment"] == 20
 
 
 async def test_running_it_twice_commits_nothing_the_second_time(

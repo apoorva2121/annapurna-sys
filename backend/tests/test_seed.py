@@ -57,7 +57,16 @@ async def test_it_creates_two_organizations(seeded: AsyncSession) -> None:
     assert names == ["Spice Garden Hospitality", "Tandoor House"]
 
 
-async def test_each_organization_has_its_own_restaurant(seeded: AsyncSession) -> None:
+async def test_each_organization_has_its_own_restaurants(seeded: AsyncSession) -> None:
+    """Two organizations, and Spice Garden has two branches.
+
+    The second branch was added in M02 and exists for one reason: `POST /auth/switch` (finding S12)
+    cannot be exercised by hand in a world where nobody works at two branches, because the switcher
+    renders nothing for someone with one restaurant.
+
+    The cross-*organization* boundary is still what the isolation tests probe — one organization
+    with two branches is a weaker boundary and would let a leak pass.
+    """
     rows = (
         await seeded.execute(
             select(Organization.slug, Restaurant.code).join(
@@ -66,6 +75,7 @@ async def test_each_organization_has_its_own_restaurant(seeded: AsyncSession) ->
         )
     ).all()
     assert sorted(tuple(row) for row in rows) == [
+        ("spice-garden", "SG_BANER"),
         ("spice-garden", "SG_KOREGAON"),
         ("tandoor-house", "TH_BANER"),
     ]

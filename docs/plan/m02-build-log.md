@@ -20,7 +20,7 @@ Before any code: `docs/engineering-guardrails.md` and `.claude/skills/restaurant
 | D | shadcn components M02 needs: Select, Dialog/Sheet, Table, Switch, Label | ✅ done | `e9caff2` |
 | E | Four screens | ✅ done | `336953b` |
 | F | `POST /auth/switch` (S12) · theme settings · ~~`reserved` by hand (S14)~~ done in C | ✅ done | see below |
-| G | Manual script, adversarial review, `make check` | ⬅ **NEXT** | — |
+| G | Manual script, adversarial review, `make check` | ✅ done | see below |
 
 **Chunk B wanted high model effort** — see *Why B is the risky one* below. Everything else is
 medium.
@@ -343,3 +343,62 @@ server has not started sending yet must degrade, not white-screen every signed-i
 The wire types now mark both fields optional and the session mapper fills them in, so the internal
 type stays honest while the boundary stays tolerant. The distinction is worth keeping: *optional on
 the wire, guaranteed after mapping.*
+
+---
+
+## What chunk G actually cost
+
+Manual script (`docs/manual-tests/M02-restaurant-setup.md`), adversarial review, `make check`.
+
+### The review found the module was not demonstrable
+
+Two findings, both of which would have made the manual pass start with an apology:
+
+**1 · `make seed` produced an empty floor.** M02's master data — two dining areas, fourteen tables,
+three stations, two tax rates — has been in `seed/operations.yaml` since M00 and validated by
+`seed/validate.py` ever since. Nothing loaded it, because there was no table to load it into until
+this module built one. Every M02 screen opened blank on seeded data, and the manual pass would have
+begun by hand-building a floor plan before it could test anything. `app/seed/setup.py` now loads it.
+
+**2 · `POST /auth/switch` was unreachable in the demo world.** The seed has two restaurants, but in
+two *different organizations* — nobody worked at two branches of one company, so the switcher
+rendered nothing and chunk F's headline feature could not be exercised by hand at all. The seed now
+has a second Spice Garden branch and one dual posting: Vikram is a **manager at Koregaon and a
+waiter at Baner**, junior on purpose so switching visibly changes what he can do.
+
+Both are the same class of defect and it is worth naming: **the feature was finished and the world
+it lives in was not.** Tests passed because tests build their own fixtures. A demo that cannot show
+a feature is a feature nobody will check.
+
+### The finding I did not fix
+
+**A superseded tax rate has nothing pointing at its successor.** `menu_item_variant.tax_group_id`
+references one `tax_group` row directly (schema §3), and M02's rule is that a rate change is a new
+row. So on a changeover every menu item points at the closed row with no link to the replacement.
+
+History is safe — `order_line.tax_rate` is copied at order time — so this is not corruption. The gap
+is the forward step: somebody must re-point every menu item, and neither a mechanism nor a screen
+exists. `seed/operations.yaml` already gives each rate a `code` (`GST5`) that is exactly the stable
+family key required, and the schema has no column for it.
+
+Left unfixed **deliberately**: it changes an approved schema, M06 is the first module that depends
+on it, and an external review is about to look at the same code. In `docs/backlog.md` with M06 as
+the un-defer trigger, and called out in the manual script so the decision is visible rather than
+buried.
+
+### Scoreboard
+
+Six defects across M02, and the shape of them is consistent: **five were things that read as
+working and were not.**
+
+| | Found by |
+|---|---|
+| The tzdata dependency was a host feature | running the tests on a second machine |
+| `NewEmployeeScreen` defaulted to yesterday's date | asking what the browser's clock actually returns |
+| The permission-seed guard could not fail | changing the catalogue and watching nothing break |
+| Tenant isolation skipped every new route | counting what the loop actually probed |
+| `make seed` built an empty floor | asking what the manual script would open on |
+| `auth/switch` was unreachable in the demo | asking who, in the seed, works at two branches |
+
+Not one came from reading the code approvingly. Every one came from asking what would have to be
+true for it to be broken, and then checking that specific thing.

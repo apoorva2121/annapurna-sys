@@ -28,6 +28,10 @@ class SeedDataNotFoundError(RuntimeError):
     """Raised with the places we looked. "File not found" without them is a scavenger hunt."""
 
 
+class SeedFormatError(RuntimeError):
+    """The YAML parsed but does not have the shape the seeder expects."""
+
+
 @dataclass(frozen=True, slots=True)
 class OrganizationRecord:
     code: str
@@ -50,12 +54,32 @@ class RestaurantRecord:
     fssai_licence: str | None
 
 
+def _posting(raw: object) -> Posting | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise SeedFormatError(f"also_at must be a mapping, got {type(raw).__name__}")
+    return Posting(restaurant=str(raw["restaurant"]), role=str(raw["role"]))
+
+
+@dataclass(frozen=True, slots=True)
+class Posting:
+    """A role held at one restaurant."""
+
+    restaurant: str
+    role: str
+
+
 @dataclass(frozen=True, slots=True)
 class EmployeeRecord:
     code: str
     name: str
     role: str
     restaurant: str
+    # A second posting, at another branch of the same organization. Rare in reality and rare here —
+    # exactly one seeded person has one — but without it `POST /auth/switch` cannot be exercised by
+    # hand, because the switcher renders nothing for someone who works at one place.
+    also_at: Posting | None
     phone: str | None
     joined: date
     employment_type: str
@@ -142,6 +166,7 @@ def load_seed_data(directory: Path | None = None) -> SeedData:
                 joined=item["joined"],
                 employment_type=str(item["type"]),
                 login=_optional(item.get("login")),
+                also_at=_posting(item.get("also_at")),
             )
             for item in raw["employees"]
         ),

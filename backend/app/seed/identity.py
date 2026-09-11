@@ -53,6 +53,10 @@ class ConflictingSeedIdentifierError(RuntimeError):
     """An identifier the seed wants is already held by an account it did not create."""
 
 
+class MissingSeedRestaurantError(RuntimeError):
+    """A second posting names a restaurant that is not in the same organization."""
+
+
 class MissingSystemRoleError(RuntimeError):
     """The catalogue migration has not run, or a role was renamed in the YAML but not in
     permissions.json. Either way the seed cannot guess which role was meant."""
@@ -280,6 +284,24 @@ async def _employee(
     counts.employees += 1
 
     await _assignment(session, employee.id, restaurant.id, role.id, counts)
+
+    # A second posting at another branch. Only reached for the one seeded person who has one, and
+    # it exists so `POST /auth/switch` can be exercised by hand: the switcher renders nothing for
+    # someone who works at a single restaurant, which made S12 unverifiable in the demo world.
+    if record.also_at is not None:
+        other = await session.scalar(
+            select(Restaurant).where(
+                Restaurant.organization_id == organization_id,
+                Restaurant.code == record.also_at.restaurant,
+            )
+        )
+        if other is None:
+            raise MissingSeedRestaurantError(
+                f"{record.code} is also posted to {record.also_at.restaurant!r}, which is not a "
+                "restaurant in this organization."
+            )
+        second_role = _role_or_fail(roles, record.also_at.role, record.code)
+        await _assignment(session, employee.id, other.id, second_role.id, counts)
 
 
 async def _login(

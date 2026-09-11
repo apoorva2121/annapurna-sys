@@ -34,6 +34,20 @@ restaurants:
     address: {line1: "Lane 5, Koregaon Park", city: Pune, state: Maharashtra, pincode: "411001"}
     fssai_licence: "11522998000123"
 
+  # A second branch of Spice Garden, and the only reason it exists: without two restaurants in one
+  # organization, `POST /auth/switch` (finding S12) cannot be exercised by hand at all — the
+  # switcher renders nothing for someone who works at one place. A feature nobody can see is a
+  # feature nobody can check.
+  - code: SG_BANER
+    organization: SPICEGARDEN
+    name: Spice Garden - Baner
+    timezone: Asia/Kolkata
+    currency: INR
+    business_day_start: "05:00"
+    gstin: 27AABCS1429B1ZX
+    address: {line1: "Baner Road", city: Pune, state: Maharashtra, pincode: "411045"}
+    fssai_licence: "11522998000789"
+
   - code: TH_BANER
     organization: TANDOORHOUSE
     name: Tandoor House - Baner
@@ -221,7 +235,9 @@ roles:
 employees:
   - {code: EMP001, name: Rajesh Mehta,    role: owner,         restaurant: SG_KOREGAON, login: owner@spicegarden.test,     phone: "9820011001", joined: 2019-04-01, type: full_time}
   - {code: EMP002, name: Priya Nair,      role: admin,         restaurant: SG_KOREGAON, login: admin@spicegarden.test,     phone: "9820011002", joined: 2021-06-15, type: full_time}
-  - {code: EMP003, name: Vikram Deshmukh, role: manager,       restaurant: SG_KOREGAON, login: manager@spicegarden.test,   phone: "9820011003", joined: 2020-01-10, type: full_time}
+  # Also a waiter at Baner. Junior there on purpose: switching branch must change what he can do,
+  # and a fixture where he held the same role at both would hide it (G-17, and defect P1-2).
+  - {code: EMP003, name: Vikram Deshmukh, role: manager,       restaurant: SG_KOREGAON, login: manager@spicegarden.test,   phone: "9820011003", joined: 2020-01-10, type: full_time, also_at: {restaurant: SG_BANER, role: waiter}}
   - {code: EMP004, name: Arun Kulkarni,   role: chef,          restaurant: SG_KOREGAON, login: chef@spicegarden.test,      phone: "9820011004", joined: 2019-08-20, type: full_time}
   - {code: EMP005, name: Imran Shaikh,    role: kitchen_staff, restaurant: SG_KOREGAON, login: kitchen1@spicegarden.test,  phone: "9820011005", joined: 2022-02-01, type: full_time}
   - {code: EMP006, name: Santosh Pawar,   role: kitchen_staff, restaurant: SG_KOREGAON, login: null,                       phone: "9820011006", joined: 2022-07-11, type: full_time}

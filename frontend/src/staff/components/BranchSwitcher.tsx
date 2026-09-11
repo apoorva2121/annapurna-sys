@@ -1,7 +1,6 @@
 import { type ReactElement, useState } from 'react';
 
 import { apiPost } from '@shared/api';
-import { setAccessToken } from '@shared/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select';
 import { useAuth } from '@staff/auth/AuthContext';
 import { strings } from '@staff/strings';
@@ -31,13 +30,18 @@ export function BranchSwitcher(): ReactElement | null {
 
   function choose(restaurantId: string): void {
     setSwitching(true);
-    void apiPost<{ access_token: string }>('/auth/switch', { restaurant_id: restaurantId })
-      .then((result) => {
-        setAccessToken(result.access_token);
+    void apiPost('/auth/switch', { restaurant_id: restaurantId })
+      .then(() => {
         // A full reload rather than invalidating queries. Switching branch changes the tenant scope
         // of every cached answer on the page at once — the staff list, the floor, the tax rates —
         // and a partial refresh would leave one screen showing the other branch's data for as long
         // as it took to notice. Reloading is blunt, instant, and cannot be half-done.
+        //
+        // The access token the endpoint returns is deliberately *not* kept. Reloading discards it
+        // anyway — the token lives in a module variable, not storage — and the app re-authenticates
+        // from the refresh cookie, which now resolves to the new branch because the switch recorded
+        // it on the session row. Storing the token first would look like it mattered and would hide
+        // the fact that `user_session.restaurant_id` is what actually carries the choice.
         window.location.reload();
       })
       .catch(() => {
