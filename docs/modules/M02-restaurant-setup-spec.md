@@ -1,6 +1,6 @@
 # M02 · Restaurant Setup — Module Spec
 
-**Status:** awaiting your approval (step 1 of the module loop, `docs/sdlc.md`)
+**Status:** **APPROVED 2026-09-11.** All four open decisions answered — see the end of this file.
 **Estimate:** 3 days · **Depends on:** M01 (done) · **Gate:** R1, R2, R8a, R8b ticked — clear
 
 ## Scope
@@ -214,8 +214,17 @@ cannot reach the second. It is small and it fits here. My recommendation: **yes,
 | The 2-day estimate in `docs/modules.md` predates the audit items and the design system | Stated as 3 days here. `docs/plan/month-1.md` has slack; if it runs longer the plan absorbs it |
 | Scope creep from "while we are in settings…" | Theme scheduling is in because it was deferred here deliberately. Everything else that arrives goes to `docs/backlog.md` |
 
-## What I need from you
+## Decisions, answered 2026-09-11
 
-1. **Approve this spec**, or tell me what to change
-2. **Answer the four open decisions** — 2 and 3 are the ones with real consequences
-3. Nothing else. With those, M02 runs to green without further input, up to your manual pass.
+All four went with the recommendation. Recorded here so they are not re-litigated mid-module.
+
+1. **`business_day_start` and tax rates are owner/admin only.** A manager staffing a shift has no
+   reason to change what a day means, and both settings move money.
+2. **A tax rate is never edited in place.** A change is always a new effective-dated row. The cost
+   is accepted: correcting a typo made five minutes ago also creates a row. The alternative is a
+   field that silently rewrites history, and code cannot tell a typo from a cover-up.
+3. **`reserved` stays, set by hand.** A manager marking a table reserved for a walk-in booking is
+   how small restaurants actually work. It costs nothing and does not pretend to be a reservation
+   system. Finding S14 closed.
+4. **`POST /auth/switch` is in.** Someone working at two branches cannot currently reach the second.
+   Finding S12 closed.
