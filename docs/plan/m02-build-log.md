@@ -15,7 +15,7 @@ Before any code: `docs/engineering-guardrails.md` and `.claude/skills/restaurant
 | Chunk | What | State | Commit |
 |---|---|---|---|
 | A | Migration: 4 tables + `restaurant.fssai_licence` (S13) | ✅ done | `4a3c048` |
-| B | The business-day helper, both languages (M11) | ✅ done | see below |
+| B | The business-day helper, both languages (M11) | ✅ done | `38ba3bd` |
 | C | Repositories, services, API — first use of `RestaurantScopedRepository` | ⬅ **NEXT** | — |
 | D | shadcn components M02 needs: Select, Dialog/Sheet, Table, Switch, Label | ☐ | — |
 | E | Four screens | ☐ | — |
