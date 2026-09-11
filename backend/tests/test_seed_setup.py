@@ -104,18 +104,32 @@ class TestTheFloorIsSeeded:
     async def test_the_tax_rate_is_a_decimal_and_not_a_float(
         self, db_session: AsyncSession
     ) -> None:
-        """0.05 as a float is 0.05000000000000000277…, and that is what would have been stored.
-        The YAML parses it as a float; the seeder converts through `str` (CLAUDE.md invariant 3)."""
+        """CLAUDE.md invariant 3, asserted where it is observable.
+
+        **Not through `select(TaxGroup.rate)`.** That reads the column back out of Postgres, and
+        `NUMERIC(6,4)` rounds on insert, so `Decimal(0.05)` - float error and all - comes back as
+        exactly `0.0500`. A column select therefore passed against the very bug it was written to
+        catch, and no change to the seeder could have made it fail. Found by external review.
+
+        Selecting the entity returns the seeder's own object from the identity map, never
+        round-tripped, so what is asserted on is the value the seeder actually built.
+        """
         await _seed(db_session)
         restaurant = await _koregaon(db_session)
 
-        rates = (
+        groups = (
             await db_session.scalars(
-                select(TaxGroup.rate).where(TaxGroup.restaurant_id == restaurant.id)
+                select(TaxGroup).where(TaxGroup.restaurant_id == restaurant.id)
             )
         ).all()
 
-        assert Decimal("0.0500") in set(rates)
+        assert groups, "operations.yaml defines tax groups; none were seeded"
+        for group in groups:
+            assert isinstance(group.rate, Decimal), f"{group.name} stored a {type(group.rate)}"
+            # An exact four-place fraction. `Decimal(0.05)` is 0.0500000000000000027, which has
+            # more digits than this and fails here - before Postgres ever rounds it away.
+            assert group.rate == group.rate.quantize(Decimal("0.0001"))
+        assert Decimal("0.0500") in {group.rate for group in groups}
 
     async def test_the_second_branch_is_deliberately_empty(self, db_session: AsyncSession) -> None:
         """A restaurant with no dining areas is a real state the product meets on day one of

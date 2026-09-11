@@ -299,11 +299,17 @@ class TestTheDatabaseItself:
         `PYTHONTZPATH=""` is read once at interpreter start, so this resets the search path by hand
         to prove the package alone can answer. If it cannot, the image raises on the first order it
         ever timestamps — a failure worth finding in a test rather than on a deploy.
+
+        **`no_cache` is the assertion, not an optimisation detail.** `ZoneInfo()` is memoised
+        process-wide and `reset_tzpath()` does not invalidate that cache, so every test above this
+        one has already warmed `Asia/Kolkata`. Constructing through the cache answered from memory
+        with the search path empty — verified to succeed even with `tzdata` unimportable — so this
+        passed without ever consulting the path it had just emptied. Found by external review.
         """
         original = zoneinfo.TZPATH
         try:
             zoneinfo.reset_tzpath(to=[])
-            assert zoneinfo.ZoneInfo("Asia/Kolkata").key == "Asia/Kolkata"
-            assert zoneinfo.ZoneInfo("Europe/London").key == "Europe/London"
+            assert zoneinfo.ZoneInfo.no_cache("Asia/Kolkata").key == "Asia/Kolkata"
+            assert zoneinfo.ZoneInfo.no_cache("Europe/London").key == "Europe/London"
         finally:
             zoneinfo.reset_tzpath(to=list(original))

@@ -121,7 +121,7 @@ function AddStation(): ReactElement {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2" noValidate>
+    <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
       <Field
         label={strings.setup.stations.code}
         hint={strings.setup.stations.codeHint}

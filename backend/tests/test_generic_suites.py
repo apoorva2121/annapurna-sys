@@ -254,7 +254,9 @@ _PROBE_UUID = uuid.UUID("00000000-0000-0000-0000-0000000000ff")
 _VICTIM_PARAMETERS = frozenset({"employee_id", "area_id", "table_id", "station_id", "tax_group_id"})
 
 
-async def _victim_resources(session: AsyncSession, tenant: Tenant) -> dict[str, str]:
+async def _victim_resources(
+    session: AsyncSession, tenant: Tenant, *, prefix: str = "Victim", seq: int = 0, code: str = "V1"
+) -> dict[str, str]:
     """One row of every tenant-owned kind, belonging to the victim restaurant.
 
     These are the things another tenant must not be able to read, write or confirm the existence
@@ -262,13 +264,17 @@ async def _victim_resources(session: AsyncSession, tenant: Tenant) -> dict[str, 
     endpoints it is about to probe.
     """
     restaurant_id = tenant.restaurant.id
-    area = DiningArea(restaurant_id=restaurant_id, name="Victim Hall", seq=0, is_active=True)
+    area = DiningArea(restaurant_id=restaurant_id, name=f"{prefix} Hall", seq=seq, is_active=True)
     station = Station(
-        restaurant_id=restaurant_id, code="victim_pass", name="Victim Pass", seq=0, is_active=True
+        restaurant_id=restaurant_id,
+        code=f"{prefix.lower()}_pass",
+        name=f"{prefix} Pass",
+        seq=seq,
+        is_active=True,
     )
     tax = TaxGroup(
         restaurant_id=restaurant_id,
-        name="Victim GST",
+        name=f"{prefix} GST",
         rate=Decimal("0.0500"),
         is_inclusive=False,
         effective_from=date(2026, 1, 1),
@@ -278,7 +284,7 @@ async def _victim_resources(session: AsyncSession, tenant: Tenant) -> dict[str, 
     table = RestaurantTable(
         restaurant_id=restaurant_id,
         dining_area_id=area.id,
-        code="V1",
+        code=code,
         seats=4,
         status=TableStatus.FREE,
         is_active=True,
@@ -362,6 +368,87 @@ class TestTenantIsolationAcrossEveryStaffRoute:
         # The loop ran. Without this the suite passes when the enumerator returns nothing, which is
         # the failure mode suite 0 exists to prevent and this is its per-suite half.
         assert probed >= 10, f"suite 1 only probed {probed} routes; it should cover every id route"
+
+    async def test_no_list_route_returns_another_tenants_rows(
+        self, db_session: AsyncSession, api: FastAPI, api_client: AsyncClient
+    ) -> None:
+        """Suite 1's other half: the routes that take no id.
+
+        The loop above substitutes a victim id into each path, so `if "{" not in route.path:
+        continue` silently skipped every route without one — which is all four setup lists, the
+        employee list and the restaurant settings. Those are where a dropped `restaurant_id`
+        predicate leaks in *bulk* rather than one row at a time, so they were the more dangerous
+        half and they were exempt. `test_setup_endpoints.py` meanwhile said isolation was "asserted
+        for every route at once by suite 1", which is how nobody noticed. Found by external review.
+
+        The victim tenant is furnished and the attacker tenant is bare, so any row at all in an
+        attacker's response crossed the boundary.
+        """
+        spice = await _tenant(db_session, "spice-garden", ("owner",))
+        await _tenant(db_session, "tandoor-house", ("owner",))
+        await _victim_resources(db_session, spice)
+        await db_session.commit()
+
+        token = await _login(api_client, "owner@tandoor-house.test")
+        failures: list[str] = []
+        probed = 0
+        for route in staff_routes(api):
+            if "{" in route.path or route.method != "GET":
+                continue
+            probed += 1
+            response = await api_client.get(
+                route.path, headers={"Authorization": f"Bearer {token}"}
+            )
+            if response.status_code != 200:
+                continue
+            # Every seeded victim row is named "Victim …" precisely so this can be a substring
+            # check rather than a per-endpoint shape parser.
+            if "Victim" in response.text:
+                failures.append(f"{route.key} -> {response.text[:160]}")
+        assert not failures, f"a list route returned another tenant's rows: {failures}"
+        assert probed >= 5, f"suite 1b only probed {probed} list routes"
+
+    async def test_a_cursor_naming_another_tenants_row_does_not_move_the_page(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The leak no row-level check can see.
+
+        Every paged list resolves its cursor's sort key with a subquery. Those subqueries were not
+        tenant-scoped, so passing another restaurant's row id returned *that* row's `seq` / `code` /
+        `effective_from` and offset the page by it. No row crossed the boundary — the **ordering
+        key** did, and feeding ids in and watching where the page starts reads it back out. The tax
+        cursor leaked when a competitor last changed their GST rate.
+
+        A foreign cursor must be indistinguishable from a meaningless one: an empty page.
+
+        **The attacker tenant is given rows of its own, and that is the whole test.** The first
+        version of this seeded nothing for the attacker, so its page was empty whether the cursor
+        leaked or not, and the assertion held against the bug it was written to catch. With rows
+        present the two outcomes finally differ: a leaked cursor resolves the victim's low sort key
+        and returns the attacker's later rows, while correct scoping yields NULL and an empty page.
+        """
+        spice = await _tenant(db_session, "spice-garden", ("owner",))
+        tandoor = await _tenant(db_session, "tandoor-house", ("owner",))
+        victims = await _victim_resources(db_session, spice)
+        # The attacker's own floor, deliberately sorting *after* the victim's rows, so a cursor that
+        # resolved across the boundary would return these instead of nothing.
+        await _victim_resources(db_session, tandoor, prefix="Rival", seq=5, code="Z9")
+        await db_session.commit()
+
+        token = await _login(api_client, "owner@tandoor-house.test")
+        for path, victim in (
+            ("/api/v1/staff/setup/dining-areas", victims["area_id"]),
+            ("/api/v1/staff/setup/tables", victims["table_id"]),
+            ("/api/v1/staff/setup/stations", victims["station_id"]),
+            ("/api/v1/staff/setup/tax-groups", victims["tax_group_id"]),
+        ):
+            response = await api_client.get(
+                f"{path}?cursor={victim}", headers={"Authorization": f"Bearer {token}"}
+            )
+            assert response.status_code == 200, response.text
+            assert response.json()["items"] == [], (
+                f"{path} honoured a cursor belonging to another tenant"
+            )
 
 
 class TestPersonaSeparation:

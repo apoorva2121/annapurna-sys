@@ -112,6 +112,35 @@ class ThemeSettings(_Schema):
 # --------------------------------------------------------------------------- the restaurant
 
 
+class PostalAddress(_Schema):
+    """The restaurant's address, structured — because the column is and the bill needs it to be.
+
+    `restaurant.address` is JSONB and `seed/organization.yaml` writes an object into it. This was
+    typed `str | None` until external review found it, which made `GET /staff/restaurant` raise a
+    `ValidationError` — a 500 — for **every seeded restaurant**, on the first screen of the module.
+    Every test fixture built a restaurant without an address, so the whole suite stayed green and
+    only `make seed` produced the failing shape.
+
+    Structured rather than a free-text blob because the parts are needed separately: a bill prints
+    the lines, and `state` is what decides CGST/SGST versus IGST on every invoice this restaurant
+    issues. A single string would have to be re-parsed by each of those, differently.
+
+    Every field is optional except `line1` and `city`: onboarding collects an address before it
+    collects a complete one, and refusing a half-known address would block the first screen a new
+    restaurant sees.
+    """
+
+    line1: str = Field(min_length=1, max_length=120)
+    line2: str | None = Field(default=None, max_length=120)
+    city: str = Field(min_length=1, max_length=80)
+    state: str | None = Field(default=None, max_length=80)
+    # Six digits, never leading zero. It prints on the bill and appears on a GST filing, and a typo
+    # is caught by nothing downstream.
+    pincode: str | None = Field(default=None, pattern=r"^[1-9][0-9]{5}$")
+
+    _strip_line1 = field_validator("line1", "line2", "city", "state", mode="before")(_strip)
+
+
 class RestaurantResponse(_ReadSchema):
     id: uuid.UUID
     name: str
@@ -123,7 +152,7 @@ class RestaurantResponse(_ReadSchema):
     # A column since 0004 (finding S13): it prints on every bill and is a legal requirement for a
     # food business in India, so it is not a settings key.
     fssai_licence: str | None
-    address: str | None
+    address: PostalAddress | None
     # Lives in the `settings` JSONB rather than in columns: it is genuinely configuration, unlike
     # the FSSAI licence that finding S13 moved *out* of settings because it prints on every bill.
     theme: ThemeSettings = ThemeSettings()
@@ -140,9 +169,16 @@ class RestaurantUpdateRequest(_Schema):
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
     currency: str | None = Field(default=None, min_length=3, max_length=3)
     business_day_start: time | None = None
-    gstin: str | None = Field(default=None, max_length=15)
-    fssai_licence: str | None = Field(default=None, max_length=32)
-    address: str | None = Field(default=None, max_length=500)
+    # Structure, not merely length. The M02 threat table asks for these to be
+    # "format-validated, not merely non-empty", because the attack it describes is substituting a
+    # supplier's number so bills carry someone else's tax identity — and a typo is only found at
+    # return time. GSTIN: 2-digit state code, 10-character PAN, entity digit, 'Z', checksum.
+    gstin: str | None = Field(
+        default=None, pattern=r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$"
+    )
+    fssai_licence: str | None = Field(default=None, pattern=r"^[0-9]{14}$")
+    # Cleared with an explicit null: a cloud kitchen with no shopfront is a real thing.
+    address: PostalAddress | None = None
     theme: ThemeSettings | None = None
 
 

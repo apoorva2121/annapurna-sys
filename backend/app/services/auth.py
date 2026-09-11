@@ -301,8 +301,20 @@ class AuthService:
 
         # Remembered on the session row, so the choice outlives the fifteen-minute token that made
         # it. Without this the next refresh returns the person to their home branch mid-task.
-        if raw_refresh_token:
-            live = await self.sessions.find_live_by_hash(hash_refresh_token(raw_refresh_token))
+        # Matched by hash **and by account**. The cookie and the access token are two independent
+        # inputs the caller supplies separately, so honouring a hash alone let someone present their
+        # own token with another person's cookie and point that person's session at a branch of
+        # their choosing. Contained downstream — `_restaurant_for_session` re-validates on the
+        # victim's next refresh — but "authorise A, then write to B's row" is not a shape to leave
+        # in the one endpoint whose job is changing tenant scope. Found by external review.
+        #
+        # A cookie that is not this person's is ignored rather than refused: it is a stale
+        # credential, not something the caller can be told about, and the switch itself is already
+        # authorised.
+        if raw_refresh_token and employee.user_account_id is not None:
+            live = await self.sessions.find_live_by_hash_for_account(
+                hash_refresh_token(raw_refresh_token), employee.user_account_id
+            )
             if live is not None:
                 live.restaurant_id = restaurant_id
         await self.session.flush()
@@ -396,7 +408,11 @@ class AuthService:
         access token they would otherwise have to invalidate cannot be recalled.
         """
         token_hash = hash_refresh_token(raw_token)
-        live = await self.sessions.find_live_by_hash(token_hash)
+        # Claimed, not read: the row is retired in the same statement that proves it was live, so
+        # two refreshes presenting one token cannot both succeed. Read-then-write let both pass the
+        # liveness check and mint a session each — which silently defeated the family-based theft
+        # detection this table exists for. Found by external review.
+        live = await self.sessions.claim_for_rotation(token_hash)
 
         if live is None:
             await self._handle_replay(token_hash)
@@ -410,10 +426,7 @@ class AuthService:
         restaurant = await self._restaurant_for_session(employee, live.restaurant_id)
         resolved = await self.access.resolve(employee.id, restaurant.id)
 
-        # Retire the presented token before issuing its replacement, so the two never overlap.
-        live.revoked_at = datetime.now(UTC)
-        await self.session.flush()
-
+        # Already retired by `claim_for_rotation` above, in the same statement that proved it live.
         return await self._start_session(
             account, employee, restaurant, resolved, ip_address, live.device_info, live.family_id
         )

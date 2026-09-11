@@ -81,6 +81,50 @@ class UserSessionRepository:
         )
         return (await self.session.scalars(query)).first()
 
+    async def claim_for_rotation(self, token_hash: str) -> UserSession | None:
+        """Atomically retire a live session and hand it back, or return None.
+
+        **One statement, not a read then a write.** `find_live_by_hash` followed by setting
+        `revoked_at` leaves a window: two refreshes presenting the same token both pass the liveness
+        check, both mint a new session, and the family-based theft detection this table exists for
+        is silently defeated — the two new rows have different hashes, so the unique index does not
+        catch it either. A stolen token was supposed to be worth one use at most; read-then-write
+        made it worth as many as fit in the window.
+
+        `UPDATE … WHERE revoked_at IS NULL … RETURNING` makes the claim and the proof the same
+        operation, so exactly one caller wins and the loser is handled as a replay.
+
+        Found by external review, 2026-09-11.
+        """
+        result = await self.session.execute(
+            update(UserSession)
+            .where(
+                UserSession.refresh_token_hash == token_hash,
+                UserSession.revoked_at.is_(None),
+                UserSession.expires_at > datetime.now(UTC),
+            )
+            .values(revoked_at=datetime.now(UTC))
+            .returning(UserSession)
+        )
+        return result.scalars().first()
+
+    async def find_live_by_hash_for_account(
+        self, token_hash: str, account_id: uuid.UUID
+    ) -> UserSession | None:
+        """A live session that belongs to a named account.
+
+        The account filter is in SQL rather than at the call site so it cannot be forgotten: the
+        refresh cookie and the access token are two independent inputs, and a caller presenting
+        their own token with someone else's cookie must not be able to write to that person's row.
+        """
+        query = select(UserSession).where(
+            UserSession.refresh_token_hash == token_hash,
+            UserSession.user_account_id == account_id,
+            UserSession.revoked_at.is_(None),
+            UserSession.expires_at > datetime.now(UTC),
+        )
+        return (await self.session.scalars(query)).first()
+
     async def find_any_by_hash(self, token_hash: str) -> UserSession | None:
         """Deliberately includes revoked rows: presenting an already-rotated token is the signal
         that a refresh token was stolen, and it can only be detected by finding the dead row."""

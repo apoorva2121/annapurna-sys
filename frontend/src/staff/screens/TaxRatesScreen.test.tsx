@@ -206,6 +206,31 @@ describe('creating a rate', () => {
     });
   });
 
+  it('refuses to create a rate when the rate box is empty', async () => {
+    // The defect this closes was unrecoverable. `Number("")` is 0, so submitting with the rate
+    // field blank posted `"0.0000"` — a valid rate to the server, copied onto every order line, and
+    // then impossible to correct because a rate can only be superseded, never edited. The submit
+    // button only checked the *name*. Found by external review.
+    //
+    // There are now two independent protections and this asserts the **outcome**, not either one:
+    // the browser's `required` (restored by removing `noValidate`) and the parse guard in
+    // `onSubmit`. Verified: removing either alone still passes, removing both fails. That is the
+    // honest description — it is a defence-in-depth test, not an isolation test, and someone
+    // re-adding `noValidate` while trusting the JS guard is exactly who it protects.
+    const fetchMock = listReturns(CURRENT);
+    const user = userEvent.setup();
+    renderScreen();
+    await screen.findByText('GST 12%');
+
+    await user.type(screen.getByLabelText(/^name$/i), 'GST 5%');
+    await user.clear(screen.getByLabelText(/percent/i));
+    await user.click(screen.getByRole('button', { name: /^add a tax rate$/i }));
+
+    // No request at all — not a request the server happens to reject.
+    const posts = fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST');
+    expect(posts).toHaveLength(0);
+  });
+
   it('reports a back-dated refusal rather than failing silently', async () => {
     vi.stubGlobal(
       'fetch',

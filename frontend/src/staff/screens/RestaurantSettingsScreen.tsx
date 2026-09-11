@@ -73,7 +73,7 @@ function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement 
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+    <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <Field
         label={strings.setup.restaurant.timezone}
         hint={strings.setup.restaurant.timezoneHint}

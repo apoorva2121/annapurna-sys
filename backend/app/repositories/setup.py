@@ -21,8 +21,9 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
+from datetime import date
 
-from sqlalchemy import ColumnElement, Select, func, literal, select, tuple_
+from sqlalchemy import ColumnElement, Select, func, literal, or_, select, tuple_
 from sqlalchemy.dialects import postgresql
 
 from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup
@@ -75,7 +76,7 @@ class _SeqOrdered[ModelT: DiningArea | Station](RestaurantScopedRepository[Model
         if not include_inactive:
             query = query.where(self.model.is_active.is_(True))
         if after is not None:
-            query = query.where(_after_in_seq_order(self.model, after))
+            query = query.where(_after_in_seq_order(self.model, after, self.scope.restaurant_id))
         query = query.order_by(self.model.seq, self.model.id).limit(page_size(limit))
         return (await self.session.scalars(query)).all()
 
@@ -104,15 +105,28 @@ def _as_uuid(value: uuid.UUID) -> ColumnElement[uuid.UUID]:
 
 
 def _after_in_seq_order(
-    model: type[DiningArea] | type[Station], after: uuid.UUID
+    model: type[DiningArea] | type[Station], after: uuid.UUID, restaurant_id: uuid.UUID
 ) -> ColumnElement[bool]:
     """`(seq, id) > (cursor.seq, cursor.id)` — the cursor for a hand-ordered list.
 
-    A subquery rather than a second round trip, so a page is still one statement. If the cursor id
-    does not exist (or belongs to another tenant) the subquery is NULL, the comparison is NULL, and
-    the page comes back empty — which is the right answer for a cursor that means nothing here.
+    A subquery rather than a second round trip, so a page is still one statement.
+
+    **The subquery carries the tenant filter itself.** The outer `scoped()` does not reach in here,
+    and an earlier version of this comment claimed a foreign cursor id "is NULL, so the page comes
+    back empty" — the exact opposite of what happened. The subquery found the other tenant's row and
+    returned its `seq`, so the page came back offset by a foreign ordinal. No rows crossed the
+    boundary, but the *ordering key* did, and feeding ids in and watching where the page starts
+    reads it back out. Found by external review; CLAUDE.md invariant 1 is explicit that a query
+    without an explicit `restaurant_id` filter is the product's #1 bug class.
+
+    Scoped, an id belonging to anyone else yields NULL, the row comparison is NULL, and the page is
+    empty — which is the right answer for a cursor that means nothing here.
     """
-    cursor_seq = select(model.seq).where(model.id == after).scalar_subquery()
+    cursor_seq = (
+        select(model.seq)
+        .where(model.id == after, model.restaurant_id == restaurant_id)
+        .scalar_subquery()
+    )
     return tuple_(model.seq, model.id) > tuple_(cursor_seq, _as_uuid(after))
 
 
@@ -160,8 +174,15 @@ class RestaurantTableRepository(RestaurantScopedRepository[RestaurantTable]):
         if not include_inactive:
             query = query.where(RestaurantTable.is_active.is_(True))
         if after is not None:
+            # Scoped, for the reason spelled out on `_after_in_seq_order`: unscoped, this reads
+            # another tenant's table code and offsets the page by it.
             cursor_code = (
-                select(RestaurantTable.code).where(RestaurantTable.id == after).scalar_subquery()
+                select(RestaurantTable.code)
+                .where(
+                    RestaurantTable.id == after,
+                    RestaurantTable.restaurant_id == self.scope.restaurant_id,
+                )
+                .scalar_subquery()
             )
             query = query.where(
                 tuple_(RestaurantTable.code, RestaurantTable.id)
@@ -210,8 +231,12 @@ class TaxGroupRepository(RestaurantScopedRepository[TaxGroup]):
         """
         query = self.scoped()
         if after is not None:
+            # Scoped. Unscoped this leaked *when a competitor changed their GST rate* — the
+            # effective_from of another restaurant's row, readable by watching the page boundary.
             cursor_from = (
-                select(TaxGroup.effective_from).where(TaxGroup.id == after).scalar_subquery()
+                select(TaxGroup.effective_from)
+                .where(TaxGroup.id == after, TaxGroup.restaurant_id == self.scope.restaurant_id)
+                .scalar_subquery()
             )
             # Descending, so "after" means "further down the page" — a smaller effective_from.
             query = query.where(
@@ -219,6 +244,29 @@ class TaxGroupRepository(RestaurantScopedRepository[TaxGroup]):
             )
         query = query.order_by(TaxGroup.effective_from.desc(), TaxGroup.id.desc())
         return (await self.session.scalars(query.limit(page_size(limit)))).all()
+
+    async def live_on(self, name: str, on: date) -> TaxGroup | None:
+        """Any rate of this name whose period covers `on`, locked.
+
+        `FOR UPDATE` because the caller is deciding whether to create a second one: without the lock
+        two admins pressing Save together both see no conflict and both insert, and the exclusion
+        constraint then answers one of them with an IntegrityError instead of a readable refusal.
+
+        Scoped by name, not by restaurant alone: two *different* rates can legitimately be current
+        at once — the seed ships GST 5% for food and GST 18% for packaged goods — so what must not
+        overlap is two periods claiming to be the same rate.
+        """
+        return (
+            await self.session.scalars(
+                self.scoped()
+                .where(
+                    TaxGroup.name == name.strip(),
+                    TaxGroup.effective_from <= on,
+                    or_(TaxGroup.effective_to.is_(None), TaxGroup.effective_to >= on),
+                )
+                .with_for_update()
+            )
+        ).first()
 
     async def get_for_update(self, tax_group_id: uuid.UUID) -> TaxGroup | None:
         """Scoped exactly like `get`, and separate only so the intent is visible at the call site.

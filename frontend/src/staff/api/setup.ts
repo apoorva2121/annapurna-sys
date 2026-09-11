@@ -136,6 +136,39 @@ export function useCreateDiningArea(): UseMutationResult<DiningArea, Error, { na
 
 export type DiningAreaChanges = { name?: string; seq?: number; is_active?: boolean };
 
+/**
+ * Swap two areas' `seq`. **One mutation, not two.**
+ *
+ * The screen used to call `update.mutate()` twice on a single observer. `mutate()` detaches the
+ * observer from its current mutation and attaches it to the new one, so the first PATCH still
+ * executed but stopped being reported: if it failed and the second succeeded, the screen rendered
+ * nothing and the two rows were left holding the *same* `seq`. The arrows then became permanently
+ * dead — swapping equal values is a no-op — with no error and no explanation. That is the "reported
+ * success while wiping the data" shape the restaurant-ui rules cite. Found by external review.
+ *
+ * Sequential, because the second write must not land before the first is acknowledged: a refetch
+ * in between renders an order neither row asked for.
+ *
+ * `onSettled`, not `onSuccess`: a swap that failed halfway leaves the two rows inconsistent, and
+ * the honest response is to refetch and show what actually happened. Real atomicity needs a server
+ * `reorder` endpoint taking the whole ordering — that is in docs/backlog.md; this is as close as a
+ * client can get, and at least the failure is visible.
+ */
+export function useSwapDiningAreaSeq(): UseMutationResult<
+  void,
+  Error,
+  { area: DiningArea; other: DiningArea }
+> {
+  const invalidate = useInvalidateSetup();
+  return useMutation({
+    mutationFn: async ({ area, other }) => {
+      await apiPatch<DiningArea>(`/staff/setup/dining-areas/${area.id}`, { seq: other.seq });
+      await apiPatch<DiningArea>(`/staff/setup/dining-areas/${other.id}`, { seq: area.seq });
+    },
+    onSettled: invalidate,
+  });
+}
+
 export function useUpdateDiningArea(): UseMutationResult<
   DiningArea,
   Error,

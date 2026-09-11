@@ -22,7 +22,6 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import pytest
 from httpx import AsyncClient
@@ -732,27 +731,53 @@ class TestTaxGroups:
         assert response.json()["code"] == "tax_group.back_dated"
 
     async def test_today_is_the_restaurants_today_not_the_servers(
-        self, db_session: AsyncSession, api_client: AsyncClient
+        self, db_session: AsyncSession, api_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """ADR 0004. A restaurant in Kiribati (UTC+14) is already on tomorrow's date while the
-        server is still on today's, so a rate starting on its "today" must be accepted. Validating
-        against the server's UTC date would refuse a legitimate change.
-        """
-        await _world(db_session, "owner", timezone="Pacific/Kiritimati")
-        token = await _token(api_client, "owner")
-        local_today = datetime.now(UTC).astimezone(ZoneInfo("Pacific/Kiritimati"))
+        """ADR 0004, asserted in the direction that can actually fail.
 
-        response = await api_client.post(
+        This used `Pacific/Kiritimati` and proved nothing. Kiribati is UTC+14, so its local date is
+        never *behind* UTC - and the guard only refuses dates in the **past**. A server-UTC
+        implementation therefore returns 201 for it at every hour of every day, which is exactly the
+        implementation the test claimed to rule out. Found by external review.
+
+        New York at 22:00 local is the case that discriminates: it is already tomorrow in UTC, so
+        the restaurant's own today would be refused as back-dated by a server-clock implementation.
+
+        The clock is pinned because a date rule that is correct only during part of the UTC day is
+        not correct, and a test that is green only during part of the day is not a test.
+        """
+        await _world(db_session, "owner", timezone="America/New_York")
+        token = await _token(api_client, "owner")
+
+        # 03:00 UTC on the 12th is 22:00 EST on the 11th. Business date the 11th; UTC date the 12th.
+        pinned = datetime(2026, 1, 12, 3, 0, tzinfo=UTC)
+
+        # A stand-in rather than a `datetime` subclass: subclassing makes mypy demand that `now`
+        # return the subclass. The module only ever calls `datetime.now(...)`, so this is the whole
+        # surface it needs.
+        class _Clock:
+            @staticmethod
+            def now(tz: object = None) -> datetime:  # noqa: ARG004
+                return pinned
+
+        monkeypatch.setattr("app.services.setup.datetime", _Clock)
+
+        accepted = await api_client.post(
             f"{SETUP}/tax-groups",
-            json={
-                "name": "GST 5%",
-                "rate": "0.0500",
-                "effective_from": local_today.date().isoformat(),
-            },
+            json={"name": "GST 5%", "rate": "0.0500", "effective_from": "2026-01-11"},
+            headers=_auth(token),
+        )
+        refused = await api_client.post(
+            f"{SETUP}/tax-groups",
+            json={"name": "GST 12%", "rate": "0.1200", "effective_from": "2026-01-10"},
             headers=_auth(token),
         )
 
-        assert response.status_code == 201, response.text
+        # The restaurant's today, which UTC already calls yesterday.
+        assert accepted.status_code == 201, accepted.text
+        # And the day before it is still refused, so the guard has not simply been switched off.
+        assert refused.status_code == 422, refused.text
+        assert refused.json()["code"] == "tax_group.back_dated"
 
     async def test_a_rate_above_one_hundred_percent_is_refused(
         self, db_session: AsyncSession, api_client: AsyncClient
@@ -1159,3 +1184,115 @@ class TestThemeSettings:
         )
 
         assert response.status_code == 403
+
+
+class TestTwoLiveRatesOfTheSameName:
+    """The guarantee that lived on only one of two code paths.
+
+    Every non-overlap check sat inside `if supersedes_id is not None`, so the *simpler* call —
+    create without superseding — could put two rows of one name on the same date. `list_all`
+    returns both,
+    and M07's "which rate applies?" would take whichever the planner returned: nondeterministic tax
+    on a bill, which is a filing problem rather than a data-quality one. Found by external review.
+
+    Two *different* rates being current at once is legitimate and must keep working — the seed ships
+    GST 5% for restaurant food and GST 18% for packaged goods, both open-ended from the same day. A
+    constraint on the restaurant alone would have refused the product's own demo data.
+    """
+
+    async def test_a_second_rate_of_the_same_name_is_refused(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+        first = await api_client.post(
+            f"{SETUP}/tax-groups",
+            json={"name": "GST 5%", "rate": "0.0500", "effective_from": _tomorrow()},
+            headers=_auth(token),
+        )
+        assert first.status_code == 201, first.text
+
+        response = await api_client.post(
+            f"{SETUP}/tax-groups",
+            json={"name": "GST 5%", "rate": "0.1200", "effective_from": _tomorrow()},
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 409, response.text
+        assert response.json()["code"] == "tax_group.period_overlaps"
+        # It names the row to supersede, so the client can retry correctly rather than guess.
+        assert response.json()["details"]["supersedes_id"] == first.json()["id"]
+
+    async def test_a_later_overlapping_period_is_refused_too(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """Not just the same start date. An open-ended rate covers every day after it, so anything
+        starting later overlaps it until it is closed."""
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+        start = date.fromisoformat(_tomorrow())
+        await api_client.post(
+            f"{SETUP}/tax-groups",
+            json={"name": "GST 5%", "rate": "0.0500", "effective_from": start.isoformat()},
+            headers=_auth(token),
+        )
+
+        response = await api_client.post(
+            f"{SETUP}/tax-groups",
+            json={
+                "name": "GST 5%",
+                "rate": "0.1200",
+                "effective_from": (start + timedelta(days=60)).isoformat(),
+            },
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 409
+
+    async def test_two_different_rates_may_be_current_at_once(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The case the obvious constraint would have broken. Food and packaged goods carry
+        different GST, both apply today, and neither supersedes the other."""
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+        await api_client.post(
+            f"{SETUP}/tax-groups",
+            json={"name": "GST 5% (restaurant)", "rate": "0.0500", "effective_from": _tomorrow()},
+            headers=_auth(token),
+        )
+
+        response = await api_client.post(
+            f"{SETUP}/tax-groups",
+            json={"name": "GST 18% (packaged)", "rate": "0.1800", "effective_from": _tomorrow()},
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 201, response.text
+
+    async def test_superseding_still_works_and_is_not_caught_by_the_new_guard(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The replacement overlaps the row it replaces by definition, right up until that row is
+        closed. Excluding the superseded id is what keeps the legitimate path open."""
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+        start = date.fromisoformat(_tomorrow())
+        first = await api_client.post(
+            f"{SETUP}/tax-groups",
+            json={"name": "GST 5%", "rate": "0.0500", "effective_from": start.isoformat()},
+            headers=_auth(token),
+        )
+
+        response = await api_client.post(
+            f"{SETUP}/tax-groups",
+            json={
+                "name": "GST 12%",
+                "rate": "0.1200",
+                "effective_from": (start + timedelta(days=30)).isoformat(),
+                "supersedes_id": first.json()["id"],
+            },
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 201, response.text

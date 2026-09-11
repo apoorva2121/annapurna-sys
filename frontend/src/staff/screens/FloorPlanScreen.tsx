@@ -17,6 +17,7 @@ import {
   useCreateTable,
   useDiningAreas,
   useTables,
+  useSwapDiningAreaSeq,
   useUpdateDiningArea,
   useUpdateTable,
 } from '@staff/api/setup';
@@ -45,11 +46,18 @@ export default function FloorPlanScreen(): ReactElement {
   const [showInactive, setShowInactive] = useState(false);
   const areas = useDiningAreas(showInactive);
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
+  // Lifted to the screen, not per row: one in-flight reorder has to disable *every* row's arrows.
+  // Held per row, the neighbour's buttons stayed live and a second swap could interleave with the
+  // first.
+  const swap = useSwapDiningAreaSeq();
 
   const items = areas.data?.items ?? [];
-  // The area whose tables are shown. Falls back to the first, so the screen is never empty-looking
-  // when there is something to show.
-  const current = selectedArea ?? items[0]?.id ?? null;
+  // Reconciled against what is actually on screen. An area can leave this list while still being
+  // selected — deactivate it, or turn the filter off — and a selection pointing at a row nobody can
+  // see leaves the tables below attributed to an area the screen no longer shows.
+  const current = items.some((area) => area.id === selectedArea)
+    ? selectedArea
+    : (items[0]?.id ?? null);
 
   return (
     <div className="space-y-page">
@@ -83,6 +91,7 @@ export default function FloorPlanScreen(): ReactElement {
                   previous={items[index - 1]}
                   next={items[index + 1]}
                   isSelected={area.id === current}
+                  swap={swap}
                   onSelect={() => {
                     setSelectedArea(area.id);
                   }}
@@ -106,6 +115,7 @@ function AreaRow({
   previous,
   next,
   isSelected,
+  swap,
   onSelect,
 }: {
   area: DiningArea;
@@ -114,18 +124,18 @@ function AreaRow({
   previous: DiningArea | undefined;
   next: DiningArea | undefined;
   isSelected: boolean;
+  swap: ReturnType<typeof useSwapDiningAreaSeq>;
   onSelect: () => void;
 }): ReactElement {
   const update = useUpdateDiningArea();
 
-  /** Swap this row's `seq` with its neighbour's. Two writes, because `seq` is not unique and the
-   *  server has no "move" verb — the neighbour has to take this row's place. */
+  /** Hand the pair to one mutation. Two `mutate()` calls on one observer reported only the second,
+   *  so a half-failed swap rendered nothing and left both rows on the same `seq`. */
   function swapWith(other: DiningArea | undefined): void {
-    if (other === undefined) {
+    if (other === undefined || other.seq === area.seq) {
       return;
     }
-    update.mutate({ id: area.id, changes: { seq: other.seq } });
-    update.mutate({ id: other.id, changes: { seq: area.seq } });
+    swap.mutate({ area, other });
   }
 
   return (
@@ -152,7 +162,7 @@ function AreaRow({
         variant="ghost"
         size="icon"
         aria-label={`${strings.setup.floor.moveUp}: ${area.name}`}
-        disabled={isFirst || update.isPending}
+        disabled={isFirst || swap.isPending}
         onClick={() => {
           swapWith(previous);
         }}
@@ -163,7 +173,7 @@ function AreaRow({
         variant="ghost"
         size="icon"
         aria-label={`${strings.setup.floor.moveDown}: ${area.name}`}
-        disabled={isLast || update.isPending}
+        disabled={isLast || swap.isPending}
         onClick={() => {
           swapWith(next);
         }}
@@ -180,9 +190,9 @@ function AreaRow({
         {area.is_active ? strings.setup.floor.deactivate : strings.setup.floor.reactivate}
       </Button>
 
-      {update.isError && (
+      {(update.isError || swap.isError) && (
         <div className="w-full">
-          <Notice tone="critical" {...errorProps(update.error)} />
+          <Notice tone="critical" {...errorProps(update.error ?? swap.error)} />
         </div>
       )}
     </li>
@@ -205,8 +215,10 @@ function AddArea(): ReactElement {
     );
   }
 
+  // No `noValidate`: `required` below is this form's only validation, and suppressing the
+  // browser's check makes it decorative.
   return (
-    <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2" noValidate>
+    <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
       <Field
         label={strings.setup.floor.areaName}
         placeholder={strings.setup.floor.areaNamePlaceholder}
@@ -332,8 +344,14 @@ function AddTable({ areaId }: { areaId: string }): ReactElement {
 
   function onSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    // Parsed, not trusted. `Number("")` is 0 and `Number("x")` is NaN, which `JSON.stringify`
+    // turns into `null` — so an empty seats box used to post a table with 0 or null seats.
+    const parsed = Number(seats);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
+      return;
+    }
     create.mutate(
-      { dining_area_id: areaId, code, seats: Number(seats) },
+      { dining_area_id: areaId, code, seats: parsed },
       {
         onSuccess: () => {
           setCode('');
@@ -343,7 +361,7 @@ function AddTable({ areaId }: { areaId: string }): ReactElement {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2" noValidate>
+    <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
       <Field
         label={strings.setup.floor.tableCode}
         placeholder={strings.setup.floor.tableCodePlaceholder}

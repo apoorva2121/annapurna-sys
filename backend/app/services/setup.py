@@ -63,7 +63,14 @@ from app.schemas.setup import (
 # The settings whose change is worth a row in `audit_log`. Not every field: an address correction
 # is not an event anybody will investigate, while the four below all move money or change what a
 # number means.
-_AUDITED_SETTINGS = frozenset({"timezone", "currency", "business_day_start", "gstin"})
+_AUDITED_SETTINGS = frozenset(
+    {"timezone", "currency", "business_day_start", "gstin", "fssai_licence"}
+)
+
+# The settings with no "cleared" state. Their columns are NOT NULL, so an explicit `null` used to
+# reach `setattr` and surface as an IntegrityError — a 500 for a request a client can trivially
+# construct, on the three columns that decide what a day and a rupee mean. Found by external review.
+_NEVER_NULL = frozenset({"timezone", "currency", "business_day_start"})
 
 # A rate's period ends the day before its replacement's begins, so the two meet exactly.
 _ONE_DAY = timedelta(days=1)
@@ -114,9 +121,24 @@ class SetupService:
         # here so the loop below only ever sets real columns — assigning `restaurant.theme` would
         # silently do nothing, which is the quietest possible way to lose a setting.
         theme = changes.pop("theme", None)
-        if "timezone" in changes and changes["timezone"] is not None:
+
+        # Refused before anything is assigned. The two guards below used to skip validation when the
+        # value was None and then the loop assigned it anyway, which is the worst of both: no
+        # validation *and* a NOT NULL violation. `changes.get(field, ...)` separates "sent as null"
+        # from "not sent" without a second membership test.
+        blanked = sorted(field for field in _NEVER_NULL if changes.get(field, ...) is None)
+        if blanked:
+            raise AppError(
+                "restaurant.setting_not_nullable",
+                f"{', '.join(blanked)} cannot be cleared. Send a value, or leave the field out.",
+                details={"fields": blanked},
+                status_code=422,
+            )
+
+        # Unconditional now, rather than opt-out: a null can no longer reach here.
+        if "timezone" in changes:
             _require_known_timezone(changes["timezone"])
-        if "currency" in changes and changes["currency"] is not None:
+        if "currency" in changes:
             changes["currency"] = _require_currency_code(changes["currency"])
 
         before = {field: getattr(restaurant, field) for field in changes}
@@ -358,6 +380,20 @@ class SetupService:
                 "reported must not move; set a future date instead.",
                 details={"business_date": today.isoformat()},
                 status_code=422,
+            )
+
+        # Checked on the plain-create path too. Every guarantee below used to live inside the
+        # `supersedes_id` branch, so the *simpler* call — create without superseding — could put two
+        # rows of one name on the same date, and an order line would take whichever the planner
+        # returned. The exclusion constraint added in 0007 is the authority; this is the refusal a
+        # person can act on, and it names the row to supersede. Found by external review.
+        clash = await self._taxes(actor).live_on(request.name, request.effective_from)
+        if clash is not None and clash.id != request.supersedes_id:
+            raise ConflictError(
+                "tax_group.period_overlaps",
+                f"{clash.name!r} already applies on {request.effective_from.isoformat()}. "
+                "A rate change replaces it — send supersedes_id so the two periods meet exactly.",
+                details={"supersedes_id": str(clash.id)},
             )
 
         superseded: TaxGroup | None = None

@@ -148,12 +148,20 @@ function AddTaxRate({
 
   function onSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    // Parsed before anything else, and this is the most important guard on the screen.
+    // `Number("")` is 0, so submitting with the rate box empty used to create a **0% tax rate** —
+    // valid to the server, copied onto every order line, and then impossible to correct because a
+    // rate can only be superseded, never edited. Found by external review.
+    const parsed = Number(percent);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100 || percent.trim() === '') {
+      return;
+    }
     create.mutate(
       {
         name,
         // Percent in the UI, fraction on the wire, four decimal places because that is the column.
         // Built as a string: parsing to a float and back is how 5% becomes 0.05000000000000001.
-        rate: (Number(percent) / 100).toFixed(4),
+        rate: (parsed / 100).toFixed(4),
         is_inclusive: inclusive,
         effective_from: from,
         ...(supersedes === null ? {} : { supersedes_id: supersedes.id }),
@@ -167,8 +175,11 @@ function AddTaxRate({
     );
   }
 
+  // No `noValidate`: `required`, `min`, `max` and `step` on the fields below are this form's only
+  // validation, and suppressing the browser's check made them decorative — an empty rate box
+  // parsed to 0 and created a 0% tax rate that could then never be edited.
   return (
-    <form onSubmit={onSubmit} className="space-y-3 rounded-md border p-page" noValidate>
+    <form onSubmit={onSubmit} className="space-y-3 rounded-md border p-page">
       <h2 className="text-lg font-semibold">
         {supersedes === null ? strings.setup.tax.add : strings.setup.tax.supersede}
       </h2>
