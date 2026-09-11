@@ -16,6 +16,10 @@ dependencies = [
     # storage. The reference implementation, rather than a hand-rolled KDF.
     "argon2-cffi>=23.1",
     "pyjwt>=2.10",
+    # `make seed` reads seed/*.yaml, which is the authoritative P1 dataset (docs/seed-data.md).
+    # It was previously needed only by seed/validate.py, which CI installs separately; as of M01
+    # the application itself loads it, so it is a real dependency rather than a CI extra.
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +32,7 @@ dev = [
     "mypy>=1.14",
     "ruff>=0.8",
     "pip-audit>=2.7",
+    "types-PyYAML>=6.0",
 ]
 
 [build-system]

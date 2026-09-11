@@ -1,0 +1,149 @@
+"""`python -m app.seed` — the thing `make seed` actually runs.
+
+Invoked through `asyncio.to_thread` because the entry point calls `asyncio.run()`, which refuses
+to nest inside the loop pytest-asyncio is already running. A thread gives it the bare interpreter
+it has in production, rather than reaching past it to await an internal coroutine — which would
+test a different code path from the one `make seed` takes.
+
+Covered separately from `seed_identity` because the entry point owns the parts that only exist
+outside a test: it builds its own engine, owns one transaction for the whole run, and turns the two
+predictable failures into exit codes a human can act on. A green `seed_identity` proves none of
+that works.
+
+Each test gets its own database rather than the shared migrated one, because this entry point
+*commits*. Sharing would leak nineteen employees into every other test in the session.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import uuid
+from collections.abc import AsyncIterator, Callable, Iterator
+
+import pytest
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+
+from app.core.config import get_settings
+from app.seed.__main__ import run
+from tests.conftest import _BACKEND
+
+
+@pytest.fixture
+async def fresh_database(postgres_url: str) -> AsyncIterator[str]:
+    """An empty, migrated database of its own, dropped afterwards."""
+    name = f"seed_cli_{uuid.uuid4().hex[:12]}"
+    admin = create_async_engine(postgres_url, isolation_level="AUTOCOMMIT")
+    try:
+        async with admin.connect() as connection:
+            await connection.execute(text(f'CREATE DATABASE "{name}"'))
+    finally:
+        await admin.dispose()
+
+    url = postgres_url.rsplit("/", 1)[0] + f"/{name}"
+    config = Config(str(_BACKEND / "alembic.ini"))
+    config.set_main_option("script_location", str(_BACKEND / "alembic"))
+    config.set_main_option("sqlalchemy.url", url)
+    # In a thread for the same reason the entry point is: alembic's async env.py calls
+    # asyncio.run(), which will not nest inside the loop this fixture is running in.
+    await asyncio.to_thread(command.upgrade, config, "head")
+
+    yield url
+
+    admin = create_async_engine(postgres_url, isolation_level="AUTOCOMMIT")
+    try:
+        async with admin.connect() as connection:
+            await connection.execute(
+                text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')  # noqa: S608 — generated name
+            )
+    finally:
+        await admin.dispose()
+
+
+@pytest.fixture
+def pointed_at(monkeypatch: pytest.MonkeyPatch) -> Iterator[Callable[[str], None]]:
+    """Point Settings at a given database for one test.
+
+    The cache is cleared on both sides: conftest sets a deliberately unreachable DATABASE_URL, and
+    a Settings object left cached here would carry this test's database into the next one.
+    """
+
+    def point(url: str) -> None:
+        monkeypatch.setenv("DATABASE_URL", url)
+        get_settings.cache_clear()
+
+    yield point
+    get_settings.cache_clear()
+
+
+async def _counts(url: str) -> dict[str, int]:
+    engine = create_async_engine(url)
+    try:
+        async with engine.connect() as connection:
+            return {
+                table: int(
+                    (await connection.execute(text(f"SELECT count(*) FROM {table}"))).scalar_one()  # noqa: S608
+                )
+                for table in ("organization", "restaurant", "employee", "employee_role_assignment")
+            }
+    finally:
+        await engine.dispose()
+
+
+async def test_it_seeds_an_empty_database_and_reports_success(
+    fresh_database: str, pointed_at: Callable[[str], None]
+) -> None:
+    pointed_at(fresh_database)
+
+    assert await asyncio.to_thread(run) == 0
+
+    counts = await _counts(fresh_database)
+    assert counts["organization"] == 2
+    assert counts["employee"] == 19
+    assert counts["employee_role_assignment"] == 19
+
+
+async def test_running_it_twice_commits_nothing_the_second_time(
+    fresh_database: str, pointed_at: Callable[[str], None]
+) -> None:
+    """The real-world invocation: somebody runs `make seed` again because they forgot they had.
+
+    Proved against committed rows rather than a rolled-back transaction, because the transaction
+    boundary is exactly what this entry point owns and what the service-level test cannot see.
+    """
+    pointed_at(fresh_database)
+
+    assert await asyncio.to_thread(run) == 0
+    after_first = await _counts(fresh_database)
+    assert await asyncio.to_thread(run) == 0
+    assert await _counts(fresh_database) == after_first
+
+
+async def test_it_exits_nonzero_when_the_seed_data_is_missing(
+    fresh_database: str, pointed_at: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A distinct, non-zero code, because the data lives at the repository root while the backend
+    runs from /app — this is much the most likely way `make seed` fails on someone's machine."""
+    pointed_at(fresh_database)
+    monkeypatch.setenv("SEED_DIR", str(_BACKEND / "does-not-exist"))
+
+    assert await asyncio.to_thread(run) == 2
+
+
+async def test_it_exits_nonzero_when_the_role_catalogue_is_not_seeded(
+    fresh_database: str, pointed_at: Callable[[str], None]
+) -> None:
+    """Seeding before migrating. Without the system roles there is nothing to assign, and guessing
+    a role would hand someone permissions nobody granted."""
+    pointed_at(fresh_database)
+    engine = create_async_engine(fresh_database)
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(text("DELETE FROM role_permission"))
+            await connection.execute(text("DELETE FROM role WHERE organization_id IS NULL"))
+    finally:
+        await engine.dispose()
+
+    assert await asyncio.to_thread(run) == 3

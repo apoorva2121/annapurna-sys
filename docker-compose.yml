@@ -74,6 +74,11 @@ services:
       # Live edits. The image's venv lives at /opt/venv, outside /app, precisely so this mount
       # cannot shadow it with the host's Windows-built backend/.venv.
       - ./backend:/app
+      # `make seed` reads the authoritative P1 dataset, which lives at the repository root while
+      # the build context is ./backend — so the image cannot contain it and the container has to be
+      # given it. Read-only: the seed loads this file and must never write it.
+      # Staging packaging is M15's problem, along with the generator (docs/backlog.md).
+      - ./seed:/app/seed:ro
     # --reload-dir is not optional: without it the poller walks the mounted backend/.venv (tens
     # of thousands of files) on every tick and pegs a core.
     command:

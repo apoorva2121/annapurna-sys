@@ -1,0 +1,76 @@
+"""`make seed` — i.e. `python -m app.seed`, run inside the api container.
+
+Owns its own engine and its own transaction, because nothing about seeding is a request. One
+transaction for the whole run, so a failure part way through leaves no half-built demo world
+behind: either all nineteen people exist or none of them do.
+
+The two failures below are turned into distinct exit codes rather than a traceback, because both
+are configuration mistakes a person can fix in one step, and a stack trace buries the sentence that
+tells them which step.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import sys
+
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+from app.core.config import get_settings
+from app.core.logging import configure_logging
+from app.seed.identity import MissingSystemRoleError, seed_identity
+from app.seed.loader import SeedDataNotFoundError
+
+logger = logging.getLogger("app.seed")
+
+EXIT_OK = 0
+EXIT_NO_SEED_DATA = 2
+EXIT_NO_ROLE_CATALOGUE = 3
+
+
+async def seed() -> None:
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            summary = await seed_identity(session)
+            # The single commit. Everything above it is provisional until this line.
+            await session.commit()
+    finally:
+        # Always: a failure must not leave the process holding an open pool.
+        await engine.dispose()
+
+    if summary.created_nothing:
+        logger.info("Seed data already present; nothing to do.")
+        return
+    logger.info(
+        "Seeded %d organizations, %d restaurants, %d employees, %d logins, %d assignments.",
+        summary.organizations_created,
+        summary.restaurants_created,
+        summary.employees_created,
+        summary.logins_created,
+        summary.assignments_created,
+    )
+
+
+def run() -> int:
+    configure_logging()
+    try:
+        asyncio.run(seed())
+    except SeedDataNotFoundError as exc:
+        # Much the most likely failure: the dataset lives at the repository root while the backend
+        # runs from /app, so the container has to be given it explicitly.
+        logger.error("%s", exc)
+        return EXIT_NO_SEED_DATA
+    except MissingSystemRoleError as exc:
+        # Seeding before migrating. Guessing a role here would hand someone permissions that
+        # nobody granted, so it refuses instead.
+        logger.error("%s", exc)
+        return EXIT_NO_ROLE_CATALOGUE
+    return EXIT_OK
+
+
+if __name__ == "__main__":
+    sys.exit(run())
