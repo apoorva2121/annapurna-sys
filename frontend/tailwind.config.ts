@@ -63,6 +63,10 @@ export default {
         info: { DEFAULT: withAlpha('--info'), soft: withAlpha('--info-soft') },
         success: { DEFAULT: withAlpha('--success'), soft: withAlpha('--success-soft') },
         neutral: { DEFAULT: withAlpha('--neutral'), soft: withAlpha('--neutral-soft') },
+
+        // The scrim behind a modal. `bg-scrim/70` rather than shadcn's generated `bg-black/80`,
+        // which is a palette colour no theme or ADR can reach.
+        scrim: withAlpha('--scrim'),
       },
       borderRadius: {
         lg: 'var(--radius)',

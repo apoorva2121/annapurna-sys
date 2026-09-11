@@ -17,8 +17,8 @@ Before any code: `docs/engineering-guardrails.md` and `.claude/skills/restaurant
 | A | Migration: 4 tables + `restaurant.fssai_licence` (S13) | ✅ done | `4a3c048` |
 | B | The business-day helper, both languages (M11) | ✅ done | `38ba3bd` |
 | C | Repositories, services, API — first use of `RestaurantScopedRepository` | ✅ done | `c086e59` |
-| D | shadcn components M02 needs: Select, Dialog/Sheet, Table, Switch, Label | ⬅ **NEXT** | — |
-| E | Four screens | ☐ | — |
+| D | shadcn components M02 needs: Select, Dialog/Sheet, Table, Switch, Label | ✅ done | see below |
+| E | Four screens | ⬅ **NEXT** | — |
 | F | `POST /auth/switch` (S12) · theme settings · ~~`reserved` by hand (S14)~~ done in C | ☐ | — |
 | G | Manual script, adversarial review, `make check` | ☐ | — |
 
@@ -172,3 +172,57 @@ a security suite that skipped what it claimed to cover.
 The only thing that found them was refusing to accept green: reverting the implementation under the
 test, sabotaging the scoping, removing the victim row. A test that has never been observed to fail is
 not evidence — and neither is a suite whose loop body never ran.
+
+---
+
+## What chunk D actually cost
+
+Six components vendored through `npx shadcn@latest add` — Select, Dialog, Sheet, Table, Switch,
+Label — adapted to our tokens. Four Radix packages plus `lucide-react` and `@testing-library/user-event`.
+84 frontend tests, staff bundle 90.6 KB gzipped against a 250 KB budget.
+
+**The backlog entry "Initialise shadcn/ui properly" was stale and is now closed.** It claimed M00
+never ran `shadcn init` and asked for a decision before M07. `components.json` has existed since
+`5271616`, correctly aliased, with a genuinely shadcn-derived Button. Chunk D settles it in practice:
+the library is the design system. Worth noting that the entry was written when it was true and
+quietly stopped being true — a backlog is as capable of lying as a docstring.
+
+### What the generator gets wrong, every time
+
+Three defects arrived with the generated source, none of which it reports:
+
+1. **The import alias is wrong.** It wrote `@shared/shared/cn` in all six files — `tsc` catches it,
+   but only because the alias does not resolve. A generator that had written a path which *did*
+   resolve to something else would not have been caught.
+2. **`lucide-react` is imported and not installed.** Three of the six need it; the generator added
+   four Radix packages and not that one.
+3. **Raw `z-50`, `shadow-*` and `bg-black/80`.** Every one of these is exactly what the token layer
+   exists to prevent — a raw z-index is, in tokens.css's own words, "a bug waiting for a second raw
+   z-index".
+
+All three are now written down in `docs/ui/design-system.md`, because they will recur on the next
+`shadcn add` and nothing detects them automatically.
+
+### The scrim became a token
+
+`bg-black/80` is a palette colour: no theme and no ADR can reach it. It is now `--scrim`, in the
+**locked** layer alongside the alert colours and the z-index ladder — the scrim is the only thing
+separating a modal from the live order behind it, and a festive theme that tinted or lightened it
+would turn "deal with this first" into decoration. Verified it reaches the built CSS rather than
+trusting the build, because this project has already lost an entire theme layer to an `@import`
+in the wrong place.
+
+### A docstring that had to be proved
+
+`switch.tsx` claims the label is part of the hit area — the control is 24px, under `--target-min`
+on every surface, so the words are what a waiter actually taps. That claim is not obviously true: a
+`<label for>` does not natively activate a `<button>`, and Radix Switch renders a button.
+
+It is true, and `src/shared/ui/ui.test.tsx` now holds it. Pointing `htmlFor` at a different control
+fails that test and only that test, so it is testing the association rather than a click that
+happened to land nearby.
+
+That file exists for a narrower reason than "test the components": `shadcn add` **overwrites** these
+files. An adaptation that is only described in a docstring returns to the generated default on the
+next upgrade, silently. Anything a docstring here asserts that the code could stop doing belongs in
+that test.

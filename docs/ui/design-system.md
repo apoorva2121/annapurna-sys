@@ -172,6 +172,12 @@ strategy document §3.5 and not implemented; today it is a review question.
 | Component | Where | Notes |
 |---|---|---|
 | `Button` | `shared/ui/button.tsx` | variants `primary` `secondary` `brand` `ghost` `destructive` `link`; sizes `md` `lg` `icon`. **No `sm`** — there is no surface on which a button below the touch target is correct. `asChild` renders a Link with a button's appearance |
+| `Select` | `shared/ui/select.tsx` | Radix. Trigger **and items** are `min-h-target` — the items are what is actually aimed at. `z-dropdown` |
+| `Dialog` | `shared/ui/dialog.tsx` | Radix. `z-dialog`, `bg-scrim/70`, `p-page`. On phones prefer `Sheet` — a centred dialog on a 5" screen covers the thing being decided about |
+| `Sheet` | `shared/ui/sheet.tsx` | The same Radix primitive anchored to an edge, so a screen can switch between the two at a breakpoint without changing its logic. `z-sheet` |
+| `Switch` | `shared/ui/switch.tsx` | Enlarged to `h-6 w-11`, still under `--target-min`, so **the label is part of the hit area** — always pair with `Label htmlFor` (asserted in `ui.test.tsx`). Means "takes effect now"; for anything needing a Save, use a checkbox |
+| `Table` | `shared/ui/table.tsx` | As generated. **A clickable row needs `min-h-target`** — rows are not tap targets by default, and forcing one would make an owner's dense table unreadable |
+| `Label` | `shared/ui/label.tsx` | Radix. Forwards clicks to the control it names, which is what makes the switch's hit area work |
 | `Field` | `staff/components/Field.tsx` | label + input + error wired with `aria-describedby` |
 | `Notice` | `staff/components/Notice.tsx` | tone `critical` `success` `info`; `role="alert"` for critical |
 | `QueryState` | `staff/components/QueryState.tsx` | pending skeleton and error, so a screen describes only success |
@@ -179,6 +185,19 @@ strategy document §3.5 and not implemented; today it is a review question.
 
 **Adding one:** `npx shadcn@latest add <name>`, then adapt it — our tokens, `min-h-target`, no
 shadow. Do not reimplement what Radix already solves.
+
+Three things the generator gets wrong here, all of which it got wrong in M02 and will get wrong
+again:
+
+- **the import alias** — it writes `@shared/shared/cn`; the correct path is `@shared/cn`;
+- **`lucide-react`** — three of the six components import it and the generator does not install it;
+- **raw `z-50`, `shadow-*` and `bg-black/80`** — replace with the ladder (`z-dropdown`, `z-sheet`,
+  `z-dialog`), nothing, and `bg-scrim/70`.
+
+Each adaptation is written down in the component's own docstring, because `shadcn add` overwrites
+the file: an undocumented adaptation returns to the generated default silently on the next upgrade.
+Anything asserted in those docstrings that the code could stop doing belongs in
+`src/shared/ui/ui.test.tsx`.
 
 ## 5. What this document does not cover yet
 

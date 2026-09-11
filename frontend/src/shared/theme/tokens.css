@@ -120,6 +120,12 @@
     --neutral: 215 16% 38%;
     --neutral-soft: 210 24% 96%;
 
+    /* The scrim behind a dialog or a sheet. Locked, and not merely for tidiness: it is the only
+       thing separating a modal from the live order behind it, and a festive theme that tinted it
+       or lightened it would turn "you must deal with this first" into decoration. Black, carried at
+       70% by the component (bg-scrim/70), because it has to read the same over every theme. */
+    --scrim: 0 0% 0%;
+
     /* The z-index ladder. A raw `z-50` in a component is a bug waiting for a second raw `z-50`.
        The offline banner is highest because it must never be covered — a waiter who cannot see
        that they are offline will keep tapping. */
