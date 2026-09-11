@@ -1,6 +1,6 @@
 # Remediation Plan — M01-R · post-audit hardening
 
-**Status: R1, R2 and R8a done. The gate is clear — M02 may start.**
+**Status: R1, R2, R8a and R8b done. The gate is clear — M02 may start.**
 
 Findings and rationale: `docs/audit/2026-09-11-findings.md`. Rules that came out of them:
 `docs/engineering-guardrails.md`. This file is the *work*, in order, and it is
@@ -58,7 +58,7 @@ Rules of engagement for the session (the human enforces these):
 | R5 | Lockout; plan and status enforcement; auth audit | P1-5, P1-10, M1, M5 | ⏸ deferred → a public URL exists. **Scope cut**: per-IP budget only, not the lockout redesign (external-review §5) | — |
 | R6 | Identifiers, rotation grace, session binding | P1-7, P1-8, M2, M10 | ⏸ deferred → real staff on real WiFi. Normalisation may ride along with M02 | — |
 | R7 | Bootstrap command; staging on GCP (now incl. R4) | M15, D6, P1-3, M8 | ⏸ deferred → its own session, human present for the console work | — |
-| R8b | Layering, catalogue, docs drift | D1–D10, M12, X4 | ⏸ deferred. **M12 contested**: keep the YAML catalogue as forward design + a subset test, do not delete it (external-review §5). D8 file split: last or never | — |
+| R8b | Layering, catalogue, docs drift | D1–D9, M12, X4 | ☑ **done** — zero raw SQL in services, zero repositories in routes, catalogue subset test (which caught real drift), /ready head cached, docs corrected, root cleaned. **D8 file split still declined** | `ab509d4` |
 | R9 | Guardrails become a gate | G-20 | ⏸ deferred → M05, or a second person joins | — |
 
 Everything in "Deferred to modules" at the bottom is **not** part of M01-R; it is scheduled into
