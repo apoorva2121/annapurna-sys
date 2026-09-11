@@ -20,7 +20,7 @@ Before any code: `docs/engineering-guardrails.md` and `.claude/skills/restaurant
 | D | shadcn components M02 needs: Select, Dialog/Sheet, Table, Switch, Label | ✅ done | `e9caff2` |
 | E | Four screens | ✅ done | `336953b` |
 | F | `POST /auth/switch` (S12) · theme settings · ~~`reserved` by hand (S14)~~ done in C | ✅ done | see below |
-| G | Manual script, adversarial review, `make check` | ✅ done | see below |
+| G | Manual script, adversarial review, `make check` | ✅ done | `084fed0` |
 
 **Chunk B wanted high model effort** — see *Why B is the risky one* below. Everything else is
 medium.
