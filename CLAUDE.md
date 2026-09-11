@@ -11,6 +11,12 @@ Read before working on the matching area:
 `docs/engineering-standards.md` · `docs/security.md` · `docs/observability.md` ·
 `docs/testing-strategy.md`
 
+**Read before ANY code change:** `docs/engineering-guardrails.md` (rules from the 2026-09-11
+audit; extends the Definition of Done) and `docs/audit/remediation-plan.md` (open findings —
+**M02 does not start until R1, R2 and R8a are ticked**; the plan's state table is the source of
+truth). `docs/audit/external-review.md` records why the rest was deferred, what un-defers each, and
+how external review works here — read it before filing or acting on new findings.
+
 ## Stack
 
 - **Backend** — Python 3.13 (3.12+), FastAPI, SQLAlchemy 2.0 (async), Alembic, Pydantic v2, PostgreSQL 16
@@ -68,7 +74,10 @@ Never edit a migration that has been applied on staging — write a new one.
 - Work the module loop in `docs/sdlc.md`. A module is done only when its Definition of Done is fully
   met, including the manual pass by the user.
 - `make check` clean, zero warnings, before claiming anything is finished.
-- Every bug gets a regression test written **before** the fix.
+- Every bug gets a regression test written **before** the fix, and its failing output goes in the
+  commit body.
+- The Definition of Done in `docs/sdlc.md` is extended by `docs/engineering-guardrails.md`
+  §Definition of Done addendum. Both lists must be true.
 - Ideas that arrive mid-module go to `docs/backlog.md`. They never become scope.
 - Docs are updated in the same PR as the code.
 
