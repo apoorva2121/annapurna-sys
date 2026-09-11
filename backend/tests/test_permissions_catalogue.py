@@ -214,3 +214,31 @@ def test_every_permission_code_constant_exists_in_the_catalogue() -> None:
     # drift, a route checks a permission no role can ever hold.
     known = {permission.code for permission in CATALOGUE.permissions}
     assert {member.value for member in PermissionCode} == known
+
+
+def test_the_shipped_catalogue_is_a_subset_of_the_p1_design() -> None:
+    """`seed/organization.yaml` carries the full permission design for M03-M17; this file
+    carries the 7 that M01 actually implements.
+
+    Finding M12 called the two a drift risk and proposed deleting the YAML block. Deleting it would
+    throw away design work that later modules need, so both are kept and *this* is the guard: every
+    permission the application enforces must already exist in the P1 design. A new code invented
+    here without a place in the plan fails the build — which is the drift M12 was actually worried
+    about. The reverse is expected and fine: the design deliberately contains permissions no module
+    has built yet.
+    """
+    import yaml
+
+    from app.seed.loader import find_seed_directory
+
+    design = yaml.safe_load(
+        (find_seed_directory() / "organization.yaml").read_text(encoding="utf-8")
+    )
+    designed = {entry["code"] for entry in design["permissions"]}
+    shipped = {permission.code for permission in CATALOGUE.permissions}
+
+    unplanned = shipped - designed
+    assert not unplanned, (
+        f"{sorted(unplanned)} are enforced by the application but appear nowhere in "
+        "seed/organization.yaml's design. Either add them there or stop checking them."
+    )

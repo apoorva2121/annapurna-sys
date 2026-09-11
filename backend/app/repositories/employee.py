@@ -93,6 +93,18 @@ class EmployeeRepository(OrgScopedRepository[Employee]):
         )
         return result.first()
 
+    async def code_exists(self, employee_code: str) -> bool:
+        """Whether this organization already employs someone with this code.
+
+        Asked before an insert so the caller can answer with a readable conflict rather than let a
+        unique constraint surface as a 500. The database is still the authority — this is a better
+        message, not the guarantee.
+        """
+        existing = await self.session.scalars(
+            self.scoped().where(Employee.employee_code == employee_code.strip())
+        )
+        return existing.first() is not None
+
     async def get_assigned_here(self, employee_id: uuid.UUID) -> Employee | None:
         """The stricter lookup, used to rebuild the actor from a token on every request.
 

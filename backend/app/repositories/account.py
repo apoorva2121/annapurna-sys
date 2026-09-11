@@ -16,7 +16,7 @@ from typing import Any, cast
 from sqlalchemy import CursorResult, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.identity import UserAccount, UserSession
+from app.models.identity import Employee, UserAccount, UserSession
 
 
 class UserAccountRepository:
@@ -49,6 +49,22 @@ class UserAccountRepository:
 
     async def get(self, account_id: uuid.UUID) -> UserAccount | None:
         return await self.session.get(UserAccount, account_id)
+
+    async def employee_for(self, account_id: uuid.UUID) -> Employee | None:
+        """The person behind a login, before any scope exists.
+
+        Unscoped for the same reason the identifier lookup is: this runs *during* login, and the
+        organization is not known until it returns. `EmployeeRepository` cannot answer it — that
+        class refuses to be constructed without a `TenantScope`, which is the structural guarantee
+        we want everywhere else and exactly what cannot hold here.
+
+        Safe because the account id is not client input: it came from an identifier lookup that has
+        already matched a password.
+        """
+        result = await self.session.scalars(
+            select(Employee).where(Employee.user_account_id == account_id)
+        )
+        return result.first()
 
 
 class UserSessionRepository:

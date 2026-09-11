@@ -25,7 +25,7 @@ through — see *The non-code track* in `docs/plan/month-1.md`.
 
 ## P1 · Architecture & design — ✅ done
 
-**Done:** 58-table schema with keys and indexes; 10 ADRs; UI conventions for four surfaces;
+**Done:** 63-table schema with keys and indexes; 10 ADRs; UI conventions for four surfaces;
 engineering standards; security threat model; observability and operations; testing strategy;
 synthetic dataset authored and validated.
 

@@ -77,8 +77,17 @@ permissions:
   - {code: supplier.manage,         resource: supplier,    action: manage}
   - {code: purchase.manage,         resource: purchase,    action: manage}
   # people
+  # M01 split `employee.manage` into the five below. A single `manage` could not express the
+  # seniority ladder — a manager may create staff and reset a junior's password but must never
+  # assign a role above their own — and the ladder is what stops self-promotion. `employee.manage`
+  # is kept for the later modules whose roles still reference it.
   - {code: employee.view,           resource: employee,    action: view}
   - {code: employee.manage,         resource: employee,    action: manage}
+  - {code: employee.create,         resource: employee,    action: create}
+  - {code: employee.edit,           resource: employee,    action: edit}
+  - {code: employee.deactivate,     resource: employee,    action: deactivate}
+  - {code: employee.role.assign,    resource: employee.role,    action: assign}
+  - {code: employee.password.reset, resource: employee.password, action: reset}
   - {code: employee.wage.view,      resource: employee,    action: wage_view}   # separately gated
   - {code: shift.view,              resource: shift,       action: view}
   - {code: shift.manage,            resource: shift,       action: manage}
@@ -104,6 +113,7 @@ permissions:
   - {code: recognition.award,       resource: recognition, action: award}
   # admin
   - {code: restaurant.configure,    resource: restaurant,  action: configure}
+  - {code: role.view,               resource: role,        action: view}     # read the catalogue
   - {code: role.manage,             resource: role,        action: manage}
 
 # ---------------------------------------------------------------- roles

@@ -18,9 +18,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.actor import Actor
 from app.core.config import get_settings
 from app.core.enums import UserAccountStatus
 from app.core.errors import AppError
@@ -36,6 +36,7 @@ from app.models.identity import Employee, UserAccount, UserSession
 from app.models.tenancy import Restaurant
 from app.repositories.access import AccessRepository, ResolvedAccess
 from app.repositories.account import UserAccountRepository, UserSessionRepository
+from app.repositories.employee import EmployeeRepository
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,21 @@ def _decoy_hash() -> str:
 class InvalidCredentialsError(AppError):
     def __init__(self) -> None:
         super().__init__(_REJECTED_CODE, _REJECTED_MESSAGE, status_code=401)
+
+
+def _no_longer_signed_in() -> AppError:
+    """A valid token whose employee or restaurant no longer resolves — dismissed mid-session, or a
+    restaurant deactivated under them. The same answer as never having signed in."""
+    return AppError("auth.required", "Please sign in.", status_code=401)
+
+
+@dataclass(frozen=True, slots=True)
+class Profile:
+    """What `GET /auth/me` answers, before it becomes a schema."""
+
+    employee: Employee
+    restaurant: Restaurant
+    access: ResolvedAccess
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,11 +202,7 @@ class AuthService:
         await self.session.flush()
 
     async def _employee_for(self, account: UserAccount) -> Employee:
-        employee = (
-            await self.session.scalars(
-                select(Employee).where(Employee.user_account_id == account.id)
-            )
-        ).first()
+        employee = await self.accounts.employee_for(account.id)
         if employee is None or not employee.is_active:
             # A dismissed person keeps their user_account row so history stays intact, so
             # employment is what decides whether they may sign in.
@@ -326,6 +338,38 @@ class AuthService:
             return
         live.revoked_at = datetime.now(UTC)
         await self.session.flush()
+
+    # ------------------------------------------------------------------- me
+
+    async def profile(self, actor: Actor) -> Profile:
+        """Everything the client needs to render permission-aware navigation.
+
+        The actor already carries most of this, but it is rebuilt from the database rather than
+        trusted: `permissions` on the token is a snapshot, and a role changed a minute ago must not
+        keep working until the token expires.
+        """
+        employee = await EmployeeRepository(self.session, actor.scope).get_assigned_here(
+            actor.employee_id
+        )
+        if employee is None:
+            raise _no_longer_signed_in()
+        restaurant = await self.session.get(Restaurant, actor.restaurant_id)
+        if restaurant is None:
+            raise _no_longer_signed_in()
+        resolved = await self.access.resolve(actor.employee_id, actor.restaurant_id)
+        return Profile(employee=employee, restaurant=restaurant, access=resolved)
+
+    async def session_id_for_token(self, raw_token: str | None) -> uuid.UUID | None:
+        """Which session a presented refresh token belongs to, if it is still live.
+
+        Used to spare the caller's own session when a password change revokes the others. None is
+        an ordinary answer: a native client that holds no cookie simply loses every session,
+        including its own, which is safe rather than convenient.
+        """
+        if not raw_token:
+            return None
+        row = await self.sessions.find_live_by_hash(hash_refresh_token(raw_token))
+        return row.id if row else None
 
     # ------------------------------------------------------- password change
 

@@ -33,3 +33,6 @@ Thumbs.db
 *.sqlite3
 postgres-data/
 uploads/
+
+# Personal working files kept in the working copy but never committed (finding D9).
+/Apoorva-Tasks.xlsx

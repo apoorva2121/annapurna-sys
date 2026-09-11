@@ -31,7 +31,7 @@ how external review works here — read it before filing or acting on new findin
 
 ```
 backend/    app/{api,models,schemas,services,repositories,core}  alembic/  tests/
-frontend/   src/{routes,components,features,lib,hooks}
+frontend/   src/{shared,staff,guest}   # shared/ = api, theme, ui; staff|guest = ADR 0009 bundles
 docs/       product/ decisions/ ui/ plan/
 ```
 
@@ -66,7 +66,7 @@ Never edit a migration that has been applied on staging — write a new one.
 
 - Layering is `api → service → repository → model`. Routes contain no business logic; repositories contain no business rules.
 - Pydantic schemas are the API contract; SQLAlchemy models never cross the API boundary.
-- Enums live in `app/core/enums.py` and are mirrored in `frontend/src/lib/enums.ts`.
+- Enums live in `app/core/enums.py` and are mirrored in `frontend/src/shared/enums.ts`.
 - Tests: every service gets a test; every endpoint gets a tenant-isolation test proving restaurant A cannot read restaurant B.
 - Frontend data access is TanStack Query only — no `fetch` in components.
 - Errors surface as `{code, message, details}`; `code` is a stable string the frontend switches on.

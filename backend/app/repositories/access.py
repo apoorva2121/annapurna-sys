@@ -147,6 +147,24 @@ class AccessRepository:
         )
         return (await self.session.scalars(query)).all()
 
+    async def roles_available_to(
+        self, role_ids: Sequence[uuid.UUID], organization_id: uuid.UUID
+    ) -> Sequence[Role]:
+        """The subset of `role_ids` this organization may actually use.
+
+        Either its own custom roles or the system templates (`organization_id IS NULL`). The filter
+        is the point: without it one tenant could assign a role belonging to another simply by
+        knowing its id. The caller compares the count it gets back with the count it asked for and
+        refuses the whole request if any id fell outside.
+        """
+        if not role_ids:
+            return []
+        query = select(Role).where(
+            Role.id.in_(list(role_ids)),
+            (Role.organization_id == organization_id) | (Role.organization_id.is_(None)),
+        )
+        return (await self.session.scalars(query)).all()
+
     async def system_roles(self) -> Sequence[Role]:
         query = select(Role).where(Role.organization_id.is_(None)).order_by(Role.rank, Role.code)
         return (await self.session.scalars(query)).all()

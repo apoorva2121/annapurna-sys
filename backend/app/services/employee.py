@@ -22,7 +22,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
@@ -147,15 +146,7 @@ class EmployeeService:
     async def _reject_duplicate_code(self, actor: Actor, employee_code: str) -> None:
         # Caught here so the caller gets a readable message rather than a database constraint
         # error rendered as a 500.
-        existing = (
-            await self.session.scalars(
-                select(Employee).where(
-                    Employee.organization_id == actor.organization_id,
-                    Employee.employee_code == employee_code.strip(),
-                )
-            )
-        ).first()
-        if existing is not None:
+        if await self._repository(actor).code_exists(employee_code):
             raise ConflictError(
                 "employee.code_taken",
                 f"Employee code {employee_code} is already in use.",
@@ -344,17 +335,9 @@ class EmployeeService:
     async def _load_roles(self, actor: Actor, role_ids: Sequence[uuid.UUID]) -> list[Role]:
         if not role_ids:
             return []
-        roles = (
-            await self.session.scalars(
-                select(Role).where(
-                    Role.id.in_(list(role_ids)),
-                    # A role belongs either to this organization or to the system templates.
-                    # Without this, one tenant could assign another tenant's custom role.
-                    (Role.organization_id == actor.organization_id)
-                    | (Role.organization_id.is_(None)),
-                )
-            )
-        ).all()
+        # Scoped in the repository: a role belongs either to this organization or to the system
+        # templates, and without that filter one tenant could assign another tenant's custom role.
+        roles = await self.access.roles_available_to(role_ids, actor.organization_id)
         if len(roles) != len(set(role_ids)):
             raise NotFoundError("role.not_found", "One of those roles does not exist.")
         return list(roles)

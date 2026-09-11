@@ -54,13 +54,27 @@ def _current_revision(sync_conn: Connection) -> str | None:
     return MigrationContext.configure(sync_conn).get_current_revision()
 
 
+@lru_cache
+def expected_head() -> str | None:
+    """The revision this image contains, read from disk once.
+
+    Cached because it cannot change while the process runs — the migration scripts are baked into
+    the image. `/ready` is polled every few seconds by the platform's health check, and re-walking
+    the script directory on each probe is filesystem work that answers the same question forever.
+    """
+    return ScriptDirectory.from_config(Config(str(_ALEMBIC_INI))).get_current_head()
+
+
 async def migrations_at_head() -> bool:
     """False when the database is behind the code — the deploy gate that prevents a half-migrated
-    container serving traffic."""
+    container serving traffic.
+
+    The database half is *not* cached: it is exactly what changes when a migration job runs
+    alongside a live container, which is the case this check exists for.
+    """
     try:
-        head = ScriptDirectory.from_config(Config(str(_ALEMBIC_INI))).get_current_head()
         async with get_engine().connect() as conn:
             current = await conn.run_sync(_current_revision)
     except Exception:
         return False
-    return current == head
+    return current == expected_head()

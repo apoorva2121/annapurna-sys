@@ -70,7 +70,7 @@ covered the moment it is registered.** Nobody has to remember.
 - **Query count** — `assert_max_queries(n)` around list and detail endpoints. This is how N+1 stays
   fixed rather than being fixed once (`docs/engineering-standards.md` §3).
 - **Migration** — `upgrade → downgrade → upgrade` against real Postgres.
-- **Contract** — `app/core/enums.py` matches `frontend/src/lib/enums.ts`, asserted, so the two cannot
+- **Contract** — `app/core/enums.py` matches `frontend/src/shared/enums.ts`, asserted, so the two cannot
   drift.
 
 ### Specialist testing where the risk is concentrated

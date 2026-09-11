@@ -15,14 +15,11 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Response, status
 
 from app.api.deps import ActorDep, SessionDep
-from app.core.actor import Actor
 from app.core.config import get_settings
+
+# Request-shape only: no cookie and no body is a malformed request, which is the route's concern.
+# Everything about whether a *valid* token is still good belongs to AuthService.
 from app.core.errors import AppError
-from app.core.security import hash_refresh_token
-from app.models.tenancy import Restaurant
-from app.repositories.access import AccessRepository
-from app.repositories.account import UserSessionRepository
-from app.repositories.employee import EmployeeRepository
 from app.schemas.identity import (
     LoginRequest,
     MeResponse,
@@ -132,18 +129,14 @@ async def me(actor: ActorDep, session: SessionDep) -> MeResponse:
     Without this the client would infer what to show from a role name, which ADR 0007 forbids —
     and which breaks the moment an owner customises a role.
     """
-    employee = await EmployeeRepository(session, actor.scope).get_assigned_here(actor.employee_id)
-    if employee is None:
-        raise AppError("auth.required", "Please sign in.", status_code=401)
-    resolved = await AccessRepository(session).resolve(actor.employee_id, actor.restaurant_id)
-    restaurant = await _restaurant_of(session, actor)
+    profile = await AuthService(session).profile(actor)
     return MeResponse(
-        employee_id=employee.id,
-        full_name=employee.full_name,
-        employee_code=employee.employee_code,
-        restaurant=restaurant,
-        roles=list(resolved.role_codes),
-        permissions=sorted(resolved.permissions),
+        employee_id=profile.employee.id,
+        full_name=profile.employee.full_name,
+        employee_code=profile.employee.employee_code,
+        restaurant=RestaurantSummary.model_validate(profile.restaurant),
+        roles=list(profile.access.role_codes),
+        permissions=sorted(profile.access.permissions),
     )
 
 
@@ -154,25 +147,13 @@ async def change_password(
     session: SessionDep,
     request: Request,
 ) -> None:
-    employee = await EmployeeRepository(session, actor.scope).get_assigned_here(actor.employee_id)
-    if employee is None:
-        raise AppError("auth.required", "Please sign in.", status_code=401)
-    current_session = request.cookies.get(REFRESH_COOKIE)
-    session_id = None
-    if current_session:
-        row = await UserSessionRepository(session).find_live_by_hash(
-            hash_refresh_token(current_session)
-        )
-        session_id = row.id if row else None
+    service = AuthService(session)
+    profile = await service.profile(actor)
+    # The cookie identifies *this* session, which is the one the change must not revoke. A native
+    # client sending no cookie loses every session including its own — safe, not convenient.
+    session_id = await service.session_id_for_token(request.cookies.get(REFRESH_COOKIE))
 
-    await AuthService(session).change_own_password(
-        employee, session_id, payload.current_password, payload.new_password
+    await service.change_own_password(
+        profile.employee, session_id, payload.current_password, payload.new_password
     )
     await session.commit()
-
-
-async def _restaurant_of(session: SessionDep, actor: Actor) -> RestaurantSummary:
-    restaurant = await session.get(Restaurant, actor.restaurant_id)
-    if restaurant is None:
-        raise AppError("auth.required", "Please sign in.", status_code=401)
-    return RestaurantSummary.model_validate(restaurant)
