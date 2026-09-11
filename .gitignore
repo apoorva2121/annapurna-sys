@@ -36,3 +36,7 @@ uploads/
 
 # Personal working files kept in the working copy but never committed (finding D9).
 /Apoorva-Tasks.xlsx
+
+# Microsoft Office lock files. Created while a document is open, deleted when it closes — they are
+# never content, and one was committed by accident in M02.
+~$*
