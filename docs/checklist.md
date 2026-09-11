@@ -103,6 +103,7 @@ Legend: **S**pec approved · **M**igration · **B**ackend · **T**ests green · 
 
 - [ ] Photo of the pilot restaurant's printed menu
 - [ ] Ask them their food cost %, then *"how do you know?"* — write down the answer
-- [ ] Starter recipe library started (target ~200 dishes; `seed/` is the first 11)
+- [x] Starter recipe library started (target ~200 dishes; `seed/` is the first 11) — `library/`, 223 dishes, 2026-09-12
+- [ ] A chef reviews the library's `estimated` tier (`library/PROVENANCE.md`) — during pilot onboarding
 - [ ] Pricing drafted (anchor: ~₹95,000/month gap on ₹15.5L revenue)
 - [ ] Decide reward types for M17 (cash / leave / shift preference / recognition)

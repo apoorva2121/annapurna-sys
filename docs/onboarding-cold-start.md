@@ -35,6 +35,13 @@ hours**, and that number is a product requirement, not an aspiration.
 
 Every correction the chef makes also improves the library for the next restaurant. That compounds.
 
+**Built 2026-09-12 — `library/`.** 223 dishes / 242 variants, 36 preparations, 122 ingredients, in
+the same YAML shape as `seed/` so M04 needs one loader. Every entry carries a confidence tier
+(`seed_calibrated` / `derived` / `estimated`) and `library/PROVENANCE.md` states the fractions
+honestly — most of it is `estimated`, which is the correct state for content a chef corrects.
+`library/validate.py` runs in `make check` and asserts the overlap with `seed/` is identical.
+The onboarding flow must surface the tier: an `estimated` recipe is a proposal, not a default.
+
 ## Solving entry: everything else
 
 - **Menu** — photograph the printed menu, extract items and prices with an LLM, chef confirms.

@@ -1,0 +1,689 @@
+# Preparations for the starter recipe library. See README.md and ADR 0006.
+#
+# A preparation is a base made in a batch that feeds several dishes. Dishes consume it by
+# quantity in yield_unit. Nesting depth is at most 3 (validate.py enforces the same rule as seed/).
+#
+# batch_yield / yield_unit : one realistic morning batch for a 40-60 cover restaurant
+# shelf_life_hours         : HOURS, not days
+# lines[].unit             : must equal the referenced item's base unit (validate.py checks)
+# confidence               : seed_calibrated | derived | estimated (README.md § Confidence)
+#
+# The first block is emitted by `python library/from_seed.py preparations`. Do not edit it here.
+
+meta:
+  nesting_depth_limit: 3
+
+preparations:
+
+  # ==== seed_calibrated: identical to seed/preparations.yaml. Do not edit here. ====
+
+  - code: PREP_BIRISTA
+    name: Birista (fried onion)
+    station: main_kitchen
+    batch_yield: 1200
+    yield_unit: g
+    shelf_life_hours: 72
+    prep_minutes: 45
+    confidence: seed_calibrated
+    lines:
+      - {ref: ONION,           qty: 4000,  unit: g}
+      - {ref: OIL,             qty: 700,   unit: ml}
+
+  - code: PREP_GINGARLIC
+    name: Ginger garlic paste
+    station: main_kitchen
+    batch_yield: 1000
+    yield_unit: g
+    shelf_life_hours: 96
+    prep_minutes: 20
+    confidence: seed_calibrated
+    lines:
+      - {ref: GINGER,          qty: 560,   unit: g}
+      - {ref: GARLIC,          qty: 560,   unit: g}
+      - {ref: OIL,             qty: 40,    unit: ml}
+
+  - code: PREP_MAKHANI
+    name: Makhani gravy
+    station: main_kitchen
+    batch_yield: 8000
+    yield_unit: ml
+    shelf_life_hours: 36
+    prep_minutes: 90
+    confidence: seed_calibrated
+    lines:
+      - {ref: TOMATO,          qty: 5000,  unit: g}
+      - {ref: BUTTER,          qty: 600,   unit: g}
+      - {ref: CASHEW,          qty: 400,   unit: g}
+      - {ref: CREAM,           qty: 900,   unit: ml}
+      - {ref: PREP_GINGARLIC,  qty: 200,   unit: g}
+      - {ref: CHILLIPWD,       qty: 90,    unit: g}
+      - {ref: GARAMMSL,        qty: 45,    unit: g}
+      - {ref: KASURI,          qty: 30,    unit: g}
+      - {ref: SUGAR,           qty: 120,   unit: g}
+      - {ref: SALT,            qty: 90,    unit: g}
+
+  - code: PREP_YELLOW
+    name: Yellow gravy (onion tomato base)
+    station: main_kitchen
+    batch_yield: 8000
+    yield_unit: ml
+    shelf_life_hours: 36
+    prep_minutes: 75
+    confidence: seed_calibrated
+    lines:
+      - {ref: PREP_BIRISTA,    qty: 900,   unit: g}
+      - {ref: TOMATO,          qty: 2600,  unit: g}
+      - {ref: PREP_GINGARLIC,  qty: 260,   unit: g}
+      - {ref: OIL,             qty: 700,   unit: ml}
+      - {ref: TURMERIC,        qty: 60,    unit: g}
+      - {ref: CHILLIPWD,       qty: 110,   unit: g}
+      - {ref: CORIANDPWD,      qty: 140,   unit: g}
+      - {ref: GARAMMSL,        qty: 50,    unit: g}
+      - {ref: SALT,            qty: 100,   unit: g}
+
+  - code: PREP_WHITE
+    name: White gravy (korma base)
+    station: main_kitchen
+    batch_yield: 5000
+    yield_unit: ml
+    shelf_life_hours: 24
+    prep_minutes: 60
+    confidence: seed_calibrated
+    lines:
+      - {ref: CASHEW,          qty: 700,   unit: g}
+      - {ref: ONION,           qty: 1800,  unit: g}
+      - {ref: CURD,            qty: 900,   unit: g}
+      - {ref: CREAM,           qty: 700,   unit: ml}
+      - {ref: PREP_GINGARLIC,  qty: 160,   unit: g}
+      - {ref: CARDAMOM,        qty: 18,    unit: g}
+      - {ref: SALT,            qty: 60,    unit: g}
+
+  - code: PREP_TANDMARINADE
+    name: Tandoori marinade
+    station: tandoor
+    batch_yield: 3000
+    yield_unit: g
+    shelf_life_hours: 48
+    prep_minutes: 30
+    confidence: seed_calibrated
+    lines:
+      - {ref: CURD,            qty: 2000,  unit: g}
+      - {ref: PREP_GINGARLIC,  qty: 260,   unit: g}
+      - {ref: TANDMSL,         qty: 260,   unit: g}
+      - {ref: CHILLIPWD,       qty: 120,   unit: g}
+      - {ref: OIL,             qty: 260,   unit: ml}
+      - {ref: SALT,            qty: 70,    unit: g}
+      - {ref: LEMON,           qty: 6,     unit: unit}
+
+  - code: PREP_CHKN_TIKKA
+    name: Marinated chicken tikka (raw)
+    station: tandoor
+    batch_yield: 4000
+    yield_unit: g
+    shelf_life_hours: 24
+    prep_minutes: 25
+    confidence: seed_calibrated
+    lines:
+      - {ref: CHKN_BONELESS,   qty: 3400,  unit: g}
+      - {ref: PREP_TANDMARINADE, qty: 900,   unit: g}
+
+  - code: PREP_RICE_BOILED
+    name: Boiled basmati rice
+    station: main_kitchen
+    batch_yield: 6000
+    yield_unit: g
+    shelf_life_hours: 12
+    prep_minutes: 35
+    confidence: seed_calibrated
+    lines:
+      - {ref: BASMATI,         qty: 2200,  unit: g}
+      - {ref: OIL,             qty: 60,    unit: ml}
+      - {ref: SALT,            qty: 50,    unit: g}
+      - {ref: BAYLEAF,         qty: 8,     unit: g}
+
+  - code: PREP_DALMAKHANI
+    name: Dal makhani base
+    station: main_kitchen
+    batch_yield: 6000
+    yield_unit: ml
+    shelf_life_hours: 48
+    prep_minutes: 240
+    confidence: seed_calibrated
+    lines:
+      - {ref: DAL_URAD,        qty: 1400,  unit: g}
+      - {ref: RAJMA,           qty: 300,   unit: g}
+      - {ref: BUTTER,          qty: 500,   unit: g}
+      - {ref: CREAM,           qty: 600,   unit: ml}
+      - {ref: TOMATO,          qty: 1200,  unit: g}
+      - {ref: PREP_GINGARLIC,  qty: 160,   unit: g}
+      - {ref: GARAMMSL,        qty: 40,    unit: g}
+      - {ref: SALT,            qty: 80,    unit: g}
+
+  - code: PREP_SCHEZ_SAUCE
+    name: Schezwan sauce base
+    station: chinese
+    batch_yield: 2500
+    yield_unit: ml
+    shelf_life_hours: 96
+    prep_minutes: 40
+    confidence: seed_calibrated
+    lines:
+      - {ref: SCHEZWAN,        qty: 700,   unit: g}
+      - {ref: CHILLISAUCE,     qty: 500,   unit: ml}
+      - {ref: SOYSAUCE,        qty: 350,   unit: ml}
+      - {ref: VINEGAR,         qty: 180,   unit: ml}
+      - {ref: PREP_GINGARLIC,  qty: 200,   unit: g}
+      - {ref: OIL,             qty: 500,   unit: ml}
+      - {ref: SUGAR,           qty: 150,   unit: g}
+
+  - code: PREP_NAAN_DOUGH
+    name: Naan dough
+    station: tandoor
+    batch_yield: 5000
+    yield_unit: g
+    shelf_life_hours: 18
+    prep_minutes: 50
+    confidence: seed_calibrated
+    lines:
+      - {ref: MAIDA,           qty: 3000,  unit: g}
+      - {ref: MILK,            qty: 900,   unit: ml}
+      - {ref: CURD,            qty: 400,   unit: g}
+      - {ref: OIL,             qty: 200,   unit: ml}
+      - {ref: YEAST,           qty: 30,    unit: g}
+      - {ref: SUGAR,           qty: 90,    unit: g}
+      - {ref: SALT,            qty: 55,    unit: g}
+
+  # ==== library-only ====
+
+  # ---- Marinades (tandoor) ----
+  - code: PREP_HARIYALI_MARINADE
+    name: Hariyali (green) marinade
+    station: tandoor
+    batch_yield: 2500
+    yield_unit: g
+    shelf_life_hours: 48
+    prep_minutes: 30
+    confidence: derived
+    basis: PREP_TANDMARINADE
+    notes: Tandoori marinade structure with the red masala swapped for a mint-coriander-spinach paste.
+    lines:
+      - {ref: CURD,            qty: 1500,  unit: g}
+      - {ref: SPINACH,         qty: 400,   unit: g}
+      - {ref: MINT,            qty: 250,   unit: g}
+      - {ref: CORIANDER,       qty: 300,   unit: g}
+      - {ref: GRNCHILLI,       qty: 60,    unit: g}
+      - {ref: PREP_GINGARLIC,  qty: 200,   unit: g}
+      - {ref: OIL,             qty: 200,   unit: ml}
+      - {ref: GARAMMSL,        qty: 30,    unit: g}
+      - {ref: SALT,            qty: 60,    unit: g}
+      - {ref: LEMON,           qty: 5,     unit: unit}
+
+  - code: PREP_MALAI_MARINADE
+    name: Malai (cream-cheese) marinade
+    station: tandoor
+    batch_yield: 2500
+    yield_unit: g
+    shelf_life_hours: 36
+    prep_minutes: 25
+    confidence: derived
+    basis: PREP_TANDMARINADE
+    lines:
+      - {ref: CURD,            qty: 1200,  unit: g}
+      - {ref: CREAM,           qty: 600,   unit: ml}
+      - {ref: CHEESE,          qty: 400,   unit: g}
+      - {ref: CASHEW,          qty: 200,   unit: g}
+      - {ref: PREP_GINGARLIC,  qty: 160,   unit: g}
+      - {ref: GRNCHILLI,       qty: 40,    unit: g}
+      - {ref: CARDAMOM,        qty: 10,    unit: g}
+      - {ref: BLACK_PEPPER,    qty: 20,    unit: g}
+      - {ref: OIL,             qty: 150,   unit: ml}
+      - {ref: SALT,            qty: 50,    unit: g}
+
+  - code: PREP_SEEKH_CHKN
+    name: Chicken seekh mince (raw, seasoned)
+    station: tandoor
+    batch_yield: 4000
+    yield_unit: g
+    shelf_life_hours: 24
+    prep_minutes: 40
+    confidence: estimated
+    lines:
+      - {ref: CHKN_BONELESS,   qty: 3200,  unit: g}
+      - {ref: ONION,           qty: 500,   unit: g}
+      - {ref: CORIANDER,       qty: 150,   unit: g}
+      - {ref: GRNCHILLI,       qty: 60,    unit: g}
+      - {ref: PREP_GINGARLIC,  qty: 150,   unit: g}
+      - {ref: CHEESE,          qty: 200,   unit: g}
+      - {ref: BREAD_CRUMBS,    qty: 150,   unit: g}
+      - {ref: GARAMMSL,        qty: 40,    unit: g}
+      - {ref: CHILLIPWD,       qty: 40,    unit: g}
+      - {ref: SALT,            qty: 50,    unit: g}
+      - {ref: OIL,             qty: 60,    unit: ml}
+
+  - code: PREP_SEEKH_MUTTON
+    name: Mutton seekh mince (raw, seasoned)
+    station: tandoor
+    batch_yield: 4000
+    yield_unit: g
+    shelf_life_hours: 24
+    prep_minutes: 40
+    confidence: estimated
+    basis: PREP_SEEKH_CHKN
+    lines:
+      - {ref: MUTTON_KEEMA,    qty: 3300,  unit: g}
+      - {ref: ONION,           qty: 500,   unit: g}
+      - {ref: CORIANDER,       qty: 150,   unit: g}
+      - {ref: GRNCHILLI,       qty: 60,    unit: g}
+      - {ref: PREP_GINGARLIC,  qty: 150,   unit: g}
+      - {ref: BESAN,           qty: 120,   unit: g}
+      - {ref: GARAMMSL,        qty: 50,    unit: g}
+      - {ref: CHILLIPWD,       qty: 40,    unit: g}
+      - {ref: SALT,            qty: 50,    unit: g}
+      - {ref: GHEE,            qty: 80,    unit: g}
+
+  # ---- Gravies and legume bases (main kitchen) ----
+  - code: PREP_CHOLE_BASE
+    name: Punjabi chole base
+    station: main_kitchen
+    batch_yield: 8000
+    yield_unit: ml
+    shelf_life_hours: 48
+    prep_minutes: 150
+    confidence: estimated
+    notes: Soaked overnight, pressure-cooked with tea bag for colour, finished in yellow gravy.
+    lines:
+      - {ref: CHANA,           qty: 2500,  unit: g}
+      - {ref: PREP_YELLOW,     qty: 2000,  unit: ml}
+      - {ref: ONION,           qty: 600,   unit: g}
+      - {ref: TOMATO,          qty: 800,   unit: g}
+      - {ref: PREP_GINGARLIC,  qty: 150,   unit: g}
+      - {ref: CHAAT_MSL,       qty: 60,    unit: g}
+      - {ref: AMCHUR,          qty: 40,    unit: g}
+      - {ref: GARAMMSL,        qty: 60,    unit: g}
+      - {ref: CHILLIPWD,       qty: 60,    unit: g}
+      - {ref: CORIANDPWD,      qty: 80,    unit: g}
+      - {ref: CUMIN,           qty: 30,    unit: g}
+      - {ref: OIL,             qty: 300,   unit: ml}
+      - {ref: SALT,            qty: 80,    unit: g}
+
+  - code: PREP_RAJMA_BASE
+    name: Rajma base
+    station: main_kitchen
+    batch_yield: 8000
+    yield_unit: ml
+    shelf_life_hours: 48
+    prep_minutes: 150
+    confidence: estimated
+    basis: PREP_CHOLE_BASE
+    lines:
+      - {ref: RAJMA,           qty: 2200,  unit: g}
+      - {ref: PREP_YELLOW,     qty: 2200,  unit: ml}
+      - {ref: TOMATO,          qty: 700,   unit: g}
+      - {ref: PREP_GINGARLIC,  qty: 150,   unit: g}
+      - {ref: GARAMMSL,        qty: 60,    unit: g}
+      - {ref: CHILLIPWD,       qty: 50,    unit: g}
+      - {ref: CORIANDPWD,      qty: 80,    unit: g}
+      - {ref: CUMIN,           qty: 30,    unit: g}
+      - {ref: BUTTER,          qty: 200,   unit: g}
+      - {ref: OIL,             qty: 200,   unit: ml}
+      - {ref: SALT,            qty: 80,    unit: g}
+
+  - code: PREP_DAL_BOILED
+    name: Boiled yellow dal (toor-moong)
+    station: main_kitchen
+    batch_yield: 8000
+    yield_unit: ml
+    shelf_life_hours: 24
+    prep_minutes: 60
+    confidence: estimated
+    notes: Plain boiled base. The tadka is added per plate, so Dal Fry and Dal Tadka share this.
+    lines:
+      - {ref: DAL_TOOR,        qty: 1600,  unit: g}
+      - {ref: DAL_MOONG,       qty: 400,   unit: g}
+      - {ref: TOMATO,          qty: 500,   unit: g}
+      - {ref: GINGER,          qty: 40,    unit: g}
+      - {ref: GRNCHILLI,       qty: 40,    unit: g}
+      - {ref: TURMERIC,        qty: 30,    unit: g}
+      - {ref: OIL,             qty: 60,    unit: ml}
+      - {ref: SALT,            qty: 90,    unit: g}
+
+  - code: PREP_PALAK_PUREE
+    name: Blanched spinach puree
+    station: main_kitchen
+    batch_yield: 3000
+    yield_unit: g
+    shelf_life_hours: 24
+    prep_minutes: 30
+    confidence: estimated
+    lines:
+      - {ref: SPINACH,         qty: 4000,  unit: g}
+      - {ref: GRNCHILLI,       qty: 60,    unit: g}
+      - {ref: GARLIC,          qty: 60,    unit: g}
+      - {ref: SALT,            qty: 20,    unit: g}
+
+  - code: PREP_KADAI_MSL
+    name: Kadai masala (coarse dry mix)
+    station: main_kitchen
+    batch_yield: 1000
+    yield_unit: g
+    shelf_life_hours: 720
+    prep_minutes: 20
+    confidence: estimated
+    lines:
+      - {ref: CORIANDPWD,      qty: 400,   unit: g}
+      - {ref: DRY_CHILLI,      qty: 250,   unit: g}
+      - {ref: CUMIN,           qty: 120,   unit: g}
+      - {ref: KASURI,          qty: 80,    unit: g}
+      - {ref: BLACK_PEPPER,    qty: 60,    unit: g}
+      - {ref: GARAMMSL,        qty: 60,    unit: g}
+      - {ref: CARDAMOM,        qty: 30,    unit: g}
+
+  - code: PREP_BHAJI
+    name: Pav bhaji base
+    station: main_kitchen
+    batch_yield: 8000
+    yield_unit: g
+    shelf_life_hours: 24
+    prep_minutes: 90
+    confidence: estimated
+    lines:
+      - {ref: POTATO,          qty: 3000,  unit: g}
+      - {ref: CAULI,           qty: 800,   unit: g}
+      - {ref: PEAS,            qty: 600,   unit: g}
+      - {ref: CAPSICUM,        qty: 500,   unit: g}
+      - {ref: TOMATO,          qty: 1500,  unit: g}
+      - {ref: ONION,           qty: 800,   unit: g}
+      - {ref: PREP_GINGARLIC,  qty: 150,   unit: g}
+      - {ref: PAVBHAJI_MSL,    qty: 200,   unit: g}
+      - {ref: CHILLIPWD,       qty: 60,    unit: g}
+      - {ref: BUTTER,          qty: 500,   unit: g}
+      - {ref: OIL,             qty: 200,   unit: ml}
+      - {ref: SALT,            qty: 90,    unit: g}
+      - {ref: LEMON,           qty: 4,     unit: unit}
+
+  - code: PREP_ATTA_DOUGH
+    name: Atta dough (roti, paratha)
+    station: tandoor
+    batch_yield: 5000
+    yield_unit: g
+    shelf_life_hours: 12
+    prep_minutes: 30
+    confidence: derived
+    basis: PREP_NAAN_DOUGH
+    lines:
+      - {ref: ATTA,            qty: 3200,  unit: g}
+      - {ref: OIL,             qty: 120,   unit: ml}
+      - {ref: SALT,            qty: 50,    unit: g}
+
+  # ---- Chinese ----
+  - code: PREP_VEG_STOCK
+    name: Vegetable stock
+    station: chinese
+    batch_yield: 10000
+    yield_unit: ml
+    shelf_life_hours: 24
+    prep_minutes: 60
+    confidence: estimated
+    lines:
+      - {ref: ONION,           qty: 600,   unit: g}
+      - {ref: CARROT,          qty: 500,   unit: g}
+      - {ref: CABBAGE,         qty: 500,   unit: g}
+      - {ref: GARLIC,          qty: 100,   unit: g}
+      - {ref: GINGER,          qty: 80,    unit: g}
+      - {ref: SPRONION,        qty: 150,   unit: g}
+      - {ref: BLACK_PEPPER,    qty: 15,    unit: g}
+      - {ref: BAYLEAF,         qty: 5,     unit: g}
+      - {ref: SALT,            qty: 60,    unit: g}
+
+  - code: PREP_CHKN_STOCK
+    name: Chicken stock
+    station: chinese
+    batch_yield: 10000
+    yield_unit: ml
+    shelf_life_hours: 24
+    prep_minutes: 120
+    confidence: estimated
+    basis: PREP_VEG_STOCK
+    lines:
+      - {ref: CHKN_CURRCUT,    qty: 2000,  unit: g}
+      - {ref: ONION,           qty: 500,   unit: g}
+      - {ref: GARLIC,          qty: 100,   unit: g}
+      - {ref: GINGER,          qty: 80,    unit: g}
+      - {ref: BLACK_PEPPER,    qty: 15,    unit: g}
+      - {ref: BAYLEAF,         qty: 5,     unit: g}
+      - {ref: SALT,            qty: 60,    unit: g}
+
+  - code: PREP_MANCH_SAUCE
+    name: Manchurian gravy base
+    station: chinese
+    batch_yield: 5000
+    yield_unit: ml
+    shelf_life_hours: 48
+    prep_minutes: 40
+    confidence: derived
+    basis: PREP_SCHEZ_SAUCE
+    lines:
+      - {ref: PREP_VEG_STOCK,  qty: 2500,  unit: ml}
+      - {ref: SOYSAUCE,        qty: 400,   unit: ml}
+      - {ref: CHILLISAUCE,     qty: 350,   unit: ml}
+      - {ref: KETCHUP,         qty: 500,   unit: ml}
+      - {ref: VINEGAR,         qty: 150,   unit: ml}
+      - {ref: PREP_GINGARLIC,  qty: 250,   unit: g}
+      - {ref: GARLIC,          qty: 150,   unit: g}
+      - {ref: ONION,           qty: 300,   unit: g}
+      - {ref: SPRONION,        qty: 200,   unit: g}
+      - {ref: CORNFLOUR,       qty: 250,   unit: g}
+      - {ref: OIL,             qty: 300,   unit: ml}
+      - {ref: SUGAR,           qty: 100,   unit: g}
+      - {ref: BLACK_PEPPER,    qty: 20,    unit: g}
+      - {ref: SALT,            qty: 60,    unit: g}
+
+  - code: PREP_HOTGARLIC_SAUCE
+    name: Hot garlic sauce base
+    station: chinese
+    batch_yield: 4000
+    yield_unit: ml
+    shelf_life_hours: 48
+    prep_minutes: 30
+    confidence: derived
+    basis: PREP_MANCH_SAUCE
+    lines:
+      - {ref: PREP_VEG_STOCK,  qty: 2200,  unit: ml}
+      - {ref: GARLIC,          qty: 400,   unit: g}
+      - {ref: DRY_CHILLI,      qty: 60,    unit: g}
+      - {ref: CHILLISAUCE,     qty: 400,   unit: ml}
+      - {ref: KETCHUP,         qty: 300,   unit: ml}
+      - {ref: SOYSAUCE,        qty: 250,   unit: ml}
+      - {ref: VINEGAR,         qty: 100,   unit: ml}
+      - {ref: CORNFLOUR,       qty: 200,   unit: g}
+      - {ref: OIL,             qty: 300,   unit: ml}
+      - {ref: SUGAR,           qty: 80,    unit: g}
+      - {ref: SALT,            qty: 50,    unit: g}
+
+  - code: PREP_MANCH_BALLS
+    name: Veg manchurian balls (fried)
+    station: chinese
+    batch_yield: 3000
+    yield_unit: g
+    shelf_life_hours: 12
+    prep_minutes: 45
+    confidence: estimated
+    notes: Fried weight. Oil is what the balls absorb plus fryer carry-over.
+    lines:
+      - {ref: CABBAGE,         qty: 2200,  unit: g}
+      - {ref: CARROT,          qty: 1200,  unit: g}
+      - {ref: CAPSICUM,        qty: 400,   unit: g}
+      - {ref: SPRONION,        qty: 200,   unit: g}
+      - {ref: CORNFLOUR,       qty: 600,   unit: g}
+      - {ref: MAIDA,           qty: 400,   unit: g}
+      - {ref: PREP_GINGARLIC,  qty: 100,   unit: g}
+      - {ref: SOYSAUCE,        qty: 60,    unit: ml}
+      - {ref: BLACK_PEPPER,    qty: 15,    unit: g}
+      - {ref: SALT,            qty: 50,    unit: g}
+      - {ref: OIL,             qty: 800,   unit: ml}
+
+  # ---- South Indian ----
+  - code: PREP_DOSA_BATTER
+    name: Dosa batter (fermented)
+    station: main_kitchen
+    batch_yield: 10000
+    yield_unit: g
+    shelf_life_hours: 24
+    prep_minutes: 60
+    confidence: estimated
+    notes: Soak, grind, ferment overnight. Water makes up the balance of the yield.
+    lines:
+      - {ref: IDLI_RICE,       qty: 4000,  unit: g}
+      - {ref: DAL_URAD_WHITE,  qty: 1000,  unit: g}
+      - {ref: METHI_SEED,      qty: 30,    unit: g}
+      - {ref: SALT,            qty: 90,    unit: g}
+
+  - code: PREP_IDLI_BATTER
+    name: Idli batter (fermented)
+    station: main_kitchen
+    batch_yield: 8000
+    yield_unit: g
+    shelf_life_hours: 24
+    prep_minutes: 60
+    confidence: estimated
+    basis: PREP_DOSA_BATTER
+    lines:
+      - {ref: IDLI_RICE,       qty: 3000,  unit: g}
+      - {ref: DAL_URAD_WHITE,  qty: 1000,  unit: g}
+      - {ref: METHI_SEED,      qty: 20,    unit: g}
+      - {ref: SALT,            qty: 70,    unit: g}
+
+  - code: PREP_VADA_BATTER
+    name: Medu vada batter
+    station: main_kitchen
+    batch_yield: 3000
+    yield_unit: g
+    shelf_life_hours: 8
+    prep_minutes: 40
+    confidence: estimated
+    lines:
+      - {ref: DAL_URAD_WHITE,  qty: 2000,  unit: g}
+      - {ref: ONION,           qty: 300,   unit: g}
+      - {ref: GRNCHILLI,       qty: 60,    unit: g}
+      - {ref: GINGER,          qty: 50,    unit: g}
+      - {ref: BLACK_PEPPER,    qty: 20,    unit: g}
+      - {ref: CURRY_LEAF,      qty: 15,    unit: g}
+      - {ref: SALT,            qty: 40,    unit: g}
+
+  - code: PREP_SAMBAR
+    name: Sambar
+    station: main_kitchen
+    batch_yield: 8000
+    yield_unit: ml
+    shelf_life_hours: 12
+    prep_minutes: 60
+    confidence: estimated
+    lines:
+      - {ref: DAL_TOOR,        qty: 1000,  unit: g}
+      - {ref: TOMATO,          qty: 800,   unit: g}
+      - {ref: ONION,           qty: 500,   unit: g}
+      - {ref: CARROT,          qty: 300,   unit: g}
+      - {ref: BEANS,           qty: 200,   unit: g}
+      - {ref: TAMARIND,        qty: 120,   unit: g}
+      - {ref: SAMBAR_PWD,      qty: 160,   unit: g}
+      - {ref: TURMERIC,        qty: 20,    unit: g}
+      - {ref: MUSTARD_SEED,    qty: 20,    unit: g}
+      - {ref: DRY_CHILLI,      qty: 20,    unit: g}
+      - {ref: CURRY_LEAF,      qty: 20,    unit: g}
+      - {ref: HING,            qty: 5,     unit: g}
+      - {ref: JAGGERY,         qty: 60,    unit: g}
+      - {ref: OIL,             qty: 200,   unit: ml}
+      - {ref: SALT,            qty: 90,    unit: g}
+
+  - code: PREP_COCONUT_CHUTNEY
+    name: Coconut chutney
+    station: cold
+    batch_yield: 2000
+    yield_unit: g
+    shelf_life_hours: 12
+    prep_minutes: 20
+    confidence: estimated
+    lines:
+      - {ref: COCONUT,         qty: 1400,  unit: g}
+      - {ref: DAL_CHANA,       qty: 150,   unit: g}
+      - {ref: CURD,            qty: 200,   unit: g}
+      - {ref: GRNCHILLI,       qty: 60,    unit: g}
+      - {ref: GINGER,          qty: 50,    unit: g}
+      - {ref: MUSTARD_SEED,    qty: 10,    unit: g}
+      - {ref: CURRY_LEAF,      qty: 10,    unit: g}
+      - {ref: OIL,             qty: 40,    unit: ml}
+      - {ref: SALT,            qty: 30,    unit: g}
+
+  - code: PREP_MINT_CHUTNEY
+    name: Green (mint-coriander) chutney
+    station: cold
+    batch_yield: 1500
+    yield_unit: g
+    shelf_life_hours: 48
+    prep_minutes: 20
+    confidence: estimated
+    lines:
+      - {ref: CORIANDER,       qty: 700,   unit: g}
+      - {ref: MINT,            qty: 500,   unit: g}
+      - {ref: CURD,            qty: 500,   unit: g}
+      - {ref: GRNCHILLI,       qty: 80,    unit: g}
+      - {ref: GARLIC,          qty: 40,    unit: g}
+      - {ref: CUMIN,           qty: 15,    unit: g}
+      - {ref: SUGAR,           qty: 20,    unit: g}
+      - {ref: SALT,            qty: 30,    unit: g}
+      - {ref: LEMON,           qty: 4,     unit: unit}
+
+  # ---- Desserts ----
+  - code: PREP_GULAB_JAMUN
+    name: Gulab jamun in syrup
+    station: main_kitchen
+    batch_yield: 100
+    yield_unit: unit
+    shelf_life_hours: 72
+    prep_minutes: 90
+    confidence: estimated
+    notes: Yield is pieces. Sugar is the syrup; oil is frying absorption plus carry-over.
+    lines:
+      - {ref: MILK_POWDER,     qty: 1200,  unit: g}
+      - {ref: MAIDA,           qty: 300,   unit: g}
+      - {ref: GHEE,            qty: 150,   unit: g}
+      - {ref: MILK,            qty: 500,   unit: ml}
+      - {ref: BAKING_SODA,     qty: 6,     unit: g}
+      - {ref: OIL,             qty: 1200,  unit: ml}
+      - {ref: SUGAR,           qty: 2500,  unit: g}
+      - {ref: CARDAMOM,        qty: 15,    unit: g}
+      - {ref: ROSE_WATER,      qty: 20,    unit: ml}
+
+  - code: PREP_RASMALAI
+    name: Rasmalai in rabri
+    station: main_kitchen
+    batch_yield: 60
+    yield_unit: unit
+    shelf_life_hours: 48
+    prep_minutes: 120
+    confidence: estimated
+    single_consumer_ok: true
+    notes: One dish, but chenna is set and poached by the batch, never per plate.
+    lines:
+      - {ref: MILK,            qty: 12000, unit: ml}
+      - {ref: LEMON,           qty: 6,     unit: unit}
+      - {ref: SUGAR,           qty: 1500,  unit: g}
+      - {ref: CARDAMOM,        qty: 10,    unit: g}
+      - {ref: SAFFRON,         qty: 0.5,   unit: g}
+      - {ref: PISTA,           qty: 60,    unit: g}
+      - {ref: ALMOND,          qty: 60,    unit: g}
+
+  - code: PREP_RABRI
+    name: Rabri (reduced sweetened milk)
+    station: main_kitchen
+    batch_yield: 3000
+    yield_unit: ml
+    shelf_life_hours: 48
+    prep_minutes: 120
+    confidence: estimated
+    lines:
+      - {ref: MILK,            qty: 10000, unit: ml}
+      - {ref: SUGAR,           qty: 700,   unit: g}
+      - {ref: CARDAMOM,        qty: 10,    unit: g}
+      - {ref: SAFFRON,         qty: 0.3,   unit: g}
+      - {ref: PISTA,           qty: 50,    unit: g}

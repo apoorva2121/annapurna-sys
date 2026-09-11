@@ -75,8 +75,9 @@ Code alone does not produce revenue, and we are building without a live test sit
    A photo is a two-minute ask and it reveals portion sizes, price points and menu breadth.
 2. **Ask them:** *"What do you think your food cost percentage is?"* Then: *"How do you know?"* The
    gap between those two answers is the pitch. Write down exactly what they say.
-3. **Start the starter recipe library** (`docs/onboarding-cold-start.md`). Content work, not code, so
-   it runs in parallel and it is the long pole. `seed/` is its first 11 entries.
+3. ~~**Start the starter recipe library**~~ **Done 2026-09-12 — `library/`**, 223 dishes and 36
+   preparations with confidence tiers (`library/README.md`). What remains is a chef's pass over the
+   `estimated` tier, which is the pilot restaurant's job during onboarding, not ours before it.
 4. **Draft pricing.** Anchor on savings: our seed data shows a ~6-point gap between theoretical and
    actual food cost — about ₹95,000/month on ₹15.5L revenue. ₹5,000–8,000/outlet/month prices
    comfortably against that.

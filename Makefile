@@ -84,6 +84,7 @@ smoke:
 audit-docs:
 	python scripts/audit_docs.py
 	python seed/validate.py
+	python library/validate.py
 
 audit-deps:
 	cd backend && "$(PY)" -m pip_audit --skip-editable

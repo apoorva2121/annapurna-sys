@@ -1,0 +1,2751 @@
+# Dishes for the starter recipe library. See README.md.
+#
+# Same shape as seed/menu.yaml with price, gst and popularity removed - those are per-restaurant.
+# recipe lives on the VARIANT (Half / Full / Piece): a half plate is a different recipe.
+# recipe[].qty is in the referenced item's base unit; ref is an ingredient or preparation code.
+# confidence: seed_calibrated | derived | estimated; derived names its template in basis.
+# aliases: other menu names the same dish appears under, for the onboarding matcher.
+#
+# The first block is emitted by `python library/from_seed.py dishes`. Do not edit it here.
+
+categories:
+  - {code: SOUP,           name: Soups,                seq: 1}
+  - {code: STARTER_VEG,    name: Veg Starters,         seq: 2}
+  - {code: STARTER_NONVEG, name: Non-Veg Starters,     seq: 3}
+  - {code: MAIN_VEG,       name: Veg Main Course,      seq: 4}
+  - {code: MAIN_NONVEG,    name: Non-Veg Main Course,  seq: 5}
+  - {code: RICE_BREAD,     name: Rice & Breads,        seq: 6}
+  - {code: CHINESE,        name: Chinese,              seq: 7}
+  - {code: SOUTH_INDIAN,   name: South Indian,         seq: 8}
+  - {code: ACCOMPANIMENT,  name: Accompaniments,       seq: 9}
+  - {code: DESSERT,        name: Desserts,             seq: 10}
+
+items:
+
+  # ==== seed_calibrated: identical to seed/menu.yaml minus price/gst/popularity. Do not edit here. ====
+
+  - code: PANEER_TIKKA
+    name: Paneer Tikka
+    category: STARTER_VEG
+    food_type: veg
+    station: tandoor
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: PANEER, qty: 200}, {ref: PREP_TANDMARINADE, qty: 70}, {ref: CAPSICUM, qty: 45}, {ref: ONION, qty: 45}, {ref: BUTTER, qty: 12}, {ref: LEMON, qty: 0.25}, {ref: CORIANDER, qty: 5}]}
+
+  - code: VEG_CRISPY
+    name: Crispy Veg
+    category: STARTER_VEG
+    food_type: veg
+    station: chinese
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 11,
+         recipe: [{ref: CABBAGE, qty: 90}, {ref: CARROT, qty: 60}, {ref: CAPSICUM, qty: 50}, {ref: CORNFLOUR, qty: 60}, {ref: MAIDA, qty: 40}, {ref: OIL, qty: 70}, {ref: CHILLISAUCE, qty: 25}, {ref: SALT, qty: 4}]}
+
+  - code: MUSHROOM_TIKKA
+    name: Mushroom Tikka
+    category: STARTER_VEG
+    food_type: veg
+    station: tandoor
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 13,
+         recipe: [{ref: MUSHROOM, qty: 190}, {ref: PREP_TANDMARINADE, qty: 65}, {ref: CAPSICUM, qty: 40}, {ref: BUTTER, qty: 10}, {ref: CORIANDER, qty: 5}]}
+
+  - code: CHICKEN_TIKKA
+    name: Chicken Tikka
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: tandoor
+    confidence: seed_calibrated
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 15,
+         recipe: [{ref: PREP_CHKN_TIKKA, qty: 160}, {ref: ONION, qty: 35}, {ref: BUTTER, qty: 10}, {ref: LEMON, qty: 0.25}]}
+      - {code: FULL, name: Full, prep_minutes: 17,
+         recipe: [{ref: PREP_CHKN_TIKKA, qty: 300}, {ref: ONION, qty: 55}, {ref: BUTTER, qty: 18}, {ref: LEMON, qty: 0.5}, {ref: CORIANDER, qty: 6}]}
+
+  - code: CHICKEN_65
+    name: Chicken 65
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: chinese
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: CHKN_BONELESS, qty: 210}, {ref: CORNFLOUR, qty: 50}, {ref: EGG, qty: 0.5}, {ref: CURD, qty: 40}, {ref: CHILLIPWD, qty: 8}, {ref: OIL, qty: 90}, {ref: GRNCHILLI, qty: 10}, {ref: CORIANDER, qty: 5}]}
+
+  - code: PRAWN_KOLIWADA
+    name: Prawn Koliwada
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: chinese
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 16,
+         recipe: [{ref: PRAWN, qty: 180}, {ref: CORNFLOUR, qty: 45}, {ref: EGG, qty: 0.5}, {ref: CHILLIPWD, qty: 7}, {ref: OIL, qty: 100}, {ref: LEMON, qty: 0.5}]}
+
+  - code: MALAI_KOFTA
+    name: Malai Kofta
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: PREP_WHITE, qty: 180}, {ref: PANEER, qty: 70}, {ref: POTATO, qty: 80}, {ref: KHOYA, qty: 30}, {ref: CASHEW, qty: 15}, {ref: CREAM, qty: 25}, {ref: OIL, qty: 40}, {ref: CORIANDER, qty: 4}]}
+
+  - code: PANEER_BUTTER_MASALA
+    name: Paneer Butter Masala
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 9,
+         recipe: [{ref: PREP_MAKHANI, qty: 150}, {ref: PANEER, qty: 110}, {ref: BUTTER, qty: 12}, {ref: CREAM, qty: 15}]}
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: PREP_MAKHANI, qty: 240}, {ref: PANEER, qty: 180}, {ref: BUTTER, qty: 20}, {ref: CREAM, qty: 25}, {ref: KASURI, qty: 2}, {ref: CORIANDER, qty: 4}]}
+
+  - code: DAL_MAKHANI
+    name: Dal Makhani
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 7,
+         recipe: [{ref: PREP_DALMAKHANI, qty: 200}, {ref: BUTTER, qty: 12}, {ref: CREAM, qty: 15}]}
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: PREP_DALMAKHANI, qty: 330}, {ref: BUTTER, qty: 20}, {ref: CREAM, qty: 25}]}
+
+  - code: KADAI_PANEER
+    name: Kadai Paneer
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 11,
+         recipe: [{ref: PREP_YELLOW, qty: 230}, {ref: PANEER, qty: 170}, {ref: CAPSICUM, qty: 70}, {ref: ONION, qty: 50}, {ref: OIL, qty: 20}, {ref: GARAMMSL, qty: 3}, {ref: CORIANDER, qty: 5}]}
+
+  - code: VEG_KOLHAPURI
+    name: Veg Kolhapuri
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: PREP_YELLOW, qty: 240}, {ref: CAULI, qty: 70}, {ref: CARROT, qty: 50}, {ref: BEANS, qty: 45}, {ref: PEAS, qty: 40}, {ref: POTATO, qty: 60}, {ref: OIL, qty: 25}, {ref: CHILLIPWD, qty: 5}]}
+
+  - code: CHANA_MASALA
+    name: Chana Masala
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: PREP_YELLOW, qty: 200}, {ref: CHANA, qty: 120}, {ref: OIL, qty: 15}, {ref: GARAMMSL, qty: 3}, {ref: CORIANDER, qty: 4}]}
+
+  - code: PALAK_PANEER
+    name: Palak Paneer
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: PANEER, qty: 150}, {ref: CREAM, qty: 30}, {ref: PREP_GINGARLIC, qty: 15}, {ref: ONION, qty: 60}, {ref: BUTTER, qty: 15}, {ref: GRNCHILLI, qty: 6}, {ref: GARAMMSL, qty: 3}, {ref: SALT, qty: 4}]}
+
+  - code: BUTTER_CHICKEN
+    name: Butter Chicken
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 10,
+         recipe: [{ref: PREP_MAKHANI, qty: 170}, {ref: PREP_CHKN_TIKKA, qty: 130}, {ref: BUTTER, qty: 15}, {ref: CREAM, qty: 20}]}
+      - {code: FULL, name: Full, prep_minutes: 11,
+         recipe: [{ref: PREP_MAKHANI, qty: 270}, {ref: PREP_CHKN_TIKKA, qty: 220}, {ref: BUTTER, qty: 25}, {ref: CREAM, qty: 35}, {ref: KASURI, qty: 2}, {ref: CORIANDER, qty: 5}]}
+
+  - code: CHICKEN_TIKKA_MASALA
+    name: Chicken Tikka Masala
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: PREP_MAKHANI, qty: 200}, {ref: PREP_YELLOW, qty: 90}, {ref: PREP_CHKN_TIKKA, qty: 220}, {ref: CAPSICUM, qty: 50}, {ref: ONION, qty: 40}, {ref: BUTTER, qty: 18}]}
+
+  - code: KADAI_CHICKEN
+    name: Kadai Chicken
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: PREP_YELLOW, qty: 250}, {ref: CHKN_CURRCUT, qty: 300}, {ref: CAPSICUM, qty: 70}, {ref: ONION, qty: 50}, {ref: OIL, qty: 25}, {ref: GARAMMSL, qty: 4}, {ref: CORIANDER, qty: 5}]}
+
+  - code: CHICKEN_KORMA
+    name: Chicken Korma
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 13,
+         recipe: [{ref: PREP_WHITE, qty: 230}, {ref: CHKN_CURRCUT, qty: 290}, {ref: CREAM, qty: 30}, {ref: CASHEW, qty: 15}, {ref: CARDAMOM, qty: 1}]}
+
+  - code: MUTTON_ROGANJOSH
+    name: Mutton Rogan Josh
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 22,
+         recipe: [{ref: PREP_YELLOW, qty: 260}, {ref: MUTTON, qty: 250}, {ref: CURD, qty: 60}, {ref: GHEE, qty: 25}, {ref: CHILLIPWD, qty: 8}, {ref: GARAMMSL, qty: 5}, {ref: CINNAMON, qty: 2}, {ref: CLOVE, qty: 1}]}
+
+  - code: EGG_CURRY
+    name: Egg Curry
+    category: MAIN_NONVEG
+    food_type: egg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 9,
+         recipe: [{ref: PREP_YELLOW, qty: 220}, {ref: EGG, qty: 3}, {ref: OIL, qty: 15}, {ref: CORIANDER, qty: 4}]}
+
+  - code: CHICKEN_BIRYANI
+    name: Chicken Biryani
+    category: RICE_BREAD
+    food_type: non_veg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 18,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 320}, {ref: CHKN_CURRCUT, qty: 260}, {ref: PREP_BIRISTA, qty: 40}, {ref: CURD, qty: 70}, {ref: GHEE, qty: 25}, {ref: BIRYANIMSL, qty: 12}, {ref: MINT, qty: 8}, {ref: SAFFRON, qty: 0.05}, {ref: PREP_GINGARLIC, qty: 15}]}
+
+  - code: VEG_BIRYANI
+    name: Veg Biryani
+    category: RICE_BREAD
+    food_type: veg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 15,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 320}, {ref: CARROT, qty: 50}, {ref: BEANS, qty: 40}, {ref: PEAS, qty: 40}, {ref: CAULI, qty: 50}, {ref: PREP_BIRISTA, qty: 35}, {ref: GHEE, qty: 20}, {ref: BIRYANIMSL, qty: 10}, {ref: MINT, qty: 6}]}
+
+  - code: JEERA_RICE
+    name: Jeera Rice
+    category: RICE_BREAD
+    food_type: veg
+    station: main_kitchen
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 5,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 300}, {ref: GHEE, qty: 15}, {ref: CUMIN, qty: 4}]}
+
+  - code: BUTTER_NAAN
+    name: Butter Naan
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    confidence: seed_calibrated
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 4,
+         recipe: [{ref: PREP_NAAN_DOUGH, qty: 110}, {ref: BUTTER, qty: 8}]}
+
+  - code: GARLIC_NAAN
+    name: Garlic Naan
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    confidence: seed_calibrated
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 4,
+         recipe: [{ref: PREP_NAAN_DOUGH, qty: 110}, {ref: BUTTER, qty: 8}, {ref: GARLIC, qty: 6}, {ref: CORIANDER, qty: 3}]}
+
+  - code: TANDOORI_ROTI
+    name: Tandoori Roti
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    confidence: seed_calibrated
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 3,
+         recipe: [{ref: ATTA, qty: 90}, {ref: OIL, qty: 4}, {ref: SALT, qty: 1}]}
+
+  - code: LACHHA_PARATHA
+    name: Lachha Paratha
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    confidence: seed_calibrated
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 5,
+         recipe: [{ref: ATTA, qty: 100}, {ref: GHEE, qty: 18}, {ref: SALT, qty: 1}]}
+
+  - code: CHILLI_PANEER
+    name: Chilli Paneer
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 11,
+         recipe: [{ref: PANEER, qty: 240}, {ref: CAPSICUM, qty: 80}, {ref: ONION, qty: 70}, {ref: CORNFLOUR, qty: 45}, {ref: SOYSAUCE, qty: 25}, {ref: CHILLISAUCE, qty: 30}, {ref: OIL, qty: 80}, {ref: SPRONION, qty: 15}, {ref: PREP_GINGARLIC, qty: 15}]}
+
+  - code: CHILLI_CHICKEN
+    name: Chilli Chicken
+    category: CHINESE
+    food_type: non_veg
+    station: chinese
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: CHKN_BONELESS, qty: 220}, {ref: CAPSICUM, qty: 70}, {ref: ONION, qty: 60}, {ref: CORNFLOUR, qty: 45}, {ref: SOYSAUCE, qty: 25}, {ref: CHILLISAUCE, qty: 30}, {ref: OIL, qty: 80}, {ref: EGG, qty: 0.5}, {ref: SPRONION, qty: 15}]}
+
+  - code: HAKKA_NOODLES
+    name: Veg Hakka Noodles
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 9,
+         recipe: [{ref: NOODLES, qty: 160}, {ref: CABBAGE, qty: 70}, {ref: CARROT, qty: 50}, {ref: CAPSICUM, qty: 45}, {ref: SPRONION, qty: 20}, {ref: SOYSAUCE, qty: 25}, {ref: VINEGAR, qty: 10}, {ref: OIL, qty: 45}]}
+
+  - code: SCHEZWAN_FRIED_RICE
+    name: Schezwan Fried Rice
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 300}, {ref: PREP_SCHEZ_SAUCE, qty: 45}, {ref: CABBAGE, qty: 50}, {ref: CARROT, qty: 40}, {ref: CAPSICUM, qty: 40}, {ref: SPRONION, qty: 15}, {ref: OIL, qty: 35}]}
+
+  - code: MANCHURIAN_DRY
+    name: Veg Manchurian Dry
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: CABBAGE, qty: 110}, {ref: CARROT, qty: 70}, {ref: CORNFLOUR, qty: 60}, {ref: MAIDA, qty: 40}, {ref: OIL, qty: 90}, {ref: SOYSAUCE, qty: 20}, {ref: CHILLISAUCE, qty: 25}, {ref: SPRONION, qty: 15}]}
+
+  - code: SCHEZWAN_CHICKEN
+    name: Schezwan Chicken
+    category: CHINESE
+    food_type: non_veg
+    station: chinese
+    confidence: seed_calibrated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: CHKN_BONELESS, qty: 220}, {ref: PREP_SCHEZ_SAUCE, qty: 60}, {ref: CAPSICUM, qty: 60}, {ref: ONION, qty: 50}, {ref: CORNFLOUR, qty: 40}, {ref: OIL, qty: 75}, {ref: SPRONION, qty: 15}]}
+
+  # ==== library-only ====
+
+  # ================= SOUPS =================
+  - code: TOMATO_SOUP
+    name: Cream of Tomato Soup
+    category: SOUP
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: TOMATO, qty: 250}, {ref: ONION, qty: 30}, {ref: GARLIC, qty: 8}, {ref: BUTTER, qty: 15},
+                  {ref: CREAM, qty: 20}, {ref: CORNFLOUR, qty: 8}, {ref: SUGAR, qty: 5}, {ref: BLACK_PEPPER, qty: 1},
+                  {ref: SALT, qty: 3}, {ref: BREAD_SLICE, qty: 0.5}]}
+
+  - code: SWEETCORN_VEG_SOUP
+    name: Sweet Corn Veg Soup
+    category: SOUP
+    food_type: veg
+    station: chinese
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 7,
+         recipe: [{ref: PREP_VEG_STOCK, qty: 220}, {ref: CORN_KERNELS, qty: 60}, {ref: CARROT, qty: 20},
+                  {ref: CABBAGE, qty: 20}, {ref: CORNFLOUR, qty: 12}, {ref: BUTTER, qty: 8}, {ref: VINEGAR, qty: 5},
+                  {ref: BLACK_PEPPER, qty: 1}, {ref: SALT, qty: 3}]}
+
+  - code: SWEETCORN_CHKN_SOUP
+    name: Sweet Corn Chicken Soup
+    category: SOUP
+    food_type: non_veg
+    station: chinese
+    confidence: estimated
+    basis: SWEETCORN_VEG_SOUP
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: PREP_CHKN_STOCK, qty: 220}, {ref: CHKN_BONELESS, qty: 40}, {ref: CORN_KERNELS, qty: 50},
+                  {ref: CARROT, qty: 15}, {ref: CORNFLOUR, qty: 12}, {ref: EGG, qty: 0.5}, {ref: BLACK_PEPPER, qty: 1},
+                  {ref: SALT, qty: 3}]}
+
+  - code: MANCHOW_VEG_SOUP
+    name: Veg Manchow Soup
+    category: SOUP
+    food_type: veg
+    station: chinese
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: PREP_VEG_STOCK, qty: 220}, {ref: CABBAGE, qty: 25}, {ref: CARROT, qty: 20}, {ref: CAPSICUM, qty: 15},
+                  {ref: BEANS, qty: 15}, {ref: SPRONION, qty: 10}, {ref: PREP_GINGARLIC, qty: 8}, {ref: SOYSAUCE, qty: 10},
+                  {ref: CHILLISAUCE, qty: 8}, {ref: VINEGAR, qty: 5}, {ref: CORNFLOUR, qty: 12}, {ref: NOODLES, qty: 25},
+                  {ref: OIL, qty: 20}, {ref: BLACK_PEPPER, qty: 1}, {ref: SALT, qty: 2}]}
+
+  - code: MANCHOW_CHKN_SOUP
+    name: Chicken Manchow Soup
+    category: SOUP
+    food_type: non_veg
+    station: chinese
+    confidence: estimated
+    basis: MANCHOW_VEG_SOUP
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 9,
+         recipe: [{ref: PREP_CHKN_STOCK, qty: 220}, {ref: CHKN_BONELESS, qty: 40}, {ref: CABBAGE, qty: 20}, {ref: CARROT, qty: 15},
+                  {ref: CAPSICUM, qty: 15}, {ref: SPRONION, qty: 10}, {ref: PREP_GINGARLIC, qty: 8}, {ref: SOYSAUCE, qty: 10},
+                  {ref: CHILLISAUCE, qty: 8}, {ref: VINEGAR, qty: 5}, {ref: CORNFLOUR, qty: 12}, {ref: NOODLES, qty: 25},
+                  {ref: OIL, qty: 20}, {ref: BLACK_PEPPER, qty: 1}, {ref: SALT, qty: 2}]}
+
+  - code: HOTSOUR_VEG_SOUP
+    name: Veg Hot & Sour Soup
+    category: SOUP
+    food_type: veg
+    station: chinese
+    confidence: estimated
+    basis: MANCHOW_VEG_SOUP
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: PREP_VEG_STOCK, qty: 220}, {ref: CABBAGE, qty: 25}, {ref: CARROT, qty: 20}, {ref: MUSHROOM, qty: 20},
+                  {ref: CAPSICUM, qty: 15}, {ref: SOYSAUCE, qty: 10}, {ref: CHILLISAUCE, qty: 12}, {ref: VINEGAR, qty: 12},
+                  {ref: CORNFLOUR, qty: 12}, {ref: BLACK_PEPPER, qty: 1}, {ref: SALT, qty: 2}]}
+
+  - code: HOTSOUR_CHKN_SOUP
+    name: Chicken Hot & Sour Soup
+    category: SOUP
+    food_type: non_veg
+    station: chinese
+    confidence: estimated
+    basis: HOTSOUR_VEG_SOUP
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 9,
+         recipe: [{ref: PREP_CHKN_STOCK, qty: 220}, {ref: CHKN_BONELESS, qty: 40}, {ref: CABBAGE, qty: 20}, {ref: CARROT, qty: 15},
+                  {ref: MUSHROOM, qty: 15}, {ref: SOYSAUCE, qty: 10}, {ref: CHILLISAUCE, qty: 12}, {ref: VINEGAR, qty: 12},
+                  {ref: CORNFLOUR, qty: 12}, {ref: EGG, qty: 0.5}, {ref: BLACK_PEPPER, qty: 1}, {ref: SALT, qty: 2}]}
+
+  - code: LEMON_CORIANDER_SOUP
+    name: Lemon Coriander Soup
+    category: SOUP
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 7,
+         recipe: [{ref: PREP_VEG_STOCK, qty: 230}, {ref: CORIANDER, qty: 15}, {ref: LEMON, qty: 0.5}, {ref: CABBAGE, qty: 20},
+                  {ref: CARROT, qty: 15}, {ref: GRNCHILLI, qty: 3}, {ref: CORNFLOUR, qty: 10}, {ref: BLACK_PEPPER, qty: 1},
+                  {ref: SALT, qty: 3}]}
+
+  - code: CREAM_MUSHROOM_SOUP
+    name: Cream of Mushroom Soup
+    category: SOUP
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: TOMATO_SOUP
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 9,
+         recipe: [{ref: MUSHROOM, qty: 80}, {ref: MILK, qty: 150}, {ref: CREAM, qty: 30}, {ref: BUTTER, qty: 15},
+                  {ref: ONION, qty: 25}, {ref: GARLIC, qty: 6}, {ref: MAIDA, qty: 10}, {ref: BLACK_PEPPER, qty: 1},
+                  {ref: SALT, qty: 3}]}
+
+  # ================= VEG STARTERS (library) =================
+  - code: HARA_BHARA_KABAB
+    name: Hara Bhara Kabab
+    category: STARTER_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full (6 pc), prep_minutes: 12,
+         recipe: [{ref: SPINACH, qty: 120}, {ref: PEAS, qty: 60}, {ref: POTATO, qty: 90}, {ref: PANEER, qty: 30},
+                  {ref: BESAN, qty: 20}, {ref: BREAD_CRUMBS, qty: 20}, {ref: GRNCHILLI, qty: 6}, {ref: PREP_GINGARLIC, qty: 8},
+                  {ref: GARAMMSL, qty: 2}, {ref: CHAAT_MSL, qty: 2}, {ref: SALT, qty: 3}, {ref: OIL, qty: 50},
+                  {ref: PREP_MINT_CHUTNEY, qty: 30}]}
+
+  - code: VEG_SEEKH_KABAB
+    name: Veg Seekh Kabab
+    category: STARTER_VEG
+    food_type: veg
+    station: tandoor
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full (4 pc), prep_minutes: 14,
+         recipe: [{ref: POTATO, qty: 80}, {ref: PANEER, qty: 60}, {ref: CARROT, qty: 30}, {ref: BEANS, qty: 30},
+                  {ref: PEAS, qty: 30}, {ref: CORNFLOUR, qty: 20}, {ref: BREAD_CRUMBS, qty: 20}, {ref: PREP_GINGARLIC, qty: 8},
+                  {ref: GARAMMSL, qty: 3}, {ref: SALT, qty: 3}, {ref: BUTTER, qty: 12}, {ref: PREP_MINT_CHUTNEY, qty: 30}]}
+
+  - code: TANDOORI_ALOO
+    name: Tandoori Aloo
+    category: STARTER_VEG
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: PANEER_TIKKA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: POTATO, qty: 260}, {ref: PREP_TANDMARINADE, qty: 60}, {ref: BUTTER, qty: 12}, {ref: CHAAT_MSL, qty: 2},
+                  {ref: LEMON, qty: 0.25}, {ref: CORIANDER, qty: 5}]}
+
+  - code: MALAI_PANEER_TIKKA
+    name: Malai Paneer Tikka
+    category: STARTER_VEG
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: PANEER_TIKKA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: PANEER, qty: 200}, {ref: PREP_MALAI_MARINADE, qty: 70}, {ref: CAPSICUM, qty: 40}, {ref: BUTTER, qty: 12},
+                  {ref: LEMON, qty: 0.25}, {ref: CORIANDER, qty: 5}]}
+
+  - code: ACHARI_PANEER_TIKKA
+    name: Achari Paneer Tikka
+    category: STARTER_VEG
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: PANEER_TIKKA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: PANEER, qty: 200}, {ref: PREP_TANDMARINADE, qty: 60}, {ref: PICKLE_MSL, qty: 8}, {ref: CAPSICUM, qty: 45},
+                  {ref: ONION, qty: 45}, {ref: BUTTER, qty: 12}, {ref: LEMON, qty: 0.25}, {ref: CORIANDER, qty: 5}]}
+
+  - code: HARIYALI_PANEER_TIKKA
+    name: Hariyali Paneer Tikka
+    aliases: [Pahadi Paneer Tikka]
+    category: STARTER_VEG
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: PANEER_TIKKA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: PANEER, qty: 200}, {ref: PREP_HARIYALI_MARINADE, qty: 70}, {ref: CAPSICUM, qty: 40}, {ref: ONION, qty: 40},
+                  {ref: BUTTER, qty: 12}, {ref: LEMON, qty: 0.25}]}
+
+  - code: PANEER_65
+    name: Paneer 65
+    category: STARTER_VEG
+    food_type: veg
+    station: chinese
+    confidence: derived
+    basis: CHICKEN_65
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 11,
+         recipe: [{ref: PANEER, qty: 210}, {ref: CORNFLOUR, qty: 50}, {ref: MAIDA, qty: 15}, {ref: CURD, qty: 40},
+                  {ref: CHILLIPWD, qty: 8}, {ref: OIL, qty: 90}, {ref: GRNCHILLI, qty: 10}, {ref: CURRY_LEAF, qty: 3},
+                  {ref: CORIANDER, qty: 5}]}
+
+  - code: PANEER_PAKODA
+    name: Paneer Pakoda
+    category: STARTER_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: PANEER, qty: 180}, {ref: BESAN, qty: 70}, {ref: CHILLIPWD, qty: 3}, {ref: AJWAIN, qty: 1},
+                  {ref: TURMERIC, qty: 1}, {ref: SALT, qty: 3}, {ref: OIL, qty: 80}, {ref: PREP_MINT_CHUTNEY, qty: 30}]}
+
+  - code: ONION_PAKODA
+    name: Onion Pakoda
+    aliases: [Kanda Bhaji, Onion Bhajiya]
+    category: STARTER_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: ONION, qty: 220}, {ref: BESAN, qty: 80}, {ref: CHILLIPWD, qty: 3}, {ref: AJWAIN, qty: 1},
+                  {ref: TURMERIC, qty: 1}, {ref: CORIANDER, qty: 8}, {ref: SALT, qty: 3}, {ref: OIL, qty: 80}]}
+
+  - code: MIX_VEG_PAKODA
+    name: Mix Veg Pakoda
+    category: STARTER_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: ONION_PAKODA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 11,
+         recipe: [{ref: POTATO, qty: 80}, {ref: ONION, qty: 80}, {ref: CAULI, qty: 60}, {ref: SPINACH, qty: 30},
+                  {ref: BESAN, qty: 80}, {ref: CHILLIPWD, qty: 3}, {ref: AJWAIN, qty: 1}, {ref: SALT, qty: 3}, {ref: OIL, qty: 80}]}
+
+  - code: ALOO_TIKKI
+    name: Aloo Tikki
+    category: STARTER_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full (2 pc), prep_minutes: 10,
+         recipe: [{ref: POTATO, qty: 200}, {ref: PEAS, qty: 30}, {ref: BREAD_CRUMBS, qty: 20}, {ref: CORNFLOUR, qty: 10},
+                  {ref: GRNCHILLI, qty: 4}, {ref: GARAMMSL, qty: 2}, {ref: CHAAT_MSL, qty: 2}, {ref: SALT, qty: 3},
+                  {ref: OIL, qty: 50}, {ref: PREP_MINT_CHUTNEY, qty: 25}, {ref: CURD, qty: 40}]}
+
+  - code: SAMOSA
+    name: Samosa
+    category: STARTER_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Plate (2 pc), prep_minutes: 8,
+         recipe: [{ref: MAIDA, qty: 80}, {ref: GHEE, qty: 15}, {ref: POTATO, qty: 150}, {ref: PEAS, qty: 30},
+                  {ref: GRNCHILLI, qty: 4}, {ref: CUMIN, qty: 1}, {ref: GARAMMSL, qty: 2}, {ref: AMCHUR, qty: 2},
+                  {ref: SALT, qty: 3}, {ref: OIL, qty: 60}, {ref: PREP_MINT_CHUTNEY, qty: 25}]}
+
+  - code: DAHI_KEBAB
+    name: Dahi Ke Kebab
+    category: STARTER_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full (6 pc), prep_minutes: 12,
+         recipe: [{ref: CURD, qty: 250}, {ref: PANEER, qty: 60}, {ref: BESAN, qty: 30}, {ref: BREAD_CRUMBS, qty: 40},
+                  {ref: ONION, qty: 20}, {ref: GRNCHILLI, qty: 4}, {ref: CORIANDER, qty: 6}, {ref: CARDAMOM, qty: 0.5},
+                  {ref: SALT, qty: 3}, {ref: OIL, qty: 60}]}
+
+  - code: TANDOORI_SOYA_CHAAP
+    name: Tandoori Soya Chaap
+    category: STARTER_VEG
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: PANEER_TIKKA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 15,
+         recipe: [{ref: SOYA_CHAAP, qty: 250}, {ref: PREP_TANDMARINADE, qty: 70}, {ref: BUTTER, qty: 12}, {ref: ONION, qty: 40},
+                  {ref: LEMON, qty: 0.25}, {ref: CORIANDER, qty: 5}]}
+
+  - code: MALAI_SOYA_CHAAP
+    name: Malai Soya Chaap
+    category: STARTER_VEG
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: MALAI_PANEER_TIKKA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 15,
+         recipe: [{ref: SOYA_CHAAP, qty: 250}, {ref: PREP_MALAI_MARINADE, qty: 70}, {ref: BUTTER, qty: 12}, {ref: CORIANDER, qty: 5}]}
+
+  - code: TANDOORI_BROCCOLI
+    name: Tandoori Broccoli
+    category: STARTER_VEG
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: MUSHROOM_TIKKA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 13,
+         recipe: [{ref: BROCCOLI, qty: 220}, {ref: PREP_MALAI_MARINADE, qty: 60}, {ref: BUTTER, qty: 10}, {ref: LEMON, qty: 0.25}]}
+
+  - code: CORN_CHEESE_BALLS
+    name: Corn Cheese Balls
+    category: STARTER_VEG
+    food_type: veg
+    station: chinese
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full (6 pc), prep_minutes: 12,
+         recipe: [{ref: CORN_KERNELS, qty: 80}, {ref: CHEESE, qty: 60}, {ref: POTATO, qty: 80}, {ref: MAIDA, qty: 20},
+                  {ref: CORNFLOUR, qty: 20}, {ref: BREAD_CRUMBS, qty: 40}, {ref: GRNCHILLI, qty: 4}, {ref: BLACK_PEPPER, qty: 1},
+                  {ref: SALT, qty: 3}, {ref: OIL, qty: 70}, {ref: MAYO, qty: 20}]}
+
+  - code: VEG_CUTLET
+    name: Veg Cutlet
+    category: STARTER_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: ALOO_TIKKI
+    variants:
+      - {code: FULL, name: Full (2 pc), prep_minutes: 10,
+         recipe: [{ref: POTATO, qty: 120}, {ref: CARROT, qty: 30}, {ref: BEANS, qty: 30}, {ref: PEAS, qty: 30},
+                  {ref: BREAD_CRUMBS, qty: 40}, {ref: CORNFLOUR, qty: 15}, {ref: GRNCHILLI, qty: 4}, {ref: GARAMMSL, qty: 2},
+                  {ref: SALT, qty: 3}, {ref: OIL, qty: 50}, {ref: KETCHUP, qty: 20}]}
+
+  # ================= NON-VEG STARTERS (library) =================
+  - code: TANDOORI_CHICKEN
+    name: Tandoori Chicken
+    aliases: [Tandoori Murgh]
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: tandoor
+    confidence: derived
+    basis: CHICKEN_TIKKA
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 22,
+         recipe: [{ref: CHKN_WHOLE, qty: 450}, {ref: PREP_TANDMARINADE, qty: 100}, {ref: BUTTER, qty: 12}, {ref: ONION, qty: 30},
+                  {ref: LEMON, qty: 0.25}, {ref: CHAAT_MSL, qty: 1}]}
+      - {code: FULL, name: Full, prep_minutes: 25,
+         recipe: [{ref: CHKN_WHOLE, qty: 900}, {ref: PREP_TANDMARINADE, qty: 200}, {ref: BUTTER, qty: 20}, {ref: ONION, qty: 50},
+                  {ref: LEMON, qty: 0.5}, {ref: CHAAT_MSL, qty: 2}]}
+
+  - code: CHICKEN_MALAI_TIKKA
+    name: Chicken Malai Tikka
+    aliases: [Murgh Malai Tikka]
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: tandoor
+    confidence: derived
+    basis: CHICKEN_TIKKA
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 15,
+         recipe: [{ref: CHKN_BONELESS, qty: 140}, {ref: PREP_MALAI_MARINADE, qty: 45}, {ref: BUTTER, qty: 10}, {ref: ONION, qty: 25},
+                  {ref: LEMON, qty: 0.25}]}
+      - {code: FULL, name: Full, prep_minutes: 17,
+         recipe: [{ref: CHKN_BONELESS, qty: 260}, {ref: PREP_MALAI_MARINADE, qty: 80}, {ref: BUTTER, qty: 15}, {ref: ONION, qty: 40},
+                  {ref: LEMON, qty: 0.25}, {ref: CORIANDER, qty: 5}]}
+
+  - code: CHICKEN_HARIYALI_TIKKA
+    name: Chicken Hariyali Tikka
+    aliases: [Murgh Pahadi Tikka]
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: tandoor
+    confidence: derived
+    basis: CHICKEN_TIKKA
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 15,
+         recipe: [{ref: CHKN_BONELESS, qty: 140}, {ref: PREP_HARIYALI_MARINADE, qty: 45}, {ref: BUTTER, qty: 10}, {ref: ONION, qty: 25},
+                  {ref: LEMON, qty: 0.25}]}
+      - {code: FULL, name: Full, prep_minutes: 17,
+         recipe: [{ref: CHKN_BONELESS, qty: 260}, {ref: PREP_HARIYALI_MARINADE, qty: 80}, {ref: BUTTER, qty: 15}, {ref: ONION, qty: 40},
+                  {ref: LEMON, qty: 0.25}]}
+
+  - code: CHICKEN_ACHARI_TIKKA
+    name: Chicken Achari Tikka
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: tandoor
+    confidence: derived
+    basis: CHICKEN_TIKKA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 17,
+         recipe: [{ref: PREP_CHKN_TIKKA, qty: 300}, {ref: PICKLE_MSL, qty: 8}, {ref: ONION, qty: 55}, {ref: BUTTER, qty: 18},
+                  {ref: LEMON, qty: 0.5}, {ref: CORIANDER, qty: 6}]}
+
+  - code: CHICKEN_SEEKH_KABAB
+    name: Chicken Seekh Kabab
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: tandoor
+    confidence: estimated
+    variants:
+      - {code: HALF, name: Half (2 pc), prep_minutes: 14,
+         recipe: [{ref: PREP_SEEKH_CHKN, qty: 140}, {ref: BUTTER, qty: 8}, {ref: ONION, qty: 25}, {ref: LEMON, qty: 0.25},
+                  {ref: PREP_MINT_CHUTNEY, qty: 20}, {ref: CHAAT_MSL, qty: 1}]}
+      - {code: FULL, name: Full (4 pc), prep_minutes: 16,
+         recipe: [{ref: PREP_SEEKH_CHKN, qty: 280}, {ref: BUTTER, qty: 15}, {ref: ONION, qty: 40}, {ref: LEMON, qty: 0.25},
+                  {ref: PREP_MINT_CHUTNEY, qty: 30}, {ref: CHAAT_MSL, qty: 2}]}
+
+  - code: MUTTON_SEEKH_KABAB
+    name: Mutton Seekh Kabab
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: tandoor
+    confidence: estimated
+    basis: CHICKEN_SEEKH_KABAB
+    variants:
+      - {code: HALF, name: Half (2 pc), prep_minutes: 15,
+         recipe: [{ref: PREP_SEEKH_MUTTON, qty: 140}, {ref: BUTTER, qty: 8}, {ref: ONION, qty: 25}, {ref: LEMON, qty: 0.25},
+                  {ref: PREP_MINT_CHUTNEY, qty: 20}, {ref: CHAAT_MSL, qty: 1}]}
+      - {code: FULL, name: Full (4 pc), prep_minutes: 17,
+         recipe: [{ref: PREP_SEEKH_MUTTON, qty: 280}, {ref: BUTTER, qty: 15}, {ref: ONION, qty: 40}, {ref: LEMON, qty: 0.25},
+                  {ref: PREP_MINT_CHUTNEY, qty: 30}, {ref: CHAAT_MSL, qty: 2}]}
+
+  - code: CHICKEN_RESHMI_KABAB
+    name: Chicken Reshmi Kabab
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: tandoor
+    confidence: derived
+    basis: CHICKEN_MALAI_TIKKA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 17,
+         recipe: [{ref: CHKN_BONELESS, qty: 260}, {ref: PREP_MALAI_MARINADE, qty: 60}, {ref: EGG, qty: 0.5}, {ref: CASHEW, qty: 15},
+                  {ref: BUTTER, qty: 15}, {ref: ONION, qty: 40}, {ref: LEMON, qty: 0.25}]}
+
+  - code: TANGDI_KABAB
+    name: Tangdi Kabab
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: tandoor
+    confidence: derived
+    basis: TANDOORI_CHICKEN
+    variants:
+      - {code: FULL, name: Full (4 pc), prep_minutes: 22,
+         recipe: [{ref: CHKN_CURRCUT, qty: 480}, {ref: PREP_TANDMARINADE, qty: 120}, {ref: BUTTER, qty: 15}, {ref: ONION, qty: 40},
+                  {ref: LEMON, qty: 0.5}, {ref: CHAAT_MSL, qty: 2}]}
+
+  - code: CHICKEN_LOLLIPOP
+    name: Chicken Lollipop
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: chinese
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full (6 pc), prep_minutes: 14,
+         recipe: [{ref: CHKN_WINGS, qty: 420}, {ref: CORNFLOUR, qty: 50}, {ref: MAIDA, qty: 30}, {ref: EGG, qty: 1},
+                  {ref: PREP_GINGARLIC, qty: 12}, {ref: CHILLIPWD, qty: 6}, {ref: SOYSAUCE, qty: 10}, {ref: CHILLISAUCE, qty: 20},
+                  {ref: SALT, qty: 3}, {ref: OIL, qty: 100}, {ref: SPRONION, qty: 10}]}
+
+  - code: FISH_TIKKA
+    name: Fish Tikka
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: tandoor
+    confidence: derived
+    basis: CHICKEN_TIKKA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 16,
+         recipe: [{ref: FISH_SURMAI, qty: 260}, {ref: PREP_TANDMARINADE, qty: 60}, {ref: AJWAIN, qty: 1}, {ref: BUTTER, qty: 15},
+                  {ref: LEMON, qty: 0.5}, {ref: ONION, qty: 40}]}
+
+  - code: SURMAI_FRY
+    name: Surmai Fry
+    aliases: [Fish Fry, Rava Fish Fry]
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full (2 pc), prep_minutes: 14,
+         recipe: [{ref: FISH_SURMAI, qty: 280}, {ref: MALVANI_MSL, qty: 12}, {ref: CHILLIPWD, qty: 5}, {ref: TURMERIC, qty: 2},
+                  {ref: PREP_GINGARLIC, qty: 12}, {ref: RAVA, qty: 40}, {ref: OIL, qty: 70}, {ref: LEMON, qty: 0.5}, {ref: SALT, qty: 3}]}
+
+  - code: FISH_KOLIWADA
+    name: Fish Koliwada
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: chinese
+    confidence: derived
+    basis: PRAWN_KOLIWADA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: FISH_BASA, qty: 200}, {ref: CORNFLOUR, qty: 45}, {ref: MAIDA, qty: 15}, {ref: EGG, qty: 0.5},
+                  {ref: CHILLIPWD, qty: 7}, {ref: AJWAIN, qty: 1}, {ref: PREP_GINGARLIC, qty: 10}, {ref: OIL, qty: 100},
+                  {ref: LEMON, qty: 0.5}]}
+
+  - code: AMRITSARI_FISH
+    name: Amritsari Fish
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: FISH_KOLIWADA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: FISH_BASA, qty: 220}, {ref: BESAN, qty: 60}, {ref: AJWAIN, qty: 2}, {ref: CHILLIPWD, qty: 6},
+                  {ref: PREP_GINGARLIC, qty: 12}, {ref: CURD, qty: 30}, {ref: LEMON, qty: 0.5}, {ref: CHAAT_MSL, qty: 2},
+                  {ref: SALT, qty: 3}, {ref: OIL, qty: 100}]}
+
+  - code: TANDOORI_PRAWN
+    name: Tandoori Prawns
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: tandoor
+    confidence: derived
+    basis: FISH_TIKKA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: PRAWN, qty: 220}, {ref: PREP_TANDMARINADE, qty: 60}, {ref: BUTTER, qty: 15}, {ref: LEMON, qty: 0.5},
+                  {ref: ONION, qty: 30}]}
+
+  - code: CHICKEN_PAKODA
+    name: Chicken Pakoda
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: estimated
+    basis: PANEER_PAKODA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: CHKN_BONELESS, qty: 220}, {ref: BESAN, qty: 70}, {ref: CORNFLOUR, qty: 20}, {ref: EGG, qty: 0.5},
+                  {ref: PREP_GINGARLIC, qty: 12}, {ref: CHILLIPWD, qty: 6}, {ref: AJWAIN, qty: 1}, {ref: SALT, qty: 3},
+                  {ref: OIL, qty: 90}, {ref: PREP_MINT_CHUTNEY, qty: 25}]}
+
+  - code: CHICKEN_SUKKA
+    name: Chicken Sukka
+    aliases: [Chicken Sukha, Kombdi Sukka]
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 16,
+         recipe: [{ref: CHKN_CURRCUT, qty: 300}, {ref: ONION, qty: 120}, {ref: COCONUT, qty: 40}, {ref: MALVANI_MSL, qty: 12},
+                  {ref: PREP_GINGARLIC, qty: 15}, {ref: CHILLIPWD, qty: 5}, {ref: GARAMMSL, qty: 3}, {ref: OIL, qty: 30},
+                  {ref: CURRY_LEAF, qty: 3}, {ref: CORIANDER, qty: 5}, {ref: SALT, qty: 4}]}
+
+  - code: MUTTON_SUKKA
+    name: Mutton Sukka
+    aliases: [Mutton Sukha]
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: estimated
+    basis: CHICKEN_SUKKA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 24,
+         recipe: [{ref: MUTTON, qty: 250}, {ref: ONION, qty: 120}, {ref: COCONUT, qty: 40}, {ref: MALVANI_MSL, qty: 12},
+                  {ref: PREP_GINGARLIC, qty: 15}, {ref: CHILLIPWD, qty: 5}, {ref: GARAMMSL, qty: 3}, {ref: OIL, qty: 30},
+                  {ref: CURRY_LEAF, qty: 3}, {ref: CORIANDER, qty: 5}, {ref: SALT, qty: 4}]}
+
+  - code: PEPPER_CHICKEN_DRY
+    name: Pepper Chicken Dry
+    aliases: [Chicken Kali Mirch Dry]
+    category: STARTER_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: CHKN_BONELESS, qty: 220}, {ref: ONION, qty: 80}, {ref: BLACK_PEPPER, qty: 6}, {ref: CURRY_LEAF, qty: 4},
+                  {ref: PREP_GINGARLIC, qty: 15}, {ref: DRY_CHILLI, qty: 3}, {ref: CORIANDPWD, qty: 4}, {ref: OIL, qty: 30},
+                  {ref: SALT, qty: 3}, {ref: LEMON, qty: 0.25}]}
+
+  # ================= VEG MAIN COURSE (library) =================
+  - code: PANEER_TIKKA_MASALA
+    name: Paneer Tikka Masala
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: CHICKEN_TIKKA_MASALA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: PREP_MAKHANI, qty: 200}, {ref: PREP_YELLOW, qty: 90}, {ref: PANEER, qty: 170}, {ref: PREP_TANDMARINADE, qty: 40},
+                  {ref: CAPSICUM, qty: 50}, {ref: ONION, qty: 40}, {ref: BUTTER, qty: 18}]}
+
+  - code: SHAHI_PANEER
+    name: Shahi Paneer
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: PANEER_BUTTER_MASALA
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 9,
+         recipe: [{ref: PREP_WHITE, qty: 145}, {ref: PANEER, qty: 110}, {ref: CREAM, qty: 15}, {ref: BUTTER, qty: 10}, {ref: CASHEW, qty: 6}]}
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: PREP_WHITE, qty: 230}, {ref: PANEER, qty: 180}, {ref: CREAM, qty: 25}, {ref: BUTTER, qty: 15}, {ref: CASHEW, qty: 10},
+                  {ref: CARDAMOM, qty: 0.5}, {ref: KASURI, qty: 1}]}
+
+  - code: PANEER_LABABDAR
+    name: Paneer Lababdar
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: PANEER_BUTTER_MASALA
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 10,
+         recipe: [{ref: PREP_MAKHANI, qty: 110}, {ref: PREP_YELLOW, qty: 50}, {ref: PANEER, qty: 110}, {ref: ONION, qty: 25},
+                  {ref: CAPSICUM, qty: 20}, {ref: BUTTER, qty: 10}, {ref: CREAM, qty: 12}, {ref: KASURI, qty: 1}]}
+      - {code: FULL, name: Full, prep_minutes: 11,
+         recipe: [{ref: PREP_MAKHANI, qty: 180}, {ref: PREP_YELLOW, qty: 80}, {ref: PANEER, qty: 180}, {ref: ONION, qty: 40},
+                  {ref: CAPSICUM, qty: 30}, {ref: BUTTER, qty: 15}, {ref: CREAM, qty: 20}, {ref: KASURI, qty: 2}, {ref: CORIANDER, qty: 4}]}
+
+  - code: PANEER_DO_PYAZA
+    name: Paneer Do Pyaza
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: KADAI_PANEER
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 11,
+         recipe: [{ref: PREP_YELLOW, qty: 220}, {ref: PANEER, qty: 170}, {ref: ONION, qty: 140}, {ref: CAPSICUM, qty: 40},
+                  {ref: OIL, qty: 20}, {ref: GARAMMSL, qty: 3}, {ref: KASURI, qty: 2}, {ref: CORIANDER, qty: 5}]}
+
+  - code: PANEER_BHURJI
+    name: Paneer Bhurji
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: PANEER, qty: 200}, {ref: ONION, qty: 80}, {ref: TOMATO, qty: 80}, {ref: CAPSICUM, qty: 40},
+                  {ref: GRNCHILLI, qty: 6}, {ref: PREP_GINGARLIC, qty: 10}, {ref: BUTTER, qty: 20}, {ref: TURMERIC, qty: 1},
+                  {ref: CHILLIPWD, qty: 3}, {ref: GARAMMSL, qty: 2}, {ref: SALT, qty: 4}, {ref: CORIANDER, qty: 6}]}
+
+  - code: MATAR_PANEER
+    name: Matar Paneer
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: KADAI_PANEER
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: PREP_YELLOW, qty: 240}, {ref: PANEER, qty: 140}, {ref: PEAS, qty: 80}, {ref: OIL, qty: 15},
+                  {ref: CREAM, qty: 15}, {ref: GARAMMSL, qty: 3}, {ref: CORIANDER, qty: 4}]}
+
+  - code: PANEER_KOLHAPURI
+    name: Paneer Kolhapuri
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: VEG_KOLHAPURI
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: PREP_YELLOW, qty: 240}, {ref: PANEER, qty: 170}, {ref: ONION, qty: 40}, {ref: COCONUT, qty: 15},
+                  {ref: CHILLIPWD, qty: 6}, {ref: MALVANI_MSL, qty: 6}, {ref: OIL, qty: 25}, {ref: CORIANDER, qty: 5}]}
+
+  - code: METHI_MALAI_MATAR
+    name: Methi Malai Matar
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: PREP_WHITE, qty: 220}, {ref: PEAS, qty: 100}, {ref: KASURI, qty: 6}, {ref: CREAM, qty: 30},
+                  {ref: BUTTER, qty: 15}, {ref: GRNCHILLI, qty: 4}, {ref: SUGAR, qty: 3}, {ref: CORIANDER, qty: 4}]}
+
+  - code: VEG_JAIPURI
+    name: Veg Jaipuri
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: VEG_KOLHAPURI
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: PREP_YELLOW, qty: 220}, {ref: CAULI, qty: 50}, {ref: CARROT, qty: 40}, {ref: BEANS, qty: 40},
+                  {ref: PEAS, qty: 40}, {ref: CAPSICUM, qty: 40}, {ref: PANEER, qty: 40}, {ref: POTATO, qty: 40},
+                  {ref: OIL, qty: 25}, {ref: GARAMMSL, qty: 3}, {ref: CREAM, qty: 15}]}
+
+  - code: MIX_VEG
+    name: Mix Veg
+    aliases: [Mixed Vegetable, Veg Masala]
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: VEG_KOLHAPURI
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: PREP_YELLOW, qty: 220}, {ref: CAULI, qty: 60}, {ref: CARROT, qty: 50}, {ref: BEANS, qty: 45},
+                  {ref: PEAS, qty: 40}, {ref: POTATO, qty: 60}, {ref: CAPSICUM, qty: 30}, {ref: OIL, qty: 25},
+                  {ref: GARAMMSL, qty: 3}, {ref: CORIANDER, qty: 4}]}
+
+  - code: VEG_HANDI
+    name: Veg Handi
+    aliases: [Veg Diwani Handi]
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: MIX_VEG
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: PREP_YELLOW, qty: 180}, {ref: PREP_MAKHANI, qty: 60}, {ref: CAULI, qty: 50}, {ref: CARROT, qty: 40},
+                  {ref: BEANS, qty: 40}, {ref: PEAS, qty: 35}, {ref: POTATO, qty: 40}, {ref: PANEER, qty: 40},
+                  {ref: CREAM, qty: 15}, {ref: OIL, qty: 20}, {ref: GARAMMSL, qty: 3}, {ref: KASURI, qty: 2}]}
+
+  - code: ALOO_GOBI
+    name: Aloo Gobi
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: POTATO, qty: 180}, {ref: CAULI, qty: 180}, {ref: ONION, qty: 50}, {ref: TOMATO, qty: 50},
+                  {ref: PREP_GINGARLIC, qty: 10}, {ref: OIL, qty: 30}, {ref: TURMERIC, qty: 2}, {ref: CHILLIPWD, qty: 3},
+                  {ref: CORIANDPWD, qty: 4}, {ref: CUMIN, qty: 2}, {ref: GARAMMSL, qty: 2}, {ref: SALT, qty: 4}, {ref: CORIANDER, qty: 5}]}
+
+  - code: ALOO_MATAR
+    name: Aloo Matar
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: CHANA_MASALA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 9,
+         recipe: [{ref: PREP_YELLOW, qty: 200}, {ref: POTATO, qty: 180}, {ref: PEAS, qty: 80}, {ref: OIL, qty: 15},
+                  {ref: GARAMMSL, qty: 2}, {ref: CORIANDER, qty: 4}]}
+
+  - code: JEERA_ALOO
+    name: Jeera Aloo
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 9,
+         recipe: [{ref: POTATO, qty: 280}, {ref: CUMIN, qty: 5}, {ref: OIL, qty: 30}, {ref: GRNCHILLI, qty: 5},
+                  {ref: TURMERIC, qty: 1}, {ref: CHILLIPWD, qty: 2}, {ref: AMCHUR, qty: 2}, {ref: SALT, qty: 4},
+                  {ref: CORIANDER, qty: 5}, {ref: LEMON, qty: 0.25}]}
+
+  - code: BHINDI_MASALA
+    name: Bhindi Masala
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: BHINDI, qty: 260}, {ref: ONION, qty: 80}, {ref: TOMATO, qty: 60}, {ref: PREP_GINGARLIC, qty: 10},
+                  {ref: OIL, qty: 40}, {ref: TURMERIC, qty: 2}, {ref: CHILLIPWD, qty: 4}, {ref: CORIANDPWD, qty: 5},
+                  {ref: AMCHUR, qty: 3}, {ref: GARAMMSL, qty: 2}, {ref: SALT, qty: 4}]}
+
+  - code: BHINDI_DO_PYAZA
+    name: Bhindi Do Pyaza
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: BHINDI_MASALA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: BHINDI, qty: 240}, {ref: ONION, qty: 150}, {ref: TOMATO, qty: 40}, {ref: PREP_GINGARLIC, qty: 10},
+                  {ref: OIL, qty: 40}, {ref: TURMERIC, qty: 2}, {ref: CHILLIPWD, qty: 4}, {ref: CORIANDPWD, qty: 5},
+                  {ref: AMCHUR, qty: 3}, {ref: SALT, qty: 4}]}
+
+  - code: BAINGAN_BHARTA
+    name: Baingan Bharta
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: BAINGAN, qty: 400}, {ref: ONION, qty: 80}, {ref: TOMATO, qty: 80}, {ref: GRNCHILLI, qty: 6},
+                  {ref: PREP_GINGARLIC, qty: 10}, {ref: OIL, qty: 30}, {ref: PEAS, qty: 30}, {ref: CHILLIPWD, qty: 3},
+                  {ref: CORIANDPWD, qty: 4}, {ref: GARAMMSL, qty: 2}, {ref: SALT, qty: 4}, {ref: CORIANDER, qty: 6}]}
+
+  - code: DUM_ALOO
+    name: Dum Aloo
+    aliases: [Kashmiri Dum Aloo]
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: POTATO, qty: 260}, {ref: PREP_MAKHANI, qty: 120}, {ref: PREP_YELLOW, qty: 100}, {ref: CURD, qty: 40},
+                  {ref: OIL, qty: 40}, {ref: KASURI, qty: 2}, {ref: GARAMMSL, qty: 2}, {ref: CORIANDER, qty: 4}]}
+
+  - code: DAL_TADKA
+    name: Dal Tadka
+    aliases: [Yellow Dal Tadka]
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 6,
+         recipe: [{ref: PREP_DAL_BOILED, qty: 200}, {ref: GHEE, qty: 12}, {ref: CUMIN, qty: 2}, {ref: GARLIC, qty: 6},
+                  {ref: DRY_CHILLI, qty: 1}, {ref: ONION, qty: 20}, {ref: TOMATO, qty: 20}, {ref: CHILLIPWD, qty: 1}, {ref: CORIANDER, qty: 3}]}
+      - {code: FULL, name: Full, prep_minutes: 7,
+         recipe: [{ref: PREP_DAL_BOILED, qty: 320}, {ref: GHEE, qty: 20}, {ref: CUMIN, qty: 3}, {ref: GARLIC, qty: 10},
+                  {ref: DRY_CHILLI, qty: 2}, {ref: ONION, qty: 30}, {ref: TOMATO, qty: 30}, {ref: CHILLIPWD, qty: 2},
+                  {ref: HING, qty: 0.3}, {ref: CORIANDER, qty: 4}]}
+
+  - code: DAL_FRY
+    name: Dal Fry
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: DAL_TADKA
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 6,
+         recipe: [{ref: PREP_DAL_BOILED, qty: 200}, {ref: BUTTER, qty: 10}, {ref: OIL, qty: 6}, {ref: ONION, qty: 30},
+                  {ref: TOMATO, qty: 25}, {ref: GRNCHILLI, qty: 3}, {ref: PREP_GINGARLIC, qty: 5}, {ref: CUMIN, qty: 1},
+                  {ref: GARAMMSL, qty: 1}, {ref: CORIANDER, qty: 3}]}
+      - {code: FULL, name: Full, prep_minutes: 7,
+         recipe: [{ref: PREP_DAL_BOILED, qty: 320}, {ref: BUTTER, qty: 15}, {ref: OIL, qty: 10}, {ref: ONION, qty: 50},
+                  {ref: TOMATO, qty: 40}, {ref: GRNCHILLI, qty: 4}, {ref: PREP_GINGARLIC, qty: 8}, {ref: CUMIN, qty: 2},
+                  {ref: GARAMMSL, qty: 2}, {ref: CORIANDER, qty: 4}]}
+
+  - code: CHOLE_MASALA
+    name: Punjabi Chole
+    aliases: [Chole Masala, Amritsari Chole, Pindi Chole]
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: PREP_CHOLE_BASE, qty: 330}, {ref: ONION, qty: 30}, {ref: GINGER, qty: 5}, {ref: GRNCHILLI, qty: 4},
+                  {ref: GHEE, qty: 10}, {ref: CORIANDER, qty: 4}, {ref: LEMON, qty: 0.25}]}
+
+  - code: RAJMA_MASALA
+    name: Rajma Masala
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: CHOLE_MASALA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: PREP_RAJMA_BASE, qty: 330}, {ref: BUTTER, qty: 10}, {ref: ONION, qty: 20}, {ref: CORIANDER, qty: 4}]}
+
+  - code: KADHI_PAKODA
+    name: Kadhi Pakoda
+    aliases: [Punjabi Kadhi]
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: CURD, qty: 250}, {ref: BESAN, qty: 60}, {ref: ONION, qty: 40}, {ref: OIL, qty: 40}, {ref: GHEE, qty: 8},
+                  {ref: TURMERIC, qty: 2}, {ref: METHI_SEED, qty: 1}, {ref: MUSTARD_SEED, qty: 1}, {ref: CUMIN, qty: 2},
+                  {ref: DRY_CHILLI, qty: 2}, {ref: CURRY_LEAF, qty: 2}, {ref: HING, qty: 0.3}, {ref: GRNCHILLI, qty: 4},
+                  {ref: CHILLIPWD, qty: 2}, {ref: SALT, qty: 4}]}
+
+  - code: MUSHROOM_MASALA
+    name: Mushroom Masala
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: KADAI_PANEER
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 11,
+         recipe: [{ref: PREP_YELLOW, qty: 230}, {ref: MUSHROOM, qty: 200}, {ref: ONION, qty: 50}, {ref: CAPSICUM, qty: 40},
+                  {ref: OIL, qty: 20}, {ref: CREAM, qty: 15}, {ref: GARAMMSL, qty: 3}, {ref: CORIANDER, qty: 5}]}
+
+  - code: MUSHROOM_MATAR
+    name: Mushroom Matar
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: MATAR_PANEER
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: PREP_YELLOW, qty: 240}, {ref: MUSHROOM, qty: 160}, {ref: PEAS, qty: 80}, {ref: OIL, qty: 15},
+                  {ref: CREAM, qty: 15}, {ref: GARAMMSL, qty: 3}, {ref: CORIANDER, qty: 4}]}
+
+  - code: KADAI_MUSHROOM
+    name: Kadai Mushroom
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: KADAI_PANEER
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 11,
+         recipe: [{ref: PREP_YELLOW, qty: 230}, {ref: MUSHROOM, qty: 200}, {ref: CAPSICUM, qty: 70}, {ref: ONION, qty: 50},
+                  {ref: PREP_KADAI_MSL, qty: 6}, {ref: OIL, qty: 20}, {ref: CORIANDER, qty: 5}]}
+
+  - code: VEG_KOFTA
+    name: Veg Kofta Curry
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: MALAI_KOFTA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 13,
+         recipe: [{ref: PREP_YELLOW, qty: 200}, {ref: CABBAGE, qty: 60}, {ref: CARROT, qty: 40}, {ref: POTATO, qty: 80},
+                  {ref: BEANS, qty: 30}, {ref: BESAN, qty: 30}, {ref: CORNFLOUR, qty: 15}, {ref: OIL, qty: 40},
+                  {ref: CREAM, qty: 15}, {ref: GARAMMSL, qty: 3}, {ref: CORIANDER, qty: 4}]}
+
+  - code: NAVRATAN_KORMA
+    name: Navratan Korma
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: CHICKEN_KORMA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: PREP_WHITE, qty: 230}, {ref: CAULI, qty: 40}, {ref: CARROT, qty: 40}, {ref: BEANS, qty: 30},
+                  {ref: PEAS, qty: 30}, {ref: POTATO, qty: 40}, {ref: PANEER, qty: 40}, {ref: PINEAPPLE, qty: 20},
+                  {ref: CASHEW, qty: 15}, {ref: RAISIN, qty: 8}, {ref: CREAM, qty: 25}, {ref: CARDAMOM, qty: 1}]}
+
+  - code: KAJU_MASALA
+    name: Kaju Masala
+    aliases: [Kaju Butter Masala]
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: PANEER_BUTTER_MASALA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: PREP_MAKHANI, qty: 240}, {ref: CASHEW, qty: 90}, {ref: BUTTER, qty: 15}, {ref: CREAM, qty: 25},
+                  {ref: KASURI, qty: 2}, {ref: CORIANDER, qty: 4}]}
+
+  - code: KAJU_CURRY
+    name: Kaju Curry
+    aliases: [Kaju Korma]
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: SHAHI_PANEER
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: PREP_WHITE, qty: 230}, {ref: CASHEW, qty: 90}, {ref: CREAM, qty: 25}, {ref: BUTTER, qty: 12}, {ref: CARDAMOM, qty: 0.5}]}
+
+  - code: PAV_BHAJI
+    name: Pav Bhaji
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full (2 pav), prep_minutes: 8,
+         recipe: [{ref: PREP_BHAJI, qty: 320}, {ref: PAV, qty: 2}, {ref: BUTTER, qty: 30}, {ref: ONION, qty: 40},
+                  {ref: LEMON, qty: 0.25}, {ref: CORIANDER, qty: 5}]}
+
+  - code: MISAL_PAV
+    name: Misal Pav
+    aliases: [Kolhapuri Misal, Puneri Misal]
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full (2 pav), prep_minutes: 10,
+         recipe: [{ref: MOTH, qty: 90}, {ref: ONION, qty: 80}, {ref: TOMATO, qty: 40}, {ref: POTATO, qty: 40},
+                  {ref: GODA_MSL, qty: 6}, {ref: MALVANI_MSL, qty: 6}, {ref: PREP_GINGARLIC, qty: 10}, {ref: OIL, qty: 40},
+                  {ref: JAGGERY, qty: 5}, {ref: SEV, qty: 50}, {ref: PAV, qty: 2}, {ref: LEMON, qty: 0.25},
+                  {ref: CORIANDER, qty: 6}, {ref: SALT, qty: 4}]}
+
+  - code: PALAK_CORN
+    name: Palak Corn
+    aliases: [Corn Palak]
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: PREP_PALAK_PUREE, qty: 200}, {ref: CORN_KERNELS, qty: 120}, {ref: CREAM, qty: 25}, {ref: PREP_GINGARLIC, qty: 12},
+                  {ref: ONION, qty: 50}, {ref: BUTTER, qty: 15}, {ref: GRNCHILLI, qty: 4}, {ref: GARAMMSL, qty: 2}, {ref: SALT, qty: 3}]}
+
+  # ================= NON-VEG MAIN COURSE (library) =================
+  - code: CHICKEN_CURRY
+    name: Chicken Curry
+    aliases: [Home Style Chicken Curry, Desi Chicken Curry]
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: KADAI_CHICKEN
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 12,
+         recipe: [{ref: PREP_YELLOW, qty: 155}, {ref: CHKN_CURRCUT, qty: 185}, {ref: POTATO, qty: 40}, {ref: CURD, qty: 20},
+                  {ref: OIL, qty: 12}, {ref: GARAMMSL, qty: 2}, {ref: CORIANDER, qty: 3}]}
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: PREP_YELLOW, qty: 250}, {ref: CHKN_CURRCUT, qty: 300}, {ref: POTATO, qty: 60}, {ref: CURD, qty: 30},
+                  {ref: OIL, qty: 20}, {ref: GARAMMSL, qty: 4}, {ref: CORIANDER, qty: 5}]}
+
+  - code: CHICKEN_HANDI
+    name: Chicken Handi
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: CHICKEN_TIKKA_MASALA
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 12,
+         recipe: [{ref: PREP_YELLOW, qty: 110}, {ref: PREP_MAKHANI, qty: 50}, {ref: CHKN_CURRCUT, qty: 185}, {ref: CURD, qty: 25},
+                  {ref: CREAM, qty: 10}, {ref: KASURI, qty: 1}, {ref: GARAMMSL, qty: 2}, {ref: CORIANDER, qty: 3}]}
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: PREP_YELLOW, qty: 180}, {ref: PREP_MAKHANI, qty: 80}, {ref: CHKN_CURRCUT, qty: 300}, {ref: CURD, qty: 40},
+                  {ref: CREAM, qty: 15}, {ref: KASURI, qty: 2}, {ref: GARAMMSL, qty: 3}, {ref: CORIANDER, qty: 5}]}
+
+  - code: CHICKEN_DO_PYAZA
+    name: Chicken Do Pyaza
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: KADAI_CHICKEN
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: PREP_YELLOW, qty: 220}, {ref: CHKN_CURRCUT, qty: 300}, {ref: ONION, qty: 140}, {ref: CAPSICUM, qty: 40},
+                  {ref: OIL, qty: 25}, {ref: GARAMMSL, qty: 4}, {ref: CORIANDER, qty: 5}]}
+
+  - code: CHICKEN_LABABDAR
+    name: Chicken Lababdar
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: BUTTER_CHICKEN
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 10,
+         recipe: [{ref: PREP_MAKHANI, qty: 110}, {ref: PREP_YELLOW, qty: 50}, {ref: PREP_CHKN_TIKKA, qty: 130}, {ref: ONION, qty: 25},
+                  {ref: CAPSICUM, qty: 20}, {ref: BUTTER, qty: 10}, {ref: CREAM, qty: 12}, {ref: KASURI, qty: 1}]}
+      - {code: FULL, name: Full, prep_minutes: 11,
+         recipe: [{ref: PREP_MAKHANI, qty: 180}, {ref: PREP_YELLOW, qty: 80}, {ref: PREP_CHKN_TIKKA, qty: 220}, {ref: ONION, qty: 40},
+                  {ref: CAPSICUM, qty: 30}, {ref: BUTTER, qty: 15}, {ref: CREAM, qty: 20}, {ref: KASURI, qty: 2}]}
+
+  - code: CHICKEN_KALIMIRCH
+    name: Chicken Kali Mirch
+    aliases: [Murgh Kali Mirch, Pepper Chicken Gravy]
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: CHICKEN_KORMA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 13,
+         recipe: [{ref: PREP_WHITE, qty: 230}, {ref: CHKN_BONELESS, qty: 220}, {ref: BLACK_PEPPER, qty: 6}, {ref: CREAM, qty: 25},
+                  {ref: BUTTER, qty: 10}, {ref: CORIANDER, qty: 4}]}
+
+  - code: CHICKEN_CHETTINAD
+    name: Chicken Chettinad
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 16,
+         recipe: [{ref: CHKN_CURRCUT, qty: 300}, {ref: ONION, qty: 120}, {ref: TOMATO, qty: 80}, {ref: COCONUT, qty: 30},
+                  {ref: BLACK_PEPPER, qty: 6}, {ref: DRY_CHILLI, qty: 4}, {ref: CORIANDPWD, qty: 6}, {ref: CUMIN, qty: 2},
+                  {ref: CURRY_LEAF, qty: 4}, {ref: PREP_GINGARLIC, qty: 15}, {ref: OIL, qty: 35}, {ref: TURMERIC, qty: 2},
+                  {ref: SALT, qty: 4}, {ref: CORIANDER, qty: 5}]}
+
+  - code: METHI_CHICKEN
+    name: Methi Chicken
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: KADAI_CHICKEN
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: PREP_YELLOW, qty: 240}, {ref: CHKN_CURRCUT, qty: 300}, {ref: KASURI, qty: 8}, {ref: CREAM, qty: 20},
+                  {ref: CURD, qty: 30}, {ref: OIL, qty: 20}, {ref: GARAMMSL, qty: 3}]}
+
+  - code: CHICKEN_BHUNA
+    name: Chicken Bhuna
+    aliases: [Bhuna Murgh]
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: KADAI_CHICKEN
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 15,
+         recipe: [{ref: PREP_YELLOW, qty: 200}, {ref: CHKN_CURRCUT, qty: 300}, {ref: ONION, qty: 80}, {ref: TOMATO, qty: 60},
+                  {ref: OIL, qty: 30}, {ref: PREP_GINGARLIC, qty: 12}, {ref: GARAMMSL, qty: 4}, {ref: CHILLIPWD, qty: 4},
+                  {ref: CORIANDER, qty: 5}]}
+
+  - code: CHICKEN_MASALA
+    name: Chicken Masala
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: KADAI_CHICKEN
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 12,
+         recipe: [{ref: PREP_YELLOW, qty: 155}, {ref: CHKN_CURRCUT, qty: 185}, {ref: ONION, qty: 30}, {ref: CURD, qty: 20},
+                  {ref: OIL, qty: 12}, {ref: GARAMMSL, qty: 2}, {ref: CHILLIPWD, qty: 2}, {ref: CORIANDER, qty: 3}]}
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: PREP_YELLOW, qty: 250}, {ref: CHKN_CURRCUT, qty: 300}, {ref: ONION, qty: 50}, {ref: CURD, qty: 30},
+                  {ref: OIL, qty: 20}, {ref: GARAMMSL, qty: 4}, {ref: CHILLIPWD, qty: 4}, {ref: CORIANDER, qty: 5}]}
+
+  - code: CHICKEN_KOLHAPURI
+    name: Chicken Kolhapuri
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: KADAI_CHICKEN
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 12,
+         recipe: [{ref: PREP_YELLOW, qty: 155}, {ref: CHKN_CURRCUT, qty: 185}, {ref: ONION, qty: 40}, {ref: COCONUT, qty: 15},
+                  {ref: MALVANI_MSL, qty: 5}, {ref: CHILLIPWD, qty: 4}, {ref: OIL, qty: 18}, {ref: CORIANDER, qty: 3}]}
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: PREP_YELLOW, qty: 250}, {ref: CHKN_CURRCUT, qty: 300}, {ref: ONION, qty: 60}, {ref: COCONUT, qty: 25},
+                  {ref: MALVANI_MSL, qty: 8}, {ref: CHILLIPWD, qty: 6}, {ref: OIL, qty: 30}, {ref: CORIANDER, qty: 5}]}
+
+  - code: PALAK_CHICKEN
+    name: Palak Chicken
+    aliases: [Saag Chicken]
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: PREP_PALAK_PUREE, qty: 200}, {ref: CHKN_BONELESS, qty: 220}, {ref: ONION, qty: 60}, {ref: PREP_GINGARLIC, qty: 15},
+                  {ref: CREAM, qty: 20}, {ref: BUTTER, qty: 15}, {ref: GRNCHILLI, qty: 4}, {ref: GARAMMSL, qty: 3}, {ref: SALT, qty: 3}]}
+
+  - code: CHICKEN_AFGHANI
+    name: Chicken Afghani
+    aliases: [Afghani Murgh]
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: CHICKEN_KORMA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 13,
+         recipe: [{ref: PREP_WHITE, qty: 220}, {ref: CHKN_BONELESS, qty: 220}, {ref: PREP_MALAI_MARINADE, qty: 40}, {ref: CREAM, qty: 25},
+                  {ref: BLACK_PEPPER, qty: 2}, {ref: BUTTER, qty: 10}]}
+
+  - code: MUTTON_CURRY
+    name: Mutton Curry
+    aliases: [Home Style Mutton Curry, Gosht Curry]
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: MUTTON_ROGANJOSH
+    variants:
+      - {code: HALF, name: Half, prep_minutes: 20,
+         recipe: [{ref: PREP_YELLOW, qty: 155}, {ref: MUTTON, qty: 155}, {ref: POTATO, qty: 40}, {ref: CURD, qty: 25},
+                  {ref: OIL, qty: 15}, {ref: GARAMMSL, qty: 3}, {ref: CHILLIPWD, qty: 3}, {ref: CORIANDER, qty: 3}]}
+      - {code: FULL, name: Full, prep_minutes: 22,
+         recipe: [{ref: PREP_YELLOW, qty: 250}, {ref: MUTTON, qty: 250}, {ref: POTATO, qty: 60}, {ref: CURD, qty: 40},
+                  {ref: OIL, qty: 25}, {ref: GARAMMSL, qty: 5}, {ref: CHILLIPWD, qty: 5}, {ref: CORIANDER, qty: 5}]}
+
+  - code: MUTTON_MASALA
+    name: Mutton Masala
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: MUTTON_ROGANJOSH
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 22,
+         recipe: [{ref: PREP_YELLOW, qty: 260}, {ref: MUTTON, qty: 250}, {ref: ONION, qty: 60}, {ref: CURD, qty: 40},
+                  {ref: GHEE, qty: 20}, {ref: GARAMMSL, qty: 5}, {ref: CHILLIPWD, qty: 6}, {ref: CORIANDER, qty: 5}]}
+
+  - code: MUTTON_KOLHAPURI
+    name: Mutton Kolhapuri
+    aliases: [Tambda Rassa]
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: MUTTON_ROGANJOSH
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 22,
+         recipe: [{ref: PREP_YELLOW, qty: 260}, {ref: MUTTON, qty: 250}, {ref: ONION, qty: 60}, {ref: COCONUT, qty: 25},
+                  {ref: MALVANI_MSL, qty: 8}, {ref: CHILLIPWD, qty: 8}, {ref: OIL, qty: 30}, {ref: CORIANDER, qty: 5}]}
+
+  - code: MUTTON_KORMA
+    name: Mutton Korma
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: CHICKEN_KORMA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 22,
+         recipe: [{ref: PREP_WHITE, qty: 230}, {ref: MUTTON, qty: 250}, {ref: CREAM, qty: 30}, {ref: CASHEW, qty: 15},
+                  {ref: CARDAMOM, qty: 1}, {ref: GHEE, qty: 15}]}
+
+  - code: MUTTON_DO_PYAZA
+    name: Mutton Do Pyaza
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: CHICKEN_DO_PYAZA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 22,
+         recipe: [{ref: PREP_YELLOW, qty: 220}, {ref: MUTTON, qty: 250}, {ref: ONION, qty: 140}, {ref: CAPSICUM, qty: 40},
+                  {ref: OIL, qty: 25}, {ref: GARAMMSL, qty: 5}]}
+
+  - code: KEEMA_MATAR
+    name: Keema Matar
+    aliases: [Mutton Keema, Kheema Pav]
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 16,
+         recipe: [{ref: MUTTON_KEEMA, qty: 220}, {ref: PREP_YELLOW, qty: 150}, {ref: PEAS, qty: 60}, {ref: ONION, qty: 60},
+                  {ref: PREP_GINGARLIC, qty: 12}, {ref: OIL, qty: 25}, {ref: GARAMMSL, qty: 4}, {ref: CHILLIPWD, qty: 4},
+                  {ref: CORIANDER, qty: 5}, {ref: LEMON, qty: 0.25}]}
+
+  - code: FISH_CURRY
+    name: Fish Curry
+    aliases: [Malvani Fish Curry, Surmai Curry]
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 15,
+         recipe: [{ref: FISH_SURMAI, qty: 260}, {ref: ONION, qty: 80}, {ref: TOMATO, qty: 60}, {ref: COCONUT, qty: 60},
+                  {ref: MALVANI_MSL, qty: 12}, {ref: TAMARIND, qty: 8}, {ref: PREP_GINGARLIC, qty: 12}, {ref: TURMERIC, qty: 2},
+                  {ref: CHILLIPWD, qty: 5}, {ref: OIL, qty: 35}, {ref: CURRY_LEAF, qty: 3}, {ref: SALT, qty: 4}, {ref: CORIANDER, qty: 5}]}
+
+  - code: PRAWN_CURRY
+    name: Prawn Curry
+    aliases: [Kolambi Curry, Prawn Malvani]
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: estimated
+    basis: FISH_CURRY
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 13,
+         recipe: [{ref: PRAWN, qty: 180}, {ref: ONION, qty: 80}, {ref: TOMATO, qty: 50}, {ref: COCONUT, qty: 60},
+                  {ref: MALVANI_MSL, qty: 12}, {ref: TAMARIND, qty: 6}, {ref: PREP_GINGARLIC, qty: 12}, {ref: TURMERIC, qty: 2},
+                  {ref: CHILLIPWD, qty: 5}, {ref: OIL, qty: 35}, {ref: SALT, qty: 4}, {ref: CORIANDER, qty: 5}]}
+
+  - code: PRAWN_MASALA
+    name: Prawn Masala
+    category: MAIN_NONVEG
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: KADAI_CHICKEN
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: PREP_YELLOW, qty: 230}, {ref: PRAWN, qty: 180}, {ref: ONION, qty: 60}, {ref: CAPSICUM, qty: 40},
+                  {ref: OIL, qty: 25}, {ref: GARAMMSL, qty: 3}, {ref: CORIANDER, qty: 5}]}
+
+  - code: EGG_BHURJI
+    name: Egg Bhurji
+    aliases: [Anda Bhurji]
+    category: MAIN_NONVEG
+    food_type: egg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: EGG, qty: 3}, {ref: ONION, qty: 80}, {ref: TOMATO, qty: 60}, {ref: GRNCHILLI, qty: 6}, {ref: CAPSICUM, qty: 30},
+                  {ref: OIL, qty: 25}, {ref: TURMERIC, qty: 1}, {ref: CHILLIPWD, qty: 2}, {ref: GARAMMSL, qty: 2},
+                  {ref: SALT, qty: 3}, {ref: CORIANDER, qty: 6}]}
+
+  - code: EGG_MASALA
+    name: Egg Masala
+    aliases: [Anda Masala]
+    category: MAIN_NONVEG
+    food_type: egg
+    station: main_kitchen
+    confidence: derived
+    basis: EGG_CURRY
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: PREP_YELLOW, qty: 220}, {ref: EGG, qty: 3}, {ref: ONION, qty: 50}, {ref: CAPSICUM, qty: 30},
+                  {ref: OIL, qty: 20}, {ref: GARAMMSL, qty: 3}, {ref: CORIANDER, qty: 4}]}
+
+  # ================= RICE & BREADS (library) =================
+  - code: MUTTON_BIRYANI
+    name: Mutton Biryani
+    aliases: [Gosht Biryani, Hyderabadi Mutton Biryani]
+    category: RICE_BREAD
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: CHICKEN_BIRYANI
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 22,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 320}, {ref: MUTTON, qty: 250}, {ref: PREP_BIRISTA, qty: 40}, {ref: CURD, qty: 70},
+                  {ref: GHEE, qty: 25}, {ref: BIRYANIMSL, qty: 12}, {ref: MINT, qty: 8}, {ref: SAFFRON, qty: 0.05},
+                  {ref: PREP_GINGARLIC, qty: 15}]}
+
+  - code: EGG_BIRYANI
+    name: Egg Biryani
+    category: RICE_BREAD
+    food_type: egg
+    station: main_kitchen
+    confidence: derived
+    basis: CHICKEN_BIRYANI
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 320}, {ref: EGG, qty: 2}, {ref: PREP_YELLOW, qty: 80}, {ref: PREP_BIRISTA, qty: 35},
+                  {ref: GHEE, qty: 20}, {ref: BIRYANIMSL, qty: 10}, {ref: MINT, qty: 6}]}
+
+  - code: PANEER_BIRYANI
+    name: Paneer Biryani
+    category: RICE_BREAD
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: VEG_BIRYANI
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 15,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 320}, {ref: PANEER, qty: 120}, {ref: PREP_YELLOW, qty: 80}, {ref: CURD, qty: 40},
+                  {ref: PREP_BIRISTA, qty: 35}, {ref: GHEE, qty: 20}, {ref: BIRYANIMSL, qty: 10}, {ref: MINT, qty: 6}]}
+
+  - code: PRAWN_BIRYANI
+    name: Prawn Biryani
+    category: RICE_BREAD
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: CHICKEN_BIRYANI
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 16,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 320}, {ref: PRAWN, qty: 180}, {ref: PREP_BIRISTA, qty: 40}, {ref: CURD, qty: 60},
+                  {ref: GHEE, qty: 25}, {ref: BIRYANIMSL, qty: 12}, {ref: MINT, qty: 8}, {ref: PREP_GINGARLIC, qty: 15}]}
+
+  - code: CHICKEN_TIKKA_BIRYANI
+    name: Chicken Tikka Biryani
+    aliases: [Boneless Chicken Biryani]
+    category: RICE_BREAD
+    food_type: non_veg
+    station: main_kitchen
+    confidence: derived
+    basis: CHICKEN_BIRYANI
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 16,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 320}, {ref: PREP_CHKN_TIKKA, qty: 200}, {ref: PREP_BIRISTA, qty: 40}, {ref: CURD, qty: 50},
+                  {ref: GHEE, qty: 25}, {ref: BIRYANIMSL, qty: 12}, {ref: MINT, qty: 8}, {ref: SAFFRON, qty: 0.05}]}
+
+  - code: VEG_PULAO
+    name: Veg Pulao
+    category: RICE_BREAD
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: VEG_BIRYANI
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 300}, {ref: CARROT, qty: 40}, {ref: BEANS, qty: 30}, {ref: PEAS, qty: 40},
+                  {ref: GHEE, qty: 18}, {ref: CUMIN, qty: 3}, {ref: CARDAMOM, qty: 0.5}, {ref: CASHEW, qty: 8}]}
+
+  - code: PEAS_PULAO
+    name: Peas Pulao
+    aliases: [Matar Pulao]
+    category: RICE_BREAD
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: JEERA_RICE
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 6,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 300}, {ref: PEAS, qty: 60}, {ref: GHEE, qty: 15}, {ref: CUMIN, qty: 3}]}
+
+  - code: STEAMED_RICE
+    name: Steamed Rice
+    aliases: [Plain Rice, Sada Chawal]
+    category: RICE_BREAD
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: JEERA_RICE
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 3,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 300}, {ref: GHEE, qty: 5}]}
+
+  - code: DAL_KHICHDI
+    name: Dal Khichdi
+    category: RICE_BREAD
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: RICE_SONA, qty: 90}, {ref: DAL_MOONG, qty: 50}, {ref: GHEE, qty: 25}, {ref: ONION, qty: 30},
+                  {ref: TOMATO, qty: 40}, {ref: PEAS, qty: 20}, {ref: CUMIN, qty: 2}, {ref: TURMERIC, qty: 1},
+                  {ref: PREP_GINGARLIC, qty: 6}, {ref: HING, qty: 0.3}, {ref: SALT, qty: 4}, {ref: CORIANDER, qty: 4}]}
+
+  - code: CURD_RICE
+    name: Curd Rice
+    aliases: [Thayir Sadam, Dahi Chawal]
+    category: RICE_BREAD
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 5,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 220}, {ref: CURD, qty: 150}, {ref: MILK, qty: 30}, {ref: MUSTARD_SEED, qty: 1},
+                  {ref: CURRY_LEAF, qty: 1}, {ref: GRNCHILLI, qty: 3}, {ref: GINGER, qty: 3}, {ref: OIL, qty: 6}, {ref: SALT, qty: 3}]}
+
+  - code: PLAIN_NAAN
+    name: Plain Naan
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: BUTTER_NAAN
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 4,
+         recipe: [{ref: PREP_NAAN_DOUGH, qty: 110}, {ref: OIL, qty: 3}]}
+
+  - code: CHEESE_NAAN
+    name: Cheese Naan
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: BUTTER_NAAN
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 5,
+         recipe: [{ref: PREP_NAAN_DOUGH, qty: 110}, {ref: CHEESE, qty: 40}, {ref: BUTTER, qty: 8}]}
+
+  - code: CHEESE_GARLIC_NAAN
+    name: Cheese Garlic Naan
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: GARLIC_NAAN
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 5,
+         recipe: [{ref: PREP_NAAN_DOUGH, qty: 110}, {ref: CHEESE, qty: 40}, {ref: BUTTER, qty: 8}, {ref: GARLIC, qty: 6}, {ref: CORIANDER, qty: 3}]}
+
+  - code: KULCHA
+    name: Amritsari Kulcha
+    aliases: [Aloo Kulcha, Stuffed Kulcha]
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: BUTTER_NAAN
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 6,
+         recipe: [{ref: PREP_NAAN_DOUGH, qty: 90}, {ref: POTATO, qty: 70}, {ref: ONION, qty: 15}, {ref: GRNCHILLI, qty: 2},
+                  {ref: CORIANDER, qty: 3}, {ref: AMCHUR, qty: 1}, {ref: BUTTER, qty: 10}]}
+
+  - code: BUTTER_ROTI
+    name: Butter Roti
+    aliases: [Tandoori Butter Roti]
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: TANDOORI_ROTI
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 3,
+         recipe: [{ref: ATTA, qty: 90}, {ref: OIL, qty: 4}, {ref: SALT, qty: 1}, {ref: BUTTER, qty: 6}]}
+
+  - code: PHULKA
+    name: Phulka
+    aliases: [Chapati, Plain Roti, Tawa Roti]
+    category: RICE_BREAD
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: TANDOORI_ROTI
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 3,
+         recipe: [{ref: PREP_ATTA_DOUGH, qty: 60}, {ref: GHEE, qty: 3}]}
+
+  - code: MISSI_ROTI
+    name: Missi Roti
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: TANDOORI_ROTI
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 4,
+         recipe: [{ref: ATTA, qty: 50}, {ref: BESAN, qty: 40}, {ref: ONION, qty: 15}, {ref: KASURI, qty: 1}, {ref: AJWAIN, qty: 0.5},
+                  {ref: OIL, qty: 4}, {ref: SALT, qty: 1}, {ref: BUTTER, qty: 6}]}
+
+  - code: PLAIN_PARATHA
+    name: Plain Paratha
+    aliases: [Tawa Paratha]
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: LACHHA_PARATHA
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 5,
+         recipe: [{ref: PREP_ATTA_DOUGH, qty: 100}, {ref: GHEE, qty: 15}]}
+
+  - code: ALOO_PARATHA
+    name: Aloo Paratha
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: LACHHA_PARATHA
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 7,
+         recipe: [{ref: PREP_ATTA_DOUGH, qty: 90}, {ref: POTATO, qty: 90}, {ref: ONION, qty: 15}, {ref: GRNCHILLI, qty: 2},
+                  {ref: CORIANDER, qty: 3}, {ref: AMCHUR, qty: 1}, {ref: GARAMMSL, qty: 1}, {ref: GHEE, qty: 15}]}
+
+  - code: PANEER_PARATHA
+    name: Paneer Paratha
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    confidence: derived
+    basis: ALOO_PARATHA
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 7,
+         recipe: [{ref: PREP_ATTA_DOUGH, qty: 90}, {ref: PANEER, qty: 70}, {ref: ONION, qty: 15}, {ref: GRNCHILLI, qty: 2},
+                  {ref: CORIANDER, qty: 3}, {ref: CHILLIPWD, qty: 1}, {ref: GHEE, qty: 15}]}
+
+  - code: RUMALI_ROTI
+    name: Rumali Roti
+    aliases: [Roomali Roti]
+    category: RICE_BREAD
+    food_type: veg
+    station: tandoor
+    confidence: estimated
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 3,
+         recipe: [{ref: MAIDA, qty: 45}, {ref: ATTA, qty: 15}, {ref: OIL, qty: 3}, {ref: SALT, qty: 0.5}]}
+
+  - code: BHATURA
+    name: Bhatura
+    category: RICE_BREAD
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 5,
+         recipe: [{ref: MAIDA, qty: 90}, {ref: CURD, qty: 20}, {ref: RAVA, qty: 8}, {ref: SUGAR, qty: 2}, {ref: BAKING_PWD, qty: 1},
+                  {ref: SALT, qty: 1}, {ref: OIL, qty: 40}]}
+
+  - code: PURI
+    name: Puri
+    category: RICE_BREAD
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: BHATURA
+    variants:
+      - {code: FULL, name: Plate (4 pc), prep_minutes: 6,
+         recipe: [{ref: ATTA, qty: 120}, {ref: RAVA, qty: 10}, {ref: SALT, qty: 1}, {ref: OIL, qty: 60}]}
+
+  # ================= CHINESE (library) =================
+  - code: VEG_FRIED_RICE
+    name: Veg Fried Rice
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: derived
+    basis: SCHEZWAN_FRIED_RICE
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 300}, {ref: CABBAGE, qty: 50}, {ref: CARROT, qty: 40}, {ref: CAPSICUM, qty: 40},
+                  {ref: BEANS, qty: 25}, {ref: SPRONION, qty: 15}, {ref: SOYSAUCE, qty: 15}, {ref: VINEGAR, qty: 5},
+                  {ref: OIL, qty: 35}, {ref: BLACK_PEPPER, qty: 1}, {ref: SALT, qty: 3}]}
+
+  - code: EGG_FRIED_RICE
+    name: Egg Fried Rice
+    category: CHINESE
+    food_type: egg
+    station: chinese
+    confidence: derived
+    basis: VEG_FRIED_RICE
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 300}, {ref: EGG, qty: 2}, {ref: CABBAGE, qty: 40}, {ref: CARROT, qty: 30},
+                  {ref: CAPSICUM, qty: 30}, {ref: SPRONION, qty: 15}, {ref: SOYSAUCE, qty: 15}, {ref: VINEGAR, qty: 5},
+                  {ref: OIL, qty: 35}, {ref: BLACK_PEPPER, qty: 1}, {ref: SALT, qty: 3}]}
+
+  - code: CHICKEN_FRIED_RICE
+    name: Chicken Fried Rice
+    category: CHINESE
+    food_type: non_veg
+    station: chinese
+    confidence: derived
+    basis: VEG_FRIED_RICE
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 9,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 300}, {ref: CHKN_BONELESS, qty: 90}, {ref: EGG, qty: 1}, {ref: CABBAGE, qty: 40},
+                  {ref: CARROT, qty: 30}, {ref: CAPSICUM, qty: 30}, {ref: SPRONION, qty: 15}, {ref: SOYSAUCE, qty: 15},
+                  {ref: VINEGAR, qty: 5}, {ref: OIL, qty: 35}, {ref: BLACK_PEPPER, qty: 1}, {ref: SALT, qty: 3}]}
+
+  - code: SCHEZWAN_CHKN_FRIED_RICE
+    name: Schezwan Chicken Fried Rice
+    category: CHINESE
+    food_type: non_veg
+    station: chinese
+    confidence: derived
+    basis: SCHEZWAN_FRIED_RICE
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 9,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 300}, {ref: CHKN_BONELESS, qty: 90}, {ref: PREP_SCHEZ_SAUCE, qty: 45}, {ref: CABBAGE, qty: 40},
+                  {ref: CARROT, qty: 30}, {ref: CAPSICUM, qty: 30}, {ref: SPRONION, qty: 15}, {ref: OIL, qty: 35}]}
+
+  - code: TRIPLE_SCHEZWAN_RICE
+    name: Triple Schezwan Fried Rice
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: derived
+    basis: SCHEZWAN_FRIED_RICE
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 220}, {ref: NOODLES, qty: 100}, {ref: PREP_SCHEZ_SAUCE, qty: 80}, {ref: PREP_MANCH_BALLS, qty: 80},
+                  {ref: PREP_MANCH_SAUCE, qty: 120}, {ref: CABBAGE, qty: 40}, {ref: CARROT, qty: 30}, {ref: CAPSICUM, qty: 30},
+                  {ref: SPRONION, qty: 15}, {ref: OIL, qty: 60}]}
+
+  - code: CHICKEN_HAKKA_NOODLES
+    name: Chicken Hakka Noodles
+    category: CHINESE
+    food_type: non_veg
+    station: chinese
+    confidence: derived
+    basis: HAKKA_NOODLES
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: NOODLES, qty: 160}, {ref: CHKN_BONELESS, qty: 90}, {ref: CABBAGE, qty: 60}, {ref: CARROT, qty: 40},
+                  {ref: CAPSICUM, qty: 40}, {ref: SPRONION, qty: 20}, {ref: SOYSAUCE, qty: 25}, {ref: VINEGAR, qty: 10}, {ref: OIL, qty: 45}]}
+
+  - code: SCHEZWAN_NOODLES
+    name: Veg Schezwan Noodles
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: derived
+    basis: HAKKA_NOODLES
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 9,
+         recipe: [{ref: NOODLES, qty: 160}, {ref: PREP_SCHEZ_SAUCE, qty: 50}, {ref: CABBAGE, qty: 60}, {ref: CARROT, qty: 45},
+                  {ref: CAPSICUM, qty: 45}, {ref: SPRONION, qty: 20}, {ref: OIL, qty: 45}]}
+
+  - code: SCHEZWAN_CHKN_NOODLES
+    name: Chicken Schezwan Noodles
+    category: CHINESE
+    food_type: non_veg
+    station: chinese
+    confidence: derived
+    basis: SCHEZWAN_NOODLES
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: NOODLES, qty: 160}, {ref: CHKN_BONELESS, qty: 90}, {ref: PREP_SCHEZ_SAUCE, qty: 50}, {ref: CABBAGE, qty: 50},
+                  {ref: CARROT, qty: 40}, {ref: CAPSICUM, qty: 40}, {ref: SPRONION, qty: 20}, {ref: OIL, qty: 45}]}
+
+  - code: CHILLI_GARLIC_NOODLES
+    name: Chilli Garlic Noodles
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: derived
+    basis: HAKKA_NOODLES
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 9,
+         recipe: [{ref: NOODLES, qty: 160}, {ref: GARLIC, qty: 20}, {ref: DRY_CHILLI, qty: 4}, {ref: CHILLISAUCE, qty: 20},
+                  {ref: SOYSAUCE, qty: 20}, {ref: VINEGAR, qty: 8}, {ref: CABBAGE, qty: 50}, {ref: CARROT, qty: 40},
+                  {ref: CAPSICUM, qty: 40}, {ref: SPRONION, qty: 20}, {ref: OIL, qty: 45}]}
+
+  - code: MANCHURIAN_GRAVY
+    name: Veg Manchurian Gravy
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: estimated
+    basis: MANCHURIAN_DRY
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: PREP_MANCH_BALLS, qty: 180}, {ref: PREP_MANCH_SAUCE, qty: 220}, {ref: ONION, qty: 30}, {ref: CAPSICUM, qty: 30},
+                  {ref: SPRONION, qty: 15}, {ref: OIL, qty: 15}]}
+
+  - code: GOBI_MANCHURIAN
+    name: Gobi Manchurian
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: derived
+    basis: MANCHURIAN_DRY
+    variants:
+      - {code: FULL, name: Full (dry), prep_minutes: 12,
+         recipe: [{ref: CAULI, qty: 260}, {ref: CORNFLOUR, qty: 60}, {ref: MAIDA, qty: 40}, {ref: OIL, qty: 90},
+                  {ref: SOYSAUCE, qty: 20}, {ref: CHILLISAUCE, qty: 25}, {ref: KETCHUP, qty: 20}, {ref: PREP_GINGARLIC, qty: 12},
+                  {ref: ONION, qty: 40}, {ref: CAPSICUM, qty: 30}, {ref: SPRONION, qty: 15}]}
+
+  - code: PANEER_MANCHURIAN
+    name: Paneer Manchurian
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: derived
+    basis: CHILLI_PANEER
+    variants:
+      - {code: FULL, name: Full (dry), prep_minutes: 11,
+         recipe: [{ref: PANEER, qty: 240}, {ref: CORNFLOUR, qty: 45}, {ref: OIL, qty: 80}, {ref: SOYSAUCE, qty: 20},
+                  {ref: CHILLISAUCE, qty: 25}, {ref: KETCHUP, qty: 25}, {ref: PREP_GINGARLIC, qty: 15}, {ref: ONION, qty: 60},
+                  {ref: CAPSICUM, qty: 60}, {ref: SPRONION, qty: 15}]}
+
+  - code: CHICKEN_MANCHURIAN
+    name: Chicken Manchurian
+    category: CHINESE
+    food_type: non_veg
+    station: chinese
+    confidence: derived
+    basis: CHILLI_CHICKEN
+    variants:
+      - {code: FULL, name: Full (dry), prep_minutes: 12,
+         recipe: [{ref: CHKN_BONELESS, qty: 220}, {ref: CORNFLOUR, qty: 45}, {ref: EGG, qty: 0.5}, {ref: OIL, qty: 80},
+                  {ref: SOYSAUCE, qty: 20}, {ref: CHILLISAUCE, qty: 25}, {ref: KETCHUP, qty: 25}, {ref: PREP_GINGARLIC, qty: 15},
+                  {ref: ONION, qty: 60}, {ref: CAPSICUM, qty: 60}, {ref: SPRONION, qty: 15}]}
+
+  - code: CHILLI_MUSHROOM
+    name: Chilli Mushroom
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: derived
+    basis: CHILLI_PANEER
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 11,
+         recipe: [{ref: MUSHROOM, qty: 220}, {ref: CAPSICUM, qty: 80}, {ref: ONION, qty: 70}, {ref: CORNFLOUR, qty: 45},
+                  {ref: SOYSAUCE, qty: 25}, {ref: CHILLISAUCE, qty: 30}, {ref: OIL, qty: 80}, {ref: SPRONION, qty: 15},
+                  {ref: PREP_GINGARLIC, qty: 15}]}
+
+  - code: CHILLI_PRAWN
+    name: Chilli Prawns
+    category: CHINESE
+    food_type: non_veg
+    station: chinese
+    confidence: derived
+    basis: CHILLI_CHICKEN
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: PRAWN, qty: 180}, {ref: CAPSICUM, qty: 70}, {ref: ONION, qty: 60}, {ref: CORNFLOUR, qty: 45},
+                  {ref: SOYSAUCE, qty: 25}, {ref: CHILLISAUCE, qty: 30}, {ref: OIL, qty: 80}, {ref: EGG, qty: 0.5}, {ref: SPRONION, qty: 15}]}
+
+  - code: HONEY_CHILLI_POTATO
+    name: Honey Chilli Potato
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: POTATO, qty: 260}, {ref: CORNFLOUR, qty: 50}, {ref: OIL, qty: 90}, {ref: HONEY, qty: 25},
+                  {ref: CHILLISAUCE, qty: 25}, {ref: KETCHUP, qty: 20}, {ref: SOYSAUCE, qty: 10}, {ref: SESAME, qty: 5},
+                  {ref: GARLIC, qty: 10}, {ref: SPRONION, qty: 15}]}
+
+  - code: CRISPY_CORN
+    name: Crispy Corn
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: derived
+    basis: VEG_CRISPY
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: CORN_KERNELS, qty: 200}, {ref: CORNFLOUR, qty: 50}, {ref: MAIDA, qty: 20}, {ref: OIL, qty: 70},
+                  {ref: ONION, qty: 40}, {ref: CAPSICUM, qty: 40}, {ref: SPRONION, qty: 15}, {ref: CHAAT_MSL, qty: 3},
+                  {ref: CHILLIPWD, qty: 3}, {ref: SALT, qty: 3}, {ref: LEMON, qty: 0.25}]}
+
+  - code: DRAGON_CHICKEN
+    name: Dragon Chicken
+    category: CHINESE
+    food_type: non_veg
+    station: chinese
+    confidence: derived
+    basis: CHILLI_CHICKEN
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 13,
+         recipe: [{ref: CHKN_BONELESS, qty: 220}, {ref: CORNFLOUR, qty: 45}, {ref: EGG, qty: 0.5}, {ref: OIL, qty: 80},
+                  {ref: CASHEW, qty: 20}, {ref: DRY_CHILLI, qty: 4}, {ref: CHILLISAUCE, qty: 25}, {ref: KETCHUP, qty: 25},
+                  {ref: SOYSAUCE, qty: 15}, {ref: HONEY, qty: 10}, {ref: CAPSICUM, qty: 50}, {ref: ONION, qty: 40}, {ref: SPRONION, qty: 15}]}
+
+  - code: CHICKEN_HOT_GARLIC
+    name: Chicken in Hot Garlic Sauce
+    category: CHINESE
+    food_type: non_veg
+    station: chinese
+    confidence: derived
+    basis: SCHEZWAN_CHICKEN
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: CHKN_BONELESS, qty: 220}, {ref: PREP_HOTGARLIC_SAUCE, qty: 200}, {ref: CORNFLOUR, qty: 40}, {ref: CAPSICUM, qty: 50},
+                  {ref: ONION, qty: 40}, {ref: OIL, qty: 60}, {ref: SPRONION, qty: 15}]}
+
+  - code: VEG_HOT_GARLIC
+    name: Veg in Hot Garlic Sauce
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: derived
+    basis: CHICKEN_HOT_GARLIC
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 11,
+         recipe: [{ref: PREP_HOTGARLIC_SAUCE, qty: 200}, {ref: CAULI, qty: 60}, {ref: CARROT, qty: 40}, {ref: BEANS, qty: 30},
+                  {ref: MUSHROOM, qty: 40}, {ref: BROCCOLI, qty: 30}, {ref: CAPSICUM, qty: 40}, {ref: CORNFLOUR, qty: 10}, {ref: OIL, qty: 25}]}
+
+  - code: AMERICAN_CHOPSUEY
+    name: American Chopsuey
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 14,
+         recipe: [{ref: NOODLES, qty: 140}, {ref: OIL, qty: 90}, {ref: KETCHUP, qty: 70}, {ref: CHILLISAUCE, qty: 15},
+                  {ref: SOYSAUCE, qty: 10}, {ref: VINEGAR, qty: 10}, {ref: SUGAR, qty: 8}, {ref: CORNFLOUR, qty: 15},
+                  {ref: CABBAGE, qty: 50}, {ref: CARROT, qty: 40}, {ref: CAPSICUM, qty: 40}, {ref: EGG, qty: 1},
+                  {ref: PREP_VEG_STOCK, qty: 120}]}
+
+  - code: VEG_SPRING_ROLL
+    name: Veg Spring Roll
+    category: CHINESE
+    food_type: veg
+    station: chinese
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full (4 pc), prep_minutes: 10,
+         recipe: [{ref: SPRINGROLL_SHEET, qty: 4}, {ref: CABBAGE, qty: 80}, {ref: CARROT, qty: 50}, {ref: CAPSICUM, qty: 30},
+                  {ref: NOODLES, qty: 30}, {ref: SPRONION, qty: 15}, {ref: SOYSAUCE, qty: 10}, {ref: BLACK_PEPPER, qty: 1},
+                  {ref: SALT, qty: 2}, {ref: MAIDA, qty: 10}, {ref: OIL, qty: 70}, {ref: CHILLISAUCE, qty: 20}]}
+
+  - code: CHICKEN_SPRING_ROLL
+    name: Chicken Spring Roll
+    category: CHINESE
+    food_type: non_veg
+    station: chinese
+    confidence: estimated
+    basis: VEG_SPRING_ROLL
+    variants:
+      - {code: FULL, name: Full (4 pc), prep_minutes: 11,
+         recipe: [{ref: SPRINGROLL_SHEET, qty: 4}, {ref: CHKN_BONELESS, qty: 80}, {ref: CABBAGE, qty: 60}, {ref: CARROT, qty: 40},
+                  {ref: SPRONION, qty: 15}, {ref: SOYSAUCE, qty: 10}, {ref: BLACK_PEPPER, qty: 1}, {ref: SALT, qty: 2},
+                  {ref: MAIDA, qty: 10}, {ref: OIL, qty: 70}, {ref: CHILLISAUCE, qty: 20}]}
+
+  # ================= SOUTH INDIAN =================
+  - code: PLAIN_DOSA
+    name: Plain Dosa
+    aliases: [Sada Dosa]
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Per dosa, prep_minutes: 6,
+         recipe: [{ref: PREP_DOSA_BATTER, qty: 120}, {ref: OIL, qty: 10}, {ref: PREP_SAMBAR, qty: 200}, {ref: PREP_COCONUT_CHUTNEY, qty: 40}]}
+
+  - code: MASALA_DOSA
+    name: Masala Dosa
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: PLAIN_DOSA
+    variants:
+      - {code: FULL, name: Per dosa, prep_minutes: 7,
+         recipe: [{ref: PREP_DOSA_BATTER, qty: 120}, {ref: POTATO, qty: 110}, {ref: ONION, qty: 30}, {ref: MUSTARD_SEED, qty: 1},
+                  {ref: TURMERIC, qty: 1}, {ref: CURRY_LEAF, qty: 1}, {ref: GRNCHILLI, qty: 3}, {ref: OIL, qty: 15},
+                  {ref: SALT, qty: 2}, {ref: PREP_SAMBAR, qty: 200}, {ref: PREP_COCONUT_CHUTNEY, qty: 40}]}
+
+  - code: MYSORE_MASALA_DOSA
+    name: Mysore Masala Dosa
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: MASALA_DOSA
+    variants:
+      - {code: FULL, name: Per dosa, prep_minutes: 8,
+         recipe: [{ref: PREP_DOSA_BATTER, qty: 120}, {ref: POTATO, qty: 110}, {ref: ONION, qty: 30}, {ref: DRY_CHILLI, qty: 3},
+                  {ref: GARLIC, qty: 6}, {ref: DAL_CHANA, qty: 8}, {ref: MUSTARD_SEED, qty: 1}, {ref: CURRY_LEAF, qty: 1},
+                  {ref: BUTTER, qty: 12}, {ref: OIL, qty: 12}, {ref: SALT, qty: 2}, {ref: PREP_SAMBAR, qty: 200}, {ref: PREP_COCONUT_CHUTNEY, qty: 40}]}
+
+  - code: PANEER_DOSA
+    name: Paneer Dosa
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: MASALA_DOSA
+    variants:
+      - {code: FULL, name: Per dosa, prep_minutes: 8,
+         recipe: [{ref: PREP_DOSA_BATTER, qty: 120}, {ref: PANEER, qty: 80}, {ref: ONION, qty: 30}, {ref: CAPSICUM, qty: 20},
+                  {ref: TOMATO, qty: 20}, {ref: PAVBHAJI_MSL, qty: 2}, {ref: BUTTER, qty: 12}, {ref: OIL, qty: 10},
+                  {ref: SALT, qty: 2}, {ref: PREP_SAMBAR, qty: 200}, {ref: PREP_COCONUT_CHUTNEY, qty: 40}]}
+
+  - code: CHEESE_DOSA
+    name: Cheese Dosa
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: PLAIN_DOSA
+    variants:
+      - {code: FULL, name: Per dosa, prep_minutes: 7,
+         recipe: [{ref: PREP_DOSA_BATTER, qty: 120}, {ref: CHEESE, qty: 50}, {ref: BUTTER, qty: 12}, {ref: OIL, qty: 8},
+                  {ref: PREP_SAMBAR, qty: 200}, {ref: PREP_COCONUT_CHUTNEY, qty: 40}]}
+
+  - code: GHEE_ROAST_DOSA
+    name: Ghee Roast Dosa
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: PLAIN_DOSA
+    variants:
+      - {code: FULL, name: Per dosa, prep_minutes: 8,
+         recipe: [{ref: PREP_DOSA_BATTER, qty: 130}, {ref: GHEE, qty: 25}, {ref: PREP_SAMBAR, qty: 200}, {ref: PREP_COCONUT_CHUTNEY, qty: 40}]}
+
+  - code: RAVA_DOSA
+    name: Rava Dosa
+    aliases: [Onion Rava Dosa]
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Per dosa, prep_minutes: 9,
+         recipe: [{ref: RAVA, qty: 50}, {ref: MAIDA, qty: 20}, {ref: RICE_SONA, qty: 20}, {ref: CURD, qty: 30}, {ref: ONION, qty: 30},
+                  {ref: GRNCHILLI, qty: 3}, {ref: CUMIN, qty: 1}, {ref: BLACK_PEPPER, qty: 1}, {ref: CURRY_LEAF, qty: 1},
+                  {ref: SALT, qty: 2}, {ref: OIL, qty: 15}, {ref: PREP_SAMBAR, qty: 200}, {ref: PREP_COCONUT_CHUTNEY, qty: 40}]}
+
+  - code: ONION_UTTAPAM
+    name: Onion Uttapam
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: PLAIN_DOSA
+    variants:
+      - {code: FULL, name: Per uttapam, prep_minutes: 8,
+         recipe: [{ref: PREP_DOSA_BATTER, qty: 160}, {ref: ONION, qty: 50}, {ref: GRNCHILLI, qty: 3}, {ref: CORIANDER, qty: 4},
+                  {ref: OIL, qty: 15}, {ref: PREP_SAMBAR, qty: 200}, {ref: PREP_COCONUT_CHUTNEY, qty: 40}]}
+
+  - code: MIX_VEG_UTTAPAM
+    name: Mix Veg Uttapam
+    aliases: [Tomato Onion Uttapam]
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: ONION_UTTAPAM
+    variants:
+      - {code: FULL, name: Per uttapam, prep_minutes: 8,
+         recipe: [{ref: PREP_DOSA_BATTER, qty: 160}, {ref: ONION, qty: 30}, {ref: TOMATO, qty: 30}, {ref: CAPSICUM, qty: 20},
+                  {ref: CARROT, qty: 15}, {ref: GRNCHILLI, qty: 3}, {ref: CORIANDER, qty: 4}, {ref: OIL, qty: 15},
+                  {ref: PREP_SAMBAR, qty: 200}, {ref: PREP_COCONUT_CHUTNEY, qty: 40}]}
+
+  - code: IDLI
+    name: Idli
+    aliases: [Idli Sambar, Plain Idli]
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Plate (3 pc), prep_minutes: 5,
+         recipe: [{ref: PREP_IDLI_BATTER, qty: 150}, {ref: OIL, qty: 3}, {ref: PREP_SAMBAR, qty: 200}, {ref: PREP_COCONUT_CHUTNEY, qty: 40}]}
+
+  - code: PODI_IDLI
+    name: Podi Idli
+    aliases: [Ghee Podi Idli]
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: IDLI
+    variants:
+      - {code: FULL, name: Plate, prep_minutes: 7,
+         recipe: [{ref: PREP_IDLI_BATTER, qty: 150}, {ref: GHEE, qty: 20}, {ref: DAL_URAD_WHITE, qty: 8}, {ref: DAL_CHANA, qty: 8},
+                  {ref: DRY_CHILLI, qty: 4}, {ref: SESAME, qty: 3}, {ref: CURRY_LEAF, qty: 1}, {ref: SALT, qty: 1},
+                  {ref: PREP_SAMBAR, qty: 200}, {ref: PREP_COCONUT_CHUTNEY, qty: 40}]}
+
+  - code: MEDU_VADA
+    name: Medu Vada
+    aliases: [Vada Sambar, Urad Vada]
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Plate (2 pc), prep_minutes: 8,
+         recipe: [{ref: PREP_VADA_BATTER, qty: 140}, {ref: OIL, qty: 60}, {ref: PREP_SAMBAR, qty: 200}, {ref: PREP_COCONUT_CHUTNEY, qty: 40}]}
+
+  - code: IDLI_VADA
+    name: Idli Vada
+    aliases: [Idli Vada Combo]
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: IDLI
+    variants:
+      - {code: FULL, name: Plate (2 idli + 1 vada), prep_minutes: 8,
+         recipe: [{ref: PREP_IDLI_BATTER, qty: 100}, {ref: PREP_VADA_BATTER, qty: 70}, {ref: OIL, qty: 32},
+                  {ref: PREP_SAMBAR, qty: 200}, {ref: PREP_COCONUT_CHUTNEY, qty: 40}]}
+
+  - code: UPMA
+    name: Upma
+    aliases: [Rava Upma]
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: RAVA, qty: 90}, {ref: ONION, qty: 40}, {ref: GRNCHILLI, qty: 4}, {ref: GINGER, qty: 4}, {ref: PEAS, qty: 20},
+                  {ref: CARROT, qty: 20}, {ref: MUSTARD_SEED, qty: 1}, {ref: DAL_URAD_WHITE, qty: 4}, {ref: CURRY_LEAF, qty: 1},
+                  {ref: PEANUT, qty: 10}, {ref: OIL, qty: 20}, {ref: GHEE, qty: 5}, {ref: SALT, qty: 3}, {ref: LEMON, qty: 0.25},
+                  {ref: CORIANDER, qty: 3}, {ref: PREP_COCONUT_CHUTNEY, qty: 30}]}
+
+  - code: POHA
+    name: Kanda Poha
+    aliases: [Poha, Batata Poha]
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: POHA, qty: 90}, {ref: ONION, qty: 50}, {ref: POTATO, qty: 40}, {ref: PEANUT, qty: 12}, {ref: GRNCHILLI, qty: 4},
+                  {ref: MUSTARD_SEED, qty: 1}, {ref: CURRY_LEAF, qty: 1}, {ref: TURMERIC, qty: 1}, {ref: SUGAR, qty: 3},
+                  {ref: OIL, qty: 20}, {ref: SALT, qty: 3}, {ref: LEMON, qty: 0.25}, {ref: CORIANDER, qty: 4}, {ref: SEV, qty: 10}]}
+
+  - code: PONGAL
+    name: Ven Pongal
+    aliases: [Khara Pongal]
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 10,
+         recipe: [{ref: RICE_SONA, qty: 80}, {ref: DAL_MOONG, qty: 30}, {ref: GHEE, qty: 25}, {ref: BLACK_PEPPER, qty: 3},
+                  {ref: CUMIN, qty: 2}, {ref: GINGER, qty: 4}, {ref: CASHEW, qty: 10}, {ref: CURRY_LEAF, qty: 1}, {ref: HING, qty: 0.3},
+                  {ref: SALT, qty: 3}, {ref: PREP_SAMBAR, qty: 150}, {ref: PREP_COCONUT_CHUTNEY, qty: 30}]}
+
+  - code: LEMON_RICE
+    name: Lemon Rice
+    aliases: [Chitranna]
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 6,
+         recipe: [{ref: PREP_RICE_BOILED, qty: 280}, {ref: LEMON, qty: 1}, {ref: PEANUT, qty: 15}, {ref: MUSTARD_SEED, qty: 1},
+                  {ref: DAL_CHANA, qty: 5}, {ref: DAL_URAD_WHITE, qty: 4}, {ref: DRY_CHILLI, qty: 2}, {ref: GRNCHILLI, qty: 3},
+                  {ref: CURRY_LEAF, qty: 1}, {ref: TURMERIC, qty: 1}, {ref: HING, qty: 0.3}, {ref: OIL, qty: 20}, {ref: SALT, qty: 3}]}
+
+  - code: RASAM
+    name: Rasam
+    aliases: [Tomato Rasam]
+    category: SOUTH_INDIAN
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 8,
+         recipe: [{ref: PREP_DAL_BOILED, qty: 60}, {ref: TOMATO, qty: 80}, {ref: TAMARIND, qty: 8}, {ref: GARLIC, qty: 6},
+                  {ref: BLACK_PEPPER, qty: 2}, {ref: CUMIN, qty: 2}, {ref: CORIANDPWD, qty: 2}, {ref: DRY_CHILLI, qty: 1},
+                  {ref: MUSTARD_SEED, qty: 1}, {ref: CURRY_LEAF, qty: 1}, {ref: HING, qty: 0.3}, {ref: TURMERIC, qty: 0.5},
+                  {ref: GHEE, qty: 6}, {ref: SALT, qty: 3}, {ref: CORIANDER, qty: 3}]}
+
+  # ================= ACCOMPANIMENTS =================
+  - code: GREEN_SALAD
+    name: Green Salad
+    category: ACCOMPANIMENT
+    food_type: veg
+    station: cold
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 4,
+         recipe: [{ref: CUCUMBER, qty: 80}, {ref: TOMATO, qty: 70}, {ref: ONION, qty: 60}, {ref: CARROT, qty: 40},
+                  {ref: LEMON, qty: 0.25}, {ref: GRNCHILLI, qty: 4}, {ref: CHAAT_MSL, qty: 1}, {ref: SALT, qty: 1}]}
+
+  - code: KACHUMBER
+    name: Kachumber Salad
+    category: ACCOMPANIMENT
+    food_type: veg
+    station: cold
+    confidence: estimated
+    basis: GREEN_SALAD
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 4,
+         recipe: [{ref: ONION, qty: 60}, {ref: TOMATO, qty: 60}, {ref: CUCUMBER, qty: 60}, {ref: CORIANDER, qty: 5},
+                  {ref: GRNCHILLI, qty: 3}, {ref: LEMON, qty: 0.25}, {ref: CUMIN, qty: 0.5}, {ref: SALT, qty: 1}]}
+
+  - code: SIRKA_PYAZ
+    name: Sirka Pyaz
+    aliases: [Pickled Onion, Onion Salad]
+    category: ACCOMPANIMENT
+    food_type: veg
+    station: cold
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Portion, prep_minutes: 2,
+         recipe: [{ref: ONION, qty: 80}, {ref: VINEGAR, qty: 15}, {ref: LEMON, qty: 0.25}, {ref: GRNCHILLI, qty: 3}, {ref: SALT, qty: 1}]}
+
+  - code: BOONDI_RAITA
+    name: Boondi Raita
+    category: ACCOMPANIMENT
+    food_type: veg
+    station: cold
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 3,
+         recipe: [{ref: CURD, qty: 180}, {ref: BOONDI, qty: 25}, {ref: CUMIN, qty: 1}, {ref: CHILLIPWD, qty: 0.5},
+                  {ref: SUGAR, qty: 2}, {ref: SALT, qty: 1}, {ref: CORIANDER, qty: 2}]}
+
+  - code: MIX_VEG_RAITA
+    name: Mix Veg Raita
+    aliases: [Vegetable Raita]
+    category: ACCOMPANIMENT
+    food_type: veg
+    station: cold
+    confidence: estimated
+    basis: BOONDI_RAITA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 4,
+         recipe: [{ref: CURD, qty: 180}, {ref: CUCUMBER, qty: 30}, {ref: ONION, qty: 20}, {ref: TOMATO, qty: 20},
+                  {ref: CUMIN, qty: 1}, {ref: CHILLIPWD, qty: 0.5}, {ref: SALT, qty: 1}, {ref: CORIANDER, qty: 2}]}
+
+  - code: PINEAPPLE_RAITA
+    name: Pineapple Raita
+    category: ACCOMPANIMENT
+    food_type: veg
+    station: cold
+    confidence: estimated
+    basis: BOONDI_RAITA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 3,
+         recipe: [{ref: CURD, qty: 180}, {ref: PINEAPPLE, qty: 50}, {ref: SUGAR, qty: 6}, {ref: CUMIN, qty: 0.5}, {ref: SALT, qty: 0.5}]}
+
+  - code: PLAIN_CURD
+    name: Plain Curd
+    aliases: [Dahi, Curd Bowl]
+    category: ACCOMPANIMENT
+    food_type: veg
+    station: cold
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Bowl, prep_minutes: 1,
+         recipe: [{ref: CURD, qty: 150}, {ref: SUGAR, qty: 2}]}
+
+  - code: ROASTED_PAPAD
+    name: Roasted Papad
+    category: ACCOMPANIMENT
+    food_type: veg
+    station: tandoor
+    confidence: estimated
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 1,
+         recipe: [{ref: PAPAD, qty: 1}, {ref: OIL, qty: 1}]}
+
+  - code: FRIED_PAPAD
+    name: Fried Papad
+    category: ACCOMPANIMENT
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 1,
+         recipe: [{ref: PAPAD, qty: 1}, {ref: OIL, qty: 12}]}
+
+  - code: MASALA_PAPAD
+    name: Masala Papad
+    category: ACCOMPANIMENT
+    food_type: veg
+    station: cold
+    confidence: estimated
+    basis: ROASTED_PAPAD
+    variants:
+      - {code: PIECE, name: Per piece, prep_minutes: 3,
+         recipe: [{ref: PAPAD, qty: 1}, {ref: OIL, qty: 8}, {ref: ONION, qty: 30}, {ref: TOMATO, qty: 30}, {ref: CORIANDER, qty: 3},
+                  {ref: GRNCHILLI, qty: 2}, {ref: CHAAT_MSL, qty: 1}, {ref: LEMON, qty: 0.25}]}
+
+  - code: MINT_CHUTNEY_SIDE
+    name: Green Chutney
+    aliases: [Mint Chutney, Hari Chutney]
+    category: ACCOMPANIMENT
+    food_type: veg
+    station: cold
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Portion, prep_minutes: 1,
+         recipe: [{ref: PREP_MINT_CHUTNEY, qty: 40}, {ref: ONION, qty: 20}]}
+
+  # ================= DESSERTS =================
+  - code: GULAB_JAMUN
+    name: Gulab Jamun
+    category: DESSERT
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Plate (2 pc), prep_minutes: 3,
+         recipe: [{ref: PREP_GULAB_JAMUN, qty: 2}, {ref: PISTA, qty: 2}, {ref: SUGAR, qty: 40}]}
+
+  - code: GULAB_JAMUN_ICECREAM
+    name: Gulab Jamun with Ice Cream
+    category: DESSERT
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: GULAB_JAMUN
+    variants:
+      - {code: FULL, name: Plate (2 pc + scoop), prep_minutes: 3,
+         recipe: [{ref: PREP_GULAB_JAMUN, qty: 2}, {ref: ICE_CREAM, qty: 80}, {ref: PISTA, qty: 2}, {ref: SUGAR, qty: 40}]}
+
+  - code: RASMALAI
+    name: Rasmalai
+    category: DESSERT
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Plate (2 pc), prep_minutes: 2,
+         recipe: [{ref: PREP_RASMALAI, qty: 2}, {ref: PREP_RABRI, qty: 60}, {ref: PISTA, qty: 2}]}
+
+  - code: GAJAR_HALWA
+    name: Gajar Halwa
+    aliases: [Gajar ka Halwa, Carrot Halwa]
+    category: DESSERT
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Portion, prep_minutes: 4,
+         recipe: [{ref: CARROT, qty: 180}, {ref: MILK, qty: 120}, {ref: SUGAR, qty: 35}, {ref: GHEE, qty: 18}, {ref: KHOYA, qty: 25},
+                  {ref: CASHEW, qty: 5}, {ref: RAISIN, qty: 5}, {ref: CARDAMOM, qty: 0.5}]}
+
+  - code: MOONG_DAL_HALWA
+    name: Moong Dal Halwa
+    category: DESSERT
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: GAJAR_HALWA
+    variants:
+      - {code: FULL, name: Portion, prep_minutes: 4,
+         recipe: [{ref: DAL_MOONG, qty: 60}, {ref: GHEE, qty: 45}, {ref: SUGAR, qty: 50}, {ref: MILK, qty: 80}, {ref: KHOYA, qty: 20},
+                  {ref: ALMOND, qty: 5}, {ref: CARDAMOM, qty: 0.5}, {ref: SAFFRON, qty: 0.02}]}
+
+  - code: KHEER
+    name: Kheer
+    aliases: [Rice Kheer, Chawal ki Kheer]
+    category: DESSERT
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Bowl, prep_minutes: 3,
+         recipe: [{ref: MILK, qty: 250}, {ref: BASMATI, qty: 25}, {ref: SUGAR, qty: 30}, {ref: CARDAMOM, qty: 0.5},
+                  {ref: CASHEW, qty: 5}, {ref: RAISIN, qty: 5}, {ref: ALMOND, qty: 3}]}
+
+  - code: PHIRNI
+    name: Phirni
+    aliases: [Firni, Kesar Phirni]
+    category: DESSERT
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: KHEER
+    variants:
+      - {code: FULL, name: Bowl, prep_minutes: 2,
+         recipe: [{ref: MILK, qty: 220}, {ref: BASMATI, qty: 25}, {ref: SUGAR, qty: 30}, {ref: CARDAMOM, qty: 0.5},
+                  {ref: SAFFRON, qty: 0.02}, {ref: PISTA, qty: 4}, {ref: ROSE_WATER, qty: 2}]}
+
+  - code: SHAHI_TUKDA
+    name: Shahi Tukda
+    category: DESSERT
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Portion, prep_minutes: 5,
+         recipe: [{ref: BREAD_SLICE, qty: 2}, {ref: GHEE, qty: 25}, {ref: SUGAR, qty: 30}, {ref: PREP_RABRI, qty: 100},
+                  {ref: PISTA, qty: 3}, {ref: ALMOND, qty: 3}, {ref: SAFFRON, qty: 0.02}]}
+
+  - code: MALAI_KULFI
+    name: Malai Kulfi
+    category: DESSERT
+    food_type: veg
+    station: cold
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Per stick, prep_minutes: 2,
+         recipe: [{ref: PREP_RABRI, qty: 110}, {ref: MILK_POWDER, qty: 10}, {ref: PISTA, qty: 3}, {ref: CARDAMOM, qty: 0.2}]}
+
+  - code: SIZZLING_BROWNIE
+    name: Sizzling Brownie with Ice Cream
+    category: DESSERT
+    food_type: egg
+    station: main_kitchen
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Portion, prep_minutes: 5,
+         recipe: [{ref: BROWNIE, qty: 1}, {ref: ICE_CREAM, qty: 100}, {ref: CHOC_SAUCE, qty: 40}, {ref: BUTTER, qty: 5}]}
+
+  - code: VANILLA_ICECREAM
+    name: Vanilla Ice Cream
+    category: DESSERT
+    food_type: veg
+    station: cold
+    confidence: estimated
+    variants:
+      - {code: FULL, name: Two scoops, prep_minutes: 1,
+         recipe: [{ref: ICE_CREAM, qty: 150}, {ref: CHOC_SAUCE, qty: 10}]}
+
+  # ---- late additions: the second consumer each batch base deserves ----
+  - code: CHOLE_BHATURE
+    name: Chole Bhature
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: CHOLE_MASALA
+    variants:
+      - {code: FULL, name: Plate (2 bhature), prep_minutes: 10,
+         recipe: [{ref: PREP_CHOLE_BASE, qty: 280}, {ref: MAIDA, qty: 180}, {ref: CURD, qty: 40}, {ref: RAVA, qty: 16},
+                  {ref: SUGAR, qty: 4}, {ref: BAKING_PWD, qty: 2}, {ref: SALT, qty: 2}, {ref: OIL, qty: 80},
+                  {ref: ONION, qty: 40}, {ref: GRNCHILLI, qty: 4}, {ref: LEMON, qty: 0.25}]}
+
+  - code: RAJMA_CHAWAL
+    name: Rajma Chawal
+    category: RICE_BREAD
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: RAJMA_MASALA
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 6,
+         recipe: [{ref: PREP_RAJMA_BASE, qty: 250}, {ref: PREP_RICE_BOILED, qty: 250}, {ref: BUTTER, qty: 8}, {ref: ONION, qty: 20},
+                  {ref: CORIANDER, qty: 3}]}
+
+  - code: KADAI_VEG
+    name: Kadai Veg
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: derived
+    basis: KADAI_PANEER
+    variants:
+      - {code: FULL, name: Full, prep_minutes: 12,
+         recipe: [{ref: PREP_YELLOW, qty: 230}, {ref: CAULI, qty: 50}, {ref: CARROT, qty: 40}, {ref: BEANS, qty: 40},
+                  {ref: MUSHROOM, qty: 40}, {ref: PANEER, qty: 40}, {ref: CAPSICUM, qty: 70}, {ref: ONION, qty: 50},
+                  {ref: PREP_KADAI_MSL, qty: 6}, {ref: OIL, qty: 20}, {ref: CORIANDER, qty: 5}]}
+
+  - code: CHEESE_PAV_BHAJI
+    name: Cheese Pav Bhaji
+    category: MAIN_VEG
+    food_type: veg
+    station: main_kitchen
+    confidence: estimated
+    basis: PAV_BHAJI
+    variants:
+      - {code: FULL, name: Full (2 pav), prep_minutes: 8,
+         recipe: [{ref: PREP_BHAJI, qty: 320}, {ref: PAV, qty: 2}, {ref: CHEESE, qty: 40}, {ref: BUTTER, qty: 30},
+                  {ref: ONION, qty: 40}, {ref: LEMON, qty: 0.25}, {ref: CORIANDER, qty: 5}]}
