@@ -82,6 +82,38 @@ class AccessRepository:
         )
         return (await self.session.scalars(query)).all()
 
+    async def roles_for_employees(
+        self, employee_ids: Sequence[uuid.UUID], restaurant_id: uuid.UUID
+    ) -> dict[uuid.UUID, list[str]]:
+        """Role codes for many people at one restaurant, in one statement.
+
+        `resolve()` answers the same question for one person and is the right call on a detail
+        page. Calling it per row to render a list is the N+1 that `tests/test_query_counts.py`
+        exists to refuse: fifty staff became fifty-one queries, every time anyone opened the
+        screen.
+
+        Every requested id is present in the result, mapped to an empty list when the person holds
+        no role here. A dict built only from the rows the join returned would silently drop them —
+        and the person with no assignment yet is exactly the one a manager just created.
+        """
+        roles: dict[uuid.UUID, list[str]] = {employee_id: [] for employee_id in employee_ids}
+        if not roles:
+            return roles
+
+        rows = await self.session.execute(
+            select(EmployeeRoleAssignment.employee_id, Role.code)
+            .join(Role, Role.id == EmployeeRoleAssignment.role_id)
+            .where(
+                EmployeeRoleAssignment.employee_id.in_(list(roles)),
+                EmployeeRoleAssignment.restaurant_id == restaurant_id,
+            )
+            # Sorted so a row's roles read the same on every request, matching `resolve()`.
+            .order_by(Role.code)
+        )
+        for employee_id, code in rows:
+            roles[employee_id].append(code)
+        return roles
+
     async def assignments_at(
         self, employee_id: uuid.UUID, restaurant_id: uuid.UUID
     ) -> Sequence[EmployeeRoleAssignment]:

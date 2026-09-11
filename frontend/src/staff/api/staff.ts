@@ -1,8 +1,13 @@
 // Every staff-surface query and mutation. Components never call the API client directly
 // (docs/engineering-standards.md section 5) — they use these hooks.
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type {
+  InfiniteData,
+  UseInfiniteQueryResult,
+  UseMutationResult,
+  UseQueryResult,
+} from '@tanstack/react-query';
 
 import { apiGet, apiPatch, apiPost } from '@shared/api';
 import type { EmploymentType } from '@shared/enums';
@@ -54,11 +59,36 @@ export type EmployeeChanges = {
 // which screens are mounted.
 const STAFF_KEY = ['staff', 'employees'] as const;
 
-export function useEmployees(includeInactive: boolean): UseQueryResult<EmployeeList> {
-  return useQuery({
+function employeesPath(includeInactive: boolean, cursor: string | null): string {
+  const query = new URLSearchParams();
+  if (includeInactive) {
+    query.set('include_inactive', 'true');
+  }
+  if (cursor !== null) {
+    query.set('cursor', cursor);
+  }
+  const suffix = query.toString();
+  return `/staff/employees${suffix === '' ? '' : `?${suffix}`}`;
+}
+
+/**
+ * The staff list, one page at a time.
+ *
+ * Infinite rather than a plain query because the endpoint pages at 50 and answers with a cursor.
+ * A screen that fetched once and ignored the cursor would show a 60-person restaurant exactly 50
+ * people with nothing to indicate the rest existed — and it would look perfect against the demo
+ * data, which has 19.
+ */
+export function useEmployees(
+  includeInactive: boolean,
+): UseInfiniteQueryResult<InfiniteData<EmployeeList>> {
+  return useInfiniteQuery({
     queryKey: [...STAFF_KEY, { includeInactive }],
-    queryFn: () =>
-      apiGet<EmployeeList>(`/staff/employees${includeInactive ? '?include_inactive=true' : ''}`),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => apiGet<EmployeeList>(employeesPath(includeInactive, pageParam)),
+    // The server sends a cursor only when the page it just returned was full, so this is null on
+    // the last page without the client having to count anything.
+    getNextPageParam: (lastPage: EmployeeList) => lastPage.next_cursor,
   });
 }
 

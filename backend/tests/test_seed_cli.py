@@ -55,9 +55,7 @@ async def fresh_database(postgres_url: str) -> AsyncIterator[str]:
     admin = create_async_engine(postgres_url, isolation_level="AUTOCOMMIT")
     try:
         async with admin.connect() as connection:
-            await connection.execute(
-                text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')  # noqa: S608 — generated name
-            )
+            await connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
     finally:
         await admin.dispose()
 

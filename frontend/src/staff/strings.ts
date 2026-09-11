@@ -54,6 +54,8 @@ export const strings = {
     noLogin: 'No login',
     noRoles: 'No role yet',
     loading: 'Loading the staff list…',
+    showMore: 'Show more',
+    showingMore: 'Loading…',
   },
 
   employee: {

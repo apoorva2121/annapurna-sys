@@ -47,19 +47,6 @@ export type Session = {
   permissions: ReadonlySet<string>;
 };
 
-export function sessionFromLogin(response: SessionResponse): Session {
-  return {
-    employeeId: response.employee_id,
-    fullName: response.full_name,
-    // Login does not carry the employee code; /auth/me fills it in. Empty rather than invented,
-    // because a wrong code on screen is worse than an absent one.
-    employeeCode: '',
-    restaurant: response.restaurant,
-    roles: response.roles,
-    permissions: new Set(response.permissions),
-  };
-}
-
 export function sessionFromMe(response: MeResponse): Session {
   return {
     employeeId: response.employee_id,
@@ -71,10 +58,23 @@ export function sessionFromMe(response: MeResponse): Session {
   };
 }
 
+/**
+ * Everything the app knows about the signed-in person, read once the token is in place.
+ *
+ * Both ways in end here, and that is the point. `/auth/login` and `/auth/refresh` answer with a
+ * credential and a summary; `/auth/me` answers with the profile — including `employee_code`, which
+ * the other two do not carry. Building the session from the login response alone left the code
+ * blank until the next page reload quietly repaired it, which is a defect that survives
+ * development precisely because developers reload constantly.
+ */
+async function profile(): Promise<Session> {
+  return sessionFromMe(await apiGet<MeResponse>('/auth/me'));
+}
+
 export async function login(identifier: string, password: string): Promise<Session> {
   const response = await apiPost<SessionResponse>('/auth/login', { identifier, password });
   setAccessToken(response.access_token);
-  return sessionFromLogin(response);
+  return await profile();
 }
 
 /**
@@ -88,8 +88,7 @@ export async function restore(): Promise<Session | null> {
   try {
     const response = await apiPost<SessionResponse>('/auth/refresh');
     setAccessToken(response.access_token);
-    const me = await apiGet<MeResponse>('/auth/me');
-    return sessionFromMe(me);
+    return await profile();
   } catch {
     setAccessToken(null);
     return null;

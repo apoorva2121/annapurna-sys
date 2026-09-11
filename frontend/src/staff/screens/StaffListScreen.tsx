@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Permission } from '@shared/permissions';
 import { useEmployees } from '@staff/api/staff';
 import { useAuth } from '@staff/auth/AuthContext';
+import { Button } from '@staff/components/Button';
 import { QueryState } from '@staff/components/QueryState';
 import { strings } from '@staff/strings';
 
@@ -19,6 +20,8 @@ export default function StaffListScreen(): ReactElement {
   const [includeInactive, setIncludeInactive] = useState(false);
   const { can } = useAuth();
   const employees = useEmployees(includeInactive);
+  // Pages are an artefact of the transport, not something the list should think about.
+  const people = employees.data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
     <div className="space-y-4">
@@ -53,13 +56,13 @@ export default function StaffListScreen(): ReactElement {
         error={employees.error}
         pendingLabel={strings.staff.loading}
       >
-        {employees.data !== undefined && employees.data.items.length === 0 ? (
+        {people.length === 0 ? (
           <p className="rounded border border-border p-4 text-muted-foreground">
             {includeInactive ? strings.staff.emptyInactive : strings.staff.empty}
           </p>
         ) : (
           <ul className="divide-y divide-border rounded border border-border">
-            {employees.data?.items.map((employee) => (
+            {people.map((employee) => (
               <li key={employee.id}>
                 <Link
                   to={`/staff/${employee.id}`}
@@ -91,6 +94,20 @@ export default function StaffListScreen(): ReactElement {
               </li>
             ))}
           </ul>
+        )}
+
+        {/* The endpoint pages at 50. Without this the rest of a large roster would simply not be
+            on screen, with nothing to say so. */}
+        {employees.hasNextPage && (
+          <Button
+            variant="secondary"
+            disabled={employees.isFetchingNextPage}
+            onClick={() => {
+              void employees.fetchNextPage();
+            }}
+          >
+            {employees.isFetchingNextPage ? strings.staff.showingMore : strings.staff.showMore}
+          </Button>
         )}
       </QueryState>
     </div>

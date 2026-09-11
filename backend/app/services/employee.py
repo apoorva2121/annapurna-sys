@@ -92,6 +92,14 @@ class EmployeeService:
         resolved = await self.access.resolve(employee_id, restaurant_id)
         return list(resolved.role_codes)
 
+    async def roles_of_many(
+        self, employees: Sequence[Employee], restaurant_id: uuid.UUID
+    ) -> dict[uuid.UUID, list[str]]:
+        """The list-endpoint counterpart to `roles_of`. One query for the whole page."""
+        return await self.access.roles_for_employees(
+            [employee.id for employee in employees], restaurant_id
+        )
+
     # ------------------------------------------------------------------ create
 
     async def create_employee(self, actor: Actor, data: NewEmployee) -> Employee:

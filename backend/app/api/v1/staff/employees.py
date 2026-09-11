@@ -37,9 +37,13 @@ _AssignDep = Annotated[Actor, Depends(require_permission(PermissionCode.EMPLOYEE
 _ResetDep = Annotated[Actor, Depends(require_permission(PermissionCode.EMPLOYEE_PASSWORD_RESET))]
 
 
-async def _render(
-    service: EmployeeService, employee: Employee, restaurant_id: uuid.UUID
-) -> EmployeeResponse:
+def _shape(employee: Employee, roles: list[str]) -> EmployeeResponse:
+    """The response, given roles already in hand.
+
+    Split from `_render` so the list endpoint can resolve every row's roles in one query. Building
+    the response and fetching what it needs are separate concerns, and fusing them is what made the
+    list O(n) queries.
+    """
     return EmployeeResponse(
         id=employee.id,
         employee_code=employee.employee_code,
@@ -50,8 +54,15 @@ async def _render(
         is_active=employee.is_active,
         deactivated_at=employee.deactivated_at,
         has_login=employee.user_account_id is not None,
-        roles=await service.roles_of(employee.id, restaurant_id),
+        roles=roles,
     )
+
+
+async def _render(
+    service: EmployeeService, employee: Employee, restaurant_id: uuid.UUID
+) -> EmployeeResponse:
+    """One employee. A single extra query, which is correct on a detail page."""
+    return _shape(employee, await service.roles_of(employee.id, restaurant_id))
 
 
 @router.get("", response_model=EmployeeListResponse)
@@ -69,7 +80,9 @@ async def list_employees(
     employees = await service.list_employees(
         actor, is_active=None if include_inactive else True, limit=limit, after=cursor
     )
-    items = [await _render(service, employee, actor.restaurant_id) for employee in employees]
+    # One query for the whole page's roles, not one per row (tests/test_query_counts.py).
+    roles = await service.roles_of_many(employees, actor.restaurant_id)
+    items = [_shape(employee, roles[employee.id]) for employee in employees]
     # Only offer a cursor when the page was full; otherwise the client makes one more round trip
     # to learn what it already knows.
     next_cursor = items[-1].id if len(items) == (limit or 50) else None
