@@ -18,7 +18,7 @@ Before any code: `docs/engineering-guardrails.md` and `.claude/skills/restaurant
 | B | The business-day helper, both languages (M11) | ✅ done | `38ba3bd` |
 | C | Repositories, services, API — first use of `RestaurantScopedRepository` | ✅ done | `c086e59` |
 | D | shadcn components M02 needs: Select, Dialog/Sheet, Table, Switch, Label | ✅ done | `e9caff2` |
-| E | Four screens | ✅ done | see below |
+| E | Four screens | ✅ done | `336953b` |
 | F | `POST /auth/switch` (S12) · theme settings · ~~`reserved` by hand (S14)~~ done in C | ⬅ **NEXT** | — |
 | G | Manual script, adversarial review, `make check` | ☐ | — |
 
