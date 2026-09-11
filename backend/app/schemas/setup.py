@@ -291,9 +291,8 @@ class StationUpdateRequest(_Schema):
 # --------------------------------------------------------------------------- tax
 
 
-class TaxGroupResponse(_ReadSchema):
+class TaxRateResponse(_ReadSchema):
     id: uuid.UUID
-    name: str
     # A string in JSON — "0.0500" is five percent. Never a float: the rate is copied onto every
     # order line and cited by an invoice (ADR 0004, CLAUDE.md invariant 3).
     rate: Decimal
@@ -303,37 +302,70 @@ class TaxGroupResponse(_ReadSchema):
     effective_to: date | None
 
 
+class TaxGroupResponse(_ReadSchema):
+    """A tax class and every rate it has ever charged, newest first.
+
+    The rates travel with the group because that is what the screen shows and what a menu item
+    needs: an item names the group, and which rate applies depends on the business date.
+    """
+
+    id: uuid.UUID
+    # Stable, immutable, unique per restaurant. `seed/operations.yaml` has always carried it.
+    code: str
+    name: str
+    is_active: bool
+    rates: list[TaxRateResponse]
+
+
 class TaxGroupListResponse(_Schema):
     items: list[TaxGroupResponse]
     next_cursor: uuid.UUID | None = None
 
 
 class TaxGroupCreateRequest(_Schema):
-    """Creating a rate, or replacing one.
+    """A new tax class, with the rate it charges from day one.
 
-    A rate change is a **new row**, never an edit (M02 spec decision 2). Passing `supersedes_id`
-    closes the named row the day before this one starts and opens this one — done in a single
-    service call so the two rows cannot end up overlapping or leaving a gap.
+    Group and first rate are created together because a group charging nothing is not yet usable by
+    a menu item, and leaving it creatable would let someone attach a dish to a tax class with no
+    rate — a 500 at order time, in M07, months from here.
     """
 
+    code: str = Field(min_length=1, max_length=32, pattern=r"^[A-Z][A-Z0-9_]*$")
     name: str = Field(min_length=1, max_length=80)
     rate: Decimal = Field(ge=0, le=1, max_digits=6, decimal_places=4)
     is_inclusive: bool = False
     effective_from: date
-    supersedes_id: uuid.UUID | None = None
 
+    _strip_code = field_validator("code", mode="before")(_strip)
     _strip_name = field_validator("name", mode="before")(_strip)
 
 
 class TaxGroupUpdateRequest(_Schema):
-    """Name only.
+    """Name and active flag only.
 
-    The rate and the dates are immutable once the row exists, because both are copied onto orders
-    and cited by invoices. Editing them in place would restate tax already charged and reported —
-    a filing problem, not a data-quality one. The schema is where that is enforced first: there is
-    no field here to send.
+    `code` is immutable because `menu_item_variant`, `seed/operations.yaml` and every future recipe
+    join on it — the same rule `station.code` follows. The rate is not here either: rates live in
+    their own rows and a change is a new one, because both are copied onto orders and cited by
+    invoices. Editing either in place would restate tax already charged and reported — a filing
+    problem, not a data-quality one. The schema is where that is enforced first: there is no field
+    here to send.
     """
 
-    name: str = Field(min_length=1, max_length=80)
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    is_active: bool | None = None
 
     _strip_name = field_validator("name", mode="before")(_strip)
+
+
+class TaxRateCreateRequest(_Schema):
+    """A new rate for an existing group, superseding whatever it currently charges.
+
+    There is no `supersedes_id`: the group already says which rate is being replaced, because only
+    one rate of a group can be live on any date. M02 made the caller name the superseded row and
+    then had to check that the name matched — a step that existed only because the group had no
+    identity of its own.
+    """
+
+    rate: Decimal = Field(ge=0, le=1, max_digits=6, decimal_places=4)
+    is_inclusive: bool = False
+    effective_from: date

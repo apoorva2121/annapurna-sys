@@ -40,6 +40,7 @@ from app.schemas.setup import (
     TaxGroupListResponse,
     TaxGroupResponse,
     TaxGroupUpdateRequest,
+    TaxRateCreateRequest,
     ThemeSettings,
 )
 from app.services.setup import SetupService, read_theme
@@ -238,21 +239,47 @@ async def list_tax_groups(
 async def create_tax_group(
     actor: _ConfigureDep, session: SessionDep, request: TaxGroupCreateRequest
 ) -> TaxGroupResponse:
-    """A rate change is a new row, never an edit — pass `supersedes_id` to close the old one."""
+    """A tax class and the rate it charges from day one, created together.
+
+    A group with no rate is a trap: a menu item could be attached to it and M07 would find nothing
+    to charge at order time.
+    """
     group = await SetupService(session).create_tax_group(actor, request)
     await session.commit()
     return TaxGroupResponse.model_validate(group)
 
 
 @router.patch("/setup/tax-groups/{tax_group_id}", response_model=TaxGroupResponse)
-async def rename_tax_group(
+async def update_tax_group(
     actor: _ConfigureDep,
     session: SessionDep,
     tax_group_id: uuid.UUID,
     request: TaxGroupUpdateRequest,
 ) -> TaxGroupResponse:
-    """Name only. The rate and the dates are immutable once the row exists, because both are copied
-    onto orders and cited by invoices."""
-    group = await SetupService(session).rename_tax_group(actor, tax_group_id, request.name)
+    """Name and active flag. Never the code — `menu_item_variant` and `seed/operations.yaml` join
+    on it — and never a rate, which is a new row through the endpoint below."""
+    group = await SetupService(session).update_tax_group(actor, tax_group_id, request)
+    await session.commit()
+    return TaxGroupResponse.model_validate(group)
+
+
+@router.post(
+    "/setup/tax-groups/{tax_group_id}/rates",
+    response_model=TaxGroupResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_tax_rate(
+    actor: _ConfigureDep,
+    session: SessionDep,
+    tax_group_id: uuid.UUID,
+    request: TaxRateCreateRequest,
+) -> TaxGroupResponse:
+    """Charge a new rate from a future date. The rate in force until then is closed the day before,
+    so the two periods meet exactly and no menu item is repointed.
+
+    Returns the whole group, because what the caller needs to see is the new period *beside* the one
+    it replaced — a bare 201 for the new row hides the half of the change that matters.
+    """
+    group = await SetupService(session).add_tax_rate(actor, tax_group_id, request)
     await session.commit()
     return TaxGroupResponse.model_validate(group)

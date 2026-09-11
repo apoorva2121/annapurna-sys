@@ -69,13 +69,27 @@ export type Station = {
   is_active: boolean;
 };
 
-export type TaxGroup = {
+export type TaxRate = {
   id: string;
-  name: string;
   rate: string;
   is_inclusive: boolean;
   effective_from: string;
   effective_to: string | null;
+};
+
+/**
+ * A tax class and every rate it has ever charged, newest first.
+ *
+ * The group is the identity a menu item points at (`menu_item_variant.tax_group_id`); the rates are
+ * effective-dated rows beneath it. A rate change adds a row and leaves `id` alone, so nothing on the
+ * menu is repointed — M03 spec decision 1.
+ */
+export type TaxGroup = {
+  id: string;
+  code: string;
+  name: string;
+  is_active: boolean;
+  rates: TaxRate[];
 };
 
 type Page<T> = { items: T[]; next_cursor: string | null };
@@ -271,11 +285,17 @@ export function useTaxGroups(): UseQueryResult<Page<TaxGroup>> {
 }
 
 export type NewTaxGroup = {
+  code: string;
   name: string;
   rate: string;
   is_inclusive: boolean;
   effective_from: string;
-  supersedes_id?: string;
+};
+
+export type NewTaxRate = {
+  rate: string;
+  is_inclusive: boolean;
+  effective_from: string;
 };
 
 export function useCreateTaxGroup(): UseMutationResult<TaxGroup, Error, NewTaxGroup> {
@@ -294,6 +314,24 @@ export function useRenameTaxGroup(): UseMutationResult<
   const invalidate = useInvalidateSetup();
   return useMutation({
     mutationFn: ({ id, name }) => apiPatch<TaxGroup>(`/staff/setup/tax-groups/${id}`, { name }),
+    onSuccess: invalidate,
+  });
+}
+
+/**
+ * Charge a new rate from a future date. The rate in force until then is closed the day before.
+ *
+ * Returns the whole group rather than the new rate, because what the user needs to see is the new
+ * period beside the one it replaced.
+ */
+export function useAddTaxRate(): UseMutationResult<
+  TaxGroup,
+  Error,
+  { id: string; body: NewTaxRate }
+> {
+  const invalidate = useInvalidateSetup();
+  return useMutation({
+    mutationFn: ({ id, body }) => apiPost<TaxGroup>(`/staff/setup/tax-groups/${id}/rates`, body),
     onSuccess: invalidate,
   });
 }

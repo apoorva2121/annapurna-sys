@@ -11,9 +11,12 @@ Two of these are ordinary master data and two are not:
   kitchen pass both have a left-to-right that matters to the people reading them.
 - `restaurant_table` carries live state (`status`), which makes it the one row here that changes
   during service rather than during setup.
-- `tax_group` is the closest thing in this module to a legal document. A rate is copied onto every
-  order line at order time and cited by an invoice, so a rate change must never move history — it
-  is a new effective-dated row, and the old row keeps its dates (ADR 0004, M02 spec decision 2).
+- `tax_group` and `tax_rate` are the closest thing in this module to a legal document, and they are
+  two tables because a tax group has an **identity** separate from what it currently charges. The
+  group is "GST 5% (restaurant, no ITC)", code `GST5`, and it exists once. The rates beneath it are
+  effective-dated: a change is a new `tax_rate` row and the old one keeps its dates (ADR 0004, M02
+  spec decision 2). A menu item references the *group*; the rate is resolved by business date, so
+  nothing needs repointing when GST moves (M03 spec decision 1).
 
 Everything here is deactivated and never deleted (ADR 0008): a table that hosted an order last year
 must still resolve when that order is read.
@@ -29,6 +32,7 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Numeric,
     SmallInteger,
@@ -36,7 +40,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import TableStatus
 from app.models.base import Base, TimestampedUUIDMixin
@@ -125,7 +129,41 @@ class Station(TimestampedUUIDMixin, Base):
 
 
 class TaxGroup(TimestampedUUIDMixin, Base):
-    """A GST rate, valid over a period.
+    """A tax class a menu item belongs to. One row, for as long as the restaurant charges it.
+
+    "GST 5% (restaurant, no ITC)" is a *group*; the five percent it charges this year is a
+    `TaxRate` beneath it. The distinction is not pedantry — `menu_item_variant.tax_group_id`
+    references this row, so a rate change must not move it. Point a dish at a rate row and the
+    first GST revision leaves every dish on the menu pointing at a closed period.
+
+    `code` is the stable key (`GST5`), immutable once created, and the one `seed/operations.yaml`
+    has always carried. `name` is a label and may be edited freely: the exclusion constraint that
+    keeps two live rates apart now keys on this row's id rather than on its display string, so
+    renaming a group can no longer change which rates are considered the same rate.
+    """
+
+    __tablename__ = "tax_group"
+    __table_args__ = (
+        UniqueConstraint("restaurant_id", "code", name="uq_tax_group_restaurant_code"),
+        # The target of TaxRate's composite foreign key. It makes "a rate belongs to the same
+        # restaurant as its group" a database guarantee rather than something the service remembers.
+        UniqueConstraint("id", "restaurant_id", name="uq_tax_group_id_restaurant"),
+    )
+
+    restaurant_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True), ForeignKey("restaurant.id"), nullable=False
+    )
+    code: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    rates: Mapped[list[TaxRate]] = relationship(
+        back_populates="group", order_by="TaxRate.effective_from.desc()", lazy="raise"
+    )
+
+
+class TaxRate(TimestampedUUIDMixin, Base):
+    """What a tax group charges, and between which dates.
 
     **Rates change and history must not move.** The rate is copied onto every order line at order
     time and cited by an invoice, so editing this row in place would silently restate tax already
@@ -136,21 +174,27 @@ class TaxGroup(TimestampedUUIDMixin, Base):
     back-dating is how a legitimate-looking rate change reaches invoices that were already issued.
     """
 
-    __tablename__ = "tax_group"
+    __tablename__ = "tax_rate"
     __table_args__ = (
         # NUMERIC, never float. 0.0500 is five percent (ADR 0004, CLAUDE.md invariant 3).
-        CheckConstraint("rate >= 0 AND rate <= 1", name="ck_tax_group_rate_is_a_fraction"),
+        CheckConstraint("rate >= 0 AND rate <= 1", name="ck_tax_rate_rate_is_a_fraction"),
         CheckConstraint(
             "effective_to IS NULL OR effective_to >= effective_from",
-            name="ck_tax_group_period_is_ordered",
+            name="ck_tax_rate_period_is_ordered",
         ),
-        Index("ix_tax_group_restaurant_effective", "restaurant_id", "effective_from"),
+        ForeignKeyConstraint(
+            ["tax_group_id", "restaurant_id"],
+            ["tax_group.id", "tax_group.restaurant_id"],
+            name="fk_tax_rate_group_same_restaurant",
+        ),
+        Index("ix_tax_rate_restaurant_effective", "restaurant_id", "effective_from"),
+        Index("ix_tax_rate_group", "tax_group_id", "effective_from"),
     )
 
     restaurant_id: Mapped[uuid.UUID] = mapped_column(
         postgresql.UUID(as_uuid=True), ForeignKey("restaurant.id"), nullable=False
     )
-    name: Mapped[str] = mapped_column(Text, nullable=False)
+    tax_group_id: Mapped[uuid.UUID] = mapped_column(postgresql.UUID(as_uuid=True), nullable=False)
     # 6,4 rather than 5,4: a rate of 1.0000 (100%) must fit, even though no jurisdiction charges it.
     rate: Mapped[object] = mapped_column(Numeric(6, 4), nullable=False)
     # Whether the menu price already contains the tax. Changes the arithmetic on every line, so it
@@ -159,3 +203,5 @@ class TaxGroup(TimestampedUUIDMixin, Base):
     effective_from: Mapped[date] = mapped_column(Date, nullable=False)
     # NULL means "still current". Set when a replacement rate supersedes this one.
     effective_to: Mapped[date | None] = mapped_column(Date)
+
+    group: Mapped[TaxGroup] = relationship(back_populates="rates", lazy="raise")

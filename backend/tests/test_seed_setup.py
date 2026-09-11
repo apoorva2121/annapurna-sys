@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.access import EmployeeRoleAssignment, Role
 from app.models.identity import Employee
-from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup
+from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, TaxRate
 from app.models.tenancy import Restaurant
 from app.seed.identity import seed_identity
 from app.seed.setup import seed_setup
@@ -106,7 +106,7 @@ class TestTheFloorIsSeeded:
     ) -> None:
         """CLAUDE.md invariant 3, asserted where it is observable.
 
-        **Not through `select(TaxGroup.rate)`.** That reads the column back out of Postgres, and
+        **Not through `select(TaxRate.rate)`.** That reads the column back out of Postgres, and
         `NUMERIC(6,4)` rounds on insert, so `Decimal(0.05)` - float error and all - comes back as
         exactly `0.0500`. A column select therefore passed against the very bug it was written to
         catch, and no change to the seeder could have made it fail. Found by external review.
@@ -117,19 +117,57 @@ class TestTheFloorIsSeeded:
         await _seed(db_session)
         restaurant = await _koregaon(db_session)
 
+        rates = (
+            await db_session.scalars(select(TaxRate).where(TaxRate.restaurant_id == restaurant.id))
+        ).all()
+
+        assert rates, "operations.yaml defines tax groups; none were seeded"
+        for rate in rates:
+            assert isinstance(rate.rate, Decimal), f"{rate.id} stored a {type(rate.rate)}"
+            # An exact four-place fraction. `Decimal(0.05)` is 0.0500000000000000027, which has
+            # more digits than this and fails here - before Postgres ever rounds it away.
+            assert rate.rate == rate.rate.quantize(Decimal("0.0001"))
+        assert Decimal("0.0500") in {rate.rate for rate in rates}
+
+    async def test_tax_groups_carry_the_code_the_yaml_has_always_had(
+        self, db_session: AsyncSession
+    ) -> None:
+        """`seed/operations.yaml` has shipped `code: GST5` since M02 and the seeder dropped it,
+        because `tax_group` had no column to put it in. M03 decision 1 added one, and it is the key
+        `menu_item_variant` joins on - so a seed that loses it produces a menu that cannot be taxed.
+        """
+        await _seed(db_session)
+        restaurant = await _koregaon(db_session)
+
+        codes = (
+            await db_session.scalars(
+                select(TaxGroup.code).where(TaxGroup.restaurant_id == restaurant.id)
+            )
+        ).all()
+
+        assert set(codes) == {"GST5", "GST18"}
+
+    async def test_each_group_has_exactly_one_live_rate(self, db_session: AsyncSession) -> None:
+        """Two live rates for one group means an order line takes whichever the planner returns.
+        The exclusion constraint refuses it; this asserts the seed does not need refusing."""
+        await _seed(db_session)
+        restaurant = await _koregaon(db_session)
+
         groups = (
             await db_session.scalars(
                 select(TaxGroup).where(TaxGroup.restaurant_id == restaurant.id)
             )
         ).all()
 
-        assert groups, "operations.yaml defines tax groups; none were seeded"
         for group in groups:
-            assert isinstance(group.rate, Decimal), f"{group.name} stored a {type(group.rate)}"
-            # An exact four-place fraction. `Decimal(0.05)` is 0.0500000000000000027, which has
-            # more digits than this and fails here - before Postgres ever rounds it away.
-            assert group.rate == group.rate.quantize(Decimal("0.0001"))
-        assert Decimal("0.0500") in {group.rate for group in groups}
+            live = (
+                await db_session.scalars(
+                    select(TaxRate).where(
+                        TaxRate.tax_group_id == group.id, TaxRate.effective_to.is_(None)
+                    )
+                )
+            ).all()
+            assert len(live) == 1, f"{group.code} has {len(live)} live rates"
 
     async def test_the_second_branch_is_deliberately_empty(self, db_session: AsyncSession) -> None:
         """A restaurant with no dining areas is a real state the product meets on day one of

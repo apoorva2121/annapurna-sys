@@ -1,6 +1,6 @@
 # M03 · Menu — Module Spec
 
-**Status:** **DRAFT — four open decisions at the end need your answer before chunk A.**
+**Status:** **APPROVED 2026-09-12.** All four decisions answered — see the end of this file.
 **Estimate:** 4 days (+0.5 if decision 1 is taken) · **Depends on:** M02 (done, manual pass pending)
 **Gate:** M02's automated gate is clean. Its manual pass is deliberately deferred — see *Risks*.
 
@@ -394,3 +394,44 @@ round was counted. I would rather say 4 now.
 | The menu manager becomes a tree-widget project | It is two lists and a detail pane, reusing `FloorPlanScreen`'s shape. If a tree library is reached for, that is the signal the design went wrong |
 | `library/` and `menu.yaml` drift from what the tables accept | `library/validate.py` already runs in `make check`; chunk F's loader reads the same YAML, so a shape mismatch fails the build rather than the demo |
 | Scope creep from "while we are in the menu…" — combos, happy hour, channel pricing | Named in *Not in scope*. Anything that arrives goes to `docs/backlog.md` |
+
+---
+
+## Decisions, answered 2026-09-12
+
+**1 · The tax reference — (a), split identity from rate.** Built as chunk A: migration
+`0008_tax_group_identity` renames `tax_group` to `tax_rate` (so every existing row keeps its id and
+its dates — a rename cannot lose a row) and builds the identity table above it, grouping by the
+`name` that 0007's exclusion constraint already treated as the family key. `menu_item_variant.
+tax_group_id` now points at an identity, which is what `docs/schema.md` always said it did. Two
+backlog rows closed. `tax_group.code` doubles as the class discriminator the second row asked for.
+
+**2 · A manager does not hold `menu.edit`.** Owner and admin only, matching `restaurant.configure`.
+Revisit if a real manager expects otherwise — the *Known gaps* availability item is the need that
+actually drives this, and it has its own un-defer trigger at M07.
+
+**3 · `GET /menu` is persona-aware from the start.** The filter is written in chunk E; no guest
+screen ships. A guest sees name, description, `food_type`, variants and prices — never station,
+never `prep_minutes`, never an inactive row.
+
+**4 · Estimate 4 days**, +0.5 for decision 1. Recorded rather than discovered.
+
+### What chunk A actually cost
+
+One real defect, found by a test rather than by review: `add_tax_rate` had two overlapping guards,
+and the `starts_too_early` branch turned out to be unreachable — `scheduled_on_or_after` already
+catches every case it claimed to, including the same-day one. The test written for it returned 409
+instead of 422 and that was the signal. Two error codes for one situation is how a caller ends up
+handling neither; one check remains.
+
+Also found: M02 would have returned **500** when scheduling a rate change while another future
+change already existed. The exclusion constraint refused it and `IntegrityError` reached the
+catch-all handler (`docs/backlog.md`, "IntegrityError is unmapped"). Now a 409 naming the date in
+the way. That backlog row stays open — this is one call site, not the handler it asks for.
+
+**Mechanically verified red before green**, per the lesson this project keeps relearning:
+
+| Bug reintroduced | Test that caught it |
+|---|---|
+| `scheduled_on_or_after` guard removed | `test_a_second_scheduled_rate_is_refused_readably` — `ExclusionViolationError`, a 500 |
+| rate change mints a new group (M02's behaviour) | `test_a_rate_change_keeps_the_group_a_menu_item_points_at` — group id changed |

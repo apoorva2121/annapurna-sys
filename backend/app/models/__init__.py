@@ -11,7 +11,7 @@ from app.models.access import EmployeeRoleAssignment, Permission, Role, RolePerm
 from app.models.audit import AuditLog
 from app.models.base import Base
 from app.models.identity import Employee, UserAccount, UserSession
-from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup
+from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, TaxRate
 from app.models.tenancy import Organization, Restaurant
 
 __all__ = [
@@ -28,6 +28,7 @@ __all__ = [
     "RolePermission",
     "Station",
     "TaxGroup",
+    "TaxRate",
     "UserAccount",
     "UserSession",
 ]

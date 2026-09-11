@@ -35,7 +35,7 @@ from app.core.permissions import CATALOGUE, permissions_for_role
 from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
 from app.models.identity import Employee, UserAccount
-from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup
+from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, TaxRate
 from app.models.tenancy import Organization, Restaurant
 from tests.helpers.routes import RouteInfo, all_routes, staff_routes
 
@@ -229,7 +229,14 @@ def _sample_body(route: RouteInfo) -> dict[str, Any]:
     if route.path.endswith("/setup/stations"):
         return {"code": "probe_station", "name": "Probe Station"}
     if route.path.endswith("/setup/tax-groups"):
-        return {"name": "Probe Tax", "rate": "0.0500", "effective_from": "2099-01-01"}
+        return {
+            "code": "PROBETAX",
+            "name": "Probe Tax",
+            "rate": "0.0500",
+            "effective_from": "2099-01-01",
+        }
+    if route.path.endswith("/rates"):
+        return {"rate": "0.1200", "effective_from": "2099-06-01"}
     if "/setup/tax-groups/" in route.path or "/setup/dining-areas/" in route.path:
         return {"name": "Probe Rename"}
     if "/setup/stations/" in route.path:
@@ -274,13 +281,23 @@ async def _victim_resources(
     )
     tax = TaxGroup(
         restaurant_id=restaurant_id,
+        code=f"{prefix.upper()}GST",
         name=f"{prefix} GST",
-        rate=Decimal("0.0500"),
-        is_inclusive=False,
-        effective_from=date(2026, 1, 1),
+        is_active=True,
     )
     session.add_all([area, station, tax])
     await session.flush()
+    # The rate hangs off the group, so the victim has something a probe could read through
+    # `/rates` as well as through the group itself.
+    session.add(
+        TaxRate(
+            restaurant_id=restaurant_id,
+            tax_group_id=tax.id,
+            rate=Decimal("0.0500"),
+            is_inclusive=False,
+            effective_from=date(2026, 1, 1),
+        )
+    )
     table = RestaurantTable(
         restaurant_id=restaurant_id,
         dining_area_id=area.id,

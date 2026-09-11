@@ -21,11 +21,13 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime, time, timedelta
+from decimal import Decimal
 from typing import Any
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import EmploymentType, TableStatus, UserAccountStatus
@@ -33,6 +35,7 @@ from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
 from app.models.audit import AuditLog
 from app.models.identity import Employee, UserAccount
+from app.models.setup import TaxGroup, TaxRate
 from app.models.tenancy import Organization, Restaurant
 
 PASSWORD = "Staging#2026"  # noqa: S105
@@ -698,21 +701,80 @@ class TestStations:
 # --------------------------------------------------------------------------- tax
 
 
+async def _tax_group(
+    client: AsyncClient,
+    token: str,
+    *,
+    code: str = "GST5",
+    name: str = "GST 5% (restaurant, no ITC)",
+    rate: str = "0.0500",
+    effective_from: str | None = None,
+) -> str:
+    """A group charging `rate` from tomorrow, returning its id. Most tax tests start here."""
+    response = await client.post(
+        f"{SETUP}/tax-groups",
+        json={
+            "code": code,
+            "name": name,
+            "rate": rate,
+            "effective_from": effective_from or _tomorrow(),
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 201, response.text
+    created: str = response.json()["id"]
+    return created
+
+
 class TestTaxGroups:
-    async def test_creating_a_rate(self, db_session: AsyncSession, api_client: AsyncClient) -> None:
+    """A tax group is an identity; its rates are dated rows beneath it (M03 spec decision 1).
+
+    M02 had one table doing both jobs, and these tests were written against it: they looked rates up
+    by `name`, and a "supersession" created a second row with a *different* name — which is not what
+    a rate change is. `GST 5%` becoming `GST 12%` is the same tax class charging a new rate, not a
+    new class. The old shape could not express that, and the tests inherited the confusion.
+    """
+
+    async def test_creating_a_group_creates_the_rate_it_charges(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
         await _world(db_session, "owner")
         token = await _token(api_client, "owner")
 
         response = await api_client.post(
             f"{SETUP}/tax-groups",
-            json={"name": "GST 5%", "rate": "0.0500", "effective_from": _tomorrow()},
+            json={
+                "code": "GST5",
+                "name": "GST 5% (restaurant, no ITC)",
+                "rate": "0.0500",
+                "effective_from": _tomorrow(),
+            },
             headers=_auth(token),
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 201, response.text
+        body = response.json()
+        assert body["code"] == "GST5"
+        assert len(body["rates"]) == 1
         # A string, never a float: no JavaScript number ever touches a tax rate.
-        assert response.json()["rate"] == "0.0500"
-        assert response.json()["effective_to"] is None
+        assert body["rates"][0]["rate"] == "0.0500"
+        assert body["rates"][0]["effective_to"] is None
+
+    async def test_a_group_cannot_be_created_without_a_rate(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """A group charging nothing is a trap: a menu item could be attached to it and M07 would
+        find no rate at order time. The two are created together or not at all."""
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+
+        response = await api_client.post(
+            f"{SETUP}/tax-groups",
+            json={"code": "GST5", "name": "GST 5%", "effective_from": _tomorrow()},
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 422
 
     async def test_a_rate_cannot_start_in_the_past(
         self, db_session: AsyncSession, api_client: AsyncClient
@@ -723,7 +785,30 @@ class TestTaxGroups:
 
         response = await api_client.post(
             f"{SETUP}/tax-groups",
-            json={"name": "GST 5%", "rate": "0.0500", "effective_from": "2020-01-01"},
+            json={
+                "code": "GST5",
+                "name": "GST 5%",
+                "rate": "0.0500",
+                "effective_from": "2020-01-01",
+            },
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 422
+        assert response.json()["code"] == "tax_group.back_dated"
+
+    async def test_a_new_rate_cannot_be_back_dated_either(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The rule applied to creation in M02 and to one path only. Adding a rate to an existing
+        group is the path that actually matters — it is the one a real restaurant uses."""
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+        group = await _tax_group(api_client, token)
+
+        response = await api_client.post(
+            f"{SETUP}/tax-groups/{group}/rates",
+            json={"rate": "0.1200", "effective_from": "2020-01-01"},
             headers=_auth(token),
         )
 
@@ -764,12 +849,22 @@ class TestTaxGroups:
 
         accepted = await api_client.post(
             f"{SETUP}/tax-groups",
-            json={"name": "GST 5%", "rate": "0.0500", "effective_from": "2026-01-11"},
+            json={
+                "code": "GST5",
+                "name": "GST 5%",
+                "rate": "0.0500",
+                "effective_from": "2026-01-11",
+            },
             headers=_auth(token),
         )
         refused = await api_client.post(
             f"{SETUP}/tax-groups",
-            json={"name": "GST 12%", "rate": "0.1200", "effective_from": "2026-01-10"},
+            json={
+                "code": "GST12",
+                "name": "GST 12%",
+                "rate": "0.1200",
+                "effective_from": "2026-01-10",
+            },
             headers=_auth(token),
         )
 
@@ -787,48 +882,74 @@ class TestTaxGroups:
 
         response = await api_client.post(
             f"{SETUP}/tax-groups",
-            json={"name": "Absurd", "rate": "1.5000", "effective_from": _tomorrow()},
+            json={
+                "code": "ABSURD",
+                "name": "Absurd",
+                "rate": "1.5000",
+                "effective_from": _tomorrow(),
+            },
             headers=_auth(token),
         )
 
         assert response.status_code == 422
 
-    async def test_a_rate_is_superseded_rather_than_edited(
+    async def test_a_code_cannot_be_reused(
         self, db_session: AsyncSession, api_client: AsyncClient
     ) -> None:
-        """The rule this table exists for. The old row keeps its dates; the new row starts the day
-        after the old one ends, so an order on any date resolves to exactly one rate."""
         await _world(db_session, "owner")
         token = await _token(api_client, "owner")
-        start = date.fromisoformat(_tomorrow())
-        first = await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={"name": "GST 5%", "rate": "0.0500", "effective_from": start.isoformat()},
-            headers=_auth(token),
-        )
-        changeover = (start + timedelta(days=30)).isoformat()
+        await _tax_group(api_client, token, code="GST5")
 
         response = await api_client.post(
             f"{SETUP}/tax-groups",
             json={
-                "name": "GST 12%",
-                "rate": "0.1200",
-                "effective_from": changeover,
-                "supersedes_id": first.json()["id"],
+                "code": "GST5",
+                "name": "Something else",
+                "rate": "0.1800",
+                "effective_from": _tomorrow(),
             },
             headers=_auth(token),
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 409
+        assert response.json()["code"] == "tax_group.code_taken"
+
+    async def test_a_rate_change_keeps_the_group_a_menu_item_points_at(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """**The whole reason for M03 decision 1.**
+
+        `menu_item_variant.tax_group_id` references the group. A rate change must therefore leave
+        that id alone — otherwise every dish on the menu points at a closed period the first time
+        GST moves, and somebody has to repoint two hundred rows by hand.
+
+        Under M02's shape this was not merely unasserted, it was *false*: a supersession created a
+        second `tax_group` row with a new id, so the id a dish held stopped being current.
+        """
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+        group = await _tax_group(api_client, token)
+        changeover = (date.fromisoformat(_tomorrow()) + timedelta(days=30)).isoformat()
+
+        response = await api_client.post(
+            f"{SETUP}/tax-groups/{group}/rates",
+            json={"rate": "0.1200", "effective_from": changeover},
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 201, response.text
+        # Same group. This is the assertion the module exists for.
+        assert response.json()["id"] == group
+
         listed = (await api_client.get(f"{SETUP}/tax-groups", headers=_auth(token))).json()["items"]
-        by_name = {item["name"]: item for item in listed}
+        assert [item["id"] for item in listed] == [group], "a rate change must not create a group"
+        rates = {item["rate"]: item for item in listed[0]["rates"]}
         # The old rate is still there, now closed — an invoice from before the changeover cites it.
-        assert by_name["GST 5%"]["rate"] == "0.0500"
         assert (
-            by_name["GST 5%"]["effective_to"]
+            rates["0.0500"]["effective_to"]
             == (date.fromisoformat(changeover) - timedelta(days=1)).isoformat()
         )
-        assert by_name["GST 12%"]["effective_to"] is None
+        assert rates["0.1200"]["effective_to"] is None
 
     async def test_the_two_periods_meet_without_a_gap_or_an_overlap(
         self, db_session: AsyncSession, api_client: AsyncClient
@@ -837,122 +958,109 @@ class TestTaxGroups:
         leaves it with whichever the query happened to return first."""
         await _world(db_session, "owner")
         token = await _token(api_client, "owner")
-        start = date.fromisoformat(_tomorrow())
-        first = await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={"name": "GST 5%", "rate": "0.0500", "effective_from": start.isoformat()},
-            headers=_auth(token),
-        )
-        changeover = start + timedelta(days=30)
-        await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={
-                "name": "GST 12%",
-                "rate": "0.1200",
-                "effective_from": changeover.isoformat(),
-                "supersedes_id": first.json()["id"],
-            },
-            headers=_auth(token),
-        )
+        group = await _tax_group(api_client, token)
+        changeover = date.fromisoformat(_tomorrow()) + timedelta(days=30)
 
-        listed = (await api_client.get(f"{SETUP}/tax-groups", headers=_auth(token))).json()["items"]
-        closed = next(item for item in listed if item["name"] == "GST 5%")
-        opened = next(item for item in listed if item["name"] == "GST 12%")
+        body = (
+            await api_client.post(
+                f"{SETUP}/tax-groups/{group}/rates",
+                json={"rate": "0.1200", "effective_from": changeover.isoformat()},
+                headers=_auth(token),
+            )
+        ).json()
 
-        assert date.fromisoformat(closed["effective_to"]) + timedelta(days=1) == date.fromisoformat(
-            opened["effective_from"]
-        )
+        rates = {item["rate"]: item for item in body["rates"]}
+        assert date.fromisoformat(rates["0.0500"]["effective_to"]) + timedelta(
+            days=1
+        ) == date.fromisoformat(rates["0.1200"]["effective_from"])
 
-    async def test_a_rate_cannot_be_superseded_twice(
+    async def test_a_rate_cannot_start_on_the_day_another_one_starts(
         self, db_session: AsyncSession, api_client: AsyncClient
     ) -> None:
-        await _world(db_session, "owner")
-        token = await _token(api_client, "owner")
-        start = date.fromisoformat(_tomorrow())
-        first = await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={"name": "GST 5%", "rate": "0.0500", "effective_from": start.isoformat()},
-            headers=_auth(token),
-        )
-        replacement = {
-            "name": "GST 12%",
-            "rate": "0.1200",
-            "effective_from": (start + timedelta(days=30)).isoformat(),
-            "supersedes_id": first.json()["id"],
-        }
-        await api_client.post(f"{SETUP}/tax-groups", json=replacement, headers=_auth(token))
+        """Two rates of one group opening on the same date is the overlap that makes tax
+        nondeterministic — an order line would take whichever the planner returned.
 
-        response = await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={**replacement, "name": "GST 18%", "rate": "0.1800"},
-            headers=_auth(token),
-        )
-
-        assert response.status_code == 409
-        assert response.json()["code"] == "tax_group.already_superseded"
-
-    async def test_a_replacement_cannot_start_before_what_it_replaces(
-        self, db_session: AsyncSession, api_client: AsyncClient
-    ) -> None:
+        This began life asserting a separate `starts_too_early` refusal and came back 409 instead of
+        422, which was the test doing its job: the scheduled-rate check already covered this case,
+        so the second branch was unreachable. One situation, one code.
+        """
         await _world(db_session, "owner")
         token = await _token(api_client, "owner")
         start = date.fromisoformat(_tomorrow()) + timedelta(days=10)
-        first = await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={"name": "GST 5%", "rate": "0.0500", "effective_from": start.isoformat()},
+        group = await _tax_group(api_client, token, effective_from=start.isoformat())
+
+        response = await api_client.post(
+            f"{SETUP}/tax-groups/{group}/rates",
+            json={"rate": "0.1200", "effective_from": start.isoformat()},
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 409, response.text
+        assert response.json()["code"] == "tax_group.rate_already_scheduled"
+
+    async def test_a_second_scheduled_rate_is_refused_readably(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """Schedule a change, then schedule another one before it. The periods would overlap.
+
+        The exclusion constraint refuses it either way — but an `IntegrityError` reaches the
+        catch-all handler as a `500` with a reference number (`docs/backlog.md`: "IntegrityError is
+        unmapped"). An owner scheduling two GST changes in a week is an ordinary Tuesday, not an
+        internal error, so the service asks first and names the date in the way.
+        """
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+        group = await _tax_group(api_client, token)
+        far = (date.fromisoformat(_tomorrow()) + timedelta(days=60)).isoformat()
+        near = (date.fromisoformat(_tomorrow()) + timedelta(days=30)).isoformat()
+        await api_client.post(
+            f"{SETUP}/tax-groups/{group}/rates",
+            json={"rate": "0.1200", "effective_from": far},
             headers=_auth(token),
         )
 
         response = await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={
-                "name": "GST 12%",
-                "rate": "0.1200",
-                "effective_from": (start - timedelta(days=1)).isoformat(),
-                "supersedes_id": first.json()["id"],
-            },
+            f"{SETUP}/tax-groups/{group}/rates",
+            json={"rate": "0.1800", "effective_from": near},
             headers=_auth(token),
         )
 
-        assert response.status_code == 422
-        assert response.json()["code"] == "tax_group.starts_too_early"
+        assert response.status_code == 409, response.text
+        assert response.json()["code"] == "tax_group.rate_already_scheduled"
+        assert far in response.json()["message"]
 
-    async def test_superseding_something_that_does_not_exist_is_a_404(
+    async def test_adding_a_rate_to_a_group_that_does_not_exist_is_a_404(
         self, db_session: AsyncSession, api_client: AsyncClient
     ) -> None:
         await _world(db_session, "owner")
         token = await _token(api_client, "owner")
 
         response = await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={
-                "name": "GST 12%",
-                "rate": "0.1200",
-                "effective_from": _tomorrow(),
-                "supersedes_id": str(uuid.uuid4()),
-            },
+            f"{SETUP}/tax-groups/{uuid.uuid4()}/rates",
+            json={"rate": "0.1200", "effective_from": _tomorrow()},
             headers=_auth(token),
         )
 
         assert response.status_code == 404
 
-    @pytest.mark.parametrize("field", ["rate", "effective_from", "effective_to", "is_inclusive"])
-    async def test_nothing_but_the_name_can_be_patched(
+    @pytest.mark.parametrize("field", ["code", "rate", "effective_from", "is_inclusive"])
+    async def test_neither_the_code_nor_a_rate_can_be_patched(
         self, db_session: AsyncSession, api_client: AsyncClient, field: str
     ) -> None:
         """Immutability asserted field by field, because "the schema does not have it" is only true
-        until someone adds it back for a good-sounding reason."""
+        until someone adds it back for a good-sounding reason.
+
+        `code` joins `menu_item_variant`, `seed/operations.yaml` and every future recipe to this row
+        — the same contract `station.code` carries. A rate is immutable because it is copied onto
+        order lines and cited by invoices.
+        """
         await _world(db_session, "owner")
         token = await _token(api_client, "owner")
-        created = await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={"name": "GST 5%", "rate": "0.0500", "effective_from": _tomorrow()},
-            headers=_auth(token),
-        )
+        group = await _tax_group(api_client, token)
 
         response = await api_client.patch(
-            f"{SETUP}/tax-groups/{created.json()['id']}",
-            json={"name": "GST 5%", field: "0.1800" if field == "rate" else "2030-01-01"},
+            f"{SETUP}/tax-groups/{group}",
+            json={"name": "GST 5%", field: "0.1800" if field == "rate" else "OTHER"},
             headers=_auth(token),
         )
 
@@ -961,25 +1069,27 @@ class TestTaxGroups:
     async def test_the_name_can_be_corrected(
         self, db_session: AsyncSession, api_client: AsyncClient
     ) -> None:
-        """A typo in a label is not a restatement of tax — the rate and the dates are what must
-        not move."""
+        """A typo in a label is not a restatement of tax — the code and the rates are what must
+        not move.
+
+        Under M02 the display name was also the family key: the exclusion constraint was
+        `(restaurant_id, name, daterange)`, so this rename silently changed which rows counted as
+        the same rate. Now it changes a label and nothing else.
+        """
         await _world(db_session, "owner")
         token = await _token(api_client, "owner")
-        created = await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={"name": "GTS 5%", "rate": "0.0500", "effective_from": _tomorrow()},
-            headers=_auth(token),
-        )
+        group = await _tax_group(api_client, token, name="GTS 5%")
 
         response = await api_client.patch(
-            f"{SETUP}/tax-groups/{created.json()['id']}",
+            f"{SETUP}/tax-groups/{group}",
             json={"name": "GST 5%"},
             headers=_auth(token),
         )
 
         assert response.status_code == 200
         assert response.json()["name"] == "GST 5%"
-        assert response.json()["rate"] == "0.0500"
+        assert response.json()["code"] == "GST5"
+        assert response.json()["rates"][0]["rate"] == "0.0500"
 
     async def test_a_manager_may_not_change_tax(
         self, db_session: AsyncSession, api_client: AsyncClient
@@ -989,7 +1099,30 @@ class TestTaxGroups:
 
         response = await api_client.post(
             f"{SETUP}/tax-groups",
-            json={"name": "GST 0%", "rate": "0.0000", "effective_from": _tomorrow()},
+            json={
+                "code": "GST0",
+                "name": "GST 0%",
+                "rate": "0.0000",
+                "effective_from": _tomorrow(),
+            },
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 403
+
+    async def test_a_manager_may_not_add_a_rate_either(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The new route needs its own assertion: a permission is declared per route, and the one
+        that was added last is the one nobody checked."""
+        await _world(db_session, "owner", "manager")
+        owner_token = await _token(api_client, "owner")
+        group = await _tax_group(api_client, owner_token)
+        token = await _token(api_client, "manager")
+
+        response = await api_client.post(
+            f"{SETUP}/tax-groups/{group}/rates",
+            json={"rate": "0.1200", "effective_from": _tomorrow()},
             headers=_auth(token),
         )
 
@@ -1186,113 +1319,117 @@ class TestThemeSettings:
         assert response.status_code == 403
 
 
-class TestTwoLiveRatesOfTheSameName:
+class TestTwoLiveRatesOfOneGroup:
     """The guarantee that lived on only one of two code paths.
 
     Every non-overlap check sat inside `if supersedes_id is not None`, so the *simpler* call —
-    create without superseding — could put two rows of one name on the same date. `list_all`
-    returns both,
-    and M07's "which rate applies?" would take whichever the planner returned: nondeterministic tax
-    on a bill, which is a filing problem rather than a data-quality one. Found by external review.
+    create without superseding — could put two live rows of one rate on the same date, and M07's
+    "which rate applies?" would take whichever the planner returned: nondeterministic tax on a bill,
+    which is a filing problem rather than a data-quality one. Found by external review of M02.
 
-    Two *different* rates being current at once is legitimate and must keep working — the seed ships
-    GST 5% for restaurant food and GST 18% for packaged goods, both open-ended from the same day. A
-    constraint on the restaurant alone would have refused the product's own demo data.
+    **The family key has changed and the guarantee has not.** M02 keyed it on the display *name*,
+    because that was the only thing distinguishing one rate lineage from another. Renaming a rate
+    therefore silently changed which rows counted as the same rate — the bug under the bug. The key
+    is now `tax_group_id`, so this class asserts the same rule against an identity instead of a
+    string.
+
+    Two *different* groups being current at once is legitimate and must keep working — the seed
+    ships GST 5% for restaurant food and GST 18% for packaged goods, both open-ended from the same
+    day. A constraint on the restaurant alone would have refused the product's own demo data.
     """
 
-    async def test_a_second_rate_of_the_same_name_is_refused(
+    async def test_a_second_live_rate_for_one_group_is_refused(
         self, db_session: AsyncSession, api_client: AsyncClient
     ) -> None:
         await _world(db_session, "owner")
         token = await _token(api_client, "owner")
-        first = await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={"name": "GST 5%", "rate": "0.0500", "effective_from": _tomorrow()},
-            headers=_auth(token),
-        )
-        assert first.status_code == 201, first.text
+        group = await _tax_group(api_client, token)
 
         response = await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={"name": "GST 5%", "rate": "0.1200", "effective_from": _tomorrow()},
+            f"{SETUP}/tax-groups/{group}/rates",
+            json={"rate": "0.1200", "effective_from": _tomorrow()},
             headers=_auth(token),
         )
 
         assert response.status_code == 409, response.text
-        assert response.json()["code"] == "tax_group.period_overlaps"
-        # It names the row to supersede, so the client can retry correctly rather than guess.
-        assert response.json()["details"]["supersedes_id"] == first.json()["id"]
+        assert response.json()["code"] == "tax_group.rate_already_scheduled"
 
-    async def test_a_later_overlapping_period_is_refused_too(
+    async def test_the_database_refuses_it_even_when_the_service_does_not(
+        self, db_session: AsyncSession
+    ) -> None:
+        """The service check is a readable message; the exclusion constraint is the guarantee.
+
+        Written against the model directly, bypassing every service rule, because a guard that only
+        exists in Python is one refactor away from not existing. 0008 moved this constraint from
+        `(restaurant_id, name, daterange)` to `(tax_group_id, daterange)` and this is the assertion
+        that the move kept its teeth.
+        """
+        world = await _world(db_session, "owner")
+        group = TaxGroup(
+            restaurant_id=world.restaurant.id, code="GST5", name="GST 5%", is_active=True
+        )
+        db_session.add(group)
+        await db_session.flush()
+        overlapping = [
+            TaxRate(
+                restaurant_id=world.restaurant.id,
+                tax_group_id=group.id,
+                rate=Decimal(rate),
+                is_inclusive=False,
+                effective_from=date(2030, 1, 1),
+                effective_to=None,
+            )
+            for rate in ("0.0500", "0.1200")
+        ]
+        db_session.add_all(overlapping)
+
+        with pytest.raises(IntegrityError):
+            await db_session.flush()
+
+    async def test_two_different_groups_may_be_current_at_once(
         self, db_session: AsyncSession, api_client: AsyncClient
     ) -> None:
-        """Not just the same start date. An open-ended rate covers every day after it, so anything
-        starting later overlaps it until it is closed."""
+        """The seed's own shape: food and packaged goods are taxed differently on the same day."""
         await _world(db_session, "owner")
         token = await _token(api_client, "owner")
-        start = date.fromisoformat(_tomorrow())
-        await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={"name": "GST 5%", "rate": "0.0500", "effective_from": start.isoformat()},
-            headers=_auth(token),
-        )
+        await _tax_group(api_client, token, code="GST5", name="GST 5% (food)", rate="0.0500")
 
         response = await api_client.post(
             f"{SETUP}/tax-groups",
             json={
-                "name": "GST 5%",
-                "rate": "0.1200",
-                "effective_from": (start + timedelta(days=60)).isoformat(),
-            },
-            headers=_auth(token),
-        )
-
-        assert response.status_code == 409
-
-    async def test_two_different_rates_may_be_current_at_once(
-        self, db_session: AsyncSession, api_client: AsyncClient
-    ) -> None:
-        """The case the obvious constraint would have broken. Food and packaged goods carry
-        different GST, both apply today, and neither supersedes the other."""
-        await _world(db_session, "owner")
-        token = await _token(api_client, "owner")
-        await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={"name": "GST 5% (restaurant)", "rate": "0.0500", "effective_from": _tomorrow()},
-            headers=_auth(token),
-        )
-
-        response = await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={"name": "GST 18% (packaged)", "rate": "0.1800", "effective_from": _tomorrow()},
-            headers=_auth(token),
-        )
-
-        assert response.status_code == 201, response.text
-
-    async def test_superseding_still_works_and_is_not_caught_by_the_new_guard(
-        self, db_session: AsyncSession, api_client: AsyncClient
-    ) -> None:
-        """The replacement overlaps the row it replaces by definition, right up until that row is
-        closed. Excluding the superseded id is what keeps the legitimate path open."""
-        await _world(db_session, "owner")
-        token = await _token(api_client, "owner")
-        start = date.fromisoformat(_tomorrow())
-        first = await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={"name": "GST 5%", "rate": "0.0500", "effective_from": start.isoformat()},
-            headers=_auth(token),
-        )
-
-        response = await api_client.post(
-            f"{SETUP}/tax-groups",
-            json={
-                "name": "GST 12%",
-                "rate": "0.1200",
-                "effective_from": (start + timedelta(days=30)).isoformat(),
-                "supersedes_id": first.json()["id"],
+                "code": "GST18",
+                "name": "GST 18% (packaged)",
+                "rate": "0.1800",
+                "effective_from": _tomorrow(),
             },
             headers=_auth(token),
         )
 
         assert response.status_code == 201, response.text
+        listed = (await api_client.get(f"{SETUP}/tax-groups", headers=_auth(token))).json()["items"]
+        assert {item["code"] for item in listed} == {"GST5", "GST18"}
+
+    async def test_a_future_rate_is_not_caught_by_the_guard(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The guard must refuse overlaps and permit the ordinary case, or it is just an outage.
+
+        A rate change starting after the current one is the whole point of the table.
+        """
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+        group = await _tax_group(api_client, token)
+
+        response = await api_client.post(
+            f"{SETUP}/tax-groups/{group}/rates",
+            json={
+                "rate": "0.1200",
+                "effective_from": (
+                    date.fromisoformat(_tomorrow()) + timedelta(days=30)
+                ).isoformat(),
+            },
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 201, response.text
+        assert len(response.json()["rates"]) == 2

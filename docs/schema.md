@@ -4,7 +4,7 @@ The concrete table specification. Conceptual model: `docs/domain-model.md`. Conv
 ADR 0004 (money/time/units), ADR 0006 (preparations), ADR 0007 (identity), ADR 0008 (keys, deletion,
 enums, numerics), ADR 0010 (idempotency, locking), ADR 0011 (performance).
 
-**63 tables in 13 domains.** Everything here is Phase 1 unless marked `[1.5]`.
+**64 tables in 13 domains.** Everything here is Phase 1 unless marked `[1.5]`.
 
 ## Reading this document
 
@@ -128,7 +128,7 @@ review rejection (ADR 0007).
 
 ---
 
-## 2 · Restaurant setup — 4 tables
+## 2 · Restaurant setup — 5 tables
 
 ```
 dining_area
@@ -146,14 +146,30 @@ station                                          -- tandoor | main_kitchen | chi
   restaurant_id, code NN, name NN, seq, is_active
   UQ (restaurant_id, code)
 
-tax_group                                        -- GST. Rates change; history must not move.
-  restaurant_id, name NN
+tax_group                                        -- the tax CLASS. One row, for as long as it is charged.
+  restaurant_id
+  code                text NN                    -- UQ (restaurant_id, code). "GST5". Immutable.
+  name                text NN                    -- a label; editable
+  is_active
+  UQ (id, restaurant_id)                         -- target of tax_rate's composite FK
+
+tax_rate                                         -- what that class charges, and between which dates
+  restaurant_id, tax_group_id NN FK→tax_group
   rate                numeric(6,4) NN            -- 0.0500 = 5%
   is_inclusive        bool NN default false
   effective_from      date NN
-  effective_to        date
-  IX (restaurant_id, effective_from)
+  effective_to        date                       -- NULL = still current
+  FK (tax_group_id, restaurant_id) → tax_group(id, restaurant_id)
+  EXCLUDE (tax_group_id WITH =, daterange(effective_from, effective_to, '[]') WITH &&)
+  IX (restaurant_id, effective_from), IX (tax_group_id, effective_from)
 ```
+
+**A tax group has an identity separate from its current rate** (M03 spec decision 1, migration 0008).
+`menu_item_variant.tax_group_id` below points at the **group**, so a GST change adds a `tax_rate`
+row and repoints nothing — the rate in force on a business date is resolved by date. M02 shipped one
+table doing both jobs, which meant every dish on the menu would have pointed at a closed period the
+first time a rate moved. The composite foreign key makes "a rate belongs to the same restaurant as
+its group" a database guarantee rather than a service convention.
 
 ---
 
@@ -793,7 +809,7 @@ Dependencies force roughly this sequence:
 
 1. organization, restaurant
 2. permission, role, role_permission, user_account, user_session, employee, employee_role_assignment
-3. dining_area, restaurant_table, station, tax_group
+3. dining_area, restaurant_table, station, tax_group, tax_rate
 4. supplier, stock_item, ingredient_profile, preparation_profile
 5. menu_category, menu_item, menu_item_variant, modifier_group, modifier, menu_item_modifier_group
 6. recipe, recipe_line

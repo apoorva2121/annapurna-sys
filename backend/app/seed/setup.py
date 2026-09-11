@@ -34,7 +34,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import TableStatus
-from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup
+from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, TaxRate
 from app.models.tenancy import Restaurant
 from app.seed.loader import find_seed_directory
 
@@ -206,19 +206,34 @@ async def _stations(
 async def _tax_groups(
     session: AsyncSession, restaurant_id: Any, records: list[dict[str, Any]]
 ) -> int:
+    """A group and its opening rate, keyed on the `code` the YAML has always carried.
+
+    M02 matched on `name` because `tax_group` had no code column — so renaming a rate in the YAML
+    seeded a second group instead of matching the existing one. The column exists now (M03 decision
+    1) and `code` is what `menu_item_variant` and every future recipe join on.
+    """
     created = 0
     for record in records:
-        name = str(record["name"])
+        code = str(record["code"])
         existing = await session.scalar(
-            select(TaxGroup).where(TaxGroup.restaurant_id == restaurant_id, TaxGroup.name == name)
+            select(TaxGroup).where(TaxGroup.restaurant_id == restaurant_id, TaxGroup.code == code)
         )
         if existing is not None:
             continue
         effective_from = record["effective_from"]
+        group = TaxGroup(
+            restaurant_id=restaurant_id,
+            code=code,
+            name=str(record["name"]),
+            is_active=True,
+        )
+        session.add(group)
+        # Flushed so the rate below has a group id. The seed runs in one transaction either way.
+        await session.flush()
         session.add(
-            TaxGroup(
+            TaxRate(
                 restaurant_id=restaurant_id,
-                name=name,
+                tax_group_id=group.id,
                 # `Decimal(str(...))` and never `Decimal(float)`: 0.05 as a float is
                 # 0.05000000000000000277…, and that is what would be stored (CLAUDE.md invariant 3).
                 rate=Decimal(str(record["rate"])),

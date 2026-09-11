@@ -1,12 +1,16 @@
-// Tax rates, and the two things this screen must not let someone do.
+// Tax groups and their rates, and the three things this screen must not let someone do.
 //
 // A rate is copied onto every order line and cited by an invoice. Editing one in place silently
 // restates tax already charged and reported — a filing problem, not a data-quality one. The server
 // refuses it; this screen must not offer it either, because a control that exists and then fails is
 // worse than one that was never there.
 //
-// The other risk is subtler: superseded rows hidden for tidiness. An invoice from March cites the
+// The second risk is subtler: superseded rows hidden for tidiness. An invoice from March cites the
 // March rate, and someone checking that invoice has to be able to see it.
+//
+// The third is new in M03. A group is an identity a menu item points at; a rate change must add a
+// row *under the same group*, never mint a second group. These tests assert the request shape that
+// guarantees it — a POST to the group's own `/rates`, carrying no name and no group of its own.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -29,22 +33,28 @@ const RESTAURANT: RestaurantSummary = {
   theme: { default: null, schedule: [] },
 };
 
-const CURRENT = {
-  id: 'tax-current',
-  name: 'GST 12%',
-  rate: '0.1200',
-  is_inclusive: false,
-  effective_from: '2026-04-01',
-  effective_to: null,
-};
-
-const SUPERSEDED = {
-  id: 'tax-old',
-  name: 'GST 5%',
-  rate: '0.0500',
-  is_inclusive: false,
-  effective_from: '2025-01-01',
-  effective_to: '2026-03-31',
+/** One group whose rate has already changed once: 5% until March, 12% since April. */
+const GST5 = {
+  id: 'group-food',
+  code: 'GST5',
+  name: 'GST 5% (restaurant, no ITC)',
+  is_active: true,
+  rates: [
+    {
+      id: 'rate-current',
+      rate: '0.1200',
+      is_inclusive: false,
+      effective_from: '2026-04-01',
+      effective_to: null,
+    },
+    {
+      id: 'rate-old',
+      rate: '0.0500',
+      is_inclusive: false,
+      effective_from: '2025-01-01',
+      effective_to: '2026-03-31',
+    },
+  ],
 };
 
 function json(body: unknown, status = 200): Response {
@@ -85,9 +95,7 @@ function renderScreen(): void {
 
 function listReturns(...items: unknown[]) {
   const mock = vi.fn((_url: string, init?: RequestInit) =>
-    Promise.resolve(
-      init?.method === 'POST' ? json(CURRENT, 201) : json({ items, next_cursor: null }),
-    ),
+    Promise.resolve(init?.method === 'POST' ? json(GST5, 201) : json({ items, next_cursor: null })),
   );
   vi.stubGlobal('fetch', mock);
   return mock;
@@ -105,130 +113,129 @@ function sentJson(call: FetchCall | undefined): Record<string, unknown> {
   return JSON.parse(body) as Record<string, unknown>;
 }
 
+function post(mock: ReturnType<typeof listReturns>): FetchCall | undefined {
+  return mock.mock.calls.find(([, init]) => init?.method === 'POST');
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe('the list', () => {
   it('shows superseded rates as well as the current one', async () => {
-    listReturns(CURRENT, SUPERSEDED);
+    listReturns(GST5);
 
     renderScreen();
 
-    expect(await screen.findByText('GST 12%')).toBeInTheDocument();
+    expect(await screen.findByText(/GST 5% \(restaurant/)).toBeInTheDocument();
+    // Twice: the group header states what it charges today, the history row states when that began.
+    expect(screen.getAllByText('12%')).toHaveLength(2);
     // The one that matters: an invoice from March cites this, so hiding it would make the audit
     // impossible while making the screen look tidier.
-    expect(screen.getByText('GST 5%')).toBeInTheDocument();
+    expect(screen.getByText('5%')).toBeInTheDocument();
   });
 
-  it('says which is current in a word, not only in a colour', async () => {
+  it('says which rate is current in a word, not only in a colour', async () => {
     // restaurant-ui rule 5. Commercial kitchens are full of colour-blind men and steamed screens.
-    listReturns(CURRENT, SUPERSEDED);
+    listReturns(GST5);
 
     renderScreen();
 
-    expect(await screen.findByText('Current')).toBeInTheDocument();
+    // Once in the header summary, once on the live row.
+    expect(await screen.findAllByText('Current')).toHaveLength(2);
     expect(screen.getByText('Superseded')).toBeInTheDocument();
   });
 
-  it('renders the rate as a percentage without doing arithmetic on a rupee', async () => {
-    listReturns(CURRENT, SUPERSEDED);
+  it('shows the code, because that is what a menu item joins on', async () => {
+    listReturns(GST5);
 
     renderScreen();
 
-    expect(await screen.findByText('12%')).toBeInTheDocument();
-    expect(screen.getByText('5%')).toBeInTheDocument();
+    expect(await screen.findByText('GST5')).toBeInTheDocument();
   });
 });
 
 describe('immutability', () => {
-  it('offers no way to edit a rate — only to replace it', async () => {
-    listReturns(CURRENT, SUPERSEDED);
+  it('offers no way to edit a rate — only to charge a new one', async () => {
+    listReturns(GST5);
 
     renderScreen();
-    await screen.findByText('GST 12%');
+    await screen.findByText('GST5');
 
     // No control anywhere on the screen claims to change a rate in place.
     expect(screen.queryByRole('button', { name: /^edit/i })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /replace this rate/i })).toHaveLength(1);
-  });
-
-  it('does not offer to replace an already superseded rate', async () => {
-    // It is already closed; replacing it would mean two rates live on one date, and an order line
-    // would take whichever the query happened to return first.
-    listReturns(CURRENT, SUPERSEDED);
-
-    renderScreen();
-    const supersededRow = (await screen.findByText('GST 5%')).closest('tr');
-
-    expect(supersededRow).not.toBeNull();
-    expect(
-      within(supersededRow as HTMLElement).queryByRole('button', { name: /replace/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /change the rate/i })).toHaveLength(1);
   });
 });
 
-describe('creating a rate', () => {
+describe('changing a rate', () => {
+  it('posts to the group it belongs to, so the menu is never repointed', async () => {
+    // **The assertion M03 decision 1 exists for.** A rate change must add a row under the existing
+    // group. Posting to `/setup/tax-groups` instead would mint a second group, and every menu item
+    // pointing at the first would be left on a closed period.
+    const fetchMock = listReturns(GST5);
+    const user = userEvent.setup();
+    renderScreen();
+    await screen.findByText('GST5');
+
+    await user.click(screen.getByRole('button', { name: /change the rate/i }));
+    await user.click(screen.getByRole('button', { name: /^change the rate$/i }));
+
+    await waitFor(() => {
+      const sent = post(fetchMock);
+      expect(sent?.[0]).toContain('/staff/setup/tax-groups/group-food/rates');
+    });
+    const body = sentJson(post(fetchMock));
+    // No name and no code: a rate has neither. Sending one would mean the client thought it was
+    // creating a group.
+    expect(body.name).toBeUndefined();
+    expect(body.code).toBeUndefined();
+  });
+
   it('sends the rate as a four-decimal string, never a float', async () => {
     // 5 in the box is 0.0500 on the wire. Parsing to a number and back is how five percent becomes
     // 0.05000000000000001 on some bill, some day (CLAUDE.md invariant 3).
-    const fetchMock = listReturns(CURRENT);
+    const fetchMock = listReturns(GST5);
     const user = userEvent.setup();
     renderScreen();
-    await screen.findByText('GST 12%');
+    await screen.findByText('GST5');
 
-    await user.type(screen.getByLabelText(/^name$/i), 'GST 5%');
-    await user.click(screen.getByRole('button', { name: /^add a tax rate$/i }));
+    await user.click(screen.getByRole('button', { name: /change the rate/i }));
+    await user.click(screen.getByRole('button', { name: /^change the rate$/i }));
 
     await waitFor(() => {
-      const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
-      expect(post).toBeDefined();
-      const body = sentJson(post);
+      const body = sentJson(post(fetchMock));
       expect(body.rate).toBe('0.0500');
       expect(typeof body.rate).toBe('string');
     });
   });
 
-  it('carries supersedes_id when replacing, so the two periods are closed in one request', async () => {
-    const fetchMock = listReturns(CURRENT);
-    const user = userEvent.setup();
-    renderScreen();
-    await screen.findByText('GST 12%');
-
-    await user.click(screen.getByRole('button', { name: /replace this rate/i }));
-    await user.type(screen.getByLabelText(/^name$/i), 'GST 18%');
-    await user.click(screen.getByRole('button', { name: /^add a tax rate$/i }));
-
-    await waitFor(() => {
-      const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
-      const body = sentJson(post);
-      expect(body.supersedes_id).toBe('tax-current');
-    });
-  });
-
-  it('refuses to create a rate when the rate box is empty', async () => {
+  it('refuses to send a rate when the rate box is empty', async () => {
     // The defect this closes was unrecoverable. `Number("")` is 0, so submitting with the rate
     // field blank posted `"0.0000"` — a valid rate to the server, copied onto every order line, and
-    // then impossible to correct because a rate can only be superseded, never edited. The submit
-    // button only checked the *name*. Found by external review.
+    // then impossible to correct because a rate can only be superseded, never edited. Found by
+    // external review of M02.
     //
-    // There are now two independent protections and this asserts the **outcome**, not either one:
-    // the browser's `required` (restored by removing `noValidate`) and the parse guard in
-    // `onSubmit`. Verified: removing either alone still passes, removing both fails. That is the
-    // honest description — it is a defence-in-depth test, not an isolation test, and someone
-    // re-adding `noValidate` while trusting the JS guard is exactly who it protects.
-    const fetchMock = listReturns(CURRENT);
+    // Two independent protections and this asserts the **outcome**, not either one: the browser's
+    // `required` (kept by not setting `noValidate`) and the `asFraction` guard. Verified: removing
+    // either alone still passes, removing both fails. That is the honest description — a
+    // defence-in-depth test, not an isolation test.
+    const fetchMock = listReturns(GST5);
     const user = userEvent.setup();
     renderScreen();
-    await screen.findByText('GST 12%');
+    await screen.findByText('GST5');
 
-    await user.type(screen.getByLabelText(/^name$/i), 'GST 5%');
-    await user.clear(screen.getByLabelText(/percent/i));
-    await user.click(screen.getByRole('button', { name: /^add a tax rate$/i }));
+    await user.click(screen.getByRole('button', { name: /change the rate/i }));
+    // Scoped to this group's own card. Two percent boxes are on screen once the change form opens
+    // — this one and the add-a-group form's — and clearing the wrong one would make the test pass
+    // for the wrong reason.
+    const card = screen.getByText('GST5').closest('section');
+    expect(card).not.toBeNull();
+    await user.clear(within(card as HTMLElement).getByLabelText(/percent/i));
+    await user.click(screen.getByRole('button', { name: /^change the rate$/i }));
 
     // No request at all — not a request the server happens to reject.
-    const posts = fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST');
-    expect(posts).toHaveLength(0);
+    expect(post(fetchMock)).toBeUndefined();
   });
 
   it('reports a back-dated refusal rather than failing silently', async () => {
@@ -245,17 +252,56 @@ describe('creating a rate', () => {
                 },
                 422,
               )
-            : json({ items: [CURRENT], next_cursor: null }),
+            : json({ items: [GST5], next_cursor: null }),
         ),
       ),
     );
     const user = userEvent.setup();
     renderScreen();
-    await screen.findByText('GST 12%');
+    await screen.findByText('GST5');
 
-    await user.type(screen.getByLabelText(/^name$/i), 'GST 5%');
-    await user.click(screen.getByRole('button', { name: /^add a tax rate$/i }));
+    await user.click(screen.getByRole('button', { name: /change the rate/i }));
+    await user.click(screen.getByRole('button', { name: /^change the rate$/i }));
 
     expect(await screen.findByText(/cannot start before today/i)).toBeInTheDocument();
+  });
+});
+
+describe('creating a group', () => {
+  it('sends an uppercased code, because a lowercase one would be refused for a reason nobody knows', async () => {
+    const fetchMock = listReturns(GST5);
+    const user = userEvent.setup();
+    renderScreen();
+    await screen.findByText('GST5');
+
+    await user.type(screen.getByLabelText(/^code$/i), 'gst18');
+    await user.type(screen.getByLabelText(/^name$/i), 'GST 18% (packaged)');
+    await user.click(screen.getByRole('button', { name: /^add a tax group$/i }));
+
+    await waitFor(() => {
+      const body = sentJson(post(fetchMock));
+      expect(body.code).toBe('GST18');
+    });
+  });
+
+  it('creates the group and its opening rate in one request', async () => {
+    // A group with no rate is a trap: a menu item could be attached to it and M07 would find
+    // nothing to charge at order time.
+    const fetchMock = listReturns(GST5);
+    const user = userEvent.setup();
+    renderScreen();
+    await screen.findByText('GST5');
+
+    await user.type(screen.getByLabelText(/^code$/i), 'GST18');
+    await user.type(screen.getByLabelText(/^name$/i), 'GST 18% (packaged)');
+    await user.click(screen.getByRole('button', { name: /^add a tax group$/i }));
+
+    await waitFor(() => {
+      const sent = post(fetchMock);
+      expect(sent?.[0]).toMatch(/\/staff\/setup\/tax-groups$/);
+      const body = sentJson(sent);
+      expect(body.code).toBe('GST18');
+      expect(body.rate).toBe('0.0500');
+    });
   });
 });

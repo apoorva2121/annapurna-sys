@@ -40,7 +40,7 @@ from app.core.business_day import business_date_of
 from app.core.enums import TableStatus
 from app.core.errors import AppError, ConflictError, NotFoundError
 from app.models.audit import AuditLog
-from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup
+from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, TaxRate
 from app.models.tenancy import Restaurant
 from app.repositories.setup import (
     DiningAreaRepository,
@@ -48,6 +48,7 @@ from app.repositories.setup import (
     RestaurantTableRepository,
     StationRepository,
     TaxGroupRepository,
+    TaxRateRepository,
 )
 from app.schemas.setup import (
     DiningAreaCreateRequest,
@@ -58,6 +59,8 @@ from app.schemas.setup import (
     TableCreateRequest,
     TableUpdateRequest,
     TaxGroupCreateRequest,
+    TaxGroupUpdateRequest,
+    TaxRateCreateRequest,
 )
 
 # The settings whose change is worth a row in `audit_log`. Not every field: an address correction
@@ -101,6 +104,9 @@ class SetupService:
 
     def _taxes(self, actor: Actor) -> TaxGroupRepository:
         return TaxGroupRepository(self.session, actor.scope)
+
+    def _tax_rates(self, actor: Actor) -> TaxRateRepository:
+        return TaxRateRepository(self.session, actor.scope)
 
     # ------------------------------------------------------------------ the restaurant
 
@@ -367,13 +373,158 @@ class SetupService:
         return await self._taxes(actor).list_all(limit=limit, after=after)
 
     async def create_tax_group(self, actor: Actor, request: TaxGroupCreateRequest) -> TaxGroup:
-        """Create a rate, or replace one.
+        """A new tax class and the first rate it charges, in one call.
 
-        With `supersedes_id`, the old row is closed the day before the new one opens — in this one
-        call, so the two cannot end up overlapping or leaving a gap between them.
+        Both together because a group with no rate is a trap: a menu item could be attached to it
+        and M07 would find nothing to charge at order time. The group is the identity a dish points
+        at; the rate is what it costs today.
         """
         today = await self.business_today(actor)
-        if request.effective_from < today:
+        self._refuse_back_dating(request.effective_from, today)
+
+        if await self._taxes(actor).code_exists(request.code):
+            raise ConflictError(
+                "tax_group.code_taken",
+                f"A tax group with code {request.code!r} already exists. Codes are permanent, so "
+                "pick another — or add a new rate to the existing group instead.",
+            )
+
+        group = TaxGroup(
+            restaurant_id=actor.restaurant_id,
+            code=request.code,
+            name=request.name,
+            is_active=True,
+        )
+        self.session.add(group)
+        await self.session.flush()
+
+        rate = TaxRate(
+            restaurant_id=actor.restaurant_id,
+            tax_group_id=group.id,
+            rate=request.rate,
+            is_inclusive=request.is_inclusive,
+            effective_from=request.effective_from,
+            effective_to=None,
+        )
+        self.session.add(rate)
+        await self.session.flush()
+
+        await self._audit(
+            actor,
+            action="tax_group.created",
+            entity_type="tax_group",
+            entity_id=group.id,
+            old_value=None,
+            new_value={
+                "code": group.code,
+                "name": group.name,
+                "rate": rate.rate,
+                "effective_from": rate.effective_from,
+            },
+        )
+        return await self._reload_group(actor, group.id)
+
+    async def update_tax_group(
+        self, actor: Actor, tax_group_id: uuid.UUID, request: TaxGroupUpdateRequest
+    ) -> TaxGroup:
+        """Name and active flag. Never the code, and never a rate.
+
+        `code` is what `menu_item_variant`, `seed/operations.yaml` and every future recipe join on —
+        the same contract `station.code` carries. A rate change is a new `tax_rate` row, which is
+        `add_tax_rate` below.
+        """
+        group = await self._taxes(actor).get_for_update(tax_group_id)
+        if group is None:
+            raise NotFoundError("tax_group.not_found", "That tax group does not exist.")
+
+        before = {"name": group.name, "is_active": group.is_active}
+        if request.name is not None:
+            group.name = request.name
+        if request.is_active is not None:
+            group.is_active = request.is_active
+        await self.session.flush()
+
+        if before != {"name": group.name, "is_active": group.is_active}:
+            await self._audit(
+                actor,
+                action="tax_group.updated",
+                entity_type="tax_group",
+                entity_id=group.id,
+                old_value=before,
+                new_value={"name": group.name, "is_active": group.is_active},
+            )
+        return await self._reload_group(actor, group.id)
+
+    async def add_tax_rate(
+        self, actor: Actor, tax_group_id: uuid.UUID, request: TaxRateCreateRequest
+    ) -> TaxGroup:
+        """Charge a new rate from a future date. The rate in force until then is closed the day
+        before, so the two periods meet exactly and nothing has to be repointed.
+
+        **No `supersedes_id`.** M02 made the caller name the row being replaced and then checked
+        that its name matched — a step that existed only because a tax group had no identity of its
+        own. The group is the identity now, and only one of its rates can be live on any date, so
+        there is nothing left to name.
+        """
+        today = await self.business_today(actor)
+        self._refuse_back_dating(request.effective_from, today)
+
+        group = await self._taxes(actor).get_for_update(tax_group_id)
+        if group is None:
+            raise NotFoundError("tax_group.not_found", "That tax group does not exist.")
+
+        rates = self._tax_rates(actor)
+        # One question covers every way this can go wrong, which is why there is only one check
+        # here. A rate that starts on or after the requested date would overlap the open-ended row
+        # this call is about to create — whether it starts on the same day (a duplicate), or later
+        # (a change already scheduled). A first draft had a second `starts_too_early` branch below;
+        # the test for it came back 409 instead of 422, because this check had already caught the
+        # case. Two error codes for one situation is how a caller ends up handling neither.
+        scheduled = await rates.scheduled_on_or_after(tax_group_id, request.effective_from)
+        if scheduled is not None:
+            raise ConflictError(
+                "tax_group.rate_already_scheduled",
+                f"{group.name!r} already has a rate starting on "
+                f"{scheduled.effective_from.isoformat()}. Two rates of one group cannot overlap — "
+                "pick a date before that one, or remove it first.",
+                details={"conflicting_rate_id": str(scheduled.id)},
+            )
+
+        current = await rates.live_on(tax_group_id, request.effective_from)
+        if current is not None:
+            # The day before, so the two periods meet exactly. Same day would mean two live rates
+            # on one date, and an order line would take whichever the query happened to return —
+            # and the check above has already ruled that out.
+            current.effective_to = request.effective_from - _ONE_DAY
+
+        replacement = TaxRate(
+            restaurant_id=actor.restaurant_id,
+            tax_group_id=tax_group_id,
+            rate=request.rate,
+            is_inclusive=request.is_inclusive,
+            effective_from=request.effective_from,
+            effective_to=None,
+        )
+        self.session.add(replacement)
+        await self.session.flush()
+
+        await self._audit(
+            actor,
+            action="tax_rate.created",
+            entity_type="tax_group",
+            entity_id=tax_group_id,
+            old_value=(
+                None
+                if current is None
+                else {"id": current.id, "rate": current.rate, "until": current.effective_to}
+            ),
+            new_value={"rate": replacement.rate, "effective_from": replacement.effective_from},
+        )
+        return await self._reload_group(actor, tax_group_id)
+
+    def _refuse_back_dating(self, effective_from: date, today: date) -> None:
+        """One rule, one place. It applied to creation in M02 and now applies to both paths."""
+        if effective_from < today:
             raise AppError(
                 "tax_group.back_dated",
                 f"A rate cannot start before today ({today.isoformat()}). Tax already charged and "
@@ -382,75 +533,16 @@ class SetupService:
                 status_code=422,
             )
 
-        # Checked on the plain-create path too. Every guarantee below used to live inside the
-        # `supersedes_id` branch, so the *simpler* call — create without superseding — could put two
-        # rows of one name on the same date, and an order line would take whichever the planner
-        # returned. The exclusion constraint added in 0007 is the authority; this is the refusal a
-        # person can act on, and it names the row to supersede. Found by external review.
-        clash = await self._taxes(actor).live_on(request.name, request.effective_from)
-        if clash is not None and clash.id != request.supersedes_id:
-            raise ConflictError(
-                "tax_group.period_overlaps",
-                f"{clash.name!r} already applies on {request.effective_from.isoformat()}. "
-                "A rate change replaces it — send supersedes_id so the two periods meet exactly.",
-                details={"supersedes_id": str(clash.id)},
-            )
+    async def _reload_group(self, actor: Actor, tax_group_id: uuid.UUID) -> TaxGroup:
+        """Re-read with the rates attached, because `TaxGroup.rates` is `lazy="raise"`.
 
-        superseded: TaxGroup | None = None
-        if request.supersedes_id is not None:
-            superseded = await self._taxes(actor).get_for_update(request.supersedes_id)
-            if superseded is None:
-                raise NotFoundError("tax_group.not_found", "That tax rate does not exist.")
-            if superseded.effective_to is not None:
-                raise ConflictError(
-                    "tax_group.already_superseded",
-                    f"{superseded.name!r} already ended on {superseded.effective_to.isoformat()}.",
-                )
-            if request.effective_from <= superseded.effective_from:
-                raise AppError(
-                    "tax_group.starts_too_early",
-                    f"A replacement must start after the rate it replaces, which began on "
-                    f"{superseded.effective_from.isoformat()}.",
-                    status_code=422,
-                )
-
-        replacement = TaxGroup(
-            restaurant_id=actor.restaurant_id,
-            name=request.name,
-            rate=request.rate,
-            is_inclusive=request.is_inclusive,
-            effective_from=request.effective_from,
-            effective_to=None,
-        )
-        self.session.add(replacement)
-        if superseded is not None:
-            # The day before, so the two periods meet exactly. Same day would mean two live rates
-            # on one date, and an order line would take whichever the query happened to return.
-            superseded.effective_to = request.effective_from - _ONE_DAY
-        await self.session.flush()
-
-        await self._audit(
-            actor,
-            action="tax_group.created",
-            entity_type="tax_group",
-            entity_id=replacement.id,
-            old_value=(
-                None
-                if superseded is None
-                else {"id": superseded.id, "rate": superseded.rate, "name": superseded.name}
-            ),
-            new_value={"rate": replacement.rate, "effective_from": replacement.effective_from},
-        )
-        return replacement
-
-    async def rename_tax_group(self, actor: Actor, tax_group_id: uuid.UUID, name: str) -> TaxGroup:
-        """The only edit a tax row allows. The rate and the dates are immutable once the row exists
-        — see the schema, which offers no field for them."""
-        group = await self._taxes(actor).get(tax_group_id)
-        if group is None:
-            raise NotFoundError("tax_group.not_found", "That tax rate does not exist.")
-        group.name = name
-        await self.session.flush()
+        The response serialiser walks the rates, and a freshly added group has none loaded. Raising
+        rather than lazy-loading is deliberate on the model: an N+1 that works is harder to find
+        than one that crashes on the first request.
+        """
+        group = await self._taxes(actor).get_with_rates(tax_group_id)
+        if group is None:  # pragma: no cover - written in this transaction
+            raise NotFoundError("tax_group.not_found", "That tax group does not exist.")
         return group
 
     # ------------------------------------------------------------------ shared

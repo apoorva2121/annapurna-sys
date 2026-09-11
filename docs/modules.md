@@ -53,7 +53,8 @@ No features. Everything else stands on it, so it is worth a full day.
 ## M02 · Restaurant Setup
 
 - **Depends on** — M01
-- **Tables** — dining_area, restaurant_table, station, tax_group
+- **Tables** — dining_area, restaurant_table, station, tax_group, tax_rate (`tax_rate` split
+  out of `tax_group` by M03 chunk A, migration 0008 — see `docs/modules/M03-menu-spec.md` decision 1)
 - **Endpoints** — CRUD for each; `PATCH /restaurant` (timezone, currency, business_day_start, GSTIN)
 - **Screens** — restaurant settings, dining areas + tables (drag to reorder), stations, tax groups
 - **Rules** — `business_day_start` defaults to 05:00 and is explained in the UI, because it is the

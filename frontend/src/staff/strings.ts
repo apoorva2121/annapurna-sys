@@ -197,8 +197,12 @@ export const strings = {
 
     tax: {
       title: 'Tax rates',
-      empty: 'No tax rates yet.',
-      add: 'Add a tax rate',
+      empty: 'No tax groups yet.',
+      add: 'Add a tax group',
+      addGroupHint:
+        'A tax group is a class of item — restaurant food, packaged goods. Menu items point at the group, so changing what it charges later never means re-tagging the menu.',
+      code: 'Code',
+      codeHint: 'Permanent, e.g. GST5. Menu items and recipes join on it, so it cannot change later.',
       name: 'Name',
       rate: 'Rate',
       ratePercent: 'Percent',
@@ -208,9 +212,12 @@ export const strings = {
       effectiveTo: 'Ends on',
       current: 'Current',
       superseded: 'Superseded',
-      supersede: 'Replace this rate',
+      supersede: 'Change the rate',
       supersedeHint:
-        'A rate is never edited. Replacing it closes this one the day before the new one starts, so an invoice from last month still cites the rate that was charged.',
+        'A rate is never edited. Charging a new one closes the current one the day before the new one starts, so an invoice from last month still cites the rate that was charged. Menu items keep pointing at this group.',
+      cancel: 'Cancel',
+      history: 'Rate history',
+      noRates: 'No rate yet.',
       renameOnly: 'Rename',
       renameHint:
         'Only the name can change. The rate and the dates are fixed once the rate exists.',
