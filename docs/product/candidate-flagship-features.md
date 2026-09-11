@@ -177,3 +177,108 @@ receipt with per-line confidence and resolution candidates. It is self-contained
 sits behind a clean contract, and cannot corrupt anything if it is wrong.
 
 Then build **#2** on the data it produces, because that is the feature the product is actually for.
+
+---
+
+# Addendum · What can be built *now*, before any real data exists
+
+Asked 2026-09-11: can a strong external model build state-of-the-art preprocessing, analysis and ML
+now, as plug-and-play modules, to be used later?
+
+## The trap to avoid
+
+**Do not train predictive models now.** There is no real data. The only dataset is M15's synthetic
+generator, and a model trained on it learns the generator — including its *planted* signals — rather
+than restaurants. The result demos well, cannot be validated, and rots as the schema moves.
+
+There is also a carrying cost that is not tokens: an unused artefact ages, and the next person
+trusts it. A model built today and plugged in nine months from now is a confident stranger.
+
+## The distinction that makes this worth doing
+
+Split every candidate by whether it needs *your customers' data*:
+
+| Needs customer data | Does not |
+|---|---|
+| trained demand / churn / staffing models | domain **knowledge** encoded as data |
+| anything tuned on real distributions | **infrastructure** that models plug into |
+
+Everything in the right-hand column can be built now, validated now, and still be correct in a year.
+Everything in the left should wait until there is history to learn from and to test against.
+
+## Build now
+
+### A · `indian-fnb-lexicon` — the ingredient and unit resolver
+
+**The single best use of external model effort**, because it is pure domain knowledge, it needs no
+customer data, and it is the moat under the bill-to-ledger feature above.
+
+- canonical ingredient list for Indian restaurant kitchens, each with a base unit (`g`/`ml`/`unit`,
+  invariant 5), category, and regional aliases across Hindi, Marathi, Tamil, Bengali, Gujarati — in
+  both Devanagari and transliteration
+- supplier shorthand: `Kanda`, `TMT`, `Aloo`, `Dahi`, the abbreviations that differ per supplier
+- **the unit parser, which is the hard part**: `nag`, `pkt`, `gunny`/`bora`, `tin`, `peti`, `dozen`,
+  `kg`, `gm`, `ltr` — parsed from free text into a base-unit quantity
+- a resolver: messy line text → ranked candidate ingredients with scores
+
+**The safety requirement, and it is not optional.** A wrong unit conversion writes wrong stock, and
+wrong stock destroys the variance number the product sells. A `gunny` is *approximately* 50kg and
+varies by commodity and region. So every conversion must carry **provenance and a confidence**, and
+anything below threshold is a human confirmation rather than a silent number. An artefact that
+states `gunny = 50000g` as fact is worse than one that says "50kg ± regional, confirm".
+
+Generated entries need verification against a real source before they are trusted. A model will
+produce a plausible, confident, wrong conversion without hesitating.
+
+### B · `indian-demand-calendar` — the feature library forecasting will need
+
+A forecaster is commodity. **The calendar is the differentiator**, and it is knowledge work that can
+be done now:
+
+- festivals with regional applicability (they move every year, and Ganesh Chaturthi matters in Pune
+  in a way it does not in Kolkata)
+- festival eve / day / day-after, which behave completely differently for a restaurant
+- cricket fixtures — IPL and international, day vs night
+- monsoon onset and withdrawal by city; exam season; school holidays
+- dry days by state; paydays (the 1st and the last working day are real demand events in India)
+- long weekends
+
+Output is plain feature rows keyed by date and city. **Dates must be verified against an
+authoritative source, not generated** — a model inventing Diwali 2027 is plausible and wrong, and
+the error is invisible until the day it matters most.
+
+### C · `forecast-eval` — the harness, not the model
+
+Most forecasting projects fail on evaluation rather than modelling. Buildable now, against synthetic
+data, and it is what will later prove any model is real:
+
+- time-series splits that respect `business_date` boundaries, so there is no leakage across the
+  05:00 line (a naive split leaks tomorrow into today for every restaurant that serves past midnight)
+- baselines that a real model must beat: seasonal naive, day-of-week mean, EWMA
+- **metrics aligned to the decision, not to the literature**: over-prep and under-prep cost different
+  amounts, so quantile/pinball loss, reported in rupees
+- the interface a model must implement to be swapped in
+
+Lower priority than A and B only because its consumer is further away.
+
+## How they must be built to be genuinely plug-and-play
+
+Non-negotiable, or they will not be reusable and cannot be sold separately:
+
+- **standalone packages that never import `app.*`** — the application depends on them, never the
+  reverse
+- inputs and outputs are plain data (dicts, dataframes, Pydantic models), never SQLAlchemy objects
+- their own test suites, their own versioning, their own changelog
+- no database access of any kind
+
+## What is sellable on its own
+
+A and B. The ingredient lexicon and unit resolver is an asset any Indian F&B or grocery product
+needs and none of them can assemble quickly; the demand calendar is licensable to anyone doing
+Indian retail analytics. C is internal quality infrastructure with no external market.
+
+## Order
+
+**A, then B. Hold C until there is a model to evaluate.** A has a near-term consumer — the
+bill-to-ledger feature — which is what stops it becoming shelfware. B rots slowly and needs an
+annual refresh, so it can wait behind A without cost.
