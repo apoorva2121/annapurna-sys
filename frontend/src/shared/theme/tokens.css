@@ -95,9 +95,6 @@
        touches `--target-min`: a touch target is a fact about a thumb. */
     --theme-density: 1;
 
-    /* What screens actually use, as `p-page` and `gap-page`. Surface × theme, so a roomy surface
-       under a dense theme still reads as roomier than a dense surface under the same theme. */
-    --page-gap: calc(1rem * var(--density) * var(--theme-density));
   }
 
   /*
@@ -139,22 +136,36 @@
    * Set by `data-surface` on <body>, orthogonal to the theme. This is the physical contract with a
    * thumb, a glove and two metres of steam, so a theme cannot reach it.
    */
+  /*
+   * `--page-gap` is redeclared in every block rather than once on :root, and that is not
+   * repetition — it is the only thing that works.
+   *
+   * A custom property containing var() is substituted at computed-value time **on the element
+   * where it is declared**. Declared once on :root, `--page-gap` bakes in :root's `--density` of 1
+   * and descendants inherit that already-resolved value; setting `--density: 1.25` on <body> then
+   * changes nothing. The symptom would have been half a working lever — `min-h-target` correct on
+   * the waiter surface because it reads its variable directly, `p-page` silently stuck at manager
+   * spacing — which reads as a Tailwind bug rather than a CSS scoping one.
+   */
   :root,
   [data-surface='manager'],
   [data-surface='owner'] {
     --target-min: 2.75rem; /* 44px — pointer-driven surfaces */
     --density: 1;
+    --page-gap: calc(1rem * var(--density) * var(--theme-density));
   }
 
   [data-surface='waiter'] {
     /* One hand, moving, in a dim room. */
     --target-min: 3rem; /* 48px */
     --density: 1.25;
+    --page-gap: calc(1rem * var(--density) * var(--theme-density));
   }
 
   [data-surface='kds'] {
     /* Read at two metres, tapped with a glove. */
     --target-min: 4rem; /* 64px */
     --density: 1.5;
+    --page-gap: calc(1rem * var(--density) * var(--theme-density));
   }
 }

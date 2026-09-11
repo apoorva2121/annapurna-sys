@@ -23,7 +23,7 @@ from app.models.identity import Employee
 from app.repositories.access import AccessRepository
 from app.services.auth import AuthService
 from app.services.employee import EmployeeService
-from tests.test_employee_endpoints import PASSWORD, World, _auth, _token, _world
+from tests.test_employee_endpoints import PASSWORD, World, _auth, _role, _token, _world
 
 
 class TestIdentifierSquatting:
@@ -558,6 +558,69 @@ class TestAResetPasswordMustBeChanged:
         )
 
         assert again.json()["password_change_required"] is False
+
+    async def test_a_password_set_at_creation_must_also_be_changed(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The path people actually use, and the one the flag originally missed.
+
+        `reset_password` set `password_reset_required`; creating an employee *with* an initial
+        password did not — so the ordinary onboarding flow left the owner holding a working
+        credential for that person indefinitely, with nothing on screen to say so. Identical harm to
+        P1-6, on the more common path, while the docstring next to the column claimed the rule held.
+        """
+        await _world(db_session, "owner")
+        owner = await _token(api_client, "owner")
+
+        created = await api_client.post(
+            "/api/v1/staff/employees",
+            headers=_auth(owner),
+            json={
+                "full_name": "New Waiter",
+                "employee_code": "NEW01",
+                "joined_on": "2026-01-01",
+                "login_identifier": "new.waiter@spice-garden.test",
+                "initial_password": "owner-chose-this",
+            },
+        )
+        assert created.status_code == 201, created.text
+
+        # Assign a role, because a person with none cannot sign in at all (auth.no_restaurant) —
+        # create-then-assign is the real onboarding sequence, not a test artefact.
+        waiter_role = await _role(db_session, "waiter")
+        assigned = await api_client.post(
+            f"/api/v1/staff/employees/{created.json()['id']}/roles",
+            headers=_auth(owner),
+            json={"role_ids": [str(waiter_role.id)]},
+        )
+        assert assigned.status_code == 200, assigned.text
+
+        signed_in = await api_client.post(
+            "/api/v1/auth/login",
+            json={"identifier": "new.waiter@spice-garden.test", "password": "owner-chose-this"},
+        )
+
+        assert signed_in.status_code == 200, signed_in.text
+        assert signed_in.json()["password_change_required"] is True, (
+            "the owner chose this password and still knows it, but the person was never asked to "
+            "change it"
+        )
+
+    async def test_an_employee_created_without_a_login_is_not_flagged(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """ADR 0007's cleaner: no account, so nothing to flag and nothing to prompt."""
+        await _world(db_session, "owner")
+        owner = await _token(api_client, "owner")
+
+        created = await api_client.post(
+            "/api/v1/staff/employees",
+            headers=_auth(owner),
+            json={"full_name": "A Cleaner", "employee_code": "CLN01", "joined_on": "2026-01-01"},
+        )
+
+        assert created.status_code == 201, created.text
+        assert created.json()["has_login"] is False
 
     async def test_an_ordinary_login_is_not_flagged(
         self, db_session: AsyncSession, api_client: AsyncClient

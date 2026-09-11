@@ -186,6 +186,11 @@ class AuthService:
 
         Committing here is safe because nothing else is pending — login only reads until this
         point — and because this record must outlive precisely the failure that produces it.
+
+        **That safety is a precondition, not a property.** It holds only while `/login` writes
+        nothing else before this line. G-11 plans an `audit_log` row for failed logins; when it
+        lands, this commit stops meaning "only my counter" and the ordering of the two writes
+        becomes load-bearing. Whoever adds it owns that decision.
         """
         settings = get_settings()
         account.failed_attempts += 1
@@ -317,6 +322,9 @@ class AuthService:
         # Committed here, like the failure counter, and for the same reason (G-1): the caller is
         # about to raise 401 and the route will never reach its own commit, so without this the
         # revocation is rolled back by the very response that reports it.
+        #
+        # Safe only while `/refresh` has written nothing else by this point — currently true, and a
+        # precondition rather than a property. See `_record_failure` for the same note.
         #
         # The consequence of getting this wrong is backwards, which is what made it easy to miss:
         # the thief who presents the stolen token *first* is handed a working session, while the

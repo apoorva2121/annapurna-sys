@@ -90,6 +90,17 @@ async def api(db_connection: AsyncConnection) -> AsyncIterator[FastAPI]:
 
     With a session per request, a handler that forgets to commit fails here instead of in a
     restaurant.
+
+    **What this fixture cannot test, and what to use instead.** Every session here shares one
+    connection and one transaction, so two "concurrent" requests are the same transaction: they
+    share locks, and a `SELECT … FOR UPDATE` never contends. A test asserting that a row lock
+    prevents a lost update, or that two simultaneous writes resolve to one, would pass here while
+    proving nothing. `commit()` is also `RELEASE SAVEPOINT` rather than a real `COMMIT`, so a
+    failure that only occurs at commit time — a deferred constraint, a serialization error — cannot
+    surface either.
+
+    Anything of that shape takes `fresh_database` and its own connections. R6's refresh-rotation
+    grace window (G-19) is the next test with this property; write it there, not here.
     """
     application = create_app()
 

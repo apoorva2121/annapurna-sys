@@ -179,6 +179,12 @@ class EmployeeService:
             # No password yet means invited, not active: the account exists and cannot be signed
             # in to until someone sets one.
             status=UserAccountStatus.ACTIVE if password else UserAccountStatus.INVITED,
+            # Somebody else chose this password, so the same rule as a reset applies: the person
+            # changes it the first time they sign in, and until they do, anything done with the
+            # account is attributed to them while the creator still knows the credential.
+            # Conditional, not unconditional — an invited account has no password to change, and
+            # flagging it would demand a change nobody can make.
+            password_reset_required=password is not None,
         )
         self.session.add(account)
         await self.session.flush()
