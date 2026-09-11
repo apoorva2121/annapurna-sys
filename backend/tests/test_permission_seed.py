@@ -7,11 +7,20 @@ editing the file without shipping a migration fails the build and says so.
 
 from __future__ import annotations
 
+import hashlib
+import json
+import re
+from pathlib import Path
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import RoleCode
 from app.core.permissions import CATALOGUE
+
+_BACKEND = Path(__file__).resolve().parents[1]
+_CATALOGUE_PATH = _BACKEND / "app" / "core" / "permissions.json"
+_VERSIONS = _BACKEND / "alembic" / "versions"
 
 
 async def _seeded_grants(session: AsyncSession) -> dict[str, set[str]]:
@@ -106,3 +115,61 @@ async def test_the_seniority_ladder_reached_the_database(db_session: AsyncSessio
     )
     seeded = {str(code): int(rank) for code, rank in rows.all()}
     assert seeded == {role.code: role.rank for role in CATALOGUE.roles}
+
+
+# --------------------------------------------------------------- the migration is not optional
+
+
+def _catalogue_fingerprint() -> str:
+    """A canonical hash of the catalogue's *content*.
+
+    `_`-prefixed keys are excluded, so editing the readme does not demand a migration; keys are
+    sorted and separators fixed, so reformatting the file does not either. Anything that changes
+    who can do what does change this.
+    """
+    raw = json.loads(_CATALOGUE_PATH.read_text(encoding="utf-8"))
+    catalogue = {key: value for key, value in raw.items() if not key.startswith("_")}
+    canonical = json.dumps(catalogue, sort_keys=True, separators=(",", ":"))
+    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _declared_fingerprints() -> dict[str, str]:
+    """Every `CATALOGUE_FINGERPRINT` declared by a migration, keyed by file name."""
+    found: dict[str, str] = {}
+    for path in _VERSIONS.glob("*.py"):
+        match = re.search(
+            r"^CATALOGUE_FINGERPRINT\s*=\s*[\"']([^\"']+)[\"']",
+            path.read_text(encoding="utf-8"),
+            re.MULTILINE,
+        )
+        if match is not None:
+            found[path.name] = match.group(1)
+    return found
+
+
+def test_the_current_catalogue_has_a_migration_that_seeds_it() -> None:
+    """Editing `permissions.json` without shipping a migration must fail the build.
+
+    The three tests above cannot catch that, and it took M02 to notice. They compare the database
+    against the file — but the database is built by running migrations, and migration 0002 *reads
+    the file*, so a fresh database always agrees with whatever the file says. Adding a permission
+    and shipping no migration left all of them green.
+
+    The case they miss is the only one that matters: a database that has already run 0002. Alembic
+    will not run it again, the new permission never arrives, and owner and admin quietly lack it in
+    staging while every test passes locally.
+
+    So this compares the file against the *migrations* instead. To fix a failure here, add a
+    migration that reconciles the catalogue and declare the new fingerprint in it — copy
+    `0005_m02_restaurant_configure.py`, which exists for exactly this reason.
+    """
+    current = _catalogue_fingerprint()
+    declared = _declared_fingerprints()
+
+    assert current in declared.values(), (
+        f"permissions.json has changed and no migration seeds this version of it.\n"
+        f"  current catalogue: {current}\n"
+        f"  declared by migrations: {declared or 'none'}\n"
+        f"Add a migration that reconciles the catalogue and set CATALOGUE_FINGERPRINT to the "
+        f"current value. Without one, a database that already ran 0002 never receives the change."
+    )

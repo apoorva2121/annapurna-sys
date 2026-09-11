@@ -15,7 +15,10 @@ in ...", so an enumerator returning nothing makes every one of them pass while t
 
 from __future__ import annotations
 
+import re
+import uuid
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 import jwt
@@ -27,11 +30,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.auth import PUBLIC_ROUTES
 from app.core.config import get_settings
-from app.core.enums import EmploymentType, UserAccountStatus
+from app.core.enums import EmploymentType, TableStatus, UserAccountStatus
 from app.core.permissions import CATALOGUE, permissions_for_role
 from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
 from app.models.identity import Employee, UserAccount
+from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup
 from app.models.tenancy import Organization, Restaurant
 from tests.helpers.routes import RouteInfo, all_routes, staff_routes
 
@@ -212,9 +216,84 @@ def _sample_body(route: RouteInfo) -> dict[str, Any]:
             "employee_code": "PROBE1",
             "joined_on": "2026-01-01",
         }
+    if route.path.endswith("/setup/dining-areas"):
+        return {"name": "Probe Area"}
+    if route.path.endswith("/setup/tables"):
+        return {"dining_area_id": str(_PROBE_UUID), "code": "P1", "seats": 2}
+    if route.path.endswith("/setup/stations"):
+        return {"code": "probe_station", "name": "Probe Station"}
+    if route.path.endswith("/setup/tax-groups"):
+        return {"name": "Probe Tax", "rate": "0.0500", "effective_from": "2099-01-01"}
+    if "/setup/tax-groups/" in route.path or "/setup/dining-areas/" in route.path:
+        return {"name": "Probe Rename"}
+    if "/setup/stations/" in route.path:
+        return {"name": "Probe Rename"}
+    if "/setup/tables/" in route.path:
+        return {"seats": 4}
     if route.method == "PATCH":
         return {"full_name": "Probe Person"}
     return {}
+
+
+_PROBE_UUID = uuid.UUID("00000000-0000-0000-0000-0000000000ff")
+
+# Every path parameter the staff surface uses, and the victim resource each one addresses.
+#
+# **A parameter missing from this map fails suite 1 rather than being skipped**, which is the whole
+# point of the map existing. The previous version of the suite matched `{employee_id}` and
+# `continue`d past everything else; when M02 added four PATCH routes taking `{area_id}`,
+# `{table_id}`, `{station_id}` and `{tax_group_id}`, the suite went on passing while probing none of
+# them — the four routes where a cross-tenant *write* would happen. A future module adding
+# `{menu_item_id}` now gets a failing build telling it to seed a victim row here.
+_VICTIM_PARAMETERS = frozenset({"employee_id", "area_id", "table_id", "station_id", "tax_group_id"})
+
+
+async def _victim_resources(session: AsyncSession, tenant: Tenant) -> dict[str, str]:
+    """One row of every tenant-owned kind, belonging to the victim restaurant.
+
+    These are the things another tenant must not be able to read, write or confirm the existence
+    of. Created directly rather than through the API so the fixture does not depend on the
+    endpoints it is about to probe.
+    """
+    restaurant_id = tenant.restaurant.id
+    area = DiningArea(restaurant_id=restaurant_id, name="Victim Hall", seq=0, is_active=True)
+    station = Station(
+        restaurant_id=restaurant_id, code="victim_pass", name="Victim Pass", seq=0, is_active=True
+    )
+    tax = TaxGroup(
+        restaurant_id=restaurant_id,
+        name="Victim GST",
+        rate=Decimal("0.0500"),
+        is_inclusive=False,
+        effective_from=date(2026, 1, 1),
+    )
+    session.add_all([area, station, tax])
+    await session.flush()
+    table = RestaurantTable(
+        restaurant_id=restaurant_id,
+        dining_area_id=area.id,
+        code="V1",
+        seats=4,
+        status=TableStatus.FREE,
+        is_active=True,
+    )
+    session.add(table)
+    await session.flush()
+
+    employee = (
+        await session.scalars(
+            select(Employee.id).where(Employee.organization_id == tenant.organization.id)
+        )
+    ).first()
+    assert employee is not None, "the victim tenant has no employee to probe"
+
+    return {
+        "employee_id": str(employee),
+        "area_id": str(area.id),
+        "table_id": str(table.id),
+        "station_id": str(station.id),
+        "tax_group_id": str(tax.id),
+    }
 
 
 # --------------------------------------------------------------------------- suites 1-3
@@ -223,26 +302,46 @@ def _sample_body(route: RouteInfo) -> dict[str, Any]:
 class TestTenantIsolationAcrossEveryStaffRoute:
     """Suite 1. The product's #1 bug class, asserted route by route rather than case by case."""
 
-    async def test_no_staff_route_exposes_another_tenants_employee(
+    async def test_every_path_parameter_has_a_victim_row(self, api: FastAPI) -> None:
+        """The guard that stops this suite quietly shrinking.
+
+        Suite 1 is a loop that substitutes a victim id into each route's path. A parameter it has
+        no victim for cannot be probed — and the previous version simply skipped those, so adding a
+        route with a new parameter name removed it from the product's most important security test
+        without changing a single line of this file. M02 added four such routes.
+
+        Now an unknown parameter fails here instead, naming the route and the parameter.
+        """
+        unknown: dict[str, str] = {}
+        for route in staff_routes(api):
+            for name in re.findall(r"\{([a-z_]+)\}", route.path):
+                if name not in _VICTIM_PARAMETERS:
+                    unknown[name] = route.key
+        assert not unknown, (
+            "these path parameters have no victim row, so suite 1 cannot probe their routes: "
+            f"{unknown}. Add the parameter to _VICTIM_PARAMETERS and seed a row for it in "
+            "_victim_resources, or the routes below are exempt from tenant-isolation testing."
+        )
+
+    async def test_no_staff_route_exposes_another_tenants_resource(
         self, db_session: AsyncSession, api: FastAPI, api_client: AsyncClient
     ) -> None:
         spice = await _tenant(db_session, "spice-garden", ("owner",))
         await _tenant(db_session, "tandoor-house", ("owner",))
+        victims = await _victim_resources(db_session, spice)
         await db_session.commit()
-
-        victim = (
-            await db_session.scalars(
-                select(Employee.id).where(Employee.organization_id == spice.organization.id)
-            )
-        ).first()
-        assert victim is not None
 
         token = await _login(api_client, "owner@tandoor-house.test")
         failures: list[str] = []
+        probed = 0
         for route in staff_routes(api):
-            if "{employee_id}" not in route.path:
+            if "{" not in route.path:
                 continue
-            url = route.path.replace("{employee_id}", str(victim))
+            url = route.path
+            for name, value in victims.items():
+                url = url.replace(f"{{{name}}}", value)
+            assert "{" not in url, f"no victim id for {route.key}"
+            probed += 1
             response = await api_client.request(
                 route.method,
                 url,
@@ -254,6 +353,9 @@ class TestTenantIsolationAcrossEveryStaffRoute:
             if response.status_code not in (403, 404, 422):
                 failures.append(f"{route.key} -> {response.status_code}")
         assert not failures, f"cross-tenant access succeeded on: {failures}"
+        # The loop ran. Without this the suite passes when the enumerator returns nothing, which is
+        # the failure mode suite 0 exists to prevent and this is its per-suite half.
+        assert probed >= 10, f"suite 1 only probed {probed} routes; it should cover every id route"
 
 
 class TestPersonaSeparation:

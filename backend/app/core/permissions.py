@@ -40,6 +40,9 @@ class PermissionCode(StrEnum):
     # code. Suppressed here rather than project-wide, because the rule is worth keeping.
     EMPLOYEE_PASSWORD_RESET = "employee.password.reset"  # noqa: S105
     ROLE_VIEW = "role.view"
+    # M02. Owner and admin only: a manager runs a shift, and changing what a day means or what tax
+    # is charged is not running a shift (M02 spec decision 1).
+    RESTAURANT_CONFIGURE = "restaurant.configure"
 
 
 class PermissionSpec(BaseModel):

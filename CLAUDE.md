@@ -50,6 +50,12 @@ make seed           # demo restaurant with menu, recipes, stock, orders
 Run `make check` before saying work is done — it is the blocking gate (lint + tests + audits).
 `make lint` is the fast subset for use while working.
 
+**Read its exit code, not its last lines.** `make check | tail` reports `tail`'s status, so a failing
+gate looks like a passing one — `make: *** [lint-api] Error 1` scrolls past and the command still
+"succeeds". This has produced a false "clean" claim twice. Use `make check > check.log 2>&1; echo $?`
+and check the number. Note also that `make lint` runs `ruff format --check`, which *fails* on
+unformatted files — running `ruff format` yourself rewrites them and reports nothing.
+
 Never edit a migration that has been applied on staging — write a new one.
 
 ## Invariants — violating any of these is a bug, not a style choice

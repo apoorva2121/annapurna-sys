@@ -16,10 +16,10 @@ Before any code: `docs/engineering-guardrails.md` and `.claude/skills/restaurant
 |---|---|---|---|
 | A | Migration: 4 tables + `restaurant.fssai_licence` (S13) | ✅ done | `4a3c048` |
 | B | The business-day helper, both languages (M11) | ✅ done | `38ba3bd` |
-| C | Repositories, services, API — first use of `RestaurantScopedRepository` | ⬅ **NEXT** | — |
-| D | shadcn components M02 needs: Select, Dialog/Sheet, Table, Switch, Label | ☐ | — |
+| C | Repositories, services, API — first use of `RestaurantScopedRepository` | ✅ done | see below |
+| D | shadcn components M02 needs: Select, Dialog/Sheet, Table, Switch, Label | ⬅ **NEXT** | — |
 | E | Four screens | ☐ | — |
-| F | `POST /auth/switch` (S12) · theme settings · `reserved` by hand (S14) | ☐ | — |
+| F | `POST /auth/switch` (S12) · theme settings · ~~`reserved` by hand (S14)~~ done in C | ☐ | — |
 | G | Manual script, adversarial review, `make check` | ☐ | — |
 
 **Chunk B wanted high model effort** — see *Why B is the risky one* below. Everything else is
@@ -110,3 +110,65 @@ this module exists.
   is identity-touching.
 - **ADR 0008** — master data is deactivated, never deleted.
 - Every new route declares a permission, or the route-declaration suite fails the build.
+
+---
+
+## What chunk C actually cost
+
+11 endpoints, 5 repositories, 1 service, 19 schemas and migration 0005, behind one permission
+(`restaurant.configure`, owner and admin only). 366 backend tests, 98% coverage.
+
+The CRUD was the small half. Three defects came out of it, and **all three were invisible to a
+green test suite** — which is the only thing about this chunk worth remembering.
+
+### Defect 1 · The permission-seed guard could not fail
+
+`tests/test_permission_seed.py` says, in its own docstring: *"editing the file without shipping a
+migration fails the build and says so."* It cannot. Migration 0002 **reads** `permissions.json` at
+migration time, and the test database is built by running migrations — so the file and the database
+always agree, whatever the file says. Adding `restaurant.configure` to the catalogue with no
+migration left all eight of those tests green.
+
+The case it misses is the only one that matters: a database that has already run 0002. Alembic will
+not re-run it, the permission never arrives, and owner and admin silently lack it **in staging**
+while every test passes locally.
+
+Fixed by fingerprinting the catalogue's content (canonical JSON, `_` keys excluded) and asserting
+some migration declares that exact hash. Verified in both directions: a real access-control change
+fails the build and names the migration to copy; a readme edit does not.
+
+### Defect 2 · The tenant-isolation suite covered none of this module
+
+Suite 1 is titled "across every staff route". It matched `{employee_id}` and `continue`d past
+everything else. M02 added four PATCH routes taking `{area_id}`, `{table_id}`, `{station_id}` and
+`{tax_group_id}` — the four routes in this module where a cross-tenant **write** would happen — and
+the suite went on passing while probing none of them. Measured: 24 staff routes, 6 probed, 4 with an
+id skipped entirely.
+
+Rewritten to seed one row of every tenant-owned kind and substitute by parameter name. The important
+half is the new guard next to it: **an unknown path parameter now fails the suite** rather than being
+skipped, so a module adding `{menu_item_id}` gets a failing build telling it to seed a victim row.
+Silence was the bug; the fix is that silence is no longer possible.
+
+Proved rather than asserted. Sabotaging one repository's scoping produces exactly what it should:
+
+    cross-tenant access succeeded on: ['PATCH /api/v1/staff/setup/dining-areas/{area_id} -> 200']
+
+and removing a victim row fails the guard by name.
+
+### Defect 3 · `{"name": "   "}` returned 201
+
+`min_length=1` runs *before* an "after" field validator, so three spaces satisfied the constraint and
+were then stripped to nothing — creating a dining area with an empty name, and a 201 saying it went
+well. Stripping moved to a `mode="before"` validator, where the constraint sees what will actually
+be stored. One fix, four fields.
+
+### The lesson, for the third module running
+
+Every one of these was a test or a guard that **read** as protection and provided none. B had two
+tests whose names claimed the opposite of what they asserted; C had a guard that could not fail and
+a security suite that skipped what it claimed to cover.
+
+The only thing that found them was refusing to accept green: reverting the implementation under the
+test, sabotaging the scoping, removing the victim row. A test that has never been observed to fail is
+not evidence — and neither is a suite whose loop body never ran.

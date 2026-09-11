@@ -77,6 +77,12 @@
       "resource": "role",
       "action": "view",
       "description": "Read the role and permission catalogue, for the role-assignment screen."
+    },
+    {
+      "code": "restaurant.configure",
+      "resource": "restaurant",
+      "action": "configure",
+      "description": "Change the restaurant's settings, floor plan, kitchen stations and tax rates."
     }
   ],
   "roles": [
@@ -92,7 +98,8 @@
         "employee.deactivate",
         "employee.role.assign",
         "employee.password.reset",
-        "role.view"
+        "role.view",
+        "restaurant.configure"
       ]
     },
     {
@@ -107,7 +114,8 @@
         "employee.deactivate",
         "employee.role.assign",
         "employee.password.reset",
-        "role.view"
+        "role.view",
+        "restaurant.configure"
       ]
     },
     {
