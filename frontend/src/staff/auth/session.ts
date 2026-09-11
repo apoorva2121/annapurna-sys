@@ -5,6 +5,7 @@
 // wrong.
 
 import { apiGet, apiPost, setAccessToken } from '@shared/api';
+import type { RestaurantTheme } from '@shared/theme/theme';
 
 export type RestaurantSummary = {
   id: string;
@@ -15,7 +16,19 @@ export type RestaurantSummary = {
   /** `HH:MM:SS`. Travels with `timezone` because neither half of the business-day rule is any use
    *  alone — see `@shared/businessDay`. A restaurant's day starts here, not at midnight (ADR 0004). */
   business_day_start: string;
+  /** The restaurant-wide look and its festive schedule. In the session rather than only on the
+   *  settings endpoint, because that one is owner-and-admin-only and a theme has to render for the
+   *  waiter too.
+   *
+   *  Optional because this is a *wire* type: during a deploy the app and the API are briefly
+   *  different versions, and a field the server has not started sending must degrade to the default
+   *  look rather than white-screen every signed-in user. */
+  theme?: RestaurantTheme;
 };
+
+/** What a restaurant's theme is when the server sent none — an older API, or a seeded restaurant
+ *  that predates the setting. Rendering the default look is a degradation; crashing is not. */
+export const NO_RESTAURANT_THEME: RestaurantTheme = { default: null, schedule: [] };
 
 /** What POST /auth/login and POST /auth/refresh answer. No refresh token: that is an httpOnly
  *  cookie the browser holds and script cannot read. */
@@ -38,6 +51,10 @@ export type MeResponse = {
   full_name: string;
   employee_code: string;
   restaurant: RestaurantSummary;
+  /** Every branch this person may switch to, including the current one (finding S12). The server
+   *  decides; the client only renders what it is given. Optional for the same deploy-skew reason as
+   *  `theme` above — the mapper below fills it in, so `Session.restaurants` is always present. */
+  restaurants?: RestaurantSummary[];
   roles: string[];
   permissions: string[];
 };
@@ -50,6 +67,7 @@ export type Session = {
   fullName: string;
   employeeCode: string;
   restaurant: RestaurantSummary;
+  restaurants: RestaurantSummary[];
   roles: string[];
   permissions: ReadonlySet<string>;
 };
@@ -61,6 +79,11 @@ function sessionFromMe(response: MeResponse): Session {
     fullName: response.full_name,
     employeeCode: response.employee_code,
     restaurant: response.restaurant,
+    // Defaulted rather than trusted. During a deploy the app and the API are briefly different
+    // versions, and a field the server has not started sending yet must not white-screen every
+    // signed-in user — `session.restaurants.length` on undefined takes down the whole tree, not
+    // just the switcher. One restaurant is the honest fallback: it is where they are.
+    restaurants: response.restaurants ?? [response.restaurant],
     roles: response.roles,
     permissions: new Set(response.permissions),
   };

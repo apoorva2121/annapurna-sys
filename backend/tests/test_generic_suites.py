@@ -52,6 +52,10 @@ _PUBLIC = PUBLIC_ROUTES | {
     # permission that could gate it without gating the thing that reports permissions.
     "GET /api/v1/auth/me",
     "POST /api/v1/auth/password",
+    # Authenticated, and authorises itself: whether someone may move to a branch depends on where
+    # they are employed, which no single permission string can express. The refusal is tested
+    # directly in tests/test_auth_switch.py against a two-organization, two-branch fixture (G-17).
+    "POST /api/v1/auth/switch",
 }
 
 
@@ -216,6 +220,8 @@ def _sample_body(route: RouteInfo) -> dict[str, Any]:
             "employee_code": "PROBE1",
             "joined_on": "2026-01-01",
         }
+    if route.path.endswith("/auth/switch"):
+        return {"restaurant_id": str(_PROBE_UUID)}
     if route.path.endswith("/setup/dining-areas"):
         return {"name": "Probe Area"}
     if route.path.endswith("/setup/tables"):

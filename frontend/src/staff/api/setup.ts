@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query';
 
 import { apiGet, apiPatch, apiPost } from '@shared/api';
+import type { RestaurantTheme } from '@shared/theme/theme';
 
 export type Restaurant = {
   id: string;
@@ -25,6 +26,11 @@ export type Restaurant = {
   gstin: string | null;
   fssai_licence: string | null;
   address: string | null;
+  /** Lives in the server's `settings` JSONB rather than in columns — it is genuinely configuration,
+   *  unlike the FSSAI licence that finding S13 moved *out* of settings because it prints on bills.
+   *
+   *  Optional on the wire: a restaurant saved before this setting existed has no theme block. */
+  theme?: RestaurantTheme;
 };
 
 export type RestaurantChanges = {
@@ -34,6 +40,9 @@ export type RestaurantChanges = {
   gstin?: string | null;
   fssai_licence?: string | null;
   address?: string | null;
+  /** Sent whole, never merged: the client owns the complete theme settings, so a removed festive
+   *  window is expressible. A merge on the server would make deletion impossible. */
+  theme?: RestaurantTheme;
 };
 
 export type DiningArea = {

@@ -3,6 +3,8 @@ import { Link, Outlet } from 'react-router-dom';
 
 import { Permission } from '@shared/permissions';
 import { useAuth } from '@staff/auth/AuthContext';
+import { BranchSwitcher } from '@staff/components/BranchSwitcher';
+import { RestaurantTheme } from '@staff/components/RestaurantTheme';
 import { strings } from '@staff/strings';
 
 /**
@@ -19,6 +21,8 @@ export function AppShell(): ReactElement {
 
   return (
     <div className="min-h-screen">
+      {/* Applies the restaurant-wide and festive themes once the session is known. Renders nothing. */}
+      <RestaurantTheme />
       <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border p-page">
         {/* The restaurant name is the tenant, on every screen. If tenant scoping ever broke, this
             is where it would be visible first. */}
@@ -40,6 +44,8 @@ export function AppShell(): ReactElement {
           )}
           <Link to="/profile">{strings.nav.profile}</Link>
         </nav>
+        {/* Renders nothing for the great majority of staff, who work at one restaurant. */}
+        <BranchSwitcher />
         <button
           type="button"
           className="ml-auto min-h-target underline disabled:opacity-60"

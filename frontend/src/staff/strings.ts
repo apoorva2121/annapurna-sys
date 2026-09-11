@@ -26,6 +26,7 @@ export const strings = {
 
   nav: {
     staff: 'Staff',
+    branch: 'Restaurant',
     profile: 'Your profile',
     signOut: 'Sign out',
     signingOut: 'Signing out…',
@@ -109,6 +110,27 @@ export const strings = {
     navFloor: 'Floor plan',
     navStations: 'Kitchen stations',
     navTax: 'Tax rates',
+
+    theme: {
+      title: 'Appearance for everyone here',
+      hint: 'The look this restaurant shows by default. Anyone who has picked a theme on their own device keeps it.',
+      defaultLabel: 'Default theme',
+      none: 'Follow the device',
+      scheduleTitle: 'Festive themes',
+      scheduleHint:
+        'A theme for a stretch of days — Deepavali, a local festival. Dates rather than a rule, because these move every year.',
+      scheduleEmpty: 'No festive themes scheduled.',
+      addWindow: 'Add a festive theme',
+      windowTheme: 'Theme',
+      from: 'From',
+      to: 'To',
+      remove: 'Remove',
+      overlaps: 'Two festive themes cannot cover the same day.',
+      // Its own verb, not a second 'Save settings'. Two identical buttons on one screen are
+      // ambiguous to a reader and indistinguishable to a screen reader.
+      save: 'Save appearance',
+      saved: 'Appearance saved.',
+    },
 
     restaurant: {
       title: 'Restaurant settings',

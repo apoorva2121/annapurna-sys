@@ -183,3 +183,62 @@ describe('choosing a theme', () => {
     expect(themeById('nope')).toBeUndefined();
   });
 });
+
+describe('the restaurant-wide theme and the festive schedule', () => {
+  const DEEPAVALI = {
+    default: null,
+    schedule: [{ theme: 'deepavali', starts_on: '2026-11-06', ends_on: '2026-11-12' }],
+  };
+
+  it('uses the restaurant default when nobody has chosen on this device', () => {
+    expect(resolveTheme(null, false, { default: 'monsoon', schedule: [] }, '2026-06-01')).toBe(
+      'monsoon',
+    );
+  });
+
+  it('uses a festive theme on a date the window covers', () => {
+    expect(resolveTheme(null, false, DEEPAVALI, '2026-11-08')).toBe('deepavali');
+  });
+
+  it('includes both ends of the window', () => {
+    // "6 to 12 November" means both the 6th and the 12th to the person who typed it.
+    expect(resolveTheme(null, false, DEEPAVALI, '2026-11-06')).toBe('deepavali');
+    expect(resolveTheme(null, false, DEEPAVALI, '2026-11-12')).toBe('deepavali');
+    expect(resolveTheme(null, false, DEEPAVALI, '2026-11-13')).toBe(DEFAULT_THEME);
+  });
+
+  it('lets a person keep their own choice through a festival', () => {
+    // The rule worth stating out loud. A restaurant-wide theme that overrode the device would take
+    // dark mode away from the manager in the dim back office for a week in November, because of a
+    // setting somebody else changed, with no way to keep it.
+    expect(resolveTheme('dark', false, DEEPAVALI, '2026-11-08')).toBe('dark');
+  });
+
+  it('prefers the festival to the restaurant default', () => {
+    const both = { default: 'monsoon', schedule: DEEPAVALI.schedule };
+
+    expect(resolveTheme(null, false, both, '2026-11-08')).toBe('deepavali');
+    expect(resolveTheme(null, false, both, '2026-12-01')).toBe('monsoon');
+  });
+
+  it('skips a window naming a theme that no longer exists', () => {
+    // A theme removed from THEMES should degrade to the next rule, not leave a restaurant unable
+    // to render.
+    const stale = {
+      default: 'monsoon',
+      schedule: [{ theme: 'holi-2019', starts_on: '2026-11-06', ends_on: '2026-11-12' }],
+    };
+
+    expect(resolveTheme(null, false, stale, '2026-11-08')).toBe('monsoon');
+  });
+
+  it('falls back to the operating system when the restaurant has set nothing', () => {
+    expect(resolveTheme(null, true, { default: null, schedule: [] }, '2026-11-08')).toBe('dark');
+  });
+
+  it('ignores the schedule when no business date is known yet', () => {
+    // Before the session loads there is no restaurant and no business date. The app still has to
+    // render, and rendering the wrong festive theme for a moment is worse than rendering none.
+    expect(resolveTheme(null, false, DEEPAVALI, undefined)).toBe(DEFAULT_THEME);
+  });
+});

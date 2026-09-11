@@ -19,8 +19,8 @@ Before any code: `docs/engineering-guardrails.md` and `.claude/skills/restaurant
 | C | Repositories, services, API — first use of `RestaurantScopedRepository` | ✅ done | `c086e59` |
 | D | shadcn components M02 needs: Select, Dialog/Sheet, Table, Switch, Label | ✅ done | `e9caff2` |
 | E | Four screens | ✅ done | `336953b` |
-| F | `POST /auth/switch` (S12) · theme settings · ~~`reserved` by hand (S14)~~ done in C | ⬅ **NEXT** | — |
-| G | Manual script, adversarial review, `make check` | ☐ | — |
+| F | `POST /auth/switch` (S12) · theme settings · ~~`reserved` by hand (S14)~~ done in C | ✅ done | see below |
+| G | Manual script, adversarial review, `make check` | ⬅ **NEXT** | — |
 
 **Chunk B wanted high model effort** — see *Why B is the risky one* below. Everything else is
 medium.
@@ -283,3 +283,63 @@ rendering a Switch, Select or Dialog died with `ReferenceError: ResizeObserver i
 a failure about the environment that reads like a failure about the component. Stubbed in
 `test-setup.ts`, with a note that jsdom has no layout, so anything genuinely depending on measured
 size cannot be tested there at all and belongs in a browser test.
+
+---
+
+## What chunk F actually cost
+
+`POST /auth/switch`, the restaurant-wide theme, and the festive schedule. Migration 0006, 12 new
+backend tests against a two-organization two-branch fixture, 8 new frontend tests. 387 backend and
+110 frontend tests.
+
+### The bug `auth/switch` would have shipped with
+
+Switching mints an access token scoped to the new branch. Access tokens last fifteen minutes, and
+`refresh()` resolved the restaurant through `_home_restaurant()` — which returns the person's
+*first* one. So the switch would have worked and then silently undone itself, mid-task, with no
+error and nothing on screen to explain it. It would have been reported as "the app keeps jumping
+back to the other branch", which is not a sentence anyone can debug.
+
+`user_session.restaurant_id` (migration 0006) is the fix. It is a **preference, never an
+authorisation**: `refresh()` re-checks the assignment every time and falls back to the home branch
+if the role is gone, so a stale value can cost a redirect and cannot grant access. There is a test
+for exactly that — remove the role at the switched branch, refresh, land at home.
+
+### Two things I got wrong on the way
+
+**The endpoint first returned `MeResponse`, which has no access token.** The client would have kept
+using its old token — still scoped to the old branch — so the endpoint would have reported success
+and changed nothing. Caught by the tests, which read the restaurant out of the *token* rather than
+out of the response body, deliberately: the body is what the server says, the token is what every
+later request is actually scoped by.
+
+**The boundary tests passed before the endpoint existed.** A route that is not registered answers
+404, and three tests asserted only `status_code == 404`. They now assert the error *code* as well,
+so an unimplemented endpoint cannot masquerade as a refusal. Fifth time this module that a test
+claimed more than it asserted.
+
+### The theme had to travel in the session
+
+`/staff/restaurant` is owner-and-admin-only, and a theme has to render for the waiter too. So
+`RestaurantSummary` carries it, the same decision `business_day_start` got in chunk B and for the
+same reason. `RestaurantSummary.of()` lifts it out of the `settings` JSONB in one place, because
+four endpoints build that summary and a theme appearing on three of them is a bug nobody notices
+until one screen looks wrong on one day of the year.
+
+Overlapping festive windows are **refused rather than resolved by precedence**. There is no right
+answer for a date claimed twice, and silently picking the first would make the second window
+disappear on a day nobody is watching.
+
+**A person's own device choice outranks the festival.** Otherwise the manager who set dark mode for
+a dim back office loses it for a week in November because of a setting somebody else changed.
+
+### Deploy skew is a real failure mode, found by the test suite
+
+Adding two required fields to the session type crashed every screen in the suite: fixtures without
+them made `session.restaurants.length` throw, and the whole React tree went with it. That is not a
+test artefact — during a deploy the app and the API are briefly different versions, and a field the
+server has not started sending yet must degrade, not white-screen every signed-in user.
+
+The wire types now mark both fields optional and the session mapper fills them in, so the internal
+type stays honest while the boundary stays tolerant. The distinction is worth keeping: *optional on
+the wire, guaranteed after mapping.*

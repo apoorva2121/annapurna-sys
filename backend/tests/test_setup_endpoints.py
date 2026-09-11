@@ -969,3 +969,193 @@ class TestTaxGroups:
         )
 
         assert response.status_code == 403
+
+
+class TestThemeSettings:
+    """The restaurant-wide look, deferred into M02 from the UI work.
+
+    Stored in `settings` rather than in columns, because unlike the FSSAI licence that finding S13
+    moved *out* of settings, a theme genuinely is configuration — nothing legal or operational
+    depends on it.
+
+    The rule worth testing is the one the client cannot sensibly enforce: two festive windows must
+    not claim the same day. There is no right answer for a date covered twice, and resolving it by
+    precedence would make the second window silently disappear on a date nobody is looking at.
+    """
+
+    async def test_a_restaurant_with_no_theme_settings_still_reads(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """Every restaurant seeded before this existed has no `theme` key at all. The settings
+        screen has to render for them rather than 500."""
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+
+        response = await api_client.get("/api/v1/staff/restaurant", headers=_auth(token))
+
+        assert response.status_code == 200
+        assert response.json()["theme"] == {"default": None, "schedule": []}
+
+    async def test_setting_a_restaurant_wide_default(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+
+        response = await api_client.patch(
+            "/api/v1/staff/restaurant",
+            json={"theme": {"default": "jamun-dark", "schedule": []}},
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["theme"]["default"] == "jamun-dark"
+
+    async def test_an_unknown_theme_id_is_accepted_rather_than_validated_here(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """Deliberate. The themes live in `frontend/src/shared/theme/themes.ts`, and a copy of their
+        ids here would be the second catalogue finding M12 is about — two lists, free to disagree,
+        with the server authoritative over a file it cannot see.
+
+        The client falls back to the default look for an id it does not know, which is a degradation
+        rather than a failure, and the settings screen offers a picker so a typo is not reachable
+        through the UI.
+        """
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+
+        response = await api_client.patch(
+            "/api/v1/staff/restaurant",
+            json={"theme": {"default": "not-a-real-theme", "schedule": []}},
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 200
+
+    async def test_a_festive_window_is_stored_with_its_dates(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+
+        response = await api_client.patch(
+            "/api/v1/staff/restaurant",
+            json={
+                "theme": {
+                    "default": None,
+                    "schedule": [
+                        {"theme": "deepavali", "starts_on": "2026-11-06", "ends_on": "2026-11-12"}
+                    ],
+                }
+            },
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["theme"]["schedule"] == [
+            {"theme": "deepavali", "starts_on": "2026-11-06", "ends_on": "2026-11-12"}
+        ]
+
+    async def test_a_window_that_ends_before_it_starts_is_refused(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+
+        response = await api_client.patch(
+            "/api/v1/staff/restaurant",
+            json={
+                "theme": {
+                    "schedule": [
+                        {"theme": "deepavali", "starts_on": "2026-11-12", "ends_on": "2026-11-06"}
+                    ]
+                }
+            },
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 422
+
+    async def test_two_windows_covering_the_same_day_are_refused(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """No right answer exists for a date claimed twice, and picking one silently would make the
+        other vanish on a day nobody is watching."""
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+
+        response = await api_client.patch(
+            "/api/v1/staff/restaurant",
+            json={
+                "theme": {
+                    "schedule": [
+                        {"theme": "deepavali", "starts_on": "2026-11-06", "ends_on": "2026-11-12"},
+                        {"theme": "monsoon", "starts_on": "2026-11-10", "ends_on": "2026-11-20"},
+                    ]
+                }
+            },
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 422
+
+    async def test_two_windows_that_merely_touch_are_allowed(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """One ending the day before the next begins is a normal calendar, not an overlap — and an
+        off-by-one here would refuse a schedule a restaurant legitimately wants."""
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+
+        response = await api_client.patch(
+            "/api/v1/staff/restaurant",
+            json={
+                "theme": {
+                    "schedule": [
+                        {"theme": "deepavali", "starts_on": "2026-11-06", "ends_on": "2026-11-12"},
+                        {"theme": "monsoon", "starts_on": "2026-11-13", "ends_on": "2026-11-20"},
+                    ]
+                }
+            },
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 200, response.text
+
+    async def test_saving_the_theme_does_not_disturb_the_fssai_licence(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """`settings` is reassigned rather than mutated when the theme is written. Mutating the dict
+        in place would flush nothing; replacing it carelessly would drop every other key."""
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+        await api_client.patch(
+            "/api/v1/staff/restaurant",
+            json={"fssai_licence": "11223344556677"},
+            headers=_auth(token),
+        )
+
+        await api_client.patch(
+            "/api/v1/staff/restaurant",
+            json={"theme": {"default": "deepavali", "schedule": []}},
+            headers=_auth(token),
+        )
+
+        after = await api_client.get("/api/v1/staff/restaurant", headers=_auth(token))
+        assert after.json()["fssai_licence"] == "11223344556677"
+        assert after.json()["theme"]["default"] == "deepavali"
+
+    async def test_a_manager_may_not_change_the_theme(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        await _world(db_session, "owner", "manager")
+        token = await _token(api_client, "manager")
+
+        response = await api_client.patch(
+            "/api/v1/staff/restaurant",
+            json={"theme": {"default": "deepavali", "schedule": []}},
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 403

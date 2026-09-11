@@ -23,9 +23,10 @@ from __future__ import annotations
 import uuid
 from datetime import date, time
 from decimal import Decimal
+from itertools import pairwise
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.enums import TableStatus
 
@@ -52,6 +53,62 @@ def _strip(value: Any) -> Any:
     return value.strip() if isinstance(value, str) else value
 
 
+# --------------------------------------------------------------------------- theme
+
+
+class ThemeWindow(_Schema):
+    """A festive theme, for a stretch of days.
+
+    Dates rather than a recurring rule: Deepavali is not on a fixed date, and a rule that tried to
+    express "the lunar calendar" would be wrong in its second year. A restaurant sets the dates it
+    cares about, which is also how it actually thinks about them.
+    """
+
+    theme: str = Field(min_length=1, max_length=40)
+    starts_on: date
+    ends_on: date
+
+    _strip_theme = field_validator("theme", mode="before")(_strip)
+
+
+class ThemeSettings(_Schema):
+    """The restaurant-wide look, deferred here from the UI work.
+
+    **The theme id is not validated against a list.** The themes live in
+    `frontend/src/shared/theme/themes.ts`, and duplicating their ids here would create the second
+    catalogue that finding M12 is about — two lists, free to disagree, with the server's copy
+    authoritative over a file it cannot see. An id the client does not recognise falls back to the
+    default look, which is a degradation rather than a failure, and the settings screen offers a
+    picker so a typo is not reachable through the UI.
+
+    What *is* validated is the part the client cannot sensibly resolve: that a window ends no
+    earlier than it starts, and that two windows do not claim the same day.
+    """
+
+    default: str | None = Field(default=None, max_length=40)
+    schedule: list[ThemeWindow] = Field(default_factory=list, max_length=24)
+
+    _strip_default = field_validator("default", mode="before")(_strip)
+
+    @model_validator(mode="after")
+    def _windows_are_ordered_and_disjoint(self) -> ThemeSettings:
+        for window in self.schedule:
+            if window.ends_on < window.starts_on:
+                raise ValueError(
+                    f"{window.theme!r} ends on {window.ends_on} but starts on {window.starts_on}"
+                )
+        # Overlap is refused rather than resolved by precedence. Two themes claiming one day has no
+        # right answer, and picking the first silently would make the second window disappear on a
+        # date nobody is looking at.
+        ordered = sorted(self.schedule, key=lambda window: window.starts_on)
+        for earlier, later in pairwise(ordered):
+            if later.starts_on <= earlier.ends_on:
+                raise ValueError(
+                    f"{earlier.theme!r} and {later.theme!r} both cover {later.starts_on}"
+                )
+        return self
+
+
 # --------------------------------------------------------------------------- the restaurant
 
 
@@ -67,6 +124,9 @@ class RestaurantResponse(_ReadSchema):
     # food business in India, so it is not a settings key.
     fssai_licence: str | None
     address: str | None
+    # Lives in the `settings` JSONB rather than in columns: it is genuinely configuration, unlike
+    # the FSSAI licence that finding S13 moved *out* of settings because it prints on every bill.
+    theme: ThemeSettings = ThemeSettings()
 
 
 class RestaurantUpdateRequest(_Schema):
@@ -83,6 +143,7 @@ class RestaurantUpdateRequest(_Schema):
     gstin: str | None = Field(default=None, max_length=15)
     fssai_licence: str | None = Field(default=None, max_length=32)
     address: str | None = Field(default=None, max_length=500)
+    theme: ThemeSettings | None = None
 
 
 # --------------------------------------------------------------------------- the floor

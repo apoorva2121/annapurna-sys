@@ -174,17 +174,78 @@ function writeOverrides(theme: ThemeConfig, root: HTMLElement): void {
 
 // ---------------------------------------------------------------- choosing
 
+/** A festive theme, for a stretch of business dates. Mirrors the server's `ThemeSettings`. */
+export interface ThemeWindow {
+  theme: string;
+  starts_on: string;
+  ends_on: string;
+}
+
+export interface RestaurantTheme {
+  default: string | null;
+  schedule: ThemeWindow[];
+}
+
 /**
- * First match wins: an explicit choice on this device, then the operating system's preference.
+ * First match wins, and the order is the whole design:
  *
- * The restaurant's own default and a scheduled festive theme belong between these two. The order
- * is written now so adding them is an insertion rather than a redesign.
+ *   1. an explicit choice on this device
+ *   2. a festive window covering today's **business date**
+ *   3. the restaurant's own default
+ *   4. the operating system's preference
+ *
+ * **A person's own choice outranks the festival.** The alternative — a restaurant-wide theme that
+ * overrides the device — means the manager who deliberately set dark mode for a dim back office
+ * has it taken away for a week in November, by a setting someone else changed, with no way to keep
+ * it. A festive theme is a nice touch; it is not worth overriding a decision a person made about
+ * the screen in front of them.
+ *
+ * The date compared is the **business date**, not the calendar date (ADR 0004). A festival that
+ * ends "on the 12th" ends when the restaurant's 12th ends, which is 5am on the 13th — otherwise the
+ * theme changes under the staff mid-service, at midnight, while they are still serving the 12th.
+ *
+ * An id no longer in `THEMES` is skipped rather than honoured: a theme removed from the code should
+ * degrade to the next rule, not leave a restaurant unable to render.
  */
-export function resolveTheme(stored: string | null, prefersDark: boolean): string {
+export function resolveTheme(
+  stored: string | null,
+  prefersDark: boolean,
+  restaurant?: RestaurantTheme | null,
+  businessDate?: string,
+): string {
   if (isThemeId(stored)) {
     return stored;
   }
+  const festive = scheduledTheme(restaurant, businessDate);
+  if (festive !== null) {
+    return festive;
+  }
+  if (restaurant != null && isThemeId(restaurant.default)) {
+    return restaurant.default;
+  }
   return prefersDark ? 'dark' : DEFAULT_THEME;
+}
+
+/**
+ * The festive theme covering a business date, if any.
+ *
+ * Inclusive at both ends, which is how a person reading "6 November to 12 November" understands it.
+ * ISO dates compare correctly as strings, so no parsing is needed and no timezone can creep in
+ * through a `Date` constructed from a date-only string.
+ */
+export function scheduledTheme(
+  restaurant: RestaurantTheme | null | undefined,
+  businessDate: string | undefined,
+): string | null {
+  if (restaurant == null || businessDate === undefined) {
+    return null;
+  }
+  for (const window of restaurant.schedule) {
+    if (window.starts_on <= businessDate && businessDate <= window.ends_on) {
+      return isThemeId(window.theme) ? window.theme : null;
+    }
+  }
+  return null;
 }
 
 export function readStoredTheme(): string | null {

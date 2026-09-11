@@ -25,6 +25,7 @@ const RESTAURANT: RestaurantSummary = {
   timezone: 'Asia/Kolkata',
   currency: 'INR',
   business_day_start: '05:00:00',
+  theme: { default: null, schedule: [] },
 };
 
 function authFor(restaurant: RestaurantSummary): AuthState {
@@ -34,6 +35,7 @@ function authFor(restaurant: RestaurantSummary): AuthState {
     fullName: 'Priya Nair',
     employeeCode: 'EMP001',
     restaurant,
+    restaurants: [restaurant],
     roles: ['owner'],
     permissions: new Set<string>(),
   };

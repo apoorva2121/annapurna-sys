@@ -27,6 +27,7 @@ const RESTAURANT: RestaurantSummary = {
   timezone: 'Asia/Kolkata',
   currency: 'INR',
   business_day_start: '05:00:00',
+  theme: { default: null, schedule: [] },
 };
 
 const OWNER_PERMISSIONS = [

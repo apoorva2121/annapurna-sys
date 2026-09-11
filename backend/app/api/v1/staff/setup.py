@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, Query, status
 from app.api.deps import SessionDep, require_permission
 from app.core.actor import Actor
 from app.core.permissions import PermissionCode
+from app.models.tenancy import Restaurant
 from app.repositories.base import DEFAULT_PAGE_SIZE
 from app.schemas.setup import (
     DiningAreaCreateRequest,
@@ -39,8 +40,9 @@ from app.schemas.setup import (
     TaxGroupListResponse,
     TaxGroupResponse,
     TaxGroupUpdateRequest,
+    ThemeSettings,
 )
-from app.services.setup import SetupService
+from app.services.setup import SetupService, read_theme
 
 router = APIRouter(tags=["setup"])
 
@@ -65,10 +67,22 @@ def _next_cursor(items: list[object], limit: int | None) -> uuid.UUID | None:
 # --------------------------------------------------------------------------- the restaurant
 
 
+def _restaurant_response(restaurant: Restaurant) -> RestaurantResponse:
+    """The theme lives in `settings`, so it is assembled rather than read off the model.
+
+    `ThemeSettings.model_validate` rather than `model_copy(update=...)`: `model_copy` assigns
+    without validating, so the response would carry a bare dict where the schema promises a model —
+    which serialises to the right JSON today and is a lie the type system cannot see.
+    """
+    body = RestaurantResponse.model_validate(restaurant)
+    body.theme = ThemeSettings.model_validate(read_theme(restaurant.settings))
+    return body
+
+
 @router.get("/restaurant", response_model=RestaurantResponse)
 async def get_restaurant(actor: _ConfigureDep, session: SessionDep) -> RestaurantResponse:
     restaurant = await SetupService(session).get_restaurant(actor)
-    return RestaurantResponse.model_validate(restaurant)
+    return _restaurant_response(restaurant)
 
 
 @router.patch("/restaurant", response_model=RestaurantResponse)
@@ -77,7 +91,7 @@ async def update_restaurant(
 ) -> RestaurantResponse:
     restaurant = await SetupService(session).update_restaurant(actor, request)
     await session.commit()
-    return RestaurantResponse.model_validate(restaurant)
+    return _restaurant_response(restaurant)
 
 
 # --------------------------------------------------------------------------- dining areas

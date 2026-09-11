@@ -76,6 +76,10 @@ class Profile:
     employee: Employee
     restaurant: Restaurant
     access: ResolvedAccess
+    # Every branch this person holds a role at, including the current one. The client cannot offer a
+    # switcher without it, and deriving the list in the browser would be a second implementation of
+    # the rule the server already enforces at `POST /auth/switch`.
+    restaurants: list[Restaurant]
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,6 +238,109 @@ class AuthService:
             )
         return restaurant
 
+    async def _restaurant_for_session(
+        self, employee: Employee, remembered: uuid.UUID | None
+    ) -> Restaurant:
+        """Where this session is, re-checked rather than trusted.
+
+        `user_session.restaurant_id` is a preference, not an authorisation. It is honoured only if
+        the person still holds a role there — so a manager whose role at the second branch is
+        removed while they are working there is returned to their home branch on the next refresh
+        rather than kept somewhere they no longer belong. Falling back is safe in a way that raising
+        is not: the alternative to a redirect would be a session that cannot refresh at all.
+        """
+        if remembered is None:
+            return await self._home_restaurant(employee)
+        allowed = await self.access.restaurants_for_employee(employee.id)
+        if remembered not in set(allowed):
+            return await self._home_restaurant(employee)
+        restaurant = await self.session.get(Restaurant, remembered)
+        if restaurant is None or not restaurant.is_active:
+            return await self._home_restaurant(employee)
+        return restaurant
+
+    async def switch_restaurant(
+        self, actor: Actor, restaurant_id: uuid.UUID, raw_refresh_token: str | None
+    ) -> LoginResult:
+        """Move this session to another branch the same person works at (finding S12).
+
+        Refuses with **404 rather than 403** for a restaurant in another organization, for the same
+        reason every scoped lookup in this product does: a 403 confirms the id names something real,
+        and this is the one endpoint whose whole job is to change tenant scope.
+
+        The two refusals are deliberately indistinguishable — "not yours" and "you do not work
+        there" answer identically, so the endpoint cannot be used to enumerate the branches an
+        organization has.
+
+        Permissions are **re-resolved at the target**, never carried across. An owner at one branch
+        who waits tables at another must arrive as a waiter; carrying the old set would be privilege
+        escalation performed by navigating, with nothing in any log to suggest it happened.
+        """
+        employee = await EmployeeRepository(self.session, actor.scope).get_assigned_here(
+            actor.employee_id
+        )
+        if employee is None:
+            raise _no_longer_signed_in()
+
+        allowed = set(await self.access.restaurants_for_employee(employee.id))
+        restaurant = await self.session.get(Restaurant, restaurant_id)
+        # The organization check is what makes this a tenant boundary rather than a preference.
+        # `allowed` alone would already refuse another tenant's branch, but only because nobody is
+        # assigned across organizations today — a structural check should not rest on that.
+        if (
+            restaurant is None
+            or restaurant.organization_id != employee.organization_id
+            or restaurant_id not in allowed
+            or not restaurant.is_active
+        ):
+            raise AppError(
+                "auth.restaurant_not_available",
+                "You do not work at that restaurant.",
+                status_code=404,
+            )
+
+        # Remembered on the session row, so the choice outlives the fifteen-minute token that made
+        # it. Without this the next refresh returns the person to their home branch mid-task.
+        if raw_refresh_token:
+            live = await self.sessions.find_live_by_hash(hash_refresh_token(raw_refresh_token))
+            if live is not None:
+                live.restaurant_id = restaurant_id
+        await self.session.flush()
+
+        resolved = await self.access.resolve(employee.id, restaurant_id)
+        # **A new access token, scoped to the target.** This is the whole point: the client's
+        # current token still names the old restaurant, and every later request is scoped by the
+        # token rather than by anything the response body says. Returning only a profile would have
+        # produced an endpoint that reports success and changes nothing.
+        #
+        # The *refresh* token is deliberately not rotated. This is the same session continuing, not
+        # a new one — rotating here would end the family and log the person out of their other tabs
+        # for having navigated.
+        return LoginResult(
+            access_token=issue_access_token(
+                employee_id=str(employee.id),
+                organization_id=str(employee.organization_id),
+                restaurant_id=str(restaurant.id),
+                permissions=sorted(resolved.permissions),
+            ),
+            refresh_token="",
+            session_id=actor.session_id or uuid7(),
+            employee=employee,
+            restaurant=restaurant,
+            permissions=resolved.permissions,
+            rank=resolved.rank,
+            role_codes=tuple(resolved.role_codes),
+        )
+
+    async def _restaurants_of(self, employee: Employee) -> list[Restaurant]:
+        """Ordered as `restaurants_for_employee` orders them, so a switcher does not reshuffle."""
+        found: list[Restaurant] = []
+        for restaurant_id in await self.access.restaurants_for_employee(employee.id):
+            restaurant = await self.session.get(Restaurant, restaurant_id)
+            if restaurant is not None and restaurant.is_active:
+                found.append(restaurant)
+        return found
+
     async def _start_session(
         self,
         account: UserAccount,
@@ -254,6 +361,9 @@ class AuthService:
             device_info=device_info,
             ip_address=ip_address,
             expires_at=datetime.now(UTC) + timedelta(days=settings.refresh_token_ttl_days),
+            # Carried across every rotation, so the branch someone navigated to survives the
+            # fifteen-minute token they navigated with.
+            restaurant_id=restaurant.id,
         )
         self.session.add(session_row)
         await self.session.flush()
@@ -297,7 +407,7 @@ class AuthService:
             raise AppError("auth.session_invalid", "Please sign in again.", status_code=401)
 
         employee = await self._employee_for(account)
-        restaurant = await self._home_restaurant(employee)
+        restaurant = await self._restaurant_for_session(employee, live.restaurant_id)
         resolved = await self.access.resolve(employee.id, restaurant.id)
 
         # Retire the presented token before issuing its replacement, so the two never overlap.
@@ -365,7 +475,12 @@ class AuthService:
         if restaurant is None:
             raise _no_longer_signed_in()
         resolved = await self.access.resolve(actor.employee_id, actor.restaurant_id)
-        return Profile(employee=employee, restaurant=restaurant, access=resolved)
+        return Profile(
+            employee=employee,
+            restaurant=restaurant,
+            access=resolved,
+            restaurants=await self._restaurants_of(employee),
+        )
 
     async def session_id_for_token(self, raw_token: str | None) -> uuid.UUID | None:
         """Which session a presented refresh token belongs to, if it is still live.

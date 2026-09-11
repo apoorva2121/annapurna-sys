@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime, time
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -71,6 +72,35 @@ class RestaurantSummary(_ReadSchema):
     # which is how "joined on" came to default to yesterday for five and a half hours a day in
     # India. ADR 0004.
     business_day_start: time
+    # The restaurant-wide look and its festive schedule. Here rather than only on the settings
+    # endpoint, for the same reason `business_day_start` is: that one is owner-and-admin-only, and
+    # a theme has to render for the waiter too. Nothing here is sensitive — it is paint.
+    theme: dict[str, Any] = Field(default_factory=lambda: {"default": None, "schedule": []})
+
+    @classmethod
+    def of(cls, restaurant: Any) -> RestaurantSummary:
+        """Build from a `Restaurant`, lifting the theme out of the `settings` JSONB.
+
+        A classmethod rather than a validator so the lift happens in one place: four endpoints build
+        this summary, and a theme that appeared on three of them would be a bug nobody notices until
+        a festive day looks wrong on exactly one screen.
+        """
+        summary = cls.model_validate(restaurant)
+        stored = getattr(restaurant, "settings", {}).get("theme")
+        if isinstance(stored, dict):
+            schedule = stored.get("schedule")
+            summary.theme = {
+                "default": stored.get("default"),
+                "schedule": schedule if isinstance(schedule, list) else [],
+            }
+        return summary
+
+
+class SwitchRestaurantRequest(_Schema):
+    """Which branch to move this session to. Nothing else: the person is already authenticated,
+    and the endpoint decides for itself whether they work there."""
+
+    restaurant_id: uuid.UUID
 
 
 class SessionResponse(_Schema):
@@ -104,6 +134,10 @@ class MeResponse(_Schema):
     full_name: str
     employee_code: str
     restaurant: RestaurantSummary
+    # Every branch this person may switch to, including the current one (finding S12). The client
+    # cannot offer a switcher without it, and deriving the list in the browser would be a second
+    # implementation of the rule `POST /auth/switch` already enforces.
+    restaurants: list[RestaurantSummary] = []
     roles: list[str]
     permissions: list[str]
 

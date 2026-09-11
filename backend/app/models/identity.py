@@ -103,6 +103,15 @@ class UserSession(TimestampedUUIDMixin, Base):
     ip_address: Mapped[str | None] = mapped_column(INET)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Which branch this session has navigated to (`POST /auth/switch`, finding S12). NULL means
+    # "wherever login would put you", which is what every session did before the column existed.
+    #
+    # It is a *preference*, never an authorisation: `refresh()` re-checks the assignment every time
+    # and falls back to the home branch if the role is gone. A stale value here can cost a redirect
+    # and cannot grant access.
+    restaurant_id: Mapped[uuid.UUID | None] = mapped_column(
+        postgresql.UUID(as_uuid=True), ForeignKey("restaurant.id", ondelete="SET NULL")
+    )
 
 
 class Employee(TimestampedUUIDMixin, Base):

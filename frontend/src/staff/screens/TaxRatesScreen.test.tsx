@@ -26,6 +26,7 @@ const RESTAURANT: RestaurantSummary = {
   timezone: 'Asia/Kolkata',
   currency: 'INR',
   business_day_start: '05:00:00',
+  theme: { default: null, schedule: [] },
 };
 
 const CURRENT = {
@@ -60,6 +61,7 @@ const AUTH: AuthState = {
     fullName: 'Priya Nair',
     employeeCode: 'EMP001',
     restaurant: RESTAURANT,
+    restaurants: [RESTAURANT],
     roles: ['owner'],
     permissions: new Set<string>(),
   } satisfies Session,

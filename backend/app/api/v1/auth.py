@@ -27,6 +27,7 @@ from app.schemas.identity import (
     RefreshRequest,
     RestaurantSummary,
     SessionResponse,
+    SwitchRestaurantRequest,
 )
 from app.services.auth import AuthService, LoginResult
 
@@ -71,7 +72,7 @@ def _session_response(result: LoginResult) -> SessionResponse:
         expires_in_seconds=settings.access_token_ttl_minutes * 60,
         employee_id=result.employee.id,
         full_name=result.employee.full_name,
-        restaurant=RestaurantSummary.model_validate(result.restaurant),
+        restaurant=RestaurantSummary.of(result.restaurant),
         roles=list(result.role_codes),
         permissions=sorted(result.permissions),
         password_change_required=result.password_change_required,
@@ -134,10 +135,38 @@ async def me(actor: ActorDep, session: SessionDep) -> MeResponse:
         employee_id=profile.employee.id,
         full_name=profile.employee.full_name,
         employee_code=profile.employee.employee_code,
-        restaurant=RestaurantSummary.model_validate(profile.restaurant),
+        restaurant=RestaurantSummary.of(profile.restaurant),
+        restaurants=[RestaurantSummary.of(each) for each in profile.restaurants],
         roles=list(profile.access.role_codes),
         permissions=sorted(profile.access.permissions),
     )
+
+
+@router.post("/switch", response_model=SessionResponse)
+async def switch_restaurant(
+    payload: SwitchRestaurantRequest,
+    actor: ActorDep,
+    session: SessionDep,
+    request: Request,
+) -> SessionResponse:
+    """Move this session to another branch the same person works at (finding S12).
+
+    No permission is declared, and that is deliberate rather than an omission: this is authenticated
+    and authorises *itself* — the answer depends on where the person is employed, which no single
+    permission string can express. It is on the public allow-list in the route-declaration suite for
+    the same reason `GET /auth/me` is.
+
+    The refresh cookie is passed down so the choice can be recorded on the session row. Without
+    that, the next token refresh would return the person to their home branch mid-task, with
+    nothing on screen to explain it.
+    """
+    result = await AuthService(session).switch_restaurant(
+        actor, payload.restaurant_id, request.cookies.get(REFRESH_COOKIE)
+    )
+    await session.commit()
+    # No `_set_refresh_cookie`: the refresh token is unchanged and still valid. Re-issuing the
+    # cookie here would be harmless but would imply a rotation that did not happen.
+    return _session_response(result)
 
 
 @router.post("/password", status_code=status.HTTP_204_NO_CONTENT)

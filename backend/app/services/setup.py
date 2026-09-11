@@ -110,6 +110,10 @@ class SetupService:
             raise NotFoundError("restaurant.not_found", "This restaurant no longer exists.")
 
         changes = request.model_dump(exclude_unset=True)
+        # The theme is configuration and lives in `settings`, not in a column of its own. Pulled out
+        # here so the loop below only ever sets real columns — assigning `restaurant.theme` would
+        # silently do nothing, which is the quietest possible way to lose a setting.
+        theme = changes.pop("theme", None)
         if "timezone" in changes and changes["timezone"] is not None:
             _require_known_timezone(changes["timezone"])
         if "currency" in changes and changes["currency"] is not None:
@@ -118,6 +122,14 @@ class SetupService:
         before = {field: getattr(restaurant, field) for field in changes}
         for field, value in changes.items():
             setattr(restaurant, field, value)
+        if theme is not None:
+            # Replaced whole rather than merged: the client sends the complete theme settings, so a
+            # removed festive window is expressible. A merge would make deletion impossible.
+            #
+            # Reassigned rather than mutated, because SQLAlchemy does not track mutation inside a
+            # JSONB dict — `settings["theme"] = ...` would flush nothing and the save would appear
+            # to succeed while changing nothing at all.
+            restaurant.settings = {**restaurant.settings, "theme": _jsonable_theme(theme)}
         await self.session.flush()
 
         audited = {field for field in changes if field in _AUDITED_SETTINGS}
@@ -442,6 +454,37 @@ class SetupService:
             )
         )
         await self.session.flush()
+
+
+def _jsonable_theme(theme: dict[str, Any]) -> dict[str, Any]:
+    """`date` does not survive a jsonb round trip; the windows carry two of them."""
+    return {
+        "default": theme.get("default"),
+        "schedule": [
+            {
+                "theme": window["theme"],
+                "starts_on": _one_jsonable(window["starts_on"]),
+                "ends_on": _one_jsonable(window["ends_on"]),
+            }
+            for window in theme.get("schedule", [])
+        ],
+    }
+
+
+def read_theme(settings: dict[str, Any]) -> dict[str, Any]:
+    """The theme block out of `settings`, with the shape the schema expects.
+
+    Tolerant on the way out and strict on the way in: a restaurant seeded before this existed has no
+    `theme` key at all, and the settings screen must render for it rather than 500.
+    """
+    stored = settings.get("theme")
+    if not isinstance(stored, dict):
+        return {"default": None, "schedule": []}
+    schedule = stored.get("schedule")
+    return {
+        "default": stored.get("default"),
+        "schedule": schedule if isinstance(schedule, list) else [],
+    }
 
 
 def _require_known_timezone(timezone: str) -> None:

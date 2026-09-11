@@ -1,7 +1,11 @@
 import { type FormEvent, type ReactElement, useState } from 'react';
 
 import { businessDayExample } from '@shared/businessDay';
+import type { RestaurantTheme, ThemeWindow } from '@shared/theme/theme';
+import { THEMES } from '@shared/theme/theme';
 import { Button } from '@shared/ui/button';
+import { Label } from '@shared/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
@@ -33,7 +37,12 @@ export default function RestaurantSettingsScreen(): ReactElement {
         error={restaurant.error}
         pendingLabel={strings.setup.restaurant.loading}
       >
-        {restaurant.data === undefined ? null : <SettingsForm restaurant={restaurant.data} />}
+        {restaurant.data === undefined ? null : (
+          <>
+            <SettingsForm restaurant={restaurant.data} />
+            <ThemeSection restaurant={restaurant.data} />
+          </>
+        )}
       </QueryState>
     </div>
   );
@@ -123,6 +132,160 @@ function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement 
     </form>
   );
 }
+
+/**
+ * The restaurant-wide look and its festive schedule, deferred here from the UI work.
+ *
+ * Saved on its own rather than with the rest of the form: a festive schedule is edited at a
+ * different moment and for a different reason than a GSTIN, and folding both into one Save means
+ * every theme change also rewrites the tax number.
+ *
+ * The hint says out loud that a person's own device choice survives this. That is the rule in
+ * `resolveTheme`, and an owner setting a restaurant default deserves to know it will not reach the
+ * manager who deliberately chose dark for a dim back office.
+ */
+function ThemeSection({ restaurant }: { restaurant: Restaurant }): ReactElement {
+  const save = useUpdateRestaurant();
+  // Defaulted: a restaurant saved before this setting existed has no theme block at all, and the
+  // settings screen has to render for it rather than crash.
+  const [theme, setTheme] = useState<RestaurantTheme>(
+    restaurant.theme ?? { default: null, schedule: [] },
+  );
+
+  function addWindow(): void {
+    const today = new Date().toISOString().slice(0, 10);
+    setTheme((current) => ({
+      ...current,
+      schedule: [...current.schedule, { theme: FIRST_THEME, starts_on: today, ends_on: today }],
+    }));
+  }
+
+  function editWindow(index: number, changes: Partial<ThemeWindow>): void {
+    setTheme((current) => ({
+      ...current,
+      schedule: current.schedule.map((window, at) =>
+        at === index ? { ...window, ...changes } : window,
+      ),
+    }));
+  }
+
+  return (
+    <section className="space-y-3 rounded-md border p-page">
+      <div>
+        <h2 className="text-lg font-semibold">{strings.setup.theme.title}</h2>
+        <p className="text-sm text-muted-foreground">{strings.setup.theme.hint}</p>
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="default-theme">{strings.setup.theme.defaultLabel}</Label>
+        <Select
+          value={theme.default ?? NO_DEFAULT}
+          onValueChange={(value) => {
+            setTheme((current) => ({
+              ...current,
+              default: value === NO_DEFAULT ? null : value,
+            }));
+          }}
+        >
+          <SelectTrigger id="default-theme" className="max-w-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_DEFAULT}>{strings.setup.theme.none}</SelectItem>
+            {THEMES.map((each) => (
+              <SelectItem key={each.id} value={each.id}>
+                {each.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <h3 className="font-medium">{strings.setup.theme.scheduleTitle}</h3>
+        <p className="text-sm text-muted-foreground">{strings.setup.theme.scheduleHint}</p>
+        {theme.schedule.length === 0 ? (
+          <p className="text-muted-foreground">{strings.setup.theme.scheduleEmpty}</p>
+        ) : (
+          <ul className="space-y-2">
+            {theme.schedule.map((window, index) => (
+              <li key={index} className="flex flex-wrap items-end gap-2">
+                <Select
+                  value={window.theme}
+                  onValueChange={(value) => {
+                    editWindow(index, { theme: value });
+                  }}
+                >
+                  <SelectTrigger
+                    className="w-auto min-w-40"
+                    aria-label={`${strings.setup.theme.windowTheme} ${String(index + 1)}`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {THEMES.map((each) => (
+                      <SelectItem key={each.id} value={each.id}>
+                        {each.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Field
+                  label={strings.setup.theme.from}
+                  type="date"
+                  value={window.starts_on}
+                  onChange={(event) => {
+                    editWindow(index, { starts_on: event.target.value });
+                  }}
+                />
+                <Field
+                  label={strings.setup.theme.to}
+                  type="date"
+                  value={window.ends_on}
+                  onChange={(event) => {
+                    editWindow(index, { ends_on: event.target.value });
+                  }}
+                />
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setTheme((current) => ({
+                      ...current,
+                      schedule: current.schedule.filter((_, at) => at !== index),
+                    }));
+                  }}
+                >
+                  {strings.setup.theme.remove}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <Button variant="secondary" onClick={addWindow}>
+          {strings.setup.theme.addWindow}
+        </Button>
+      </div>
+
+      {save.isError && <Notice tone="critical" {...errorProps(save.error)} />}
+      {save.isSuccess && <Notice tone="success" title={strings.setup.theme.saved} />}
+
+      <Button
+        disabled={save.isPending}
+        onClick={() => {
+          save.mutate({ theme });
+        }}
+      >
+        {save.isPending ? strings.setup.restaurant.saving : strings.setup.theme.save}
+      </Button>
+    </section>
+  );
+}
+
+/** Radix's Select cannot hold an empty string as a value, so "no default" needs a real one. */
+const NO_DEFAULT = '__none__';
+
+/** THEMES is never empty — it is a literal array in themes.ts — but the type does not say so. */
+const FIRST_THEME = THEMES[0]?.id ?? 'light';
 
 /**
  * The one control on this screen that needs explaining, with its explanation attached.
