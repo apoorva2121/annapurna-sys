@@ -1,7 +1,9 @@
 # Remediation Plan — M01-R · post-audit hardening
 
-**Status: not started.** Findings and rationale: `docs/audit/2026-09-11-findings.md`. Rules that
-came out of them: `docs/engineering-guardrails.md`. This file is the *work*, in order, and it is
+**Status: R1 done (`bf5ab60`); R2 next.**
+
+Findings and rationale: `docs/audit/2026-09-11-findings.md`. Rules that came out of them:
+`docs/engineering-guardrails.md`. This file is the *work*, in order, and it is
 updated after every commit exactly like a build log — **it can be trusted about the past and not
 about the future.**
 
@@ -47,7 +49,7 @@ Rules of engagement for the session (the human enforces these):
 
 | Chunk | What | Findings | State | Commit |
 |---|---|---|---|---|
-| R1 | Transactions and the honest test harness | P1-1 | ☑ **done** — `api` opens one session per request; both halves of P1-1 have HTTP-level tests; `_handle_replay` commits its revocation. 270 tests, `make check` clean. **P1-9 (argon2) was removed from this chunk** and deferred to measured load or M08 | `b01a8b0` + `734997e` |
+| R1 | Transactions and the honest test harness | P1-1 | ☑ **done** — `api` opens one session per request; both halves of P1-1 have HTTP-level tests; `_handle_replay` commits its revocation. 270 tests, `make check` clean. **P1-9 (argon2) was removed from this chunk** and deferred to measured load or M08 | `b01a8b0` + `bf5ab60` |
 | R2 | Seniority is organization-wide | P1-2, P1-6 | ☐ **NEXT**. Includes the two-branch/two-org fixture (G-17), which is most of the work | — |
 | R8a | Lockfile only — `uv lock`, frozen installs, pinned ruff | M9 | ☐ then this | — |
 | — | **M02 may start here** | — | — | — |
