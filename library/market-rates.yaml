@@ -1,39 +1,49 @@
 # Market rates — INR per base unit, PUNE baseline, researched 2026-09-12.
 #
-# What this file is for: `docs/onboarding-cold-start.md` promises that a restaurant's prices
-# "bootstrap from a market-rate table by city, then correct on first real purchase". This is that
-# table. It is the ONLY file in library/ that carries a price — `ingredients.yaml` deliberately has
-# none, because a price is per-restaurant and these are only a starting point.
+# `docs/onboarding-cold-start.md` promises a restaurant's prices "bootstrap from a market-rate
+# table by city, then correct on first real purchase". This is that table. It is the ONLY file in
+# library/ carrying a price — `ingredients.yaml` deliberately has none, because a price is
+# per-restaurant and these are a starting point a chef corrects.
 #
-# Apply `city-index.yaml` to move off the Pune baseline:
-#     effective = inr_per_base_unit * cities[city].multiplier
+# EFFECTIVE PRICE. A row's value is the price level of its OWN `basis_city`, which is not always
+# Pune. Converting to a target city is therefore a ratio, not a multiplication:
 #
-# BASIS: wholesale / trade rates — what a restaurant buying in bulk pays. NOT retail and NOT
-# quick-commerce. The gap is not small: onion showed 56 INR/kg wholesale against 62-73 retail on
-# the same page on the same day.
+#     effective = inr_per_base_unit * cities[target].multiplier / cities[basis_city].multiplier
 #
-# `observed` holds the raw string exactly as the source published it, unit included. It is there so
-# the conversion can be audited — the likeliest error in this whole dataset is an Indian mandi
-# price quoted per QUINTAL (100 kg) read as per-kg, a 100x mistake that looks entirely plausible in
-# a column of numbers. `library/validate_rates.py` cross-checks every shared code against
-# `seed/ingredients.yaml`, whose hand-set prices pass the golden food-cost tests and which the
-# research never saw.
+# Multiplying a Mumbai-sourced value by Mumbai's multiplier would apply geography twice. An audit
+# found 29% of rows resting on non-Pune evidence in a file that declared a Pune baseline, and
+# `basis_city` is what makes that arithmetic honest instead of silently wrong.
 #
-# A CAVEAT THAT APPLIES TO THE WHOLE `veg` BLOCK: most of it comes from one Pune APMC wholesale
-# page read on one day. That is a single daily snapshot of the most volatile category in the file,
-# and it has already been caught being wrong once — the same page quoted mint at 7 INR/kg when
-# every other source put bulk mint at 34-67, and the seed cross-check flagged it at 15.7x. Treat a
-# single-sourced `veg` row as a point-in-time reading rather than a settled price. Onion is the
-# other live example: 35 INR/kg on 6 Sep, 56 on 12 Sep, same page.
+# BASIS: wholesale / trade — what a restaurant buying in bulk pays. NOT retail, NOT quick-commerce.
+# The gap is not small: onion showed 56 INR/kg wholesale against 62-73 retail on one page one day.
+#
+# `observed` holds the raw string exactly as published, unit included, so the conversion can be
+# audited. The likeliest error here is a mandi price quoted per QUINTAL (100 kg) read as per-kg —
+# a 100x mistake that looks plausible in a column of numbers.
+#
+# `as_of` is when the PRICE was published; `retrieved` is when we fetched it. They are different
+# fields because 20 rows once carried a fresh fetch date over evidence up to seven months old.
+# Where a page gave no date, `as_of_defaulted: true` marks that we only know when we looked.
+#
+# `grade` names the product form the price is for — powder vs whole, peeled vs unpeeled, food vs
+# cosmetic grade, pod size. A price without a grade is ambiguous: cardamom alone ranges 1.68x by
+# pod size, and one row was briefly priced off COSMETIC rose water for a food ingredient.
+#
+# `gst_rate` / `gst_hsn` carry input tax. A restaurant on the 5% no-ITC scheme BEARS this, so the
+# landed cost is `inr_per_base_unit * (1 + gst_rate/100)` — the quoted price is not the cost.
 #
 # TIERS — no row may claim more certainty than it has:
 #   corroborated  two independent source NAMES agreeing within +/-25%
 #   sourced       one citation, or two that disagreed — the note says which
 #   estimated     no retrievable source; domain knowledge only, sources: []
-# Two listings on one platform are ONE source: Hyperpure quoting six paneer brands is one opinion
-# about paneer, not six.
+# Two listings on one platform are ONE source. A marketplace of independent sellers (IndiaMART) is
+# the exception and those are named for the seller or city, not the domain.
 #
-# Regenerate provenance after editing:  python library/validate_rates.py --write-provenance
+# A CAVEAT ON `veg`: much of it is a single daily snapshot of the most volatile category here, and
+# that source has been wrong once — it quoted mint at 7 INR/kg where every other source said 34-67,
+# caught by the seed cross-check at 15.7x. Onion is the live example: 35 INR/kg on 6 Sep, 56 on 12.
+#
+# Regenerate after editing:  python library/validate_rates.py --write-provenance
 
 meta:
   currency: INR
@@ -47,922 +57,1429 @@ rates:
 
   - code: CHKN_BONELESS
     inr_per_base_unit: 0.278
+    basis_city: PUNE
     tier: corroborated
+    grade: "Chilled chicken breast, boneless, 2 kg pack"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/chicken-eggs", retrieved: 2026-09-12, observed: "Chilled Chicken Breast Boneless, 2 Kg Pack - ₹305/kg"}
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/chicken-mutton-beef-fish-rate-in-Pune", retrieved: 2026-09-12, observed: "Boneless ₹ 250 (Stable)"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/chicken-eggs", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Chilled Chicken Breast Boneless, 2 Kg Pack - ₹305/kg"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/chicken-mutton-beef-fish-rate-in-Pune", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Boneless ₹ 250 (Stable)"}
     note: "Pune trade basis. HyperPure boneless cuts (breast/leg/thigh) ran ₹302-325/kg; Maharashtra rate tracker gave ₹250/kg for 12-Sep-2026 (~22% apart, within tolerance) - value is their average. A Pune IndiaMART listing (India Chicken Shop, restaurant packaging) quoted only ₹200/kg - https://www.indiamart.com/proddetail/boneless-chicken-15131098355.html - kept out of the average as a likely lead-gen/promotional price."
 
   - code: CHKN_CURRCUT
     inr_per_base_unit: 0.241
+    basis_city: PUNE
     tier: corroborated
+    grade: "Chilled chicken curry cut, bone-in with skin, 2 kg pack"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/chicken-eggs", retrieved: 2026-09-12, observed: "Chilled Chicken Curry Cut, 2 Kg Pack - ₹222.5/kg"}
-      - {name: "indiamart", url: "https://www.indiamart.com/proddetail/chicken-curry-cut-25332798330.html", retrieved: 2026-09-12, observed: "Chicken Curry Cut, Fresh, 1kg at ₹260/kg (Devyani Foods, Pune)"}
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/chicken-mutton-beef-fish-rate-in-Pune", retrieved: 2026-09-12, observed: "Skin ₹240 (Stable) / Skinless ₹240 (Stable)"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/chicken-eggs", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Chilled Chicken Curry Cut, 2 Kg Pack - ₹222.5/kg"}
+      - {name: "indiamart", url: "https://www.indiamart.com/proddetail/chicken-curry-cut-25332798330.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Chicken Curry Cut, Fresh, 1kg at ₹260/kg (Devyani Foods, Pune)"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/chicken-mutton-beef-fish-rate-in-Pune", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Skin ₹240 (Stable) / Skinless ₹240 (Stable)"}
     note: "Bone-in, cut into pieces, dressed with skin. Three independent Pune sources cluster ₹222.5-260/kg (12-Sep-2026); value is their average."
 
   - code: CHKN_WHOLE
     inr_per_base_unit: 0.228
+    basis_city: PUNE
     tier: corroborated
+    grade: "Whole chicken, DRESSED with skin, 900-1100 g bird (not live weight)"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/chicken-eggs", retrieved: 2026-09-12, observed: "Chicken Whole with Skin (900-1100 gm) - ₹216/kg"}
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/chicken-mutton-beef-fish-rate-in-Pune", retrieved: 2026-09-12, observed: "Skin ₹ 240 (Stable)"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/chicken-eggs", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Chicken Whole with Skin (900-1100 gm) - ₹216/kg"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/chicken-mutton-beef-fish-rate-in-Pune", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Skin ₹ 240 (Stable)"}
     note: "BASIS = DRESSED whole bird, with skin (900-1100g), not live weight. Live broiler in Pune trades far lower, ~₹100-110/kg - https://dir.indiamart.com/pune/broiler-chicken.html (Patil Traders ₹110/kg live birds, Samir Chicken & Eggs ₹100/kg live) - consistent with boneless running roughly 2x the live rate. Separately, oneindia.com's page titled 'live chicken price in Pune' (12-Sep-2026, https://www.oneindia.com/live-chicken-price-in-pune.html) showed ₹250/kg under that label - implausible as true live weight given the IndiaMART live listings, and much more consistent with dressed/retail pricing; treated as mislabeled and excluded from this figure."
 
   - code: CHKN_WINGS
     inr_per_base_unit: 0.218
+    basis_city: PUNE
     tier: sourced
+    grade: "Chilled chicken wings with skin, 2 kg pack"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/chicken-eggs", retrieved: 2026-09-12, observed: "Chilled Chicken Wings with Skin, 2 Kg Pack - ₹235/kg; Frozen Chicken Wings Whole, 2 Kg - ₹200/kg"}
-      - {name: "indiamart", url: "https://www.indiamart.com/proddetail/fresh-chicken-wings-16500428288.html", retrieved: 2026-09-12, observed: "Fresh Chicken Wings at ₹140/kilogram (Pune)"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/chicken-eggs", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Chilled Chicken Wings with Skin, 2 Kg Pack - ₹235/kg; Frozen Chicken Wings Whole, 2 Kg - ₹200/kg"}
+      - {name: "indiamart", url: "https://www.indiamart.com/proddetail/fresh-chicken-wings-16500428288.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Fresh Chicken Wings at ₹140/kilogram (Pune)"}
     note: "HyperPure Pune (chilled-with-skin vs frozen) brackets ₹200-235/kg; value is that average. The IndiaMART Pune listing came in at ₹140/kg, more than 25% below the HyperPure range, so this is graded sourced rather than corroborated - the two do not agree within tolerance."
 
   - code: EGG
     inr_per_base_unit: 6.0
+    basis_city: PUNE
     tier: corroborated
+    grade: "Table egg, NECC Pune wholesale rate, ~50 g piece"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todayeggrate", url: "https://todayeggrate.in/pune-egg-rate/", retrieved: 2026-09-12, observed: "₹6 per piece, or ₹600 per 100 eggs (NECC, 12 Sep 2026)"}
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/eggs", retrieved: 2026-09-12, observed: "Eggs (30 Pcs/Tray) - ₹191 per tray; Eggs Unsorted, 30 Pcs (45-65 gm Each) - ₹189 per tray"}
+      - {name: "todayeggrate", url: "https://todayeggrate.in/pune-egg-rate/", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, observed: "₹6 per piece, or ₹600 per 100 eggs (NECC, 12 Sep 2026)"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/eggs", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Eggs (30 Pcs/Tray) - ₹191 per tray; Eggs Unsorted, 30 Pcs (45-65 gm Each) - ₹189 per tray"}
     note: "NECC official wholesale rate for Pune, dated exactly today (12-Sep-2026): ₹6.00/egg. HyperPure's tray prices work out to ₹6.30-6.37/egg, within 6% - used NECC's figure as the authoritative published wholesale rate. Brown eggs at HyperPure ran higher (₹8.23/egg) and were excluded as a different, premium product."
 
   - code: FISH_BASA
     inr_per_base_unit: 0.31
+    basis_city: PUNE
     tier: corroborated
+    grade: "Basa fillet, frozen, 30% glaze"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/seafood", retrieved: 2026-09-12, observed: "Indian Basa Fillets, 30% Glaze - ₹310.8/kg"}
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/frozen-basa-fillet.html", retrieved: 2026-09-12, observed: "Chaudhary Sons Foods - ₹310/Kg"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/seafood", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Indian Basa Fillets, 30% Glaze - ₹310.8/kg"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/frozen-basa-fillet.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Chaudhary Sons Foods - ₹310/Kg"}
     note: "Frozen basa fillet, ~30% glaze. IndiaMART's national listing directory spans ₹180-800/kg depending on origin (Indian vs Vietnamese) and glaze %; the value used sits in the ₹300-310/kg band where HyperPure Pune and a specific IndiaMART supplier closely agree."
 
   - code: FISH_SURMAI
     inr_per_base_unit: 0.961
+    basis_city: PUNE
     tier: corroborated
+    grade: "Frozen seer / surmai steaks, 15% glaze, 8-12 pcs"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/seafood", retrieved: 2026-09-12, observed: "Frozen Seer Steaks (8 to 12 Pcs) 15% Glaze - ₹972.3/kg"}
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/chicken-mutton-beef-fish-rate-in-Pune", retrieved: 2026-09-12, observed: "₹ 950 ▼ ₹30"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/seafood", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Frozen Seer Steaks (8 to 12 Pcs) 15% Glaze - ₹972.3/kg"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/chicken-mutton-beef-fish-rate-in-Pune", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "₹ 950 ▼ ₹30"}
     note: "Kingfish/seer. The two sources agree within 3% (972.3 vs 950), though HyperPure's is specifically frozen glazed steaks (a premium cut) rather than whole fish. A Pune IndiaMART listing ('Easy Meat') quoted only ₹380/kg - https://www.indiamart.com/proddetail/surmai-king-fish-13863643097.html - far below both agreeing sources; treated as an outlier/lead-gen price and excluded from the value."
 
   - code: MUTTON
     inr_per_base_unit: 0.818
+    basis_city: PUNE
     tier: corroborated
+    grade: "Fresh mutton curry cut, bone-in, 16 pcs/kg"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/mutton-duck-and-lamb", retrieved: 2026-09-12, observed: "Fresh Mutton Curry Cut (16 pcs/kg), 1 Kg - ₹725/kg"}
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/chicken-mutton-beef-fish-rate-in-Pune", retrieved: 2026-09-12, observed: "₹ 830 ▼ ₹10"}
-      - {name: "oneindia", url: "https://www.oneindia.com/mutton-price-in-pune.html", retrieved: 2026-09-12, observed: "₹900.00 per kg, 12 Sep 2026"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/mutton-duck-and-lamb", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Fresh Mutton Curry Cut (16 pcs/kg), 1 Kg - ₹725/kg"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/chicken-mutton-beef-fish-rate-in-Pune", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "₹ 830 ▼ ₹10"}
+      - {name: "oneindia", url: "https://www.oneindia.com/mutton-price-in-pune.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, observed: "₹900.00 per kg, 12 Sep 2026"}
     note: "Goat curry cut, bone-in. Three Pune sources (12-Sep-2026) span ₹725-900/kg, all mutually within 25%; value is their average - squarely in the ₹700-900/kg range that's normal for mutton. A Pune IndiaMART 'for Restaurant' 50kg-pack listing quoted ₹600/kg but is currently out of stock - https://www.indiamart.com/proddetail/fresh-mutton-curry-cut-22846038230.html - noted but excluded from the average as a stale/unavailable listing."
 
   - code: MUTTON_KEEMA
     inr_per_base_unit: 0.699
+    basis_city: PUNE
     tier: corroborated
+    grade: "Fresh minced mutton (keema), 1 kg"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/mutton-duck-and-lamb", retrieved: 2026-09-12, observed: "Fresh Mutton Minced (Keema), 1 Kg - ₹738/kg"}
-      - {name: "indiamart", url: "https://www.indiamart.com/proddetail/mutton-keema-10431471291.html", retrieved: 2026-09-12, observed: "Mutton Keema at ₹660/kilogram (Mumbai)"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/mutton-duck-and-lamb", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Fresh Mutton Minced (Keema), 1 Kg - ₹738/kg"}
+      - {name: "indiamart", url: "https://www.indiamart.com/proddetail/mutton-keema-10431471291.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Mutton Keema at ₹660/kilogram (Mumbai)"}
     note: "Fresh minced mutton. The two sources are ~12% apart, within tolerance; value is their average. Other Mumbai IndiaMART keema listings ran much lower (₹365-500/kg) - likely lower-grade or fat-mixed mince - and were not used."
 
   - code: PRAWN
     inr_per_base_unit: 0.425
+    basis_city: PUNE
     tier: corroborated
+    grade: "Prawns 31/40 PD medium, peeled deveined, 30% glaze"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/prawns", retrieved: 2026-09-12, observed: "Prawns - 31/40 PD (Medium), 30% Glaze - ₹449/kg"}
-      - {name: "indiamart", url: "https://www.indiamart.com/proddetail/fresh-prawns-14635908948.html", retrieved: 2026-09-12, observed: "Fresh Prawns at ₹400/kilogram (Freshje Enterprises, Mumbai)"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/prawns", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Prawns - 31/40 PD (Medium), 30% Glaze - ₹449/kg"}
+      - {name: "indiamart", url: "https://www.indiamart.com/proddetail/fresh-prawns-14635908948.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Fresh Prawns at ₹400/kilogram (Freshje Enterprises, Mumbai)"}
     note: "Medium prawns. HyperPure's figure is for 30%-glazed (ice-glazed frozen) product - actual meat content is somewhat less than the glazed weight. IndiaMART's fresh (unglazed) quote is ~12% lower, within tolerance; value is the average."
 
   # ---------------------------------------------------------------- dairy (10)
 
   - code: BUTTER
     inr_per_base_unit: 0.617
+    basis_city: PUNE
     tier: sourced
+    grade: "Amul salted butter, 500 g pack, B2B trade rate"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/butter", retrieved: 2026-09-12, observed: "Amul - Butter Salted, 500 gm - ₹617.40/kg (i.e. ₹308.70/pack)"}
-      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/104864/amul-butter-pasteurised-500-g-carton/", retrieved: 2026-09-12, observed: "Amul Pasteurised Butter 500 Gm Carton - ₹230"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/butter", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Amul - Butter Salted, 500 gm - ₹617.40/kg (i.e. ₹308.70/pack)"}
+      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/104864/amul-butter-pasteurised-500-g-carton/", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Amul Pasteurised Butter 500 Gm Carton - ₹230"}
     note: "Salted butter, Amul. HyperPure (the restaurant B2B platform) is used as the bulk/trade basis per this task's brief. Flagging an anomaly: BigBasket's current retail price (₹230/pack = ₹460/kg) is actually LOWER than HyperPure's trade listing, the reverse of the usual retail-above-trade pattern - likely a BigBasket promo/discount rather than a true reflection of standing retail price. Because the two disagree by >25%, this is graded sourced rather than corroborated."
 
   - code: CHEESE
     inr_per_base_unit: 0.549
+    basis_city: PUNE
     tier: corroborated
+    grade: "Amul processed cheese, 1 kg block"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/cheese", retrieved: 2026-09-12, observed: "Amul - Processed Cheese Block, 1 Kg - ₹553.35/kg"}
-      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/104582/amul-processed-cheese-block-1-kg-carton/", retrieved: 2026-09-12, observed: "Amul Processed Cheese - Block 1 kg Carton - ₹545"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/cheese", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Amul - Processed Cheese Block, 1 Kg - ₹553.35/kg"}
+      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/104582/amul-processed-cheese-block-1-kg-carton/", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Amul Processed Cheese - Block 1 kg Carton - ₹545"}
     note: "Processed cheese block, Amul. Trade and retail are within 2% of each other - value is their average. HyperPure also lists mozzarella and other blends at lower (₹417-531/kg) and cream cheese higher (₹696/kg); processed block was chosen as the closest match to 'processed cheese.'"
 
   - code: CREAM
     inr_per_base_unit: 0.249
+    basis_city: PUNE
     tier: corroborated
+    grade: "Amul fresh cream, 25% milk fat, 1 L"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/dairy", retrieved: 2026-09-12, observed: "Amul Fresh Cream, 1 L - ₹247/ltr"}
-      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/40005030/amul-fresh-cream-25-milk-fat-low-fat-1-l-carton/", retrieved: 2026-09-12, observed: "Amul Fresh Cream - 25% Milk Fat Low Fat 1 lt Carton - ₹250"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/dairy", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Amul Fresh Cream, 1 L - ₹247/ltr"}
+      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/40005030/amul-fresh-cream-25-milk-fat-low-fat-1-l-carton/", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Amul Fresh Cream - 25% Milk Fat Low Fat 1 lt Carton - ₹250"}
     note: "Fresh cream, 25% fat, Amul brand. Trade (HyperPure) and retail (BigBasket) prices are nearly identical here (~1% apart) - unlike most other dairy lines, cream doesn't show much retail/trade wedge in what's currently listed."
 
   - code: CURD
     inr_per_base_unit: 0.083
+    basis_city: PUNE
     tier: sourced
+    grade: "Amul Masti curd / dahi, 1 kg pack"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/curd", retrieved: 2026-09-12, observed: "Amul - Masti Curd, 1 Kg - ₹82.95/kg"}
-      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/104851/amul-masti-dahi-400-g-cup/", retrieved: 2026-09-12, observed: "Amul Masti Dahi 400 Gm Cup - ₹50"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/curd", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Amul - Masti Curd, 1 Kg - ₹82.95/kg"}
+      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/104851/amul-masti-dahi-400-g-cup/", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Amul Masti Dahi 400 Gm Cup - ₹50"}
     note: "Dahi/curd. HyperPure Pune's 1kg-pouch trade price (₹82.95/kg) is used as the bulk basis. BigBasket's 400g retail cup works out to ₹125/kg - 51% higher, consistent with small-format retail carrying a much bigger markup than a 1kg trade pouch - so graded sourced, not corroborated. HyperPure's other Pune listings ranged ₹67-98/kg across brands."
 
   - code: GHEE
     inr_per_base_unit: 0.647
+    basis_city: PUNE
     tier: corroborated
+    grade: "Amul pure ghee, 1 L pouch"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/ghee", retrieved: 2026-09-12, observed: "Amul - Ghee, 1 L Pouch - ₹633.15/ltr"}
-      - {name: "amul", url: "https://shop.amul.com/en/product/amul-pure-ghee-1-l", retrieved: 2026-09-12, observed: "Amul Pure Ghee, 1 L - MRP ₹660 (marked Sold Out)"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/ghee", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Amul - Ghee, 1 L Pouch - ₹633.15/ltr"}
+      - {name: "amul", url: "https://shop.amul.com/en/product/amul-pure-ghee-1-l", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Amul Pure Ghee, 1 L - MRP ₹660 (marked Sold Out)"}
     note: "Cow ghee. HyperPure trade price sits ~4% below Amul's own official MRP, as expected; value is their average. Ghee here is priced by the litre; treated as 1 L ≈ 1 kg per standard Indian retail/trade convention (no separate density correction applied - not cited by either source)."
 
   - code: ICE_CREAM
     inr_per_base_unit: 0.084
+    basis_city: PUNE
     tier: sourced
+    grade: "Vanilla ice cream, 4 L catering tub"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/delicious-desserts-vanilla-ice-cream-4-l", retrieved: 2026-09-12, observed: "Delicious Desserts - Vanilla Ice Cream, 4 L - ₹337.05 (₹84.26/ltr)"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/delicious-desserts-vanilla-ice-cream-4-l", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Delicious Desserts - Vanilla Ice Cream, 4 L - ₹337.05 (₹84.26/ltr)"}
     note: "Only one retrievable trade source found; 'Delicious Desserts' is a bulk catering-grade brand sold on HyperPure (restaurant B2B), not a consumer brand like Amul - no comparable Amul bulk/trade ice cream rate could be located to corroborate, so graded sourced. Expect a branded consumer tub (e.g. Amul) to run meaningfully higher at retail."
 
   - code: KHOYA
     inr_per_base_unit: 0.269
+    basis_city: PUNE
     tier: sourced
+    grade: "Khoya / mawa, 1 kg, unbranded"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/khoya", retrieved: 2026-09-12, observed: "Khoya, 1 Kg - ₹268.80/kg"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/khoya", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Khoya, 1 Kg - ₹268.80/kg"}
     note: "Unbranded/generic mandi khoya (mawa), Pune trade platform - only one retrievable source found despite searching, so graded sourced rather than corroborated. Branded alternatives on the same page ran notably higher: Amul Pure Khoa (Pindi/Dhap) ₹342.30/kg and Modern Dairy Fresh Mawa ₹346.50/kg - roughly 25-30% above the generic product used here."
 
   - code: MILK
     inr_per_base_unit: 0.077
+    basis_city: PUNE
     tier: corroborated
+    grade: "Amul Taaza homogenised toned milk, 1 L"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/dairy", retrieved: 2026-09-12, observed: "Amul Taaza Milk, 1L - ₹77/ltr"}
-      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/148715/amul-toned-milk-1-l-carton/", retrieved: 2026-09-12, observed: "Amul Taaza Homogenised Toned Milk 1 L Tetra Pak - ₹77"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/dairy", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Amul Taaza Milk, 1L - ₹77/ltr"}
+      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/148715/amul-toned-milk-1-l-carton/", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Amul Taaza Homogenised Toned Milk 1 L Tetra Pak - ₹77"}
     note: "Toned milk (Amul Taaza, 3% fat). Trade platform and retail price are an exact match at ₹77/L - milk appears to trade very close to MRP with little bulk discount visible in these listings."
 
   - code: MILK_POWDER
     inr_per_base_unit: 0.35
+    basis_city: PUNE
     tier: sourced
+    grade: "Whole milk powder (Amulya / Amul), bulk"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/amul-milk-powder.html", retrieved: 2026-09-12, observed: "Milk Powder (Amulya) - ₹350 (Balu Dairy Milk Products)"}
-      - {name: "amul", url: "https://shop.amul.com/en/product/amul-whole-milk-powder-pouch-500-g", retrieved: 2026-09-12, observed: "Amul Whole Milk Powder Pouch, 500 g - MRP ₹270"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/amul-milk-powder.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Milk Powder (Amulya) - ₹350 (Balu Dairy Milk Products)"}
+      - {name: "amul", url: "https://shop.amul.com/en/product/amul-whole-milk-powder-pouch-500-g", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Amul Whole Milk Powder Pouch, 500 g - MRP ₹270"}
     note: "Whole/whitener milk powder (Amul 'Amulya' line). The IndiaMART trade listing (₹350/kg) is used as the bulk-purchase basis; Amul's own MRP (500g at ₹270 = ₹540/kg) is 54% higher, so this is graded sourced, not corroborated, consistent with trade sitting below the retail ceiling. The same IndiaMART category page also listed many WHEY powder products from ₹90-220/kg - a different ingredient (a byproduct, not whole milk powder) - and was excluded from consideration."
 
   - code: PANEER
     inr_per_base_unit: 0.319
+    basis_city: PUNE
     tier: corroborated
+    grade: "Fresh milk paneer, 1 kg block, mid-range dairy brand"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://www.indiamart.com/proddetail/fresh-paneer-4500379391.html", retrieved: 2026-09-12, observed: "Fresh Milk Paneer at ₹320/kilogram (Agrawal Dairy, Pune)"}
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/paneer", retrieved: 2026-09-12, observed: "Dairylane - Malai Paneer, 1 Kg - ₹317/kg (best rate)"}
+      - {name: "indiamart", url: "https://www.indiamart.com/proddetail/fresh-paneer-4500379391.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Fresh Milk Paneer at ₹320/kilogram (Agrawal Dairy, Pune)"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/paneer", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Dairylane - Malai Paneer, 1 Kg - ₹317/kg (best rate)"}
     note: "Two independent Pune sources agree almost exactly (₹317-320/kg). HyperPure Pune's full brand spread was wider (Brahmaraj ₹274/kg to Milky Mist ₹382/kg); the Dairylane Malai listing was closest to the IndiaMART figure so the two were paired. BigBasket's branded Amul retail pack runs ₹450/kg - clearly retail, well above trade, as expected."
 
   # ---------------------------------------------------------------- veg (28)
 
   - code: BAINGAN
     inr_per_base_unit: 0.04
+    basis_city: PUNE
     tier: sourced
+    grade: "Standard brinjal / eggplant, mandi wholesale"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Eggplant wholesale 40 INR/Kg"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Eggplant wholesale 40 INR/Kg"}
     note: "Same page lists 'Brinjal (Big)' at 80 INR/kg — the large variety is dearer. Took the standard."
 
   - code: BEANS
     inr_per_base_unit: 0.084
+    basis_city: PUNE
     tier: sourced
+    grade: "French beans, mandi wholesale"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "French Beans wholesale 84 INR/Kg"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "French Beans wholesale 84 INR/Kg"}
     note: ""
 
   - code: BHINDI
     inr_per_base_unit: 0.045
+    basis_city: PUNE
     tier: sourced
+    grade: "Okra / bhindi, mandi wholesale"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Okra wholesale 45 INR/Kg"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Okra wholesale 45 INR/Kg"}
     note: ""
 
   - code: BROCCOLI
     inr_per_base_unit: 0.1
+    basis_city: PUNE
     tier: estimated
+    grade: "Broccoli, fresh, mid-range assumption"
+    gst_rate: null
+    gst_hsn: null
     sources: []
-    note: "No clean dated Pune figure retrieved. Search summaries gave a Pune range of 50-160 INR/kg (June 2026) and one aggregator reported 7.5 INR/kg, which is not credible for broccoli in India and is almost certainly a scraping artifact — recorded here precisely so nobody re-imports it. Took 100 INR/kg, mid-range for a premium vegetable. Chef to confirm."
+    note: "No clean dated Pune figure retrieved. Search summaries gave a Pune range of 50-160 INR/kg (June 2026) and one aggregator reported 7.5 INR/kg, which is not credible for broccoli in India and is almost certainly a scraping artifact — recorded here precisely so nobody re-imports it. Took 100 INR/kg, mid-range for a premium vegetable. Chef to confirm. AUDIT: still the only row in the file with zero citations. Remains honestly `estimated`."
 
   - code: CABBAGE
     inr_per_base_unit: 0.031
+    basis_city: PUNE
     tier: sourced
+    grade: "Whole cabbage, untrimmed - yield_factor 0.85 applies the trim"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Cabbage wholesale 31 INR/Kg"}
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/fruits-and-vegetables", retrieved: 2026-09-12, observed: "Cabbage without Leaves 1 kg — 19 INR"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Cabbage wholesale 31 INR/Kg"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/fruits-and-vegetables", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Cabbage without Leaves 1 kg — 19 INR"}
     note: "Diverge 63% — outside the bar. Hyperpure's is trimmed ('without leaves'), so it is closer to a yield-adjusted price; mandi 31 x 0.85 yield = 26 vs 19, still 39% apart. Took the untrimmed mandi figure since library yield_factor 0.85 does the trimming."
 
   - code: CAPSICUM
     inr_per_base_unit: 0.051
+    basis_city: PUNE
     tier: corroborated
+    grade: "Green capsicum, big, market grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Bell Pepper wholesale 51 INR/Kg"}
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/fruits-and-vegetables", retrieved: 2026-09-12, observed: "Green Capsicum (Big) 1 kg — 51 INR"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Bell Pepper wholesale 51 INR/Kg"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/fruits-and-vegetables", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Green Capsicum (Big) 1 kg — 51 INR"}
     note: "Exact agreement at 51 INR/kg across two unrelated sources."
 
   - code: CARROT
     inr_per_base_unit: 0.056
+    basis_city: PUNE
     tier: sourced
+    grade: "Carrot, mandi wholesale"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Carrot wholesale 56 INR/Kg"}
-    note: ""
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Carrot wholesale 56 INR/Kg"}
+    note: "AUDIT: single-sourced, inside the top 30 ingredients by dish-cost share. Needs a second independent source."
 
   - code: CAULI
     inr_per_base_unit: 0.04
+    basis_city: PUNE
     tier: sourced
+    grade: "Cauliflower, mandi wholesale"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Cauliflower wholesale 40 INR/Kg"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Cauliflower wholesale 40 INR/Kg"}
     note: ""
 
   - code: COCONUT
     inr_per_base_unit: 0.07
+    basis_city: PUNE
     tier: sourced
+    grade: "Fresh whole coconut by weight - yield_factor carries shell and water loss"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Coconut (fresh) wholesale 70 INR/Kg"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Coconut (fresh) wholesale 70 INR/Kg"}
     note: "Whole coconut by weight. Library base_unit is g of usable flesh; yield_factor carries the shell/water loss."
 
   - code: CORIANDER
     inr_per_base_unit: 0.084
+    basis_city: PUNE
     tier: sourced
+    grade: "Fresh coriander leaves, cleaned, 500 g restaurant pack"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/fruits-and-vegetables", retrieved: 2026-09-12, observed: "Coriander Leaves (Kothmir) 500 gm — 42 INR"}
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Coriander leaves wholesale 14 INR/Kg"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/fruits-and-vegetables", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Coriander Leaves (Kothmir) 500 gm — 42 INR"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Coriander leaves wholesale 14 INR/Kg"}
     note: "SOURCES DIVERGE 6x (84 vs 14 INR/kg) — too far apart to corroborate. Took Hyperpure: a restaurant buys cleaned 500 g packs daily, not farm-gate bulk lots of a crop that wilts in 3 days. Chef should confirm."
 
   - code: CORN_KERNELS
     inr_per_base_unit: 0.08
+    basis_city: NATIONAL
     tier: sourced
+    grade: "Frozen sweet corn kernels, branded (Safal)"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "safal-via-search", url: "https://dir.indiamart.com/impcat/frozen-sweet-corn.html", retrieved: 2026-09-12, observed: "Safal Frozen Sweetcorn 80 INR/kg (1 Jun 2026)"}
+      - {name: "safal-via-search", url: "https://dir.indiamart.com/impcat/frozen-sweet-corn.html", retrieved: 2026-09-12, as_of: 2026-06-01, city: NATIONAL, observed: "Safal Frozen Sweetcorn 80 INR/kg (1 Jun 2026)"}
     note: "Frozen kernels, not cob corn — the library item is kernels. A 5 kg pack was seen at 54 INR/kg; 48% apart, so not corroborated. Took the named-brand dated figure."
 
   - code: CUCUMBER
     inr_per_base_unit: 0.031
+    basis_city: PUNE
     tier: sourced
+    grade: "Cucumber, mandi wholesale"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Cucumber wholesale 31 INR/Kg"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Cucumber wholesale 31 INR/Kg"}
     note: ""
 
   - code: CURRY_LEAF
     inr_per_base_unit: 0.09
+    basis_city: PUNE
     tier: sourced
+    grade: "Fresh curry leaves, cleaned, 100 g pack"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/fruits-and-vegetables", retrieved: 2026-09-12, observed: "Curry Leaves (Kari Patta) 100 gm — 9 INR"}
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Curry leaves wholesale 40 INR/Kg"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/fruits-and-vegetables", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Curry Leaves (Kari Patta) 100 gm — 9 INR"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Curry leaves wholesale 40 INR/Kg"}
     note: "Diverge 2.25x (90 vs 40). Took Hyperpure for the restaurant basis, as with CORIANDER."
 
   - code: GARLIC
     inr_per_base_unit: 0.242
+    basis_city: PUNE
     tier: corroborated
+    grade: "Garlic bulbs, UNPEELED - yield_factor 0.72 applies the peeling loss"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Garlic wholesale 242 INR/Kg"}
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/fruits-and-vegetables", retrieved: 2026-09-12, observed: "Garlic Peeled (Market Grade) 500 gm — 98 INR"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Garlic wholesale 242 INR/Kg"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/fruits-and-vegetables", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Garlic Peeled (Market Grade) 500 gm — 98 INR"}
     note: "Value is UNPEELED, because library yield_factor 0.72 applies the peeling loss. Hyperpure sells peeled at 196 INR/kg; 196 x 0.72 = 272 unpeeled-equivalent vs mandi 242 — 12% apart, inside the bar. The two sources agreeing once yield is accounted for is a good sign the yield_factor itself is right."
 
   - code: GINGER
     inr_per_base_unit: 0.108
+    basis_city: PUNE
     tier: sourced
+    grade: "Fresh ginger, unpeeled, mandi wholesale"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Ginger wholesale 108 INR/Kg"}
-    note: ""
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Ginger wholesale 108 INR/Kg"}
+    note: "AUDIT: single-sourced, inside the top 30 by dish-cost share. Needs a second independent source."
 
   - code: GRNCHILLI
     inr_per_base_unit: 0.068
+    basis_city: PUNE
     tier: sourced
+    grade: "Green chilli, mandi wholesale"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Green chili wholesale 68 INR/Kg"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Green chili wholesale 68 INR/Kg"}
     note: ""
 
   - code: LEMON
     inr_per_base_unit: 3.0
+    basis_city: PUNE
     tier: sourced
+    grade: "Loose lemon / nimbu, mixed size, ~45 g per piece assumed"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Lemon wholesale 60 INR/Kg"}
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/fruits-and-vegetables", retrieved: 2026-09-12, observed: "Lemon/Nimbu (Mix Size) 1 kg — 200 INR"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Lemon wholesale 60 INR/Kg"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/fruits-and-vegetables", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Lemon/Nimbu (Mix Size) 1 kg — 200 INR"}
     note: "base_unit is `unit`, so this needs a piece-weight assumption the sources do not state: ~45 g/lemon => ~22 per kg. Mandi 60/kg => 2.7/piece; Hyperpure 200/kg => 9.1/piece. Sources diverge 3.3x (Hyperpure likely off-season). Took 3.0 near the mandi end since restaurants buy loose by weight. Chef to confirm."
 
   - code: MINT
     inr_per_base_unit: 0.04
+    basis_city: PUNE
     tier: corroborated
+    grade: "Fresh mint with stems, UNCLEANED - yield_factor 0.60 applies the trim"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/mint-leaf.html", retrieved: 2026-09-12, observed: "Pune suppliers from 40 INR/kg (D K Exim)"}
-      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/10000329/fresho-mint-leaves-cleaned-without-roots-1-kg/", retrieved: 2026-09-12, observed: "Fresho Mint Leaves cleaned without roots 1 kg - 67.64 INR"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/mint-leaf.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Pune suppliers from 40 INR/kg (D K Exim)"}
+      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/10000329/fresho-mint-leaves-cleaned-without-roots-1-kg/", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Fresho Mint Leaves cleaned without roots 1 kg - 67.64 INR"}
     note: "Priced UNCLEANED, because library yield_factor 0.60 removes the stems. The two sources corroborate once that is applied: 40 / 0.60 = 66.7 INR/kg cleaned vs BigBasket's cleaned 67.64 — 1.4% apart, the same yield-consistency GARLIC shows. An earlier draft took a 7 INR/kg figure off a Pune mandi page; every other source puts bulk mint at 34-67, so that was an outlier and the seed cross-check caught it at 15.7x."
 
   - code: MUSHROOM
     inr_per_base_unit: 0.087
+    basis_city: PUNE
     tier: sourced
+    grade: "Button mushroom, fresh, mandi wholesale"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Mushroom wholesale 87 INR/Kg"}
-    note: ""
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Mushroom wholesale 87 INR/Kg"}
+    note: "AUDIT: single-sourced, inside the top 30 by dish-cost share. Needs a second independent source."
 
   - code: ONION
     inr_per_base_unit: 0.057
+    basis_city: PUNE
     tier: corroborated
+    grade: "Onion, big / medium, unpeeled, market grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Onion Big wholesale 56 INR/Kg"}
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/fruits-and-vegetables", retrieved: 2026-09-12, observed: "Onion (Medium Size) 5 kg — 290 INR"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Onion Big wholesale 56 INR/Kg"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/fruits-and-vegetables", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Onion (Medium Size) 5 kg — 290 INR"}
     note: "56 vs 58 INR/kg — 3.6% apart. NOTE: onion is mid-spike. The same source showed 35 INR/kg on 6 Sep 2026 and 56 on 12 Sep. A baseline should not enshrine a spike; flagged for the volatility review."
 
   - code: PEAS
     inr_per_base_unit: 0.063
+    basis_city: PUNE
     tier: sourced
+    grade: "Fresh green peas, mandi wholesale (not frozen)"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Green peas wholesale 63 INR/Kg"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Green peas wholesale 63 INR/Kg"}
     note: "Fresh peas. Restaurants often use frozen, which is steadier and usually dearer off-season."
 
   - code: PINEAPPLE
     inr_per_base_unit: 0.051
+    basis_city: NATIONAL
     tier: sourced
+    grade: "Fresh pineapple, whole, mandi modal"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/PINEAPPLE/ALL/ALL", retrieved: 2026-09-12, observed: "5081 INR/quintal (4 Sep 2026)"}
+      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/PINEAPPLE/ALL/ALL", retrieved: 2026-09-12, as_of: 2026-09-04, city: NATIONAL, observed: "5081 INR/quintal (4 Sep 2026)"}
     note: "5081/quintal = 50.81 INR/kg. National modal; Maharashtra-specific not retrieved. Range across mandis 30-90 INR/kg."
 
   - code: POTATO
     inr_per_base_unit: 0.03
+    basis_city: PUNE
     tier: sourced
+    grade: "Potato, mandi wholesale"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Potato wholesale 30 INR/Kg"}
-    note: ""
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Potato wholesale 30 INR/Kg"}
+    note: "AUDIT: single-sourced, inside the top 30 by dish-cost share. Needs a second independent source."
 
   - code: SOYA_CHAAP
     inr_per_base_unit: 0.067
+    basis_city: PUNE
     tier: sourced
+    grade: "Frozen soya chaap, bulk trade minimum"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://www.dial4trade.com/suppliers/soya-chaap.htm", retrieved: 2026-09-12, observed: "minimum wholesale 67 INR/kg"}
+      - {name: "indiamart", url: "https://www.dial4trade.com/suppliers/soya-chaap.htm", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "minimum wholesale 67 INR/kg"}
     note: "Frozen soya chaap, bulk trade minimum. Hyperpure also lists Eat Happy frozen soya chaap 1 kg."
 
   - code: SPINACH
     inr_per_base_unit: 0.013
+    basis_city: PUNE
     tier: sourced
+    grade: "Fresh spinach, mandi wholesale bulk"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Spinach wholesale 13 INR/Kg"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Spinach wholesale 13 INR/Kg"}
     note: "Farm-gate bulk; same caveat as MINT."
 
   - code: SPRONION
     inr_per_base_unit: 0.043
+    basis_city: PUNE
     tier: sourced
+    grade: "Spring onion / green onion, mandi wholesale"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Green onion wholesale 43 INR/Kg"}
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Green onion wholesale 43 INR/Kg"}
     note: "seed/ingredients.yaml carries 0.080 for this — the seed anchor is ~2x the researched market. Flagged for the seed cross-check."
 
   - code: TAMARIND
     inr_per_base_unit: 0.125
+    basis_city: NATIONAL
     tier: sourced
+    grade: "Tamarind, seedless, restaurant grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "farmer-in", url: "https://farmer.in/mandi-bhav/tamarind/", retrieved: 2026-09-12, observed: "12500 INR/quintal modal"}
+      - {name: "farmer-in", url: "https://farmer.in/mandi-bhav/tamarind/", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "12500 INR/quintal modal"}
     note: "12500/quintal = 125 INR/kg (quintal = 100 kg). Range across mandis is 6500-15000/quintal. A Pune figure of 32 INR/kg was seen for 7 May 2026 — that is whole pod with seed; restaurants buy seedless, which is the dearer grade this value reflects."
 
   - code: TOMATO
     inr_per_base_unit: 0.03
+    basis_city: PUNE
     tier: sourced
+    grade: "Tomato, mandi wholesale"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, observed: "Tomato wholesale 30 INR/Kg"}
-    note: "Retail on the same page is 33-39 INR/kg. Tomato is the second most volatile line after onion."
+      - {name: "todaypricerates", url: "https://market.todaypricerates.com/Pune-vegetables-price-in-Maharashtra", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Tomato wholesale 30 INR/Kg"}
+    note: "Retail on the same page is 33-39 INR/kg. Tomato is the second most volatile line after onion. AUDIT: single-sourced, inside the top 30 by dish-cost share. Needs a second independent source."
 
   # ---------------------------------------------------------------- grain (21)
 
   - code: ATTA
     inr_per_base_unit: 0.038
+    basis_city: PUNE
     tier: sourced
+    grade: "Whole wheat chakki atta, mill grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/wheat-flour.html", retrieved: 2026-09-12, observed: "whole wheat mill atta ₹38/Kg; Loose Tandoori Wheat Atta ₹45/Kg; Quality Chakki Fresh Atta 5Kg ₹34/Kg (Pune, Sep 2026)"}
-      - {name: "indiamart-jamnagar", url: "https://www.indiamart.com/proddetail/50-kg-natural-wheat-atta-22491744788.html", retrieved: 2026-09-12, observed: "50 Kg Natural Wheat Atta at ₹1,000/bag ('Maa' brand, ships from Jamnagar, Gujarat)"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/wheat-flour.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "whole wheat mill atta ₹38/Kg; Loose Tandoori Wheat Atta ₹45/Kg; Quality Chakki Fresh Atta 5Kg ₹34/Kg (Pune, Sep 2026)"}
+      - {name: "indiamart-jamnagar", url: "https://www.indiamart.com/proddetail/50-kg-natural-wheat-atta-22491744788.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "50 Kg Natural Wheat Atta at ₹1,000/bag ('Maa' brand, ships from Jamnagar, Gujarat)"}
     note: "₹1,000/50kg bag = ₹20/kg -- well below the Pune loose/chakki cluster (₹34-45/kg). Two distinct sellers but disagree by >25%, so tiered sourced, not corroborated; used the Pune mill-atta figure as representative."
 
   - code: BASMATI
     inr_per_base_unit: 0.09
+    basis_city: NATIONAL
     tier: sourced
+    grade: "Aged 1121 extra-long-grain basmati, 12-month aged, biryani grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-garhwa", url: "https://www.indiamart.com/proddetail/1-kg-rehaan-extra-long-grain-biryani-1121-basmati-rice-2857832765930.html", retrieved: 2026-09-12, observed: "₹85/Kg, 1 kg PP Bag, 'Rehaan Extra Long Grain Biryani 1121 Basmati Rice', naturally aged for 12 months (Garhwa, Jharkhand)"}
-      - {name: "indiamart-bodhan", url: "https://www.indiamart.com/proddetail/1121-basmati-rice-30kg-rehan-2851851189497.html", retrieved: 2026-09-12, observed: "₹110/Kg, 30kg bag, 'Rehaan' aged extra-long-grain basmati, fully polished, marketed for biryani (Bodhan, Telangana)"}
+      - {name: "indiamart-garhwa", url: "https://www.indiamart.com/proddetail/1-kg-rehaan-extra-long-grain-biryani-1121-basmati-rice-2857832765930.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "₹85/Kg, 1 kg PP Bag, 'Rehaan Extra Long Grain Biryani 1121 Basmati Rice', naturally aged for 12 months (Garhwa, Jharkhand)"}
+      - {name: "indiamart-bodhan", url: "https://www.indiamart.com/proddetail/1121-basmati-rice-30kg-rehan-2851851189497.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "₹110/Kg, 30kg bag, 'Rehaan' aged extra-long-grain basmati, fully polished, marketed for biryani (Bodhan, Telangana)"}
     note: "REVISED after re-check. Originally recorded non-aged 1121 Steam/Creamy at ₹70/Kg (Pune trade); on reflection that grade undersells what restaurants actually use for biryani -- 12-month aging materially changes texture/aroma and is the grade restaurants specifically ask for. Re-sourced to the aged 'Rehaan' 1121 biryani line: ₹85/Kg (1kg pack, Garhwa) and ₹110/Kg (30kg bulk bag, Bodhan) -- two different named sellers, 29% apart so not quite corroborated. Used ₹90/Kg, close to the smaller-pack figure. The earlier ₹70/Kg non-aged 1121 remains a real, separately-sourced data point for a cheaper/fresher-milled grade, just not the one recorded here."
 
   - code: BESAN
     inr_per_base_unit: 0.078
+    basis_city: PUNE
     tier: sourced
+    grade: "Gram flour / besan, 10 kg bulk"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/gram-flour.html", retrieved: 2026-09-12, observed: "Gram Flour Price in Pune: ₹78/Kg | Sep 2026; Chana Besan Flour 10kg ₹77/Kg; Loose Gram Flour ₹72/Kg"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/gram-flour.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "Gram Flour Price in Pune: ₹78/Kg | Sep 2026; Chana Besan Flour 10kg ₹77/Kg; Loose Gram Flour ₹72/Kg"}
     note: "Excludes branded/premium retail packs (Fortune, EECO Spark) at ₹130-200/kg. Single source."
 
   - code: BOONDI
     inr_per_base_unit: 0.12
+    basis_city: PUNE
     tier: sourced
+    grade: "Plain boondi, medium, loose / 5 kg"
+    gst_rate: null
+    gst_hsn: null
+    pack_tiers:
+      - {qty_min: 5, unit: kg, inr: 600}
     sources:
-      - {name: "indiamart-impcat", url: "https://dir.indiamart.com/impcat/salted-boondi.html", retrieved: 2026-09-12, observed: "Shree Laxmi Udhyog (loose) ₹115/Kg; Jai Shree Shyam Enterprises (medium, 5kg) ₹120/Kg; Kumar Foods ₹135/Kg"}
+      - {name: "indiamart-impcat", url: "https://dir.indiamart.com/impcat/salted-boondi.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Shree Laxmi Udhyog (loose) ₹115/Kg; Jai Shree Shyam Enterprises (medium, 5kg) ₹120/Kg; Kumar Foods ₹135/Kg"}
     note: "Plain/salted boondi (raita/chaat garnish), not sweet dessert boondi. Single source (India-wide category listing, not city-specific)."
 
   - code: BREAD_CRUMBS
     inr_per_base_unit: 0.086
+    basis_city: PUNE
     tier: sourced
+    grade: "Dry bread crumbs, standard (not panko)"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-newdelhi", url: "https://dir.indiamart.com/new-delhi/bread-crumb.html", retrieved: 2026-09-12, observed: "reference ₹86/Kg | Sep 2026; American Orange Bread Crumbs ₹86/Kg; Frutin's Panko ₹94/Kg; Krunchix Panko ₹95/Kg"}
+      - {name: "indiamart-newdelhi", url: "https://dir.indiamart.com/new-delhi/bread-crumb.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "reference ₹86/Kg | Sep 2026; American Orange Bread Crumbs ₹86/Kg; Frutin's Panko ₹94/Kg; Krunchix Panko ₹95/Kg"}
     note: "Panko/breadcrumb trade cluster ₹80-115/kg; excludes premium ₹150-250/kg specialty brands. Single source."
 
   - code: CHANA
     inr_per_base_unit: 0.08
+    basis_city: NATIONAL
     tier: corroborated
+    grade: "Kabuli chana (white chickpea), 9-12 mm"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/KABULI-CHANA-CHICKPEAS-WHITE/ALL/ALL", retrieved: 2026-09-12, observed: "Today's average modal price of Kabuli Chana Chickpeas White across India is ₹8022 per quintal (100 KG), approximately ₹80.22 per KG. (12 Sep 2026)"}
-      - {name: "indiamart-mumbai", url: "https://dir.indiamart.com/mumbai/white-chickpeas.html", retrieved: 2026-09-12, observed: "Kabuli Chana Price in Mumbai: ₹100/Kg | Sep 2026; Ganga Singh Engg Pvt Ltd (9/10/12mm) ₹80/Kg; S R International Exim (12mm, sortex cleaned) ₹90/Kg"}
+      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/KABULI-CHANA-CHICKPEAS-WHITE/ALL/ALL", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, observed: "Today's average modal price of Kabuli Chana Chickpeas White across India is ₹8022 per quintal (100 KG), approximately ₹80.22 per KG. (12 Sep 2026)"}
+      - {name: "indiamart-mumbai", url: "https://dir.indiamart.com/mumbai/white-chickpeas.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: NATIONAL, observed: "Kabuli Chana Price in Mumbai: ₹100/Kg | Sep 2026; Ganga Singh Engg Pvt Ltd (9/10/12mm) ₹80/Kg; S R International Exim (12mm, sortex cleaned) ₹90/Kg"}
     note: "RE-CHECKED, ORIGINAL FIGURE KEPT. Reporting KABULI chana (white chickpea, for chole), not kala/desi -- DAL_CHANA above covers the split desi form. Checked branded retail for scale: Tata Sampann Unpolished Kabuli Chana 1kg runs ₹170-177/kg on bigbasket, well above the ₹80-100/kg trade/mandi level used here -- again the expected wholesale-vs-branded-retail gap, not an error. Kept ₹80/Kg (mandi modal, kisandeals); Mumbai trade reference on a different platform (indiamart, ₹100/kg) is 25% higher, right at the corroboration boundary, and named sellers on that same page (Ganga Singh Engg ₹80/Kg, S R International ₹90/Kg) sit closer still."
 
   - code: CORNFLOUR
     inr_per_base_unit: 0.086
+    basis_city: NATIONAL
     tier: corroborated
+    grade: "Corn STARCH (Brown & Polson type) - NOT maize/makki flour"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-newdelhi", url: "https://www.indiamart.com/proddetail/brown-and-polson-corn-flour-2852402356048.html", retrieved: 2026-09-12, observed: "Brown and Polson Corn Flour, Packaging Size: 1 Kg -- ₹77/Kg (seller: Zeffu, New Delhi)"}
-      - {name: "indiamart-kanpur", url: "https://www.indiamart.com/proddetail/brown-polson-corn-flour-2853447407091.html", retrieved: 2026-09-12, observed: "Brown Polson Corn Flour, 1 Kg -- ₹95/Kg (Kanpur)"}
+      - {name: "indiamart-newdelhi", url: "https://www.indiamart.com/proddetail/brown-and-polson-corn-flour-2852402356048.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "Brown and Polson Corn Flour, Packaging Size: 1 Kg -- ₹77/Kg (seller: Zeffu, New Delhi)"}
+      - {name: "indiamart-kanpur", url: "https://www.indiamart.com/proddetail/brown-polson-corn-flour-2853447407091.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "Brown Polson Corn Flour, 1 Kg -- ₹95/Kg (Kanpur)"}
     note: "CORRECTED after re-check -- this was a genuine error, not just a low estimate. The original ₹32/Kg was priced off 'Yellow Maize Flour' / 'Maize Flour' listings on the Pune corn-flour page, which in Indian usage is ground whole-corn meal (for makki roti) -- a different, cheaper product from corn flour/corn starch (the refined thickening starch, generically 'Brown & Polson', used in Chinese-Indian cooking and gravies, which the CORNFLOUR ingredient actually means). Re-sourced to two real Brown & Polson corn-starch trade listings from two distinct sellers (Zeffu, New Delhi; a Kanpur seller), ₹77/Kg and ₹95/Kg, 23% apart -- corroborated. Used ₹86/Kg (midpoint)."
 
   - code: DAL_CHANA
     inr_per_base_unit: 0.074
+    basis_city: PUNE
     tier: sourced
+    grade: "Chana dal, split and polished"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/chana-dal.html", retrieved: 2026-09-12, observed: "Mandi Rate ₹74/Kg (Sep 2026); Cow Brand (Ramesh Agency) ₹71/Kg; Yellow Desi Chana Dal (Murlidhar Sons) ₹71/Kg; supplier range ₹71-115/Kg"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/chana-dal.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "Mandi Rate ₹74/Kg (Sep 2026); Cow Brand (Ramesh Agency) ₹71/Kg; Yellow Desi Chana Dal (Murlidhar Sons) ₹71/Kg; supplier range ₹71-115/Kg"}
     note: "Split chana dal, Pune. Single source -- no second independently-fetched page for this specific commodity."
 
   - code: DAL_MOONG
     inr_per_base_unit: 0.098
+    basis_city: PUNE
     tier: corroborated
+    grade: "Moong dal, split yellow, polished"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/moong-dal.html", retrieved: 2026-09-12, observed: "Mandi Rate ₹98/Kg (Sep 2026); Kyaari Foods Split Yellow Mung Bean ₹95/Kg; Ramesh Agency Yellow Moong Dal ₹95/Kg"}
-      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/GREEN-GRAM-DAL--MOONG-DAL/ALL/ALL", retrieved: 2026-09-12, observed: "Today's average modal price of Green Gram Dal Moong Dal across India is ₹9700 per quintal (100 KG), approximately ₹97 per KG. (12 Sep 2026)"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/moong-dal.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "Mandi Rate ₹98/Kg (Sep 2026); Kyaari Foods Split Yellow Mung Bean ₹95/Kg; Ramesh Agency Yellow Moong Dal ₹95/Kg"}
+      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/GREEN-GRAM-DAL--MOONG-DAL/ALL/ALL", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, observed: "Today's average modal price of Green Gram Dal Moong Dal across India is ₹9700 per quintal (100 KG), approximately ₹97 per KG. (12 Sep 2026)"}
     note: "Split yellow moong dal. Pune trade (₹98/kg, corroborated internally by two named sellers -- Kyaari Foods and Ramesh Agency -- both at ₹95/Kg) and the India-wide Agmarknet-linked modal on a wholly different platform (kisandeals, ₹97/kg) agree within 1%."
 
   - code: DAL_TOOR
     inr_per_base_unit: 0.11
+    basis_city: PUNE
     tier: sourced
+    grade: "Toor / arhar dal, split and polished"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/ARHAR-DAL-TUR-DAL/MAHARASHTRA/ALL", retrieved: 2026-09-12, observed: "Today's average modal price of Arhar Dal Tur Dal in Maharashtra is ₹11000 per quintal (100 KG), approximately ₹110 per KG. (8 Sep 2026, APMC)"}
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/toor-dal.html", retrieved: 2026-09-12, observed: "mandi rate ₹76/Kg (₹75-76) as of 09/09/2026; trade suppliers ₹70-140/Kg"}
+      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/ARHAR-DAL-TUR-DAL/MAHARASHTRA/ALL", retrieved: 2026-09-12, as_of: 2026-09-08, city: PUNE, observed: "Today's average modal price of Arhar Dal Tur Dal in Maharashtra is ₹11000 per quintal (100 KG), approximately ₹110 per KG. (8 Sep 2026, APMC)"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/toor-dal.html", retrieved: 2026-09-12, as_of: 2026-09-09, city: PUNE, observed: "mandi rate ₹76/Kg (₹75-76) as of 09/09/2026; trade suppliers ₹70-140/Kg"}
     note: "RE-CHECKED, ORIGINAL FIGURE KEPT. The mandi commodity is literally named 'Arhar Dal (Tur Dal)', i.e. the milled/split dal, not raw arhar/tur seed -- so this was already the processed product. Checked branded retail for scale: Tata Sampann Unpolished Toor Dal 1kg runs ₹179-223/kg on bigbasket, well above ₹110/kg, which is the expected and normal wholesale-vs-branded-retail gap, not evidence of an error. Kept ₹110/Kg (the MH state mandi modal); the Pune-specific mandi print (₹76/Kg) remains lower and is noted as-is -- these two already disagree by >25%, which is why this was tiered sourced rather than corroborated to begin with."
 
   - code: DAL_URAD
     inr_per_base_unit: 0.097
+    basis_city: PUNE
     tier: sourced
+    grade: "Urad dal, whole black (sabut), unsplit"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/urad-dal.html", retrieved: 2026-09-12, observed: "Current Mandi Rate: ₹97/Kg (₹91-102) as of September 10, 2026; Black Sabut Urad ₹70/Kg; Mahalaxmi Brand White Sabut Urad Dal ₹96/Kg"}
-      - {name: "indiamart-delhi", url: "https://dir.indiamart.com/delhi/urad-dal.html", retrieved: 2026-09-12, observed: "Black Whole Urad Dal ₹95/Kg (lowest listed, Sep 2026)"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/urad-dal.html", retrieved: 2026-09-12, as_of: 2026-09-10, city: PUNE, observed: "Current Mandi Rate: ₹97/Kg (₹91-102) as of September 10, 2026; Black Sabut Urad ₹70/Kg; Mahalaxmi Brand White Sabut Urad Dal ₹96/Kg"}
+      - {name: "indiamart-delhi", url: "https://dir.indiamart.com/delhi/urad-dal.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "Black Whole Urad Dal ₹95/Kg (lowest listed, Sep 2026)"}
     note: "DOWNGRADED from corroborated on re-check. Whole/black urad (unsplit, with skin) -- see DAL_URAD_WHITE for the split/dehusked form. The Pune ₹97/Kg figure is the page's own aggregated 'mandi rate' line, not attributed to one named seller, and the Delhi ₹95/Kg figure was recorded in my own fetch only as 'lowest listed' with no seller name given -- so, unlike DAL_URAD_WHITE below, I can't honestly point to two distinctly-named independent sellers behind these two numbers, even though the values agree closely (3% apart). Tiered sourced rather than corroborated on that basis."
 
   - code: DAL_URAD_WHITE
     inr_per_base_unit: 0.12
+    basis_city: PUNE
     tier: corroborated
+    grade: "Urad dal, split and dehusked (dhuli), white"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/urad-dal.html", retrieved: 2026-09-12, observed: "White Urad Dal Split ₹120/Kg (unpolished); Gokul Urad Dal ₹125/Kg (split dehusked)"}
-      - {name: "indiamart-bengaluru", url: "https://dir.indiamart.com/bengaluru/urad-dal.html", retrieved: 2026-09-12, observed: "Polished Urad Dal, Split Dehusked (Laxmi Trading Company) ₹120/Kg; White Urad Dal, Split Dehusked ₹126/Kg; page reference ₹130/Kg | Sep 2026"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/urad-dal.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "White Urad Dal Split ₹120/Kg (unpolished); Gokul Urad Dal ₹125/Kg (split dehusked)"}
+      - {name: "indiamart-bengaluru", url: "https://dir.indiamart.com/bengaluru/urad-dal.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "Polished Urad Dal, Split Dehusked (Laxmi Trading Company) ₹120/Kg; White Urad Dal, Split Dehusked ₹126/Kg; page reference ₹130/Kg | Sep 2026"}
     note: "Split/dehusked white urad dal (dhuli). Kept corroborated: unlike DAL_URAD above, these trace to two clearly distinct named sellers -- 'Gokul Urad Dal' (Pune) and 'Laxmi Trading Company' (Bengaluru) -- independently priced at ₹120-126/Kg, agreeing within 5%."
 
   - code: IDLI_RICE
     inr_per_base_unit: 0.048
+    basis_city: PUNE
     tier: sourced
+    grade: "Parboiled idli rice, premium white"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/idli-rice.html", retrieved: 2026-09-12, observed: "White Premium Idli Rice ₹48/Kg; page reference rate ₹54/Kg | Sep 2026; supplier range ₹40-105/Kg"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/idli-rice.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "White Premium Idli Rice ₹48/Kg; page reference rate ₹54/Kg | Sep 2026; supplier range ₹40-105/Kg"}
     note: "Parboiled idli/dosa rice, Pune trade. Single source only."
 
   - code: MAIDA
     inr_per_base_unit: 0.028
+    basis_city: PUNE
     tier: corroborated
+    grade: "Refined wheat flour (maida), bakery grade, 50 kg bag basis"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/maida-flour.html", retrieved: 2026-09-12, observed: "Maida Price in Pune: ₹28/Kg | Sep 2026; Refined Wheat Flour (Hanuman Traders) ₹28/Kg; supplier range ₹22-50/Kg"}
-      - {name: "indiamart-rajpura", url: "https://www.indiamart.com/proddetail/50-kg-bakery-special-maida-flour-19985645355.html", retrieved: 2026-09-12, observed: "50 Kg Bakery Special Maida Flour at ₹1,140/Bag (A B Roller Flour Mills, Rajpura, Punjab)"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/maida-flour.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "Maida Price in Pune: ₹28/Kg | Sep 2026; Refined Wheat Flour (Hanuman Traders) ₹28/Kg; supplier range ₹22-50/Kg"}
+      - {name: "indiamart-rajpura", url: "https://www.indiamart.com/proddetail/50-kg-bakery-special-maida-flour-19985645355.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "50 Kg Bakery Special Maida Flour at ₹1,140/Bag (A B Roller Flour Mills, Rajpura, Punjab)"}
     note: "RE-CHECKED, ORIGINAL FIGURE KEPT. Branded retail maida (Tata/Fortune/bb Royal 1kg pouches via bigbasket) runs ₹46-79/kg, which might look like evidence ₹28/kg is too low -- but that is small-pack consumer retail, a different market tier from what a restaurant buys. Fetched an actual mill-direct 50kg bag price for comparison: ₹1,140/bag = ₹22.80/kg (A B Roller Flour Mills, a distinct named seller from the Hanuman Traders Pune listing), within 25% of the original ₹28/Kg -- corroborated at the bulk/mill level rather than downgraded to the retail level. Kept ₹28/Kg."
 
   - code: MOTH
     inr_per_base_unit: 0.053
+    basis_city: NATIONAL
     tier: sourced
+    grade: "Moth bean / matki, whole"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "commoditymarketlive", url: "https://www.commoditymarketlive.com/mandi-price/moath-dal", retrieved: 2026-09-12, observed: "₹53.01 per kilogram / ₹5,301.00 per quintal, Sridungargarh APMC (Bikaner, Rajasthan), data dated 10 Sep 2026; state range ₹19.40/kg (Tamil Nadu) to ₹95.50/kg (West Bengal)"}
-      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/MOTH-/ALL/ALL", retrieved: 2026-09-12, observed: "Today's average modal price of Moth across India is ₹3800 per quintal (100 KG), approximately ₹38 per KG. (13 Jul 2026)"}
+      - {name: "commoditymarketlive", url: "https://www.commoditymarketlive.com/mandi-price/moath-dal", retrieved: 2026-09-12, as_of: 2026-09-10, city: NATIONAL, observed: "₹53.01 per kilogram / ₹5,301.00 per quintal, Sridungargarh APMC (Bikaner, Rajasthan), data dated 10 Sep 2026; state range ₹19.40/kg (Tamil Nadu) to ₹95.50/kg (West Bengal)"}
+      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/MOTH-/ALL/ALL", retrieved: 2026-09-12, as_of: 2026-07-13, city: NATIONAL, observed: "Today's average modal price of Moth across India is ₹3800 per quintal (100 KG), approximately ₹38 per KG. (13 Jul 2026)"}
     note: "Used the more recent (10 Sep 2026) reading; the July reading is ~30% lower. State-level spread is very wide for this minor pulse, so tiered sourced."
 
   - code: NOODLES
     inr_per_base_unit: 0.055
+    basis_city: PUNE
     tier: sourced
+    grade: "Veg hakka / chowmein noodles, dry, bulk"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/hakka-noodle.html", retrieved: 2026-09-12, observed: "Vegetable Hakka Noodles (Maata Foods) ₹55/Kg; Mahek Hakka Noodles ₹50/Kg; Veg Hakka Noodle (Happy Noodle) ₹45/Kg (Pune, Sep 2026)"}
-      - {name: "indiamart-bankura", url: "https://www.indiamart.com/proddetail/1-kg-dry-chowmein-23010549388.html", retrieved: 2026-09-12, observed: "Sigma Wheat Flour 1 Kg Dry Chowmein -- ₹70/Kg (Bankura)"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/hakka-noodle.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "Vegetable Hakka Noodles (Maata Foods) ₹55/Kg; Mahek Hakka Noodles ₹50/Kg; Veg Hakka Noodle (Happy Noodle) ₹45/Kg (Pune, Sep 2026)"}
+      - {name: "indiamart-bankura", url: "https://www.indiamart.com/proddetail/1-kg-dry-chowmein-23010549388.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Sigma Wheat Flour 1 Kg Dry Chowmein -- ₹70/Kg (Bankura)"}
     note: "REVISED after re-check. Both the original Pune 'Hakka Noodle' listings and this new 1kg dry-chowmein listing are genuinely the finished dry-noodle product (not raw wheat), so this was not a category error like cornflour -- but the original ₹45/Kg used the low end of a page whose own cluster tops out at ₹55/Kg. Added an independent seller's 1kg trade pack at ₹70/Kg; the two don't quite agree within 25% (27% apart) so tiered sourced, not corroborated. Used ₹55/Kg, the top of the Pune cluster (Maata Foods), as a more representative bulk figure. (For scale/contrast, a small 140g retail packet of a major FMCG brand -- Ching's Secret Chowmein, ₹25.5/140g -- works out to ₹182/Kg, but that's a tiny seasoned consumer pack, not a comparable bulk basis, so it wasn't used.)"
 
   - code: POHA
     inr_per_base_unit: 0.053
+    basis_city: PUNE
     tier: sourced
+    grade: "Flattened rice / poha, medium thickness"
+    gst_rate: null
+    gst_hsn: null
+    pack_tiers:
+      - {qty_min: 30, unit: kg, inr: 1590}
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/poha.html", retrieved: 2026-09-12, observed: "Starr Gold Poha ₹53/Kg; Krishna G Natural Poha ₹1,590/30kg bag (Pune, Sep 2026)"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/poha.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "Starr Gold Poha ₹53/Kg; Krishna G Natural Poha ₹1,590/30kg bag (Pune, Sep 2026)"}
     note: "₹1,590/30kg bag = ₹53/kg, matching the per-kg listing exactly. Single source."
 
   - code: RAJMA
     inr_per_base_unit: 0.1
+    basis_city: PUNE
     tier: sourced
+    grade: "Dried red kidney beans / rajma, standard grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/kidney-beans.html", retrieved: 2026-09-12, observed: "Hanuman Traders ₹100/Kg 'Dried Red Kidney Beans'; Khare Exports LLP ₹111/Kg; Shriram Sales ₹80/Kg 'Madhav Rajma Dal'; supplier range ₹75-138/Kg (Pune, Sep 2026)"}
-      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/RAJMA/ALL/ALL", retrieved: 2026-09-12, observed: "Today's average modal price of Rajma across India is ₹7500 per quintal (100 KG), approximately ₹75 per KG. (1 Sep 2026)"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/kidney-beans.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "Hanuman Traders ₹100/Kg 'Dried Red Kidney Beans'; Khare Exports LLP ₹111/Kg; Shriram Sales ₹80/Kg 'Madhav Rajma Dal'; supplier range ₹75-138/Kg (Pune, Sep 2026)"}
+      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/RAJMA/ALL/ALL", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "Today's average modal price of Rajma across India is ₹7500 per quintal (100 KG), approximately ₹75 per KG. (1 Sep 2026)"}
     note: "REVISED after re-check. Originally anchored on the India-wide mandi modal (₹75/Kg) since that was the lowest, most conservative figure, but rajma is unusual among these pulses in that its Pune trade cluster (₹75-138/Kg, most named sellers ₹100+) sits well above its own mandi print, and a restaurant buying loose/bulk rajma through a distributor is more realistically priced at the trade level than the raw-commodity mandi level. Moved the recorded figure to ₹100/Kg (Hanuman Traders, Pune, a real observed trade price near the middle of that cluster) and kept the mandi figure as the lower-bound source. Branded retail (Bb Royal Rajma 1kg, ₹171-188/kg on bigbasket) is higher still and was not used -- that is quick-commerce/retail, which this table deliberately excludes."
 
   - code: RAVA
     inr_per_base_unit: 0.034
+    basis_city: NATIONAL
     tier: sourced
+    grade: "Wheat semolina / sooji, white, 50 kg bag basis"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-delhi", url: "https://dir.indiamart.com/delhi/semolina.html", retrieved: 2026-09-12, observed: "Mandi rate ₹34/Kg (NCDEX, 11 Aug 2026); White Wheat Semolina (Sumeet Overseas) ₹34/Kg; Sooji 50 Kg (Aim Shared Services) ₹37/Kg; bulk 50kg bags ₹1,600-2,100/bag"}
+      - {name: "indiamart-delhi", url: "https://dir.indiamart.com/delhi/semolina.html", retrieved: 2026-09-12, as_of: 2026-08-11, city: NATIONAL, observed: "Mandi rate ₹34/Kg (NCDEX, 11 Aug 2026); White Wheat Semolina (Sumeet Overseas) ₹34/Kg; Sooji 50 Kg (Aim Shared Services) ₹37/Kg; bulk 50kg bags ₹1,600-2,100/bag"}
     note: "NCDEX exchange price and a direct trade listing on the same page agree exactly at ₹34/kg. Single URL, so tiered sourced."
 
   - code: RICE_SONA
     inr_per_base_unit: 0.05
+    basis_city: PUNE
     tier: sourced
+    grade: "Sona masoori, medium grain rice"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/sona-masoori-rice.html", retrieved: 2026-09-12, observed: "Sona Masoori Medium Grain Rice ₹50/Kg; page reference rate ₹60/Kg | Sep 2026; supplier range ₹25-95/Kg"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/sona-masoori-rice.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "Sona Masoori Medium Grain Rice ₹50/Kg; page reference rate ₹60/Kg | Sep 2026; supplier range ₹25-95/Kg"}
     note: "Single source only (Pune trade). No independent second source fetched successfully."
 
   - code: SEV
     inr_per_base_unit: 0.084
+    basis_city: PUNE
     tier: sourced
+    grade: "Barik / nylon sev, namkeen grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/sev-namkeen.html", retrieved: 2026-09-12, observed: "Barik Sev, Poha Sev, Nylon Sev (Sai Namkeen) ₹84/Kg; Zero Sev Namkeen ₹80/Kg (Pune, Sep 2026)"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/sev-namkeen.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "Barik Sev, Poha Sev, Nylon Sev (Sai Namkeen) ₹84/Kg; Zero Sev Namkeen ₹80/Kg (Pune, Sep 2026)"}
     note: "Picked the plain/thin cooking-sev listings, not the flavoured namkeen mixes on the same page (₹120-575/kg). Single source."
 
   # ---------------------------------------------------------------- spice (44)
 
   - code: AJWAIN
     inr_per_base_unit: 0.113
+    basis_city: NATIONAL
     tier: corroborated
+    grade: "Ajwain / carom seed, whole, mandi average"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/AJWAIN/ALL/ALL", retrieved: 2026-09-12, observed: "average ajwain price 11326 INR/quintal, range 5000-16675"}
-      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/ajwan", retrieved: 2026-09-12, observed: "mandi rate of ajwain 11298 INR/quintal (20 May 2026)"}
+      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/AJWAIN/ALL/ALL", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "average ajwain price 11326 INR/quintal, range 5000-16675"}
+      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/ajwan", retrieved: 2026-09-12, as_of: 2026-05-20, city: NATIONAL, observed: "mandi rate of ajwain 11298 INR/quintal (20 May 2026)"}
     note: "ajwain/carom seed, mandi wholesale; a more recent snapshot suggested prices had since risen to ~14000 INR/quintal"
 
   - code: ALMOND
     inr_per_base_unit: 0.96
+    basis_city: MUMBAI
     tier: corroborated
+    grade: "Almond / badam kernels, APMC wholesale grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/ALMOND/ALL/ALL", retrieved: 2026-09-12, observed: "average modal price 97500 INR/quintal (975 INR/kg), APMC Mumbai, range 75000-120000/quintal (11 Sep 2026)"}
-      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/almond-badam", retrieved: 2026-09-12, observed: "live wholesale almond (badam) rate ~950 INR/kg, range Rs 750-1150/kg"}
+      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/ALMOND/ALL/ALL", retrieved: 2026-09-12, as_of: 2026-09-11, city: MUMBAI, observed: "average modal price 97500 INR/quintal (975 INR/kg), APMC Mumbai, range 75000-120000/quintal (11 Sep 2026)"}
+      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/almond-badam", retrieved: 2026-09-12, as_of: 2026-09-12, city: MUMBAI, as_of_defaulted: true, observed: "live wholesale almond (badam) rate ~950 INR/kg, range Rs 750-1150/kg"}
     note: "almond/badam, mandi wholesale"
 
   - code: AMCHUR
     inr_per_base_unit: 0.17
+    basis_city: DELHI
     tier: sourced
+    grade: "Dry mango (amchur) powder, trade grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/delhi/amchur-powder.html", retrieved: 2026-09-12, observed: "Dry Mango Amchur Powder Rs 170/kg (Delhi, 15 Aug 2026)"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/delhi/amchur-powder.html", retrieved: 2026-09-12, as_of: 2026-08-15, city: DELHI, observed: "Dry Mango Amchur Powder Rs 170/kg (Delhi, 15 Aug 2026)"}
     note: "dry mango powder, bulk trade; broader IndiaMART range cited was Rs 50-500/kg depending on grade/supplier"
 
   - code: BAKING_PWD
     inr_per_base_unit: 0.065
+    basis_city: PUNE
     tier: sourced
+    grade: "Baking powder, food grade, bulk"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/pune/baking-powder.html", retrieved: 2026-09-12, observed: "baking powder Rs 72/kg (Pune); other IndiaMART listings: Kolkata from Rs 67/kg, Ahmedabad/Delhi Rs 49-75/kg, Bengaluru (Bakers Double Acting) Rs 82/kg"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/pune/baking-powder.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "baking powder Rs 72/kg (Pune); other IndiaMART listings: Kolkata from Rs 67/kg, Ahmedabad/Delhi Rs 49-75/kg, Bengaluru (Bakers Double Acting) Rs 82/kg"}
     note: "bulk trade baking powder"
 
   - code: BAKING_SODA
     inr_per_base_unit: 0.03
+    basis_city: MUMBAI
     tier: sourced
+    grade: "Food-grade sodium bicarbonate, 50 kg HDPE bag"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/baking-soda.html", retrieved: 2026-09-12, observed: "Food Grade Baking Soda Powder, 50 Kg HDPE Bag, Rs 29/kg (Mumbai); other listings Rs 22.50-46/kg depending on pack size/grade"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/baking-soda.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: MUMBAI, as_of_defaulted: true, observed: "Food Grade Baking Soda Powder, 50 Kg HDPE Bag, Rs 29/kg (Mumbai); other listings Rs 22.50-46/kg depending on pack size/grade"}
     note: "food-grade sodium bicarbonate, large bulk bag; smaller packs and higher-purity grades run up to Rs 46/kg"
 
   - code: BAYLEAF
     inr_per_base_unit: 0.13
+    basis_city: PUNE
     tier: sourced
+    grade: "Tej patta / bay leaf, whole, branded 1 kg"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/vashi-masala-tej-patta-bay-leaf-1-kg", retrieved: 2026-09-12, observed: "Vashi Masala Tej Patta 1kg: Rs114/kg for 8kg+, Rs116.38/kg for 4kg+, Rs118.76 single; Eastmade Bay Leaf 1kg Rs141.81-147.71/kg; ADH Bay Leaf 1kg Rs131-138/kg"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/vashi-masala-tej-patta-bay-leaf-1-kg", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Vashi Masala Tej Patta 1kg: Rs114/kg for 8kg+, Rs116.38/kg for 4kg+, Rs118.76 single; Eastmade Bay Leaf 1kg Rs141.81-147.71/kg; ADH Bay Leaf 1kg Rs131-138/kg"}
     note: "RE-CHECKED per coordinator flag. Hyperpure (3 brands, restaurant-bulk pricing) clusters Rs114-148/kg, meaningfully above my original IndiaMART-city-average of Rs90/kg (Delhi Rs100/kg, Hyderabad Rs80/kg, Guwahati Rs60/kg, Ahmedabad Rs70-135/kg). Updated to the ~Rs129/kg average of the three brands' best bulk tier. This is higher than the original but does not reach the suggested Rs150-300/kg - no source found supports that upper range for plain bulk tej patta specifically; it may apply to premium/organic-labelled bay leaf, which was not separately available on Hyperpure."
 
   - code: BIRYANIMSL
     inr_per_base_unit: 0.6
+    basis_city: NATIONAL
     tier: sourced
+    grade: "Branded biryani masala powder, mid-tier, bulk"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/biryani-masala.html", retrieved: 2026-09-12, observed: "Adhvinai Enterprises Rs 600/kg, Maisa Foods Rs 450/kg, Pleasure Spices Rs 800/kg (Hyderabad/Kolkata); premium whole-spice blend (TS Universal) Rs 1575/kg; one outlier loose-powder listing at Rs 3600/kg"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/biryani-masala.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "Adhvinai Enterprises Rs 600/kg, Maisa Foods Rs 450/kg, Pleasure Spices Rs 800/kg (Hyderabad/Kolkata); premium whole-spice blend (TS Universal) Rs 1575/kg; one outlier loose-powder listing at Rs 3600/kg"}
     note: "excluded the premium whole-spice-mix (1575/kg) and the 3600/kg outlier from the average used; branded (Everest Shahi Biryani Masala) runs ~1420 INR/kg at retail"
 
   - code: BLACK_PEPPER
     inr_per_base_unit: 0.745
+    basis_city: MUMBAI
     tier: sourced
+    grade: "Black peppercorn, whole, trade grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/mumbai/black-pepper.html", retrieved: 2026-09-12, observed: "Rs 725/Kg, range Rs 600-850 (Mumbai, 8 Aug 2026)"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/mumbai/black-pepper.html", retrieved: 2026-09-12, as_of: 2026-08-08, city: MUMBAI, observed: "Rs 725/Kg, range Rs 600-850 (Mumbai, 8 Aug 2026)"}
     note: "averaged against other IndiaMART city pages from the same search: Indore Rs 690/kg (2 Sep 2026), Delhi Rs 810/kg (1 Sep 2026), Kolkata Rs 755/kg (3 Sep 2026), Goa Rs 740/kg (4 Jun 2026); a TradeIndia listing (Naveen Trading Co, Jaipur) quoted a notably lower Rs 425/kg, excluded as a likely lower-grade or stale listing"
 
   - code: CARDAMOM
     inr_per_base_unit: 2.9
+    basis_city: MUMBAI
     tier: corroborated
+    grade: "Green cardamom, 7.5-8 mm pod (mid grade of a 5-9 mm ladder spanning 1.68x)"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/green-cardamom.html", retrieved: 2026-09-12, observed: "6mm Rs 2625/Kg (Berac Condiments), 7.5mm Rs 2950/Kg (Kurumban), 8mm Rs 2800/Kg (CNK Spices), 9mm Rs 3525/Kg (SG Spices), 5mm Rs 2100/Kg (Nadha Spices), 8mm split Rs 3050/Kg (3D Masale)"}
-      - {name: "mandibhavindia", url: "https://mandibhavindia.in/en/commodity/cardamom", retrieved: 2026-09-12, observed: "Mumbai market modal price 297500 INR/quintal; overall average across 67 reported markets 228314 INR/quintal (11 Sep 2026)"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/green-cardamom.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: MUMBAI, as_of_defaulted: true, observed: "6mm Rs 2625/Kg (Berac Condiments), 7.5mm Rs 2950/Kg (Kurumban), 8mm Rs 2800/Kg (CNK Spices), 9mm Rs 3525/Kg (SG Spices), 5mm Rs 2100/Kg (Nadha Spices), 8mm split Rs 3050/Kg (3D Masale)"}
+      - {name: "mandibhavindia", url: "https://mandibhavindia.in/en/commodity/cardamom", retrieved: 2026-09-12, as_of: 2026-09-11, city: MUMBAI, observed: "Mumbai market modal price 297500 INR/quintal; overall average across 67 reported markets 228314 INR/quintal (11 Sep 2026)"}
     note: "green cardamom (elaichi); price varies steeply by bean size/grade (5mm to 9mm bold)"
 
   - code: CASHEW
     inr_per_base_unit: 0.68
+    basis_city: NATIONAL
     tier: sourced
+    grade: "Cashew W240 / SW grade mix, whole"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/cashew-nuts.html", retrieved: 2026-09-12, observed: "SW grade Rs 620/Kg (Fathima Exports); W240 Plain Rs 900/Kg (Mithran Exports); Broken 8-piece Rs 625/Kg (Releza Agro); DW1 Rs 610/Kg (Ashapura Agrocomm); W400 Organic Rs 648/Kg (Blackberry Foods); raw (160 nuts/kg) Rs 145/Kg; premium whole W180 Rs 1050/Kg, W210 Rs 1030/Kg"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/cashew-nuts.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "SW grade Rs 620/Kg (Fathima Exports); W240 Plain Rs 900/Kg (Mithran Exports); Broken 8-piece Rs 625/Kg (Releza Agro); DW1 Rs 610/Kg (Ashapura Agrocomm); W400 Organic Rs 648/Kg (Blackberry Foods); raw (160 nuts/kg) Rs 145/Kg; premium whole W180 Rs 1050/Kg, W210 Rs 1030/Kg"}
     note: "value used is the average of common cooking/kitchen grades (SW, W240, broken, DW1, W400); grade is the dominant price driver — raw runs ~145 INR/kg, premium whole W180/W210 run over 1000 INR/kg"
 
   - code: CHAAT_MSL
     inr_per_base_unit: 0.31
+    basis_city: NATIONAL
     tier: sourced
+    grade: "Chaat masala powder, branded bulk"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/chat-masala.html", retrieved: 2026-09-12, observed: "Chat Masala Powder Rs 250/kg (GJ'S World, Ahmedabad); Chaat Masala Rs 375/kg (Mehak Food and Spices, Hyderabad); broader range cited Rs 140-375/kg"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/chat-masala.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "Chat Masala Powder Rs 250/kg (GJ'S World, Ahmedabad); Chaat Masala Rs 375/kg (Mehak Food and Spices, Hyderabad); broader range cited Rs 140-375/kg"}
     note: "bulk/trade chaat masala; branded 5kg HoReCa packs (Hyperpure: MDH Chunky ~Rs 650/kg, Suhana ~Rs 476/kg) and small retail packs (bigbasket, Catch/MDH) run noticeably higher"
 
   - code: CHILLIPWD
     inr_per_base_unit: 0.35
+    basis_city: PUNE
     tier: sourced
+    grade: "Red chilli POWDER, branded 1 kg (not whole chilli)"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/red-chilli-powder", retrieved: 2026-09-12, observed: "ES Red Chilli Powder 1kg: 292.95 INR/kg; Eastmade Red Chilli Powder 1kg: 402.15 INR/kg (Pune)"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/red-chilli-powder", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "ES Red Chilli Powder 1kg: 292.95 INR/kg; Eastmade Red Chilli Powder 1kg: 402.15 INR/kg (Pune)"}
     note: "Hyperpure is Zomato's B2B restaurant-supply platform (branded 1kg packs); IndiaMART bulk/trade listings run cheaper, Rs 120-350/kg (e.g. Shakti Wardhak Trading Rs 220/kg, Laxmipati Enterprises Rs 120/kg, Aug 2026) — the two don't agree closely enough (branded-packaged vs loose bulk) to call corroborated"
 
   - code: CHILLISAUCE
     inr_per_base_unit: 0.12
+    basis_city: NATIONAL
     tier: sourced
+    grade: "Red chilli sauce, catering 1 kg"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/red-chilli-sauce.html", retrieved: 2026-09-12, observed: "Momos Red Chilli Sauce 1kg Rs 150/Kg (3 Aug 2026); Spice Nest Sri Racha Sauce Rs 95/Kg"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/red-chilli-sauce.html", retrieved: 2026-09-12, as_of: 2026-08-03, city: NATIONAL, observed: "Momos Red Chilli Sauce 1kg Rs 150/Kg (3 Aug 2026); Spice Nest Sri Racha Sauce Rs 95/Kg"}
     note: "priced per kg on IndiaMART, treated as approximately equal to per-litre given the sauce's density; a 5kg-pack listing at Rs 200/pack (=40/kg) looked like an institutional/diluted outlier and was excluded from the average"
 
   - code: CINNAMON
     inr_per_base_unit: 0.5
+    basis_city: MUMBAI
     tier: sourced
+    grade: "Cassia bark (Indian trade 'cinnamon'), whole"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/CINAMON(DALCHINI)/ALL/ALL", retrieved: 2026-09-12, observed: "live wholesale rate 500 INR/kg, range 400-600; Mumbai market 12 Aug 2026 500 INR/Kg (400-600)"}
+      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/CINAMON(DALCHINI)/ALL/ALL", retrieved: 2026-09-12, as_of: 2026-08-12, city: MUMBAI, observed: "live wholesale rate 500 INR/kg, range 400-600; Mumbai market 12 Aug 2026 500 INR/Kg (400-600)"}
     note: "whole cinnamon stick/dalchini; a lower broken-grade Delhi listing was seen at Rs 170/kg"
 
   - code: CLOVE
     inr_per_base_unit: 0.85
+    basis_city: NATIONAL
     tier: corroborated
+    grade: "Clove / laung, whole, trade grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/delhi/dry-cloves.html", retrieved: 2026-09-12, observed: "Delhi Rs 750/kg (18 Aug 2026); other IndiaMART city listings: Kolkata Rs 860/kg (3 May 2026), Gaya Rs 920/kg (26 Feb 2026)"}
-      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/CLOVES/ALL/ALL", retrieved: 2026-09-12, observed: "current cloves rate 855.0 INR/kg"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/delhi/dry-cloves.html", retrieved: 2026-09-12, as_of: 2026-02-26, city: NATIONAL, observed: "Delhi Rs 750/kg (18 Aug 2026); other IndiaMART city listings: Kolkata Rs 860/kg (3 May 2026), Gaya Rs 920/kg (26 Feb 2026)"}
+      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/CLOVES/ALL/ALL", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "current cloves rate 855.0 INR/kg"}
     note: "dry whole clove (laung); organic-labelled listings ran much cheaper (Rs 260-400/kg), likely a different/lower grade"
 
   - code: CORIANDPWD
     inr_per_base_unit: 0.135
+    basis_city: PUNE
     tier: sourced
+    grade: "Coriander (dhania) POWDER, branded 1 kg (not seed)"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/es-coriander-powder-dhaniya-powder-1-kg", retrieved: 2026-09-12, observed: "ES Coriander Powder (Dhaniya) 1kg: Rs124/kg for 5kg+, Rs129 single; Eastmade Coriander (Dhania) Powder 1kg Rs153/kg for 5kg+; Dhani Coriander Powder 1kg Rs125.43/pack for 5+; Eagle Coriander Powder 1kg Rs134.86/kg for 5kg+"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/es-coriander-powder-dhaniya-powder-1-kg", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "ES Coriander Powder (Dhaniya) 1kg: Rs124/kg for 5kg+, Rs129 single; Eastmade Coriander (Dhania) Powder 1kg Rs153/kg for 5kg+; Dhani Coriander Powder 1kg Rs125.43/pack for 5+; Eagle Coriander Powder 1kg Rs134.86/kg for 5kg+"}
     note: "RE-CHECKED per coordinator flag. The flag's diagnosis (I'd priced seed, not powder) was not quite right - my original source (dir.indiamart.com/impcat/coriander-powder.html) WAS already coriander powder - but the underlying concern held: those IndiaMART listings (Rs79-110/kg) were on the cheap/low-grade end. Hyperpure's 4 branded powder products cluster Rs124-153/kg at bulk tier; updated to the ~Rs134/kg average, about 1.5x the original. Raw coriander seed mandi price (~140 INR/kg per commodityonline, 28 Aug 2026) remains a useful sanity check, not a formal second source for the powder."
 
   - code: CUMIN
     inr_per_base_unit: 0.27
+    basis_city: PUNE
     tier: sourced
+    grade: "Cumin (jeera) whole, cleaned, branded 1 kg"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/eastmade-cumin-jeera-whole-1-kg", retrieved: 2026-09-12, observed: "Eastmade Cumin Jeera Whole 1kg: Rs292.95/kg for 3kg+, Rs283.5/kg single; ES Cumin Seed Economy Jeera Whole 1kg Rs281.4/kg for 3kg+; Purusha Cumin Jeera 1kg Rs235.2/kg for 8kg+, Rs239.4 single"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/eastmade-cumin-jeera-whole-1-kg", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Eastmade Cumin Jeera Whole 1kg: Rs292.95/kg for 3kg+, Rs283.5/kg single; ES Cumin Seed Economy Jeera Whole 1kg Rs281.4/kg for 3kg+; Purusha Cumin Jeera 1kg Rs235.2/kg for 8kg+, Rs239.4 single"}
     note: "RE-CHECKED per coordinator flag, and the flag was right in kind: my original figure (Rs186/kg) was raw/uncleaned mandi commodity - kisandeals 18490 INR/quintal and bankbazaar 18725 INR/quintal, both 12 Sep/7 Aug 2026 - not the cleaned, sorted, packaged product a restaurant actually buys. Hyperpure (3 brands, including one explicitly labelled 'Economy') clusters Rs235-293/kg, about 1.4-1.6x the raw mandi rate - the gap is cleaning, grading and trade margin. Updated to the ~Rs269/kg average across all 3 brands' listed tiers. Tier changes from corroborated (2 mandi sources, wrong product form) to sourced (1 platform, right form)."
 
   - code: DRY_CHILLI
     inr_per_base_unit: 0.175
+    basis_city: NATIONAL
     tier: corroborated
+    grade: "Whole dried red chilli (sukhi lal mirch), 50 kg trade minimum"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/dry-chillies", retrieved: 2026-09-12, observed: "Dry Chillies mandi rate 16863.64 INR/quintal"}
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/dry-red-chilli.html", retrieved: 2026-09-12, observed: "Sukhi Lal Mirch wholesale Rs 195/kg (min 50kg); Rajasthani Saboot Lal Mirch Rs 210/kg (Jaipur); Lal Mirch Sabut Rs 130/kg (New Delhi)"}
+      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/dry-chillies", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "Dry Chillies mandi rate 16863.64 INR/quintal"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/dry-red-chilli.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "Sukhi Lal Mirch wholesale Rs 195/kg (min 50kg); Rajasthani Saboot Lal Mirch Rs 210/kg (Jaipur); Lal Mirch Sabut Rs 130/kg (New Delhi)"}
     note: "generic/mid-grade whole dried red chilli; premium regional varieties (Andhra Pradesh Guntur-type) trade notably higher, 190-240 INR/kg on some mandi pages. Caution: a kisandeals RED-CHILLI-DRY fetch returned 4342 INR/quintal on two different sub-pages (national and Andhra Pradesh) — an implausibly low, identical figure that also matched an unrelated mustard-seed fetch; discarded as a likely tool/caching glitch rather than used"
 
   - code: GARAMMSL
     inr_per_base_unit: 0.27
+    basis_city: PUNE
     tier: sourced
+    grade: "Branded garam masala, bulk 1 kg+ (Badshah / Suhana tier)"
+    gst_rate: null
+    gst_hsn: null
+    pack_tiers:
+      - {qty_min: 5, unit: kg, inr: 1444}
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/badshah-premium-garam-masala-1-kg", retrieved: 2026-09-12, observed: "Badshah Premium Garam Masala 1kg: Rs288.86/kg for 5kg+; Suhana Super Garam Masala 1kg Rs381.9-397.81/kg; Eagle Super Garam Masala 1kg Rs238.95-246.29/kg; Catch Super Garam Masala 1kg Rs298.19-310.57/kg; Sparsh Super (500g) Rs191.24-196.2/kg; Eastmade Premium (500g) Rs280.2-286.1/kg; Surya (500g) Rs224.76-229.34/kg"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/badshah-premium-garam-masala-1-kg", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Badshah Premium Garam Masala 1kg: Rs288.86/kg for 5kg+; Suhana Super Garam Masala 1kg Rs381.9-397.81/kg; Eagle Super Garam Masala 1kg Rs238.95-246.29/kg; Catch Super Garam Masala 1kg Rs298.19-310.57/kg; Sparsh Super (500g) Rs191.24-196.2/kg; Eastmade Premium (500g) Rs280.2-286.1/kg; Surya (500g) Rs224.76-229.34/kg"}
     note: "RE-CHECKED per coordinator flag. Correct that there's no mandi price for a manufactured blend, and my original IndiaMART figure (Rs150/kg) leaned on a Rs38/kg listing that was likely mis-scraped or non-representative. Hyperpure gives real branded products at real restaurant bulk-discount pricing - the correct basis for 'restaurant buying in bulk', distinct from both loose/unbranded trade and small-pack retail. Averaged the best-bulk-tier price across 7 brands: ~Rs272/kg. This sits below the Rs400-800/kg 'branded retail' figure in the flag - that reflects small (50-100g) consumer retail packs, which carry a steep per-kg premium over the 1kg+/5kg+ restaurant-bulk tier used here."
 
   - code: GODA_MSL
     inr_per_base_unit: 0.32
+    basis_city: PUNE
     tier: sourced
+    grade: "Goda masala powder, regional Maharashtrian blend, bulk"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/nagpur/goda-masala.html", retrieved: 2026-09-12, observed: "goda masala powder Rs 350/kg (Nagpur); Pune-area listings Rs 270-350/kg; Sangli district Rs 300-1201/kg"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/nagpur/goda-masala.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "goda masala powder Rs 350/kg (Nagpur); Pune-area listings Rs 270-350/kg; Sangli district Rs 300-1201/kg"}
     note: "excluded the Rs 1201/kg Sangli extreme as an outlier (likely premium/small-pack); Maharashtra regional spice blend, no major mandi/agmarknet coverage"
 
   - code: HING
     inr_per_base_unit: 4.0
+    basis_city: NATIONAL
     tier: sourced
+    grade: "COMPOUND hing (the common kitchen form) - raw resin runs up to 20x this"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/asafoetida.html", retrieved: 2026-09-12, observed: "wholesale compound hing typically Rs 1500-7000/kg; higher-quality compound hing Rs 6000-15000/kg; retail 50g packs Rs 150-500"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/asafoetida.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "wholesale compound hing typically Rs 1500-7000/kg; higher-quality compound hing Rs 6000-15000/kg; retail 50g packs Rs 150-500"}
     note: "used compound hing (resin blended with wheat/rice flour), the common commercial-kitchen form; pure raw hing resin is a different product and reportedly trades far higher (Rs 30,000-80,000/kg) — a legitimately extreme-spread ingredient like salt/saffron, driven by purity grade, not an error to correct"
 
   - code: KASURI
     inr_per_base_unit: 0.58
+    basis_city: PUNE
     tier: sourced
+    grade: "Branded dried kasuri methi leaf, 1 kg (MDH / Everest / Badshah tier)"
+    gst_rate: null
+    gst_hsn: null
+    pack_tiers:
+      - {qty_min: 3, unit: kg, inr: 1752}
+      - {qty_min: 5, unit: kg, inr: 2860}
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/mdh-kasoori-methi-dry-1-kg", retrieved: 2026-09-12, observed: "MDH Kasoori Methi Dry (1kg): Rs571.9/kg for 5kg+, Rs583.9/kg for 3kg+; Everest Kasuri Methi Rs702-718/kg; Badshah Kasuri Methi Rs612-628/kg; Eastmade Fenugreek Leaves Rs274-278/kg; Eagle Kasoori Methi Rs232-236/kg"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/mdh-kasoori-methi-dry-1-kg", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "MDH Kasoori Methi Dry (1kg): Rs571.9/kg for 5kg+, Rs583.9/kg for 3kg+; Everest Kasuri Methi Rs702-718/kg; Badshah Kasuri Methi Rs612-628/kg; Eastmade Fenugreek Leaves Rs274-278/kg; Eagle Kasoori Methi Rs232-236/kg"}
     note: "RE-CHECKED per coordinator flag, and the flag was right. My original 0.12 (Rs120/kg) was an IndiaMART listing that was the wrong product or a much lower grade than what restaurants actually buy. Hyperpure (Zomato B2B, correct product: branded dried kasuri methi leaf in bulk 100g-1kg packs) shows mainstream brands clustering Rs570-720/kg, with one economy brand (Eagle) at Rs232-236/kg. Used the median (~Rs584/kg) across all 13 named brand/size data points - a 4.8x correction upward. This is the item that would have failed the build; it should not fail now."
 
   - code: KETCHUP
     inr_per_base_unit: 0.069
+    basis_city: PUNE
     tier: corroborated
+    grade: "Tomato ketchup, catering bulk"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/kissan-tomato-sauce.html", retrieved: 2026-09-12, observed: "Kissan tomato sauce Rs 52-85/kg depending on supplier"}
-      - {name: "vishalmegamart", url: "https://www.vishalmegamart.com/en-in/food/processed-foods/pickles-and-sauces/full-bloom-tomato-ketchup-doy-pack/1310015364.html", retrieved: 2026-09-12, observed: "Full Bloom Tomato Ketchup Rs 70 per kg"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/kissan-tomato-sauce.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Kissan tomato sauce Rs 52-85/kg depending on supplier"}
+      - {name: "vishalmegamart", url: "https://www.vishalmegamart.com/en-in/food/processed-foods/pickles-and-sauces/full-bloom-tomato-ketchup-doy-pack/1310015364.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Full Bloom Tomato Ketchup Rs 70 per kg"}
     note: "treated Rs/kg as approximately Rs/litre given ketchup's density; a bulk 5kg-can listing (Patidar Agro) was seen even lower at Rs 40/kg"
 
   - code: MALVANI_MSL
     inr_per_base_unit: 0.38
+    basis_city: MUMBAI
     tier: sourced
+    grade: "Malvani masala powder, regional blend, bulk"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/mumbai/malvani-masala.html", retrieved: 2026-09-12, observed: "BS Foods starting Rs 205/Kg; Malwani Sunday Masala Rs 400/Kg (Andheri East, 4 Aug 2026); a wholesale minimum cited at Rs 40/100g (=Rs 400/kg)"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/mumbai/malvani-masala.html", retrieved: 2026-09-12, as_of: 2026-08-04, city: MUMBAI, observed: "BS Foods starting Rs 205/Kg; Malwani Sunday Masala Rs 400/Kg (Andheri East, 4 Aug 2026); a wholesale minimum cited at Rs 40/100g (=Rs 400/kg)"}
     note: "NDH Spices (Vasai) listed a 1kg pack at Rs 500, on the high end of the observed range; Maharashtra regional spice blend, no mandi/agmarknet coverage"
 
   - code: MAYO
     inr_per_base_unit: 0.065
+    basis_city: PUNE
     tier: sourced
+    grade: "Professional / catering mayonnaise, bulk"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/mayonnaise.html", retrieved: 2026-09-12, observed: "Ariyana Food Products and S D Food Products starting Rs 40/Kg; Nutralite Professional Mayonnaise Lite Rs 90/Kg; Tandoori Mayonnaise variants from Rs 70/Kg"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/mayonnaise.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Ariyana Food Products and S D Food Products starting Rs 40/Kg; Nutralite Professional Mayonnaise Lite Rs 90/Kg; Tandoori Mayonnaise variants from Rs 70/Kg"}
     note: "plain mayonnaise, bulk trade"
 
   - code: METHI_SEED
     inr_per_base_unit: 0.059
+    basis_city: NATIONAL
     tier: sourced
+    grade: "Fenugreek (methi) seed, whole, mandi average"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/methi-seeds", retrieved: 2026-09-12, observed: "average methi seeds price 5880.86 INR/quintal (Sep 2026); live wholesale rate 58.81 INR/kg"}
+      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/methi-seeds", retrieved: 2026-09-12, as_of: 2026-09-01, city: NATIONAL, observed: "average methi seeds price 5880.86 INR/quintal (Sep 2026); live wholesale rate 58.81 INR/kg"}
     note: "fenugreek/methi seed, mandi wholesale; a kisandeals listing title showed a higher 7565 INR/quintal and another dated snapshot showed 6863.29 INR/quintal (18 Aug 2026) — same rough band but not close enough to call corroborated"
 
   - code: MUSTARD_SEED
     inr_per_base_unit: 0.073
+    basis_city: PUNE
     tier: corroborated
+    grade: "Mustard seed / rai, mandi average grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "mandibhavindia", url: "https://mandibhavindia.in/en/commodity/mustard", retrieved: 2026-09-12, observed: "average mandi price 7344 INR/quintal, prices from last one week across 4197 mandis, range 2000-17990 (12 Sep 2026)"}
-      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/mustard", retrieved: 2026-09-12, observed: "farmers selling mustard in mandi getting 7292.95 INR/quintal (Sep 2026)"}
+      - {name: "mandibhavindia", url: "https://mandibhavindia.in/en/commodity/mustard", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, observed: "average mandi price 7344 INR/quintal, prices from last one week across 4197 mandis, range 2000-17990 (12 Sep 2026)"}
+      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/mustard", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "farmers selling mustard in mandi getting 7292.95 INR/quintal (Sep 2026)"}
     note: "mustard seed/rai, mandi wholesale. Caution: a kisandeals fetch (MUSTARD-SEED/ALL/ALL) returned 4342 INR/quintal, identical to an unrelated dry-red-chilli fetch moments earlier in the same research session — treated as a tool/rendering glitch and discarded rather than used"
 
   - code: PAVBHAJI_MSL
     inr_per_base_unit: 0.35
+    basis_city: PUNE
     tier: sourced
+    grade: "Pav bhaji masala powder, branded bulk"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/pav-bhaji-masala.html", retrieved: 2026-09-12, observed: "Rs 280/kg (Raj Bio Care, Pune); Rs 245/kg (Raj Foods, Mahuva, 1/5/25kg packs); Rs 480/kg and Rs 400/kg (Mumbai suppliers)"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/pav-bhaji-masala.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Rs 280/kg (Raj Bio Care, Pune); Rs 245/kg (Raj Foods, Mahuva, 1/5/25kg packs); Rs 480/kg and Rs 400/kg (Mumbai suppliers)"}
     note: "bulk/trade pav bhaji masala; branded 1kg retail (MDH) listed separately at Rs 660/kg"
 
   - code: PEANUT
     inr_per_base_unit: 0.07
+    basis_city: PUNE
     tier: corroborated
+    grade: "Groundnut kernels / moongfali, mandi grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/groundnut", retrieved: 2026-09-12, observed: "mandi rate of Groundnut 7015.87 INR/quintal (early Sep 2026)"}
-      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/GROUNDNUT/ALL/ALL", retrieved: 2026-09-12, observed: "Groundnut (Moongfali) Price Today: 6925 INR/Quintal"}
+      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/groundnut", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "mandi rate of Groundnut 7015.87 INR/quintal (early Sep 2026)"}
+      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/GROUNDNUT/ALL/ALL", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Groundnut (Moongfali) Price Today: 6925 INR/Quintal"}
     note: "raw groundnut/peanut, mandi wholesale; regional prices ranged as high as 9800-10000/quintal in West Bengal"
 
   - code: PICKLE_MSL
     inr_per_base_unit: 0.18
+    basis_city: NATIONAL
     tier: sourced
+    grade: "Pickle / achar masala powder, bulk"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/pickle-spices.html", retrieved: 2026-09-12, observed: "Amla Achar Masala Rs 200/kg (Subhash Masala Store, New Delhi); Achar Masala Rs 180/kg (Ahmedabad); Pickle Masala Powder Rs 220/kg (Ahmedabad); Spicy Nimbu Achar Masala Rs 95/Kg"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/pickle-spices.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "Amla Achar Masala Rs 200/kg (Subhash Masala Store, New Delhi); Achar Masala Rs 180/kg (Ahmedabad); Pickle Masala Powder Rs 220/kg (Ahmedabad); Spicy Nimbu Achar Masala Rs 95/Kg"}
     note: "achar/pickle masala blend, bulk trade"
 
   - code: PISTA
     inr_per_base_unit: 1.8
+    basis_city: DELHI
     tier: sourced
+    grade: "Pistachio, IN-SHELL (the shelled/in-shell inversion is unresolved - see note)"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/delhi/pistachio-nuts.html", retrieved: 2026-09-12, observed: "Dry Pistachio Nuts Rs 2200/kg (Delhi, 2 Jul 2026)"}
-    note: "averaged against a Bengaluru IndiaMART listing for shelled kernels at Rs 1420/kg (8 Aug 2026) found in the same search — oddly cheaper per kg than the Delhi in-shell listing, the opposite of what's normally expected (shelled kernels should cost more per kg than in-shell). Flagged as a data inconsistency rather than resolved"
+      - {name: "indiamart", url: "https://dir.indiamart.com/delhi/pistachio-nuts.html", retrieved: 2026-09-12, as_of: 2026-07-02, city: DELHI, observed: "Dry Pistachio Nuts Rs 2200/kg (Delhi, 2 Jul 2026)"}
+    note: "averaged against a Bengaluru IndiaMART listing for shelled kernels at Rs 1420/kg (8 Aug 2026) found in the same search — oddly cheaper per kg than the Delhi in-shell listing, the opposite of what's normally expected (shelled kernels should cost more per kg than in-shell). Flagged as a data inconsistency rather than resolved AUDIT: one source listed shelled kernels CHEAPER than in-shell, which is backwards. Unresolved; re-scrape must settle it."
 
   - code: RAISIN
     inr_per_base_unit: 0.18
+    basis_city: PUNE
     tier: sourced
+    grade: "Indian raisins / kishmish, standard grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/delhi/raisins.html", retrieved: 2026-09-12, observed: "Indian Raisins Rs 100-190/kg range; standard grades generally Rs 150-220/kg per broader IndiaMART search summary"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/delhi/raisins.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Indian Raisins Rs 100-190/kg range; standard grades generally Rs 150-220/kg per broader IndiaMART search summary"}
     note: "standard-grade raisins/kishmish, bulk trade; premium varieties (Kishmish Kandhari Rs 400/kg, Afghan green raisins up to Rs 450/kg) run 2-3x higher"
 
   - code: ROSE_WATER
     inr_per_base_unit: 0.14
+    basis_city: NATIONAL
     tier: sourced
+    grade: "UNRESOLVED - source is COSMETIC grade, this row is consumed as FOOD"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/rose-water.html", retrieved: 2026-09-12, observed: "cosmetic-grade rose water for spa Rs 90-110/Litre (28 Feb 2026); bulk 20-litre packs Rs 2500-4500 (approx Rs 125-225/litre)"}
-    note: "grade is uncertain — the clearest per-litre figure found was labelled cosmetic-grade rather than confirmed food-grade gulab jal; used a blend of the cosmetic and bulk-20L ranges as more representative of trade quantities"
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/rose-water.html", retrieved: 2026-09-12, as_of: 2026-02-28, city: NATIONAL, observed: "cosmetic-grade rose water for spa Rs 90-110/Litre (28 Feb 2026); bulk 20-litre packs Rs 2500-4500 (approx Rs 125-225/litre)"}
+    note: "grade is uncertain — the clearest per-litre figure found was labelled cosmetic-grade rather than confirmed food-grade gulab jal; used a blend of the cosmetic and bulk-20L ranges as more representative of trade quantities BLOCKING AUDIT DEFECT, NOT FIXED. The only citation is cosmetic/spa-grade rose water dated 28 Feb 2026. Cosmetic grade is not food-safe and food-grade gulab jal prices differently. Do not rely on this row; it needs a food-grade source before use."
 
   - code: SAFFRON
     inr_per_base_unit: 220.0
+    basis_city: NATIONAL
     tier: sourced
+    grade: "Kashmiri Mongra saffron, A1 grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://www.indiamart.com/kashmirkesarleader/mongra-saffron.html", retrieved: 2026-09-12, observed: "Kashmiri Mongra Saffron Rs550/gram (Kashmir, proddetail 21139115573); Mongra A1 Grade 10gm box Rs3300/box (=Rs330/gram); Al Mubeen Foods Mongra 10gm Rs240/gram; Barkah Agro Farms export-quality Mongra Rs165/gram; loose Mongra Rs150/gram at 100g minimum order"}
-    note: "RE-CHECKED per coordinator flag, specifically re-priced genuine Kashmiri MONGRA grade (my original figure mixed grades and undershot). BigBasket sells 1-gram retail packs of Kashmiri Mongra at Rs389.35/gram (=Rs389,350/kg, https://www.bigbasket.com/pd/40344753/rasayanam-kashmiri-mongra-saffron-1-g/) - that single-gram retail price is close to the high end the flag described. IndiaMART's bulk-quantity Mongra listings (10g boxes, 100g-minimum loose) run Rs150-330/gram; used the average of these bulk-relevant listings (~Rs220/gram = Rs220,000/kg) as more representative of 'buying in bulk' than a 1-gram retail pack. This roughly doubles my original figure. Point estimates from IndiaMART bulk (~221k avg) and BigBasket single-gram retail (389k) don't agree within 25% of each other - expected, since one is a bulk trade quote and the other a tiny retail pack - so kept as sourced rather than forced to corroborated. Genuinely adulterated/mislabeled 'saffron' at Rs3,000-15,000/kg (noted previously) remains excluded."
+      - {name: "indiamart", url: "https://www.indiamart.com/kashmirkesarleader/mongra-saffron.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "Kashmiri Mongra Saffron Rs550/gram (Kashmir, proddetail 21139115573); Mongra A1 Grade 10gm box Rs3300/box (=Rs330/gram); Al Mubeen Foods Mongra 10gm Rs240/gram; Barkah Agro Farms export-quality Mongra Rs165/gram; loose Mongra Rs150/gram at 100g minimum order"}
+    note: "RE-CHECKED per coordinator flag, specifically re-priced genuine Kashmiri MONGRA grade (my original figure mixed grades and undershot). BigBasket sells 1-gram retail packs of Kashmiri Mongra at Rs389.35/gram (=Rs389,350/kg, https://www.bigbasket.com/pd/40344753/rasayanam-kashmiri-mongra-saffron-1-g/) - that single-gram retail price is close to the high end the flag described. IndiaMART's bulk-quantity Mongra listings (10g boxes, 100g-minimum loose) run Rs150-330/gram; used the average of these bulk-relevant listings (~Rs220/gram = Rs220,000/kg) as more representative of 'buying in bulk' than a 1-gram retail pack. This roughly doubles my original figure. Point estimates from IndiaMART bulk (~221k avg) and BigBasket single-gram retail (389k) don't agree within 25% of each other - expected, since one is a bulk trade quote and the other a tiny retail pack - so kept as sourced rather than forced to corroborated. Genuinely adulterated/mislabeled 'saffron' at Rs3,000-15,000/kg (noted previously) remains excluded. AUDIT: the row's own evidence spans Rs330-550/g while the value sits at Rs220/g. Re-scrape should reconcile; a genuine Mongra A1 is unlikely to be the cheapest figure."
 
   - code: SALT
     inr_per_base_unit: 0.026
+    basis_city: PUNE
     tier: corroborated
+    grade: "Refined iodised table salt, bulk"
+    gst_rate: null
+    gst_hsn: null
+    pack_tiers:
+      - {qty_min: 100, unit: kg, inr: 2520}
     sources:
-      - {name: "tridge", url: "https://dir.tridge.com/prices/salt/IN", retrieved: 2026-09-12, observed: "2,520 INR per 100 kg wholesale"}
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/common-salt.html", retrieved: 2026-09-12, observed: "refined iodized table salt Rs 15-40 per kg; other listings Rs 2.75-8/kg for raw/basic bulk crystal salt in 50kg bags"}
+      - {name: "tridge", url: "https://dir.tridge.com/prices/salt/IN", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "2,520 INR per 100 kg wholesale"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/common-salt.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "refined iodized table salt Rs 15-40 per kg; other listings Rs 2.75-8/kg for raw/basic bulk crystal salt in 50kg bags"}
     note: "used refined bulk/trade rate (~Rs 20-28/kg); raw industrial crystal salt sold far cheaper (Rs 3-8/kg) in 50kg bags, branded retail (e.g. Tata Salt) runs Rs 25-28/kg"
 
   - code: SAMBAR_PWD
     inr_per_base_unit: 0.28
+    basis_city: NATIONAL
     tier: sourced
+    grade: "Sambar powder, branded bulk"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/sambar-powder.html", retrieved: 2026-09-12, observed: "Raj Bio Care Rs 150/kg; Hariram Masala Rs 280/kg; Ramesh Masala Rs 300/kg; Eka International Rs 380/kg"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/sambar-powder.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "Raj Bio Care Rs 150/kg; Hariram Masala Rs 280/kg; Ramesh Masala Rs 300/kg; Eka International Rs 380/kg"}
     note: "bulk/trade sambar powder; branded retail packs (bigbasket: MTR/Eastern) work out to roughly Rs 455-1100/kg depending on brand and pack size"
 
   - code: SCHEZWAN
     inr_per_base_unit: 0.135
+    basis_city: PUNE
     tier: sourced
+    grade: "Schezwan chutney / paste, catering 1 kg"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/schezwan-chutney.html", retrieved: 2026-09-12, observed: "Mumbai Spicy Schezwan Paste Rs 85/Kg; Mother's Recipe Schezwan Chutney Rs 120/Kg (Pune); Schezwan Hot Chutney Rs 180/Kg (Delhi); Ching's Schezwan Chutney Rs 155/Kilogram"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/schezwan-chutney.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Mumbai Spicy Schezwan Paste Rs 85/Kg; Mother's Recipe Schezwan Chutney Rs 120/Kg (Pune); Schezwan Hot Chutney Rs 180/Kg (Delhi); Ching's Schezwan Chutney Rs 155/Kilogram"}
     note: "schezwan chutney/sauce base, bulk trade"
 
   - code: SESAME
     inr_per_base_unit: 0.114
+    basis_city: PUNE
     tier: corroborated
+    grade: "Sesame seed / til, mandi grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/SESAMUM(SESAME,GINGELLY,TIL)/ALL/ALL", retrieved: 2026-09-12, observed: "Sesamum(sesame,gingelly,til) Price Today: 11560 INR/Quintal (12 Sep 2026), range 8125-16450"}
-      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/sesamum-sesamegingellytil", retrieved: 2026-09-12, observed: "mandi rate of sesame seed 11336.25 INR/quintal"}
+      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/SESAMUM(SESAME,GINGELLY,TIL)/ALL/ALL", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, observed: "Sesamum(sesame,gingelly,til) Price Today: 11560 INR/Quintal (12 Sep 2026), range 8125-16450"}
+      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/sesamum-sesamegingellytil", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "mandi rate of sesame seed 11336.25 INR/quintal"}
     note: "sesame seed/til, mandi wholesale"
 
   - code: SOYSAUCE
     inr_per_base_unit: 0.056
+    basis_city: PUNE
     tier: sourced
+    grade: "Dark soy sauce, catering 1.30 kg bottle (Tops tier)"
+    gst_rate: null
+    gst_hsn: null
+    pack_tiers:
+      - {qty_min: 6, unit: bottle, inr: 68.25}
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/tops-soya-sauce-1-30-kg", retrieved: 2026-09-12, observed: "Tops Dark Soya Sauce 1.30kg bottle: Rs69.3/bottle = Rs53.31/kg, Rs68.25/bottle for 6+ bottles"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/tops-soya-sauce-1-30-kg", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Tops Dark Soya Sauce 1.30kg bottle: Rs69.3/bottle = Rs53.31/kg, Rs68.25/bottle for 6+ bottles"}
     note: "RE-CHECKED per coordinator flag. Direction was right (my original Rs45/L, from a single cheap IndiaMART listing, was on the low side) but magnitude was not: Hyperpure, the exact platform recommended for correct restaurant price basis, shows mainstream catering brands (Tops Rs53.3/kg, Ching's Secret ~Rs61.6/kg for 750g at Rs46.2, Foodrite ~Rs51.8/kg for 750g at Rs38.85) clustering Rs52-62/kg, not the suggested Rs100-150/L. Treated Rs/kg as approximately Rs/L (soy sauce is somewhat denser than water). Kept this evidence-based ~Rs56/L rather than moving to the suggested range, which a premium/imported product (Kikkoman) or a 'sweet' soy sauce (ABC Sweet Soy Sauce priced near Rs410/L, a different product) might reach but generic catering dark soy sauce does not."
 
   - code: SUGAR
     inr_per_base_unit: 0.053
+    basis_city: PUNE
     tier: corroborated
+    grade: "Refined sugar, mandi / wholesale"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/SUGAR/ALL/ALL", retrieved: 2026-09-12, observed: "Sugar (Ganna) Price Today: 5200 INR/Quintal (11 Sep 2026)"}
-      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/sugar", retrieved: 2026-09-12, observed: "live wholesale sugar rate in mandi is 53.58 INR/kg (11 Sep 2026)"}
+      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/SUGAR/ALL/ALL", retrieved: 2026-09-12, as_of: 2026-09-11, city: PUNE, observed: "Sugar (Ganna) Price Today: 5200 INR/Quintal (11 Sep 2026)"}
+      - {name: "commodityonline", url: "https://www.commodityonline.com/mandiprices/sugar", retrieved: 2026-09-12, as_of: 2026-09-11, city: PUNE, observed: "live wholesale sugar rate in mandi is 53.58 INR/kg (11 Sep 2026)"}
     note: "mandi/wholesale sugar; branded packaged retail sugar runs somewhat higher"
 
   - code: TANDMSL
     inr_per_base_unit: 0.3
+    basis_city: PUNE
     tier: sourced
+    grade: "Tandoori masala, bulk trade"
+    gst_rate: null
+    gst_hsn: null
+    pack_tiers:
+      - {qty_min: 20, unit: kg, inr: 3000}
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/tandoori-masala.html", retrieved: 2026-09-12, observed: "Prakash Masala Company Rs 150/kg (20-30kg bulk); Amazing Enterprises Rs 300/kg; Euro Foods Industries Rs 385/kg (5kg pouch); Sunmoon Trading Rs 390/kg"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/tandoori-masala.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Prakash Masala Company Rs 150/kg (20-30kg bulk); Amazing Enterprises Rs 300/kg; Euro Foods Industries Rs 385/kg (5kg pouch); Sunmoon Trading Rs 390/kg"}
     note: "bulk/trade tandoori masala powder; branded small-pack retail (bigbasket 50g packs, Catch/Everest/Priya) works out to roughly Rs 780-940/kg"
 
   - code: TURMERIC
     inr_per_base_unit: 0.348
+    basis_city: PUNE
     tier: sourced
+    grade: "Turmeric (haldi) POWDER, branded 1 kg (not raw finger)"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/turmeric-powder", retrieved: 2026-09-12, observed: "Eastmade Turmeric (Haldi) Powder 1kg Rs298.2/kg; ES Turmeric Powder (Haldi) 1kg Rs244.65/kg; Suhana Ambari Turmeric Powder 1kg Rs426.3/kg; Everest Turmeric Powder 1kg Rs384.3/kg; Suhana (Pravin) Sarvam AG Turmeric Powder 1kg Rs385.35/kg (Pune)"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/ind/pune/turmeric-powder", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Eastmade Turmeric (Haldi) Powder 1kg Rs298.2/kg; ES Turmeric Powder (Haldi) 1kg Rs244.65/kg; Suhana Ambari Turmeric Powder 1kg Rs426.3/kg; Everest Turmeric Powder 1kg Rs384.3/kg; Suhana (Pravin) Sarvam AG Turmeric Powder 1kg Rs385.35/kg (Pune)"}
     note: "RE-CHECKED per coordinator flag, and the flag was right - this was the clearest case. My original figure priced DRIED TURMERIC FINGER at mandi (commodityonline/acrop, Rs135-146/kg), the pre-grinding commodity, not the ground POWDER a restaurant actually buys. I already had this exact Hyperpure powder data from my first pass and noted the gap in my own note but did not switch to it as primary - that was the error, now corrected. Using the 5-brand average (~Rs348/kg). This changes the tier from corroborated (two mandi sources for the wrong product form) to sourced (one platform for the right one) - a deliberate trade, since product-form correctness matters more than corroboration count. The raw/dried-finger mandi price (~Rs135-146/kg, commodityonline 26 Aug 2026 and acrop.app Nizamabad APMC 31 Aug 2026) is kept in mind as the pre-processing commodity cost, not the restaurant-facing price."
 
   - code: VINEGAR
     inr_per_base_unit: 0.061
+    basis_city: PUNE
     tier: sourced
+    grade: "Synthetic non-fruit vinegar, 1 L catering (Tops tier)"
+    gst_rate: null
+    gst_hsn: null
+    pack_tiers:
+      - {qty_min: 36, unit: litre, inr: 60.87}
     sources:
-      - {name: "hyperpure", url: "https://www.hyperpure.com/in/tops-vinegar-non-fruit-1-l-pack-of-12", retrieved: 2026-09-12, observed: "Tops Vinegar Non Fruit, 1L x 12 pack: Rs731.6/pack = Rs60.97/L; Rs60.87/L for 36+ units, Rs60.67/L for 72+ units"}
+      - {name: "hyperpure", url: "https://www.hyperpure.com/in/tops-vinegar-non-fruit-1-l-pack-of-12", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Tops Vinegar Non Fruit, 1L x 12 pack: Rs731.6/pack = Rs60.97/L; Rs60.87/L for 36+ units, Rs60.67/L for 72+ units"}
     note: "RE-CHECKED per coordinator flag, and the flag was right. My original 0.03 (Rs30/L) came from IndiaMART small-bottle 'synthetic vinegar' listings (Rs25-33/bottle across 3 cities) that were likely a cheaper/different grade or a smaller informal packer. Hyperpure's mainstream catering brand (Tops, sold in 12x1L cases, the standard commercial-kitchen format) prices at ~Rs61/L, squarely inside the suggested Rs40-70/L range. This is a 2x correction upward."
 
   - code: YEAST
     inr_per_base_unit: 0.29
+    basis_city: NATIONAL
     tier: sourced
+    grade: "Instant dry yeast, bakery grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/dry-yeast.html", retrieved: 2026-09-12, observed: "instant dry yeast Rs 340/kg (Shree Ram Food Additives), Rs 325/kg (Ritu Enterprises, Mumbai), Rs 280/kg (Krishna Enterprises), Rs 270/kg (JSV/Vivaan Tradelinks, Kochi), plus other listings Rs 240-320/kg"}
+      - {name: "indiamart", url: "https://dir.indiamart.com/impcat/dry-yeast.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: NATIONAL, as_of_defaulted: true, observed: "instant dry yeast Rs 340/kg (Shree Ram Food Additives), Rs 325/kg (Ritu Enterprises, Mumbai), Rs 280/kg (Krishna Enterprises), Rs 270/kg (JSV/Vivaan Tradelinks, Kochi), plus other listings Rs 240-320/kg"}
     note: "instant dry baker's yeast, bulk trade"
 
   # ---------------------------------------------------------------- oil (1)
 
   - code: OIL
     inr_per_base_unit: 0.135
+    basis_city: PUNE
     tier: sourced
+    grade: "Refined sunflower cooking oil, 15 L tin"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/refined-sunflower-oil.html", retrieved: 2026-09-12, observed: "15 litre tin 2020 INR per piece, Pune (Ravindra Sales)"}
-    note: "2020 / 15 L = 134.67 INR/L => 0.135 per ml. Restaurants buy 15 L tins, so this is the right pack size. Retail is 150-200 INR/L. seed/ingredients.yaml carries 0.135 — an exact match, which is a strong independent check on the seed anchor."
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/refined-sunflower-oil.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "15 litre tin 2020 INR per piece, Pune (Ravindra Sales)"}
+    note: "2020 / 15 L = 134.67 INR/L => 0.135 per ml. Restaurants buy 15 L tins, so this is the right pack size. Retail is 150-200 INR/L. seed/ingredients.yaml carries 0.135 — an exact match, which is a strong independent check on the seed anchor. AUDIT: single-sourced and the HIGHEST-IMPACT row in the file at 6.08% of all dish cost. A second source is the single most valuable outstanding fix."
 
   # ---------------------------------------------------------------- bakery (5)
 
   - code: BREAD_SLICE
     inr_per_base_unit: 3.0
+    basis_city: PUNE
     tier: corroborated
+    grade: "One slice of sandwich / milk bread; 400 g 20-slice loaf basis"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/20000005/britannia-milk-bread-400-g-pouch/", retrieved: 2026-09-12, observed: "₹60, 400 g Pouch (Britannia Milk Bread)"}
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/sandwich-bread.html", retrieved: 2026-09-12, observed: "Sandwich Bread ₹50/Packet, 16 slices per packet, 900 grams (Pune, Sep 2026)"}
+      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/20000005/britannia-milk-bread-400-g-pouch/", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "₹60, 400 g Pouch (Britannia Milk Bread)"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/sandwich-bread.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "Sandwich Bread ₹50/Packet, 16 slices per packet, 900 grams (Pune, Sep 2026)"}
     note: "Arithmetic: ₹60 per 400g loaf / 20 slices (standard 400g-loaf-has-~20-slices assumption) = ₹3.00/slice. Cross-check from an independent, differently-sized loaf: Pune's 900g/16-slice loaf at ₹50 = ₹3.13/slice -- within 5%. bigbasket price is retail (branded packaged bread); no wholesale-to-restaurant loaf price was found, so retail is recorded per the fallback instruction."
 
   - code: BROWNIE
     inr_per_base_unit: 60.0
+    basis_city: PUNE
     tier: sourced
+    grade: "Pre-made chocolate brownie, one piece"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-bengaluru", url: "https://dir.indiamart.com/bengaluru/chocolate-brownie.html", retrieved: 2026-09-12, observed: "Classic Brownie (Shri's Foods) ₹60/Piece; Frozen Chocolate Brownie (Varasiddi Enterprises) ₹60/Piece; Brea Chocolate Walnut Brownie ₹60/Piece; Square Chocolate Brownie (Hershwin) ₹65/Piece"}
+      - {name: "indiamart-bengaluru", url: "https://dir.indiamart.com/bengaluru/chocolate-brownie.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Classic Brownie (Shri's Foods) ₹60/Piece; Frozen Chocolate Brownie (Varasiddi Enterprises) ₹60/Piece; Brea Chocolate Walnut Brownie ₹60/Piece; Square Chocolate Brownie (Hershwin) ₹65/Piece"}
     note: "Standard bakery-piece brownie cluster ₹60-65/piece (four independent named sellers agree); excludes small packaged/mini brownies (₹10-20/piece, e.g. Britannia, Nabati) and premium fresh-baked/artisanal ones (₹70-89/piece). A real trade listing was found, so sourced rather than estimated."
 
   - code: PAPAD
     inr_per_base_unit: 2.22
+    basis_city: PUNE
     tier: corroborated
+    grade: "Udad plain papad, one piece; ~200 g per kg basis"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/papad.html", retrieved: 2026-09-12, observed: "Paras Papad ₹200/Kg; Makka Corn Papad ₹200/Kg (Pune, Sep 2026)"}
-      - {name: "omeximtraders", url: "https://omeximtraders.com/lijjat-papad-wholesale-price-guide/", retrieved: 2026-09-12, observed: "Udad Plain Papad (200g): ₹175 - ₹193 per kg (wholesale bulk rate guide)"}
+      - {name: "indiamart-pune", url: "https://dir.indiamart.com/pune/papad.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: PUNE, observed: "Paras Papad ₹200/Kg; Makka Corn Papad ₹200/Kg (Pune, Sep 2026)"}
+      - {name: "omeximtraders", url: "https://omeximtraders.com/lijjat-papad-wholesale-price-guide/", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Udad Plain Papad (200g): ₹175 - ₹193 per kg (wholesale bulk rate guide)"}
     note: "Arithmetic: used ₹185/kg (midpoint of the plain-urad-papad wholesale band) x ~12g per papad (standard urad-dal papad; a 200g retail pack holds roughly 16 papads) = ₹2.22/piece. Pune's general papad price (₹200/kg) and the plain-urad-specific wholesale guide (₹175-193/kg) agree within 13%."
 
   - code: PAV
     inr_per_base_unit: 2.0
+    basis_city: MUMBAI
     tier: sourced
+    grade: "Ladi pav bun, one piece, bakery trade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-mumbai", url: "https://dir.indiamart.com/mumbai/pav-bun.html", retrieved: 2026-09-12, observed: "Ladi Pav for Bakery -- ₹2/Piece (Mumbai, Sep 2026)"}
+      - {name: "indiamart-mumbai", url: "https://dir.indiamart.com/mumbai/pav-bun.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: MUMBAI, observed: "Ladi Pav for Bakery -- ₹2/Piece (Mumbai, Sep 2026)"}
     note: "Bulk-to-bakery ladi pav rate, direct per-piece quote."
 
   - code: SPRINGROLL_SHEET
     inr_per_base_unit: 6.0
+    basis_city: PUNE
     tier: sourced
+    grade: "Spring roll sheet 8x8, one sheet; 20-sheet pouch basis"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/40018662/switz-spring-rolls-sheets-8x-8-20-pcs-pouch/", retrieved: 2026-09-12, observed: "₹120, 20 sheets per pouch (Switz Spring Rolls Sheets 8x8)"}
+      - {name: "bigbasket", url: "https://www.bigbasket.com/pd/40018662/switz-spring-rolls-sheets-8x-8-20-pcs-pouch/", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "₹120, 20 sheets per pouch (Switz Spring Rolls Sheets 8x8)"}
     note: "Retail price (₹120 / 20 sheets = ₹6/sheet) -- no bulk/trade quote found specifically for spring-roll wrappers; IndiaMART frozen-food wholesalers list these as 'contact for price' with no figure shown, so retail is recorded per the fallback instruction rather than marking this estimated, since a real fetchable source exists."
 
   # ---------------------------------------------------------------- sweet (3)
 
   - code: CHOC_SAUCE
     inr_per_base_unit: 0.18
+    basis_city: DELHI
     tier: sourced
+    grade: "Chocolate sauce, 5 L catering bottle"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "indiamart-delhi", url: "https://dir.indiamart.com/delhi/chocolate-syrup.html", retrieved: 2026-09-12, observed: "Mala's Chocolate Sauce, 5-Litre bottle -- ₹900 (Delhi, Sep 2026)"}
+      - {name: "indiamart-delhi", url: "https://dir.indiamart.com/delhi/chocolate-syrup.html", retrieved: 2026-09-12, as_of: 2026-09-01, city: DELHI, observed: "Mala's Chocolate Sauce, 5-Litre bottle -- ₹900 (Delhi, Sep 2026)"}
     note: "₹900/5L = ₹180/L, the catering-size bulk option on the page, used instead of the 1L (₹255/L) or 2L premium DaVinci Gourmet (₹480/L) retail-style options on the same listing. Single source."
 
   - code: HONEY
     inr_per_base_unit: 0.234
+    basis_city: PUNE
     tier: sourced
+    grade: "Multiflora honey, bulk trade"
+    gst_rate: null
+    gst_hsn: null
+    pack_tiers:
+      - {qty_min: 30, unit: kg, inr: 4500}
     sources:
-      - {name: "indiamart-impcat", url: "https://dir.indiamart.com/impcat/natural-honey.html", retrieved: 2026-09-12, observed: "Aravali Honey Industries (Jaipur) ₹150/Kg for 30kg multiflora sidr honey; Surya Honey Pvt Ltd (Bhiwadi) ₹150/Kg for 30kg multiflora honey; Mountway Expo (Ludhiana) ₹170/Kg; Tungnath Enterprises (Hapur) ₹180/Kg for 30kg forest wild raw honey"}
-      - {name: "bigbasket", url: "https://www.bigbasket.com/pc/snacks-branded-foods/spreads-sauces-ketchup/honey/", retrieved: 2026-09-12, observed: "bb Royal Honey, 1 kg -- ₹252 (retail)"}
+      - {name: "indiamart-impcat", url: "https://dir.indiamart.com/impcat/natural-honey.html", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "Aravali Honey Industries (Jaipur) ₹150/Kg for 30kg multiflora sidr honey; Surya Honey Pvt Ltd (Bhiwadi) ₹150/Kg for 30kg multiflora honey; Mountway Expo (Ludhiana) ₹170/Kg; Tungnath Enterprises (Hapur) ₹180/Kg for 30kg forest wild raw honey"}
+      - {name: "bigbasket", url: "https://www.bigbasket.com/pc/snacks-branded-foods/spreads-sauces-ketchup/honey/", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, as_of_defaulted: true, observed: "bb Royal Honey, 1 kg -- ₹252 (retail)"}
     note: "Honey is traded by weight, not volume, so a density conversion is needed on top of the usual g-to-ml step: used ₹165/kg (midpoint of the ₹150-180/kg bulk-trade cluster across 4 independently-named sellers in 4 cities) x 1.42 g/mL honey density / 1000 = ₹0.234/mL. bigbasket retail (₹252/kg, which would be ₹0.358/mL by the same conversion) is shown for comparison only, confirming bulk trade runs well below retail as expected -- not used as a corroborating figure since it is a different market level, per instructions."
 
   - code: JAGGERY
     inr_per_base_unit: 0.048
+    basis_city: PUNE
     tier: corroborated
+    grade: "Gur / jaggery, Maharashtra mandi grade"
+    gst_rate: null
+    gst_hsn: null
     sources:
-      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/GUR-JAGGERY/MAHARASHTRA/ALL", retrieved: 2026-09-12, observed: "Today's Gur Jaggery Rate in Maharashtra: ₹4,756/Quintal Today (12 Sep 2026), live mandi bhav sourced from APMC markets"}
-      - {name: "commoditymarketlive", url: "https://www.commoditymarketlive.com/mandi-price/gur-jaggery", retrieved: 2026-09-12, observed: "Maharashtra-specific price ₹4,499.81 per quintal (11 Sep 2026)"}
+      - {name: "kisandeals", url: "https://www.kisandeals.com/mandiprices/GUR-JAGGERY/MAHARASHTRA/ALL", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, observed: "Today's Gur Jaggery Rate in Maharashtra: ₹4,756/Quintal Today (12 Sep 2026), live mandi bhav sourced from APMC markets"}
+      - {name: "commoditymarketlive", url: "https://www.commoditymarketlive.com/mandi-price/gur-jaggery", retrieved: 2026-09-12, as_of: 2026-09-11, city: PUNE, observed: "Maharashtra-specific price ₹4,499.81 per quintal (11 Sep 2026)"}
     note: "Two independently-run Agmarknet-linked mandi sites, both scoped to Maharashtra, agree within 6% (₹47.56/kg and ₹45.00/kg). Used the more current (12 Sep) reading, rounded to ₹48/kg."

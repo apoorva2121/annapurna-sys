@@ -40,18 +40,65 @@ that every recipe line references a stock item that exists at a station that exi
 ```yaml
 - code: ONION
   inr_per_base_unit: 0.057
+  basis_city: PUNE
   tier: corroborated
+  grade: "Onion, big / medium, unpeeled, market grade"
+  gst_rate: 0
+  gst_hsn: "0703"
+  pack_tiers:
+    - {qty_min: 5, unit: kg, inr: 290}
   sources:
-    - {name: todaypricerates, url: "https://…", retrieved: 2026-09-12, observed: "Onion Big wholesale 56 INR/Kg"}
-    - {name: hyperpure,       url: "https://…", retrieved: 2026-09-12, observed: "Onion (Medium Size) 5 kg — 290 INR"}
+    - {name: todaypricerates, url: "https://…", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, observed: "Onion Big wholesale 56 INR/Kg"}
+    - {name: hyperpure,       url: "https://…", retrieved: 2026-09-12, as_of: 2026-09-12, city: PUNE, observed: "Onion (Medium Size) 5 kg — 290 INR"}
   note: "56 vs 58 INR/kg — 3.6% apart."
 ```
 
-**`observed` is the load-bearing field.** It stores the raw string exactly as published, unit
-included, beside the converted value. Without it the conversion is unauditable — and the single
-most likely error in this dataset is an Indian mandi price quoted **per quintal (100 kg)** read as
-per-kg. That is a 100× error that looks entirely plausible sitting in a column of numbers. With
-`observed` present, both a validator and a human can check the arithmetic.
+Five of these fields exist because a data audit on 2026-09-12 found their absence. Each closes a
+measured defect rather than a theoretical one.
+
+**`observed` — the load-bearing field.** The raw string exactly as published, unit included, beside
+the converted value. Without it the conversion is unauditable, and the likeliest error here is an
+Indian mandi price quoted **per quintal (100 kg)** read as per-kg — a 100× error that looks
+entirely plausible in a column of numbers.
+
+**`basis_city` — because the file was not all one city.** 29% of rows rested on non-Pune evidence
+while the header declared a Pune baseline, so the city index was about to multiply a Delhi price by
+a Delhi factor and count geography twice. Conversion is therefore a **ratio**:
+
+```
+effective = inr_per_base_unit × cities[target] / cities[basis_city]
+```
+
+`NATIONAL` is a legal basis and carries 1.00 — a nationwide modal price is a real thing to have
+sourced, and it is not a city premium.
+
+**`as_of` vs `retrieved` — because a fetch date is not a price date.** All 176 citations were
+stamped with the day they were fetched, while 20 rested on evidence up to **seven months** old
+(one row on a February listing). `as_of` is when the price was published; `retrieved` is when we
+looked. Where a page carries no date, `as_of_defaulted: true` records that we only know the latter
+— which is different from knowing the price is current, and the validator counts them separately.
+
+**`grade` — because a price without a product form is ambiguous.** Cardamom ranges **1.68×** by pod
+size alone (5 mm ₹2,100 → 9 mm ₹3,525); the row had picked a number with no record of which. Worse,
+one row was priced off **cosmetic-grade** rose water for an ingredient people eat. Required and
+non-empty on every row.
+
+**`gst_rate` / `gst_hsn` — because the quoted price is not the cost.** Zero rows carried any tax
+treatment. India's standard restaurant rate is 5% **with no input tax credit**, so a restaurant on
+it *bears* input GST rather than reclaiming it. Landed cost is `inr_per_base_unit × (1 +
+gst_rate/100)`, and the error was 0–18% and systematic. Rates are restricted to the legal set
+`{0, 5, 12, 18, 28}` — a rate is set by schedule, never interpolated.
+
+`gst_rate: null` is a **warning, not an error**, and that is deliberate. The rate is a legal fact
+that has to be looked up, and hard-failing the build on an unsourced lookup does not produce a
+sourced one — it pressures whoever is unblocking the build into inventing a plausible number.
+Recording the gap keeps it visible in `PRICE_PROVENANCE.md` without creating that incentive,
+exactly as the `estimated` tier does for a price with no citation. **All 122 rows currently sit at
+`null`**; sourcing them is the top outstanding item.
+
+**`pack_tiers` — because bulk breaks were being discarded at parse time.** 18 rows had volume
+pricing sitting in `observed` free text (`"₹571.9/kg for 5kg+, ₹583.9/kg for 3kg+"`) against a
+schema with one scalar.
 
 ### Tiers
 
@@ -131,6 +178,27 @@ asserting seed is right, which is the one thing the cross-check exists to test.
 
 The warn threshold is calibrated on real data: onion came back at 1.47× seed (and was mid-spike),
 spring onion at 1.86× (a genuinely stale seed value).
+
+Comparison is made on **Pune-normalised** values (`value / cities[basis_city]`), because `seed/` is
+Pune and a row may be quoted elsewhere. Comparing raw values would measure geography and call it
+disagreement.
+
+## Freshness
+
+Measured on `as_of`, never on `retrieved`:
+
+| Age vs `researched_on` | Result |
+|---|---|
+| ≥ 365 days | **error** — that is not a price |
+| ≥ 90 days | warning — re-scrape before trusting |
+
+90 days is roughly a season, and Indian produce and pulses move enough in a quarter that an older
+quote describes a different market. A source that publishes no date is not *assumed* fresh — it is
+marked `as_of_defaulted` and counted in `PRICE_PROVENANCE.md`, so "undated" and "current" never
+look the same.
+
+An `as_of` later than its own `retrieved` is an error: a price cannot be published after it was
+fetched, and that ordering catches transcription slips no range check would.
 
 Independent confirmations worth recording: refined oil researched at ₹134.67/L against seed's
 `0.135` — an exact match. Paneer researched across six Pune brands at ₹278–385/kg against seed's

@@ -108,33 +108,55 @@ for row in th["menu"]:
 rates_path = os.path.join(LIB, "market-rates.yaml")
 rows = []
 if os.path.exists(rates_path):
-    rates = {r["code"]: D(str(r["inr_per_base_unit"]))
-             for r in load(LIB, "market-rates.yaml")["rates"]}
-    city = th["meta"].get("city", "PUNE")
-    cities = {c["code"]: D(str(c["multiplier"]))
-              for c in load(LIB, "city-index.yaml")["cities"]}
-    mult = cities.get(city, D(str(load(LIB, "city-index.yaml")["meta"]["unknown_city_multiplier"])))
+    rate_rows = {r["code"]: r for r in load(LIB, "market-rates.yaml")["rates"]}
+    cities_doc = load(LIB, "city-index.yaml")
+    cities = {c["code"]: D(str(c["multiplier"])) for c in cities_doc["cities"]}
+    fallback = D(str(cities_doc["meta"]["unknown_city_multiplier"]))
+    target = cities.get(th["meta"].get("city", "PUNE"), fallback)
 
-    _prep_cache: dict[str, D] = {}
+    def effective(code, with_gst):
+        """INR per base unit here, from a rate quoted in that row's own basis city.
 
-    def unit_cost(ref, stack=()):
-        """INR per base unit of `ref`, walking preparations recursively."""
-        if ref in rates:
-            return rates[ref] * mult
-        if ref in _prep_cache:
-            return _prep_cache[ref]
-        prep = lib_preps.get(ref)
-        if prep is None:
-            err("costing: unknown ref %s" % ref)
-            return D(0)
-        if ref in stack:
-            err("costing: preparation cycle at %s" % ref)
-            return D(0)
-        total = sum((unit_cost(ln["ref"], stack + (ref,)) * D(str(ln["qty"]))
-                     for ln in prep["lines"]), D(0))
-        cost = total / D(str(prep["batch_yield"]))
-        _prep_cache[ref] = cost
-        return cost
+        The conversion is a RATIO, not a multiplication. A row's value is the price level of its
+        `basis_city`, which is not always Pune — so multiplying a Mumbai-sourced value by Mumbai's
+        multiplier would apply geography twice. An audit found 29% of rows on a non-Pune basis in a
+        file that declared a Pune baseline, which is exactly that bug waiting to happen.
+        """
+        r = rate_rows[code]
+        basis = cities.get(r.get("basis_city", "PUNE"), D(1))
+        v = D(str(r["inr_per_base_unit"])) * target / basis
+        # Tandoor House charges GST at 5% with NO input tax credit (see its tax_groups), so input
+        # GST is a real cost it bears rather than something it reclaims. Landed cost is the honest
+        # number for this restaurant; the ex-GST one is what compares to Spice Garden, whose
+        # figures come from `seed/` and carry no tax treatment at all.
+        if with_gst and r.get("gst_rate") is not None:
+            v *= (D(100) + D(str(r["gst_rate"]))) / D(100)
+        return v
+
+    def make_unit_cost(with_gst):
+        cache: dict[str, D] = {}
+
+        def unit_cost(ref, stack=()):
+            """INR per base unit of `ref`, walking preparations recursively."""
+            if ref in rate_rows:
+                return effective(ref, with_gst)
+            if ref in cache:
+                return cache[ref]
+            prep = lib_preps.get(ref)
+            if prep is None:
+                err("costing: unknown ref %s" % ref)
+                return D(0)
+            if ref in stack:
+                err("costing: preparation cycle at %s" % ref)
+                return D(0)
+            total = sum((unit_cost(ln["ref"], stack + (ref,)) * D(str(ln["qty"]))
+                         for ln in prep["lines"]), D(0))
+            cache[ref] = total / D(str(prep["batch_yield"]))
+            return cache[ref]
+
+        return unit_cost
+
+    ex_gst, landed = make_unit_cost(False), make_unit_cost(True)
 
     for row in th["menu"]:
         dish = lib_dishes.get(row["ref"])
@@ -143,10 +165,11 @@ if os.path.exists(rates_path):
         variant = next((v for v in dish["variants"] if v["code"] == row["variant"]), None)
         if variant is None:
             continue
-        cost = sum((unit_cost(ln["ref"]) * D(str(ln["qty"])) for ln in variant["recipe"]), D(0))
+        cost = sum((ex_gst(ln["ref"]) * D(str(ln["qty"])) for ln in variant["recipe"]), D(0))
+        cost_l = sum((landed(ln["ref"]) * D(str(ln["qty"])) for ln in variant["recipe"]), D(0))
         price = D(str(row["price"]))
         rows.append((("%s/%s" % (row["ref"], row["variant"])), row.get("popularity", 0),
-                     price, cost, cost / price * 100))
+                     price, cost, cost / price * 100, cost_l, cost_l / price * 100))
 
 if errors:
     print("TANDOOR HOUSE VALIDATION ERRORS:")
@@ -161,15 +184,19 @@ print("Tandoor House OK: %d menu rows, %d dishes, %d tables/%d seats, %d station
 if not rows:
     print("  costing skipped - library/market-rates.yaml not present yet")
 else:
-    print("\nTandoor House food cost %, sorted worst first:")
-    for name, pop, price, cost, pct in sorted(rows, key=lambda r: -r[4]):
-        flag = "  <== high" if pct > 40 else ""
-        print("  %-30s pop%4d  price %6.0f  cost %6.2f  %5.1f%%%s"
-              % (name, pop, price, cost, pct, flag))
-    num = sum(r[1] * r[3] for r in rows)
+    print("\nTandoor House food cost %, sorted worst first (ex-GST | landed incl. input GST):")
+    for name, pop, price, cost, pct, cost_l, pct_l in sorted(rows, key=lambda r: -r[4]):
+        flag = "  <== high" if pct_l > 40 else ""
+        print("  %-30s pop%4d  price %6.0f  cost %6.2f %5.1f%%  | landed %6.2f %5.1f%%%s"
+              % (name, pop, price, cost, pct, cost_l, pct_l, flag))
     den = sum(r[1] * r[2] for r in rows)
-    weighted = num / den * 100
-    print("\nPopularity-weighted THEORETICAL food cost: %.1f%%" % weighted)
-    print("(Spice Garden runs ~25.6%. Tandoor House is designed to be visibly worse - it charges")
-    print(" ~15% less for the same library recipes. If these two converge, the contrast the second")
-    print(" tenant exists to demonstrate has been priced away.)")
+    weighted = sum(r[1] * r[3] for r in rows) / den * 100
+    weighted_l = sum(r[1] * r[5] for r in rows) / den * 100
+    print("\nPopularity-weighted THEORETICAL food cost: %.1f%% ex-GST, %.1f%% landed"
+          % (weighted, weighted_l))
+    print("(Spice Garden runs ~25.6%, computed from seed/ prices which carry no tax treatment, so")
+    print(" the EX-GST number is the one that compares. Tandoor House is designed to be visibly")
+    print(" worse - it charges ~15% less for the same library recipes. If the two converge, the")
+    print(" contrast the second tenant exists to demonstrate has been priced away.")
+    print(" The LANDED number is what this restaurant actually bears: it charges 5% GST with no")
+    print(" input tax credit, so input GST is a cost it eats rather than reclaims.)")
