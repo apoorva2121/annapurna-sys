@@ -11,6 +11,12 @@ from app.models.access import EmployeeRoleAssignment, Permission, Role, RolePerm
 from app.models.audit import AuditLog
 from app.models.base import Base
 from app.models.identity import Employee, UserAccount, UserSession
+from app.models.inventory import (
+    StockBatch,
+    StockCount,
+    StockCountLine,
+    StockMovement,
+)
 from app.models.menu import (
     MenuCategory,
     MenuItem,
@@ -52,7 +58,11 @@ __all__ = [
     "Role",
     "RolePermission",
     "Station",
+    "StockBatch",
+    "StockCount",
+    "StockCountLine",
     "StockItem",
+    "StockMovement",
     "TaxGroup",
     "TaxRate",
     "UserAccount",

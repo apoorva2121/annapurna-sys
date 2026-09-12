@@ -86,3 +86,61 @@ export const CostSource = {
   PURCHASE: 'purchase',
 } as const;
 export type CostSource = (typeof CostSource)[keyof typeof CostSource];
+
+/**
+ * What caused a line in the stock ledger.
+ *
+ * The type is how a variance report tells shrinkage from service. `consumption` is a dish being
+ * made, `wastage` is something thrown away, `adjustment` is a human correcting the book — and an
+ * adjustment is never rendered invisibly, because a report that hid them would let someone erase a
+ * shortfall by declaring it.
+ */
+export const MovementType = {
+  RECEIPT: 'receipt',
+  PRODUCTION: 'production',
+  CONSUMPTION: 'consumption',
+  WASTAGE: 'wastage',
+  STAFF_MEAL: 'staff_meal',
+  COMPLIMENTARY: 'complimentary',
+  TRANSFER: 'transfer',
+  ADJUSTMENT: 'adjustment',
+  COUNT: 'count',
+} as const;
+export type MovementType = (typeof MovementType)[keyof typeof MovementType];
+
+/**
+ * How a movement's quantity was arrived at. Invariant 7 lives on this field.
+ *
+ * On-hand sums both — both genuinely move the book. What must never be summed across the two is a
+ * single *consumption* figure, because the difference between recipe-derived and physically
+ * observed consumption is the leakage number this product exists to surface.
+ */
+export const MovementBasis = {
+  THEORETICAL: 'theoretical',
+  ACTUAL: 'actual',
+} as const;
+export type MovementBasis = (typeof MovementBasis)[keyof typeof MovementBasis];
+
+/**
+ * How much of the storeroom a count covered, which decides what its variance means. A `full` count
+ * reconciles everything, so anything unexplained is real; a `spot` count of four items says nothing
+ * about the rest and must not be extrapolated from.
+ */
+export const StockCountScope = {
+  FULL: 'full',
+  PARTIAL: 'partial',
+  SPOT: 'spot',
+} as const;
+export type StockCountScope = (typeof StockCountScope)[keyof typeof StockCountScope];
+
+/**
+ * Forward-only. Nothing reaches the ledger until `approved` — a submitted count is a worksheet, and
+ * approval is what writes the adjustment movements. There is no `cancelled` and no delete, because
+ * the count somebody wants to lose is exactly the count that matters.
+ */
+export const StockCountStatus = {
+  DRAFT: 'draft',
+  SUBMITTED: 'submitted',
+  APPROVED: 'approved',
+} as const;
+export type StockCountStatus = (typeof StockCountStatus)[keyof typeof StockCountStatus];

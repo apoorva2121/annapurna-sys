@@ -93,3 +93,62 @@ class CostSource(StrEnum):
     # Derived from a real recorded purchase. The only one that is this restaurant's own truth.
     # M06 (procurement) is what will start writing this.
     PURCHASE = "purchase"
+
+
+class MovementType(StrEnum):
+    """What caused a line in the stock ledger.
+
+    The type is how M13 tells shrinkage from service. `consumption` is a dish being made,
+    `wastage` is something thrown away, `adjustment` is a human correcting the book — and an
+    adjustment is never invisible, because a variance report that hid them would let an insider
+    erase a shortfall by declaring it.
+    """
+
+    RECEIPT = "receipt"
+    PRODUCTION = "production"
+    CONSUMPTION = "consumption"
+    WASTAGE = "wastage"
+    STAFF_MEAL = "staff_meal"
+    COMPLIMENTARY = "complimentary"
+    TRANSFER = "transfer"
+    ADJUSTMENT = "adjustment"
+    COUNT = "count"
+
+
+class MovementBasis(StrEnum):
+    """How a movement's quantity was arrived at. Invariant 7 lives on this column.
+
+    On-hand sums both — both genuinely move the book. What must never be summed across the two is
+    a single *consumption* figure, because the difference between recipe-derived and physically
+    observed consumption is the leakage number this product exists to surface.
+    """
+
+    # Derived from a recipe. What the dish says was used.
+    THEORETICAL = "theoretical"
+    # Physically observed. A receipt counted in, a weighed wastage, a shelf count.
+    ACTUAL = "actual"
+
+
+class StockCountScope(StrEnum):
+    """How much of the storeroom a count covered, which decides what its variance means.
+
+    A `full` count reconciles everything, so anything unexplained is real. A `spot` count of four
+    items says nothing about the rest, and a variance report must not extrapolate from it.
+    """
+
+    FULL = "full"
+    PARTIAL = "partial"
+    SPOT = "spot"
+
+
+class StockCountStatus(StrEnum):
+    """Forward-only. Nothing reaches the ledger until `approved`.
+
+    A `submitted` count is a worksheet; approval is what writes the adjustment movements. There is
+    no `cancelled` and no delete, because the count somebody wants to lose is exactly the count
+    that matters.
+    """
+
+    DRAFT = "draft"
+    SUBMITTED = "submitted"
+    APPROVED = "approved"
