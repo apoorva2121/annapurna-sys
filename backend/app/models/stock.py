@@ -77,6 +77,10 @@ class StockItem(TimestampedUUIDMixin, Base):
             "storage_type IS NULL OR storage_type IN ('ambient', 'chilled', 'frozen')",
             name="ck_stock_item_storage_type",
         ),
+        CheckConstraint(
+            "cost_source IN ('market_rate', 'manual', 'purchase')",
+            name="ck_stock_item_cost_source",
+        ),
         # The target of `recipe_line`'s composite foreign key: a recipe line's component must
         # belong to the same restaurant as the line, and that is a database guarantee rather than
         # something a service remembers. (It was not, until the M03/M04 review found the claim in
@@ -101,6 +105,14 @@ class StockItem(TimestampedUUIDMixin, Base):
     # and M05's per-batch cost are the truths; this is what a screen shows for "roughly, now".
     current_unit_cost: Mapped[object] = mapped_column(
         Numeric(14, 6), nullable=False, default=0, server_default="0"
+    )
+    # How much the cost above is worth trusting. `market_rate` means it was bootstrapped from
+    # `library/market-rates.yaml` and nobody here has confirmed it — `docs/onboarding-cold-start.md`
+    # requires those be visibly marked estimated, and without this column no screen could tell.
+    # Defaults to the *least* confident value on purpose: a price nobody vouched for should read as
+    # a guess, not as a number a chef typed. See migration 0014.
+    cost_source: Mapped[str] = mapped_column(
+        Text, nullable=False, default="market_rate", server_default="market_rate"
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 

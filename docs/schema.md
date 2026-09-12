@@ -267,8 +267,10 @@ stock_item                                       -- ingredients AND preparations
   category            text                       -- meat|dairy|veg|grain|spice|oil|bakery|sweet
   storage_type        text check(ambient|chilled|frozen)
   current_unit_cost   numeric(14,6) NN default 0 -- cached weighted average; batches hold truth
+  cost_source         text NN default 'market_rate' check(market_rate|manual|purchase)
   is_active
   IX (restaurant_id, kind, is_active)
+  IX (restaurant_id) where cost_source = 'market_rate'   -- the un-confirmed prices
 
 ingredient_profile                               -- 1:1 where kind='ingredient'
   stock_item_id       uuid PK FK→stock_item
@@ -336,6 +338,16 @@ the owner from creating their own — a 500 with no recovery, on their own data.
 **`recipe.unit_cost` is the frozen answer; `stock_item.current_unit_cost` is a cache.** Finding X8
 asked for the first and finding S16 warns about the second: reading today's ingredient price to
 cost a March order reports the wrong number with no sign that it is wrong. M13 reads the version.
+
+**`cost_source` says how much that cache is worth trusting**, and exists because
+`docs/onboarding-cold-start.md` promises bootstrapped prices will be "visibly marked estimated"
+while nothing in the schema could express it. A restaurant that has recorded no purchases still
+sees a food cost on day one — that is the commercial pitch — so a price bootstrapped from
+`library/market-rates.yaml` must not read with the same authority as one off this restaurant's own
+supplier bill. The default is `market_rate`, the *least* confident value, on purpose: a price whose
+provenance nobody set is a price nobody vouched for, so the default fails toward honesty rather
+than toward a guess that gets believed. It is exposed on `PricedStockItemResponse` only — a chef
+who is not shown rupees has no use for where the rupees came from. Migration `0014`.
 
 **`yield_factor` is the fraction of what you buy that reaches the pan**, and it applies to every
 base unit. For a weight the loss is *inside* each unit — a kilo of chicken gives up 280 g of bone.

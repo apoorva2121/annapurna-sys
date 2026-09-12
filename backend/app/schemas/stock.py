@@ -92,6 +92,11 @@ class PricedStockItemResponse(StockItemResponse):
     """What a `cost.view` holder sees. Today's price, never a historical answer (finding S16)."""
 
     current_unit_cost: Decimal
+    # Travels with the price rather than on the base schema, because it is a statement *about* the
+    # price: a chef who is not shown rupees has no use for where the rupees came from. A
+    # `market_rate` value means nobody at this restaurant has confirmed the number, and
+    # `docs/onboarding-cold-start.md` requires the screen say so.
+    cost_source: str
 
 
 # **A union, and a subclass would not do.** The obvious version of this declared the base class and

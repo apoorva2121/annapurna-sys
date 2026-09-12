@@ -70,3 +70,19 @@ export const TableStatus = {
   OUT_OF_SERVICE: 'out_of_service',
 } as const;
 export type TableStatus = (typeof TableStatus)[keyof typeof TableStatus];
+
+/**
+ * Where a stock item's `currentUnitCost` came from, and therefore how much to trust it.
+ *
+ * A restaurant that has recorded no purchases still sees a food cost on the day-1 screen — that is
+ * the pitch — so the screen must not state a researched national average as confidently as a number
+ * off the restaurant's own supplier bill. `market_rate` is the one the UI has to mark as estimated.
+ *
+ * The order is a confidence order: `purchase` beats `manual` beats `market_rate`.
+ */
+export const CostSource = {
+  MARKET_RATE: 'market_rate',
+  MANUAL: 'manual',
+  PURCHASE: 'purchase',
+} as const;
+export type CostSource = (typeof CostSource)[keyof typeof CostSource];

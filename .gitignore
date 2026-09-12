@@ -40,3 +40,7 @@ uploads/
 # Microsoft Office lock files. Created while a document is open, deleted when it closes — they are
 # never content, and one was committed by accident in M02.
 ~$*
+
+# CLAUDE.md tells you to run the gate as `make check > check.log 2>&1; echo $?`, because reading
+# the exit code is the only way to know it passed. That leaves this file behind every time.
+/check.log

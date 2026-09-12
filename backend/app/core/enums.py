@@ -69,3 +69,27 @@ class TableStatus(StrEnum):
     RESERVED = "reserved"
     CLEANING = "cleaning"
     OUT_OF_SERVICE = "out_of_service"
+
+
+class CostSource(StrEnum):
+    """Where a stock item's `current_unit_cost` came from, and therefore how much to trust it.
+
+    This exists because `docs/onboarding-cold-start.md` promises bootstrapped prices will be
+    "visibly marked estimated", and nothing on `stock_item` could express that. A restaurant that
+    has not yet recorded a single purchase still sees a food cost on the day-1 screen — that is the
+    whole commercial pitch — and the screen must not state a researched national average with the
+    same confidence as a number off the restaurant's own supplier bill.
+
+    The ordering is a confidence ordering: `purchase` beats `manual` beats `market_rate`. A price
+    should only ever move *up* this scale on its own; anything moving it down is a correction
+    somebody made deliberately.
+    """
+
+    # Bootstrapped from `library/market-rates.yaml` x the city multiplier. Nobody at this
+    # restaurant has confirmed it. The UI must mark it.
+    MARKET_RATE = "market_rate"
+    # Typed by a human here — a chef or store manager who knows what they pay.
+    MANUAL = "manual"
+    # Derived from a real recorded purchase. The only one that is this restaurant's own truth.
+    # M06 (procurement) is what will start writing this.
+    PURCHASE = "purchase"

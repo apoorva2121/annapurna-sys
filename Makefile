@@ -85,6 +85,8 @@ audit-docs:
 	python scripts/audit_docs.py
 	python seed/validate.py
 	python library/validate.py
+	python library/validate_rates.py
+	python seed/validate_tandoor_house.py
 
 audit-deps:
 	cd backend && "$(PY)" -m pip_audit --skip-editable
