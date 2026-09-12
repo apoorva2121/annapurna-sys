@@ -30,6 +30,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Numeric,
     SmallInteger,
@@ -76,9 +77,10 @@ class StockItem(TimestampedUUIDMixin, Base):
             "storage_type IS NULL OR storage_type IN ('ambient', 'chilled', 'frozen')",
             name="ck_stock_item_storage_type",
         ),
-        # The target of the composite foreign keys below: a profile, and every recipe line, must
-        # belong to the same restaurant as the item they point at, and that is a database
-        # guarantee rather than something a service remembers.
+        # The target of `recipe_line`'s composite foreign key: a recipe line's component must
+        # belong to the same restaurant as the line, and that is a database guarantee rather than
+        # something a service remembers. (It was not, until the M03/M04 review found the claim in
+        # this comment and no constraint behind it — migration 0013.)
         UniqueConstraint("id", "restaurant_id", name="uq_stock_item_id_restaurant"),
         Index("ix_stock_item_restaurant_kind", "restaurant_id", "kind", "is_active"),
     )
@@ -196,20 +198,29 @@ class Recipe(TimestampedUUIDMixin, Base):
         # One current version per owner, enforced by three partial unique indexes rather than by a
         # service that remembers to clear the old flag. Partial, because `is_current = false` rows
         # are exactly what there are many of.
+        # The target of `recipe_line`'s composite foreign key.
+        UniqueConstraint("id", "restaurant_id", name="uq_recipe_id_restaurant"),
+        # **Scoped by restaurant.** These were global until the M03/M04 review: keyed on
+        # `modifier_id` alone, one tenant could insert a recipe against another tenant's modifier
+        # and permanently prevent the owner from creating one — their insert would hit the index
+        # and, since `IntegrityError` is unmapped, come back as a 500 with no recovery.
         Index(
             "uq_recipe_current_variant",
+            "restaurant_id",
             "menu_item_variant_id",
             unique=True,
             postgresql_where=text("is_current AND menu_item_variant_id IS NOT NULL"),
         ),
         Index(
             "uq_recipe_current_produces",
+            "restaurant_id",
             "produces_stock_item_id",
             unique=True,
             postgresql_where=text("is_current AND produces_stock_item_id IS NOT NULL"),
         ),
         Index(
             "uq_recipe_current_modifier",
+            "restaurant_id",
             "modifier_id",
             unique=True,
             postgresql_where=text("is_current AND modifier_id IS NOT NULL"),
@@ -256,29 +267,55 @@ class RecipeLine(Base):
     reason ADR 0006 unified them: a line does not care which it is, and that is what makes nesting
     work without a nullable pair of foreign keys.
 
-    No `restaurant_id`, like M03's `menu_item_modifier_group`: the parent recipe carries one and a
-    third copy is a third thing that can disagree. The composite foreign key below is what keeps the
-    component on the same tenant as the recipe — structurally, rather than by service discipline.
+    **It carries `restaurant_id`, unlike M03's `menu_item_modifier_group`**, and the difference is
+    deliberate. That table is a pure join with a composite primary key and no second writer; this
+    one has a *planned* second writer — M04 hands the `library/` matching flow to a later module —
+    and a guard living only in `StockService.save_version` would not cover it.
+
+    So the tenant agreement is two composite foreign keys rather than a service convention: a line
+    belongs to the same restaurant as its recipe, and its component to the same restaurant as the
+    line. `tax_rate` established the pattern in migration 0008. An earlier version of this docstring
+    claimed those constraints existed when they did not; the M03/M04 review found the claim, and
+    0013 made it true.
     """
 
     __tablename__ = "recipe_line"
     __table_args__ = (
         CheckConstraint("quantity > 0", name="ck_recipe_line_quantity"),
+        ForeignKeyConstraint(
+            ["recipe_id", "restaurant_id"],
+            ["recipe.id", "recipe.restaurant_id"],
+            name="fk_recipe_line_recipe_same_restaurant",
+        ),
+        ForeignKeyConstraint(
+            ["component_id", "restaurant_id"],
+            ["stock_item.id", "stock_item.restaurant_id"],
+            name="fk_recipe_line_component_same_restaurant",
+        ),
         # The reverse index. `docs/schema.md` §4 puts it here specifically to answer "what uses
         # paneer?", which is the question an owner asks first when a price moves.
         Index("ix_recipe_line_component", "component_id"),
     )
 
-    recipe_id: Mapped[uuid.UUID] = mapped_column(
-        postgresql.UUID(as_uuid=True), ForeignKey("recipe.id"), primary_key=True
+    restaurant_id: Mapped[uuid.UUID] = mapped_column(
+        postgresql.UUID(as_uuid=True), ForeignKey("restaurant.id"), nullable=False
     )
-    component_id: Mapped[uuid.UUID] = mapped_column(
-        postgresql.UUID(as_uuid=True), ForeignKey("stock_item.id"), primary_key=True
-    )
+    # No single-column `ForeignKey` on either: the composite constraints above already reference
+    # `recipe` and `stock_item`, and declaring both left SQLAlchemy with two foreign key paths
+    # between the same pair of tables and no way to choose — `AmbiguousForeignKeysError` on every
+    # query. The composite is the stronger constraint and subsumes the weaker one.
+    recipe_id: Mapped[uuid.UUID] = mapped_column(postgresql.UUID(as_uuid=True), primary_key=True)
+    component_id: Mapped[uuid.UUID] = mapped_column(postgresql.UUID(as_uuid=True), primary_key=True)
     # In the component's base unit. `numeric(14,4)` because a recipe line can legitimately be 0.05 g
     # of saffron, and rounding that to two places would make it free.
     quantity: Mapped[object] = mapped_column(Numeric(14, 4), nullable=False)
     seq: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
 
     recipe: Mapped[Recipe] = relationship(back_populates="lines", lazy="raise")
-    component: Mapped[StockItem] = relationship(lazy="raise")
+    # **`viewonly`, and it has to be.** Both composite foreign keys include `restaurant_id`, so
+    # SQLAlchemy saw two relationships each claiming the right to write that one column and warned
+    # about conflicting sync targets — which this project treats as an error. Only one of them can
+    # own it, and the parent recipe is the honest owner: a line's tenant is the recipe's tenant, and
+    # the component is a lookup the line points at, never something that decides where the line
+    # lives. Navigation still works; assignment through `line.component` does not, and never did.
+    component: Mapped[StockItem] = relationship(lazy="raise", viewonly=True)

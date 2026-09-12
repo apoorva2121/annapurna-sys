@@ -59,3 +59,48 @@ export function formatDelta(amount: string | number | null | undefined): string 
   const sign = value > 0 ? '+' : '−';
   return `${sign}${RUPEES.format(Math.abs(value))}`;
 }
+
+/** `123`, `123.4`, `123.45`, optionally signed. Up to ten whole digits, which is more than any
+ *  menu price and less than anything that could overflow `numeric(12,2)` on the server. */
+const AMOUNT = /^([+-]?)(\d{1,10})(?:\.(\d{1,2}))?$/;
+
+const ZERO = /^0+\.00$/;
+
+/** The three capture groups, defaulted. Optional groups are genuinely `undefined` when they do not
+ *  participate, and a successful match does not prove otherwise to TypeScript. */
+function groups(match: RegExpExecArray): [string, string, string] {
+  return [match[1] ?? '', match[2] ?? '0', match[3] ?? ''];
+}
+
+/**
+ * What a person typed, turned into the string the API expects — **without a `Number` in between**.
+ *
+ * `Number(input).toFixed(2)` looks equivalent and is not. It parses a rupee amount into a binary
+ * float and formats it back, which is exactly the round-trip CLAUDE.md invariant 3 forbids, on the
+ * *write* path where the result is stored rather than merely shown. It is also quietly permissive:
+ * `Number` accepts `"1e3"`, `"0x10"`, `" 12 "` and `"Infinity"`, so a typo becomes a price instead
+ * of a refusal. Both screens that price something did this until the M03/M04 review.
+ *
+ * Returns `null` when the input is not an amount, which the caller must treat as "do not send".
+ * Padding is string surgery: `"12.5"` → `"12.50"`.
+ */
+export function parseAmount(
+  input: string,
+  { allowNegative = false }: { allowNegative?: boolean } = {},
+): string | null {
+  const match = AMOUNT.exec(input.trim());
+  if (match === null) {
+    return null;
+  }
+  const [sign, whole, fraction] = groups(match);
+  if (sign === '-' && !allowNegative) {
+    return null;
+  }
+  const padded = `${whole}.${fraction.padEnd(2, '0')}`;
+  // The only digit test here, and it is about a sign rather than a value: "-0.00" is zero written
+  // oddly, and reading it back as "-0.00" would look like a change nobody made.
+  if (sign === '-' && !ZERO.test(padded)) {
+    return `-${padded}`;
+  }
+  return padded;
+}

@@ -67,7 +67,10 @@ function json(body: unknown): Response {
 }
 
 function renderScreen(): void {
-  vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(json(COSTS))));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.resolve(json(COSTS))),
+  );
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={queryClient}>

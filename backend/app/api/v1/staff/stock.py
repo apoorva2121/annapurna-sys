@@ -26,10 +26,14 @@ from app.core.actor import Actor
 from app.core.permissions import PermissionCode
 from app.repositories.base import DEFAULT_PAGE_SIZE
 from app.schemas.stock import (
+    AnyRecipeResponse,
+    AnyStockItemResponse,
     CostedLineResponse,
     DishCostResponse,
     MenuCostResponse,
     MenuCostRow,
+    PricedRecipeResponse,
+    PricedStockItemResponse,
     RecipeResponse,
     RecipeVersionRequest,
     StockItemCreateRequest,
@@ -57,6 +61,26 @@ def _next_cursor(items: list[object], limit: int | None) -> uuid.UUID | None:
     return getattr(items[-1], "id", None)
 
 
+def _stock_item(actor: Actor, row: object) -> AnyStockItemResponse:
+    """Serialise a stock item at the caller's pay grade.
+
+    The ingredient price list is a business secret and, per `seed/organization.yaml`, not the
+    chef's to see. Chosen per request rather than per route because both audiences read the same
+    endpoints: a chef and an owner both open the ingredient master, and only one of them sees
+    what it costs.
+    """
+    if actor.holds(PermissionCode.COST_VIEW):
+        return PricedStockItemResponse.model_validate(row)
+    return StockItemResponse.model_validate(row)
+
+
+def _recipe(actor: Actor, row: object) -> AnyRecipeResponse:
+    """Same rule for a recipe. A chef writing one is not told what it costs."""
+    if actor.holds(PermissionCode.COST_VIEW):
+        return PricedRecipeResponse.model_validate(row)
+    return RecipeResponse.model_validate(row)
+
+
 # --------------------------------------------------------------------------- stock items
 
 
@@ -78,22 +102,24 @@ async def list_stock_items(
         after=cursor,
         include_inactive=include_inactive,
     )
-    items = [StockItemResponse.model_validate(row) for row in rows]
+    items = [_stock_item(actor, row) for row in rows]
     return StockItemListResponse(items=items, next_cursor=_next_cursor(list(rows), limit))
 
 
-@router.get("/stock-items/{item_id}", response_model=StockItemResponse)
+@router.get("/stock-items/{item_id}", response_model=AnyStockItemResponse)
 async def get_stock_item(
     actor: _ViewDep, session: SessionDep, item_id: uuid.UUID
-) -> StockItemResponse:
+) -> AnyStockItemResponse:
     item = await StockService(session).get_item(actor, item_id)
-    return StockItemResponse.model_validate(item)
+    return _stock_item(actor, item)
 
 
-@router.post("/stock-items", response_model=StockItemResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/stock-items", response_model=AnyStockItemResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_stock_item(
     actor: _ManageDep, session: SessionDep, request: StockItemCreateRequest
-) -> StockItemResponse:
+) -> AnyStockItemResponse:
     """An ingredient or a preparation, with the profile that makes it one.
 
     Refused without the matching profile: a preparation with no `batch_yield` has no unit cost, and
@@ -101,21 +127,21 @@ async def create_stock_item(
     """
     item = await StockService(session).create_item(actor, request)
     await session.commit()
-    return StockItemResponse.model_validate(item)
+    return _stock_item(actor, item)
 
 
-@router.patch("/stock-items/{item_id}", response_model=StockItemResponse)
+@router.patch("/stock-items/{item_id}", response_model=AnyStockItemResponse)
 async def update_stock_item(
     actor: _ManageDep,
     session: SessionDep,
     item_id: uuid.UUID,
     request: StockItemUpdateRequest,
-) -> StockItemResponse:
+) -> AnyStockItemResponse:
     """Never the `kind` and never the `code`. A price change writes an `audit_log` row, because it
     moves every dish that uses this and leaves no other trace."""
     item = await StockService(session).update_item(actor, item_id, request)
     await session.commit()
-    return StockItemResponse.model_validate(item)
+    return _stock_item(actor, item)
 
 
 @router.get("/stock-items/{item_id}/used-by", response_model=UsedByResponse)
@@ -128,7 +154,7 @@ async def used_by(actor: _ViewDep, session: SessionDep, item_id: uuid.UUID) -> U
     """
     preparations, dishes = await StockService(session).used_by(actor, item_id)
     return UsedByResponse(
-        preparations=[StockItemResponse.model_validate(row) for row in preparations],
+        preparations=[_stock_item(actor, row) for row in preparations],
         dishes=[dish.id for dish in dishes],
         dish_names=[dish.name for dish in dishes],
     )
@@ -137,16 +163,35 @@ async def used_by(actor: _ViewDep, session: SessionDep, item_id: uuid.UUID) -> U
 # --------------------------------------------------------------------------- recipes
 
 
-@router.get("/recipes/{recipe_id}", response_model=RecipeResponse)
-async def get_recipe(actor: _ViewDep, session: SessionDep, recipe_id: uuid.UUID) -> RecipeResponse:
+@router.get("/recipes/{recipe_id}", response_model=AnyRecipeResponse)
+async def get_recipe(
+    actor: _ViewDep, session: SessionDep, recipe_id: uuid.UUID
+) -> AnyRecipeResponse:
     recipe = await StockService(session).get_recipe(actor, recipe_id)
-    return RecipeResponse.model_validate(recipe)
+    return _recipe(actor, recipe)
 
 
-@router.post("/recipes", response_model=RecipeResponse, status_code=status.HTTP_201_CREATED)
+@router.get("/menu-variants/{variant_id}/recipe", response_model=AnyRecipeResponse)
+async def current_recipe(
+    actor: _ViewDep, session: SessionDep, variant_id: uuid.UUID
+) -> AnyRecipeResponse:
+    """**The recipe a chef is about to edit**, found the way a chef thinks of it.
+
+    `GET /recipes/{id}` needs an id nobody holds: a person arrives at this from a dish, not from a
+    recipe. `StockService.current_recipe_for_variant` existed for this and no route reached it — so
+    the editor had no way to load what it was editing, and M04 shipped without one. Found by the
+    M03/M04 review.
+
+    404 when the dish has no recipe yet, which the editor reads as "start from an empty one".
+    """
+    recipe = await StockService(session).current_recipe_for_variant(actor, variant_id)
+    return _recipe(actor, recipe)
+
+
+@router.post("/recipes", response_model=AnyRecipeResponse, status_code=status.HTTP_201_CREATED)
 async def save_recipe_version(
     actor: _ManageDep, session: SessionDep, request: RecipeVersionRequest
-) -> RecipeResponse:
+) -> AnyRecipeResponse:
     """The next version of a recipe. **The only write this table has.**
 
     Creating the first version and changing an existing one are the same call, deliberately: there
@@ -155,13 +200,13 @@ async def save_recipe_version(
     """
     recipe = await StockService(session).save_version(actor, request)
     await session.commit()
-    return RecipeResponse.model_validate(recipe)
+    return _recipe(actor, recipe)
 
 
-@router.post("/recipes/{recipe_id}/confirm", response_model=RecipeResponse)
+@router.post("/recipes/{recipe_id}/confirm", response_model=AnyRecipeResponse)
 async def confirm_recipe(
     actor: _ManageDep, session: SessionDep, recipe_id: uuid.UUID
-) -> RecipeResponse:
+) -> AnyRecipeResponse:
     """A chef saying "yes, this is what we actually make".
 
     A recipe matched from `library/` arrives unconfirmed by definition — `library/PROVENANCE.md`
@@ -170,7 +215,7 @@ async def confirm_recipe(
     """
     recipe = await StockService(session).confirm_recipe(actor, recipe_id)
     await session.commit()
-    return RecipeResponse.model_validate(recipe)
+    return _recipe(actor, recipe)
 
 
 # --------------------------------------------------------------------------- cost
@@ -220,7 +265,7 @@ async def menu_costs(actor: _CostDep, session: SessionDep) -> MenuCostResponse:
     the first thing this product can tell an owner that they did not already know, and it needs no
     orders, no history and no machine learning — only a menu and a recipe.
     """
-    rows = await StockService(session).menu_costs(actor)
+    rows, truncated = await StockService(session).menu_costs(actor)
     costed: list[Decimal] = [
         row["food_cost_percent"] for row in rows if row["food_cost_percent"] is not None
     ]
@@ -232,4 +277,5 @@ async def menu_costs(actor: _CostDep, session: SessionDep) -> MenuCostResponse:
         rows=[MenuCostRow(**row) for row in rows],
         average_food_cost_percent=average,
         uncosted=sum(1 for row in rows if not row["has_recipe"]),
+        truncated=truncated,
     )

@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { formatDelta, formatINR } from './money';
+import { formatDelta, formatINR, parseAmount } from './money';
 
 describe('formatINR', () => {
   it('groups by the Indian system, not by thousands', () => {
@@ -58,5 +58,42 @@ describe('formatDelta', () => {
   it('renders nothing at zero, because a free choice is a choice and not a price', () => {
     expect(formatDelta('0')).toBe('');
     expect(formatDelta(null)).toBe('');
+  });
+});
+
+describe('parseAmount', () => {
+  // The write path. Everything above formats for a screen and throws the number away; this one
+  // produces the string that gets stored, which is why it must never route through a float.
+  it('pads what a person typed to two places, by string surgery', () => {
+    expect(parseAmount('470')).toBe('470.00');
+    expect(parseAmount('12.5')).toBe('12.50');
+    expect(parseAmount('  99.99  ')).toBe('99.99');
+  });
+
+  it('refuses the inputs Number quietly accepts', () => {
+    // Each of these becomes a real number under `Number()`, so the old `Number(x).toFixed(2)`
+    // turned a typo into a price instead of refusing it. `""` is the dangerous one: it is 0.
+    expect(parseAmount('')).toBeNull();
+    expect(parseAmount('1e3')).toBeNull();
+    expect(parseAmount('0x10')).toBeNull();
+    expect(parseAmount('Infinity')).toBeNull();
+    expect(parseAmount('12.345')).toBeNull();
+    expect(parseAmount('rupees')).toBeNull();
+  });
+
+  it('refuses a negative price and allows a negative delta', () => {
+    // "no rice" can legitimately be a discount; a dish cannot cost less than nothing.
+    expect(parseAmount('-20')).toBeNull();
+    expect(parseAmount('-20', { allowNegative: true })).toBe('-20.00');
+  });
+
+  it('does not invent a negative zero', () => {
+    expect(parseAmount('-0', { allowNegative: true })).toBe('0.00');
+  });
+
+  it('survives the amount that motivates the whole rule', () => {
+    // 0.1 + 0.2 is the reason this file forbids arithmetic. A parse that round-tripped through a
+    // float would be free to return "1234567.89000001" here on some input; string surgery cannot.
+    expect(parseAmount('1234567.89')).toBe('1234567.89');
   });
 });

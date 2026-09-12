@@ -39,6 +39,9 @@ const DISH = {
   image_url: null,
   seq: 0,
   is_active: true,
+  // What the dish already has attached. The screen sends the whole set back on save, so this
+  // is the value that stops a save from being a silent detach.
+  modifier_group_ids: ['g-spice'],
   variants: [
     {
       id: 'v-full',
@@ -51,6 +54,40 @@ const DISH = {
       is_active: true,
     },
   ],
+};
+
+const GROUPS = {
+  items: [
+    {
+      id: 'g-spice',
+      code: 'SPICE_LEVEL',
+      name: 'Spice level',
+      min_select: 0,
+      max_select: 1,
+      is_required: false,
+      is_active: true,
+      modifiers: [{ id: 'm-mild', code: 'MILD', name: 'Mild', price_delta: '0.00', seq: 0 }],
+    },
+    {
+      id: 'g-addons',
+      code: 'ADDONS',
+      name: 'Add-ons',
+      min_select: 0,
+      max_select: 3,
+      is_required: false,
+      is_active: true,
+      modifiers: [
+        {
+          id: 'm-paneer',
+          code: 'EXTRA_PANEER',
+          name: 'Extra paneer',
+          price_delta: '30.00',
+          seq: 0,
+        },
+      ],
+    },
+  ],
+  next_cursor: null,
 };
 
 function json(body: unknown, status = 200): Response {
@@ -83,9 +120,7 @@ function renderScreen(permissions: string[]): void {
   vi.stubGlobal(
     'fetch',
     vi.fn((url: string) =>
-      Promise.resolve(
-        url.includes('modifier-groups') ? json({ items: [], next_cursor: null }) : json(DISH),
-      ),
+      Promise.resolve(url.includes('modifier-groups') ? json(GROUPS) : json(DISH)),
     ),
   );
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -159,5 +194,40 @@ describe('the dish', () => {
     renderScreen(['menu.view']);
 
     expect(await screen.findByText('₹470.00')).toBeInTheDocument();
+  });
+});
+
+describe('the options a dish carries', () => {
+  it('starts from what the dish already has, not from nothing', async () => {
+    // Attachment is a PUT of the whole set. This screen opened with every switch off, so saving
+    // any change at all detached every group the dish had — a 200, and the options were gone.
+    renderScreen(['menu.view', 'menu.manage']);
+    await screen.findByText('Butter Chicken');
+
+    expect(screen.getByRole('switch', { name: /Spice level/ })).toBeChecked();
+    expect(screen.getByRole('switch', { name: /Add-ons/ })).not.toBeChecked();
+  });
+});
+
+describe('someone who may only read the menu', () => {
+  it('is told so, once, instead of being shown forms that will be refused', async () => {
+    // A waiter holds menu.view and nothing else.
+    renderScreen(['menu.view']);
+
+    expect(await screen.findByText(/read the menu but not change it/i)).toBeInTheDocument();
+  });
+
+  it('is offered no save button anywhere on the screen', async () => {
+    renderScreen(['menu.view']);
+    await screen.findByText('Butter Chicken');
+
+    expect(screen.queryByRole('button', { name: /save/i })).not.toBeInTheDocument();
+  });
+
+  it('still sees the dish, because reading it is the job', async () => {
+    renderScreen(['menu.view']);
+
+    expect(await screen.findByText('Butter Chicken')).toBeInTheDocument();
+    expect(screen.getByText('₹470.00')).toBeInTheDocument();
   });
 });

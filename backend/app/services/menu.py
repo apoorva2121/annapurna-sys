@@ -74,6 +74,11 @@ from app.schemas.menu import (
 # is not here: it is an operational standard, not a price.
 _PRICED_FIELDS = frozenset({"price", "tax_group_id"})
 
+# The same rule for a modifier. `price_delta` is added to every order line that carries the option,
+# so "extra paneer" moving from Rs 30 to Rs 150 is a price change in every sense that matters — and
+# it was reachable with `menu.manage` and left no audit row at all until the M03/M04 review.
+_PRICED_MODIFIER_FIELDS = frozenset({"price_delta"})
+
 
 class MenuService:
     """One service for the whole menu surface. The caller owns the transaction."""
@@ -429,6 +434,12 @@ class MenuService:
     async def add_modifier(
         self, actor: Actor, group_id: uuid.UUID, request: ModifierCreateRequest
     ) -> ModifierGroup:
+        """Add an option to a group.
+
+        A non-zero `price_delta` makes this a money write, and the route requires `menu.price` for
+        exactly that reason — otherwise a `menu.manage` holder creates "Extra paneer +Rs 150" and
+        the permission boundary the P1 design drew is decoration.
+        """
         group = await self._groups(actor).get_for_update(group_id)
         if group is None:
             raise NotFoundError("modifier_group.not_found", "That modifier group does not exist.")
@@ -438,18 +449,25 @@ class MenuService:
                 "modifier.code_taken",
                 f"{group.name!r} already has a {request.code!r} option.",
             )
-        self.session.add(
-            Modifier(
-                restaurant_id=actor.restaurant_id,
-                modifier_group_id=group_id,
-                code=request.code,
-                name=request.name,
-                price_delta=request.price_delta,
-                seq=await repo.next_seq(group_id),
-                is_active=True,
-            )
+        modifier = Modifier(
+            restaurant_id=actor.restaurant_id,
+            modifier_group_id=group_id,
+            code=request.code,
+            name=request.name,
+            price_delta=request.price_delta,
+            seq=await repo.next_seq(group_id),
+            is_active=True,
         )
+        self.session.add(modifier)
         await self.session.flush()
+        if request.price_delta:
+            await self._audit(
+                actor,
+                action="modifier.priced",
+                entity_id=modifier.id,
+                old_value=None,
+                new_value={"code": modifier.code, "price_delta": modifier.price_delta},
+            )
         await self._touch(actor)
         return await self._reload_group(actor, group_id)
 
@@ -459,9 +477,25 @@ class MenuService:
         modifier = await self._modifiers(actor).get_for_update(modifier_id)
         if modifier is None:
             raise NotFoundError("modifier.not_found", "That option does not exist.")
-        for field, value in request.model_dump(exclude_unset=True).items():
+
+        changes = request.model_dump(exclude_unset=True)
+        priced = {
+            field: getattr(modifier, field) for field in changes if field in _PRICED_MODIFIER_FIELDS
+        }
+        for field, value in changes.items():
             setattr(modifier, field, value)
         await self.session.flush()
+
+        if priced and any(priced[field] != getattr(modifier, field) for field in priced):
+            # Invariant 6. A quiet change from +Rs 30 to +Rs 150 on a popular add-on leaves no
+            # other trace: the menu still reads "Extra paneer" and the bill is simply larger.
+            await self._audit(
+                actor,
+                action="modifier.repriced",
+                entity_id=modifier.id,
+                old_value=priced,
+                new_value={field: getattr(modifier, field) for field in priced},
+            )
         await self._touch(actor)
         return await self._reload_group(actor, modifier.modifier_group_id)
 
@@ -580,7 +614,7 @@ class MenuService:
                 restaurant_id=actor.restaurant_id,
                 actor_employee_id=actor.employee_id,
                 action=action,
-                entity_type="menu_item_variant",
+                entity_type="modifier" if action.startswith("modifier") else "menu_item_variant",
                 entity_id=entity_id,
                 old_value=_jsonable(old_value),
                 new_value=_jsonable(new_value),

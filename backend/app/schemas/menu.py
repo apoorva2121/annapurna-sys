@@ -105,6 +105,33 @@ class MenuItemResponse(_ReadSchema):
     variants: list[MenuItemVariantResponse]
 
 
+class MenuItemDetailResponse(MenuItemResponse):
+    """One dish, **including which option groups are attached to it**.
+
+    A separate schema rather than a field on `MenuItemResponse`, because the list route loads only
+    variants: putting the field on the base class would have every listed dish report an empty
+    attachment set it never looked for, which is a worse lie than the omission it replaces. Every
+    route that returns this one reloads through `MenuService.get_item`, which does load them.
+
+    The editor needs this to exist at all. Attachment is a `PUT` of the whole set, and the screen
+    had no way to know the current one — so it started from nothing ticked and saving *anything*
+    silently detached every group the dish already had. Found by the M03/M04 review.
+    """
+
+    # Read from the `modifier_links` rows and published under the name the editor wants. The alias
+    # is what lets the field be derived without a property on the model, which would fire
+    # `lazy="raise"` on every path that has not loaded them.
+    modifier_group_ids: list[uuid.UUID] = Field(validation_alias="modifier_links")
+
+    @field_validator("modifier_group_ids", mode="before")
+    @classmethod
+    def _from_links(cls, value: Any) -> Any:
+        """`modifier_links` are rows; the editor wants ids, in attachment order."""
+        if isinstance(value, list) and value and not isinstance(value[0], uuid.UUID):
+            return [link.modifier_group_id for link in sorted(value, key=lambda row: row.seq)]
+        return value
+
+
 class MenuItemListResponse(_Schema):
     items: list[MenuItemResponse]
     next_cursor: uuid.UUID | None = None
@@ -334,10 +361,25 @@ class ModifierGroupUpdateRequest(_Schema):
     _strip_name = field_validator("name", mode="before")(_strip)
 
 
+def _dedupe(value: Any) -> Any:
+    """Drop repeats, keep the first position of each.
+
+    `menu_item_modifier_group`'s primary key is the pair, so the same group twice was an
+    `IntegrityError` and — because that exception is unmapped — a 500. A UI that lets somebody tick
+    "Spice level" twice before saving produced it. De-duplicating is friendlier than refusing: the
+    request means exactly one thing, and it is the thing that happens.
+    """
+    if isinstance(value, list):
+        return list(dict.fromkeys(value))
+    return value
+
+
 class AttachModifierGroupsRequest(_Schema):
     """The whole attachment list, in order. A PUT, because attachment is a set and not a log."""
 
     modifier_group_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
+
+    _dedupe_ids = field_validator("modifier_group_ids", mode="before")(_dedupe)
 
 
 class BulkAttachRequest(_Schema):
@@ -350,6 +392,9 @@ class BulkAttachRequest(_Schema):
     """
 
     modifier_group_ids: list[uuid.UUID] = Field(min_length=1, max_length=50)
+
+    _dedupe_ids = field_validator("modifier_group_ids", mode="before")(_dedupe)
+
     # Replace an item's whole list, or add to it. Adding is the safer default; replacing is what
     # someone wants after deciding the category's modifiers were wrong from the start.
     replace: bool = False

@@ -173,15 +173,26 @@ class CostEngine:
             total += cost
         return Cost(total=total, lines=tuple(costed))
 
-    def check_depth_and_cycles(self, lines: Iterable[Line], *, owner_code: str) -> None:
+    def check_depth_and_cycles(
+        self, lines: Iterable[Line], *, owner_code: str, owner_is_preparation: bool
+    ) -> None:
         """Refuse a recipe that would nest too deep or contain itself, **before** it is saved.
 
         ADR 0006 asks for this in the service *and* at save time. Costing would raise the same
         errors, but only when somebody asked for a cost — which could be weeks later, and by then
         the recipe is in use.
+
+        **`owner_is_preparation` is what keeps this check honest.** The owner's code goes into the
+        chain either way, because a preparation whose recipe contains itself is a cycle and the
+        chain is how that is seen. But it must only count toward the *depth* when the owner really
+        is a preparation: a dish is not a level of nesting. Counting it made this one level stricter
+        than `cost_of` and than `seed/validate.py` — so a legitimately three-deep recipe was refused
+        at save time and would have costed perfectly well, and the seed the product ships accepted
+        what its own API rejected. Found by the M03/M04 review.
         """
+        depth = 1 if owner_is_preparation else 0
         for line in lines:
-            self._walk(line.component_id, (owner_code,))
+            self._walk(line.component_id, (owner_code,), depth=depth)
 
     # ------------------------------------------------------------------ internals
 
@@ -229,8 +240,12 @@ class CostEngine:
         self._memo[component_id] = unit
         return unit
 
-    def _walk(self, component_id: uuid.UUID, chain: tuple[str, ...]) -> None:
+    def _walk(self, component_id: uuid.UUID, chain: tuple[str, ...], *, depth: int) -> None:
         """Depth and cycle check with no arithmetic, for the save path.
+
+        `depth` is carried separately from `len(chain)` because the two count different things:
+        the chain exists to name a cycle and so includes the owner, while the depth must match what
+        `_unit_cost` counts, which is preparations only.
 
         Deliberately not memoised: the memo is keyed by component and says nothing about the chain
         that reached it, so reusing it here would skip exactly the paths this is checking.
@@ -240,10 +255,10 @@ class CostEngine:
             return
         if component.code in chain:
             raise RecipeCycleError([*chain, component.code])
-        if len(chain) >= MAX_NESTING_DEPTH:
+        if depth >= MAX_NESTING_DEPTH:
             raise RecipeTooDeepError([*chain, component.code])
         for line in self._preparation_lines.get(component_id, ()):
-            self._walk(line.component_id, (*chain, component.code))
+            self._walk(line.component_id, (*chain, component.code), depth=depth + 1)
 
 
 def food_cost_percentage(cost: Decimal, price: Decimal) -> Decimal | None:

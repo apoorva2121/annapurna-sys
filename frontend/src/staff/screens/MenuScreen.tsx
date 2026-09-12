@@ -286,9 +286,7 @@ function DishRow({ dish }: { dish: MenuItem }): ReactElement {
       <span className="font-mono text-sm tabular-nums">
         {active.length === 0
           ? strings.menu.noVariants
-          : active
-              .map((variant) => `${variant.name} ${formatINR(variant.price)}`)
-              .join('  ·  ')}
+          : active.map((variant) => `${variant.name} ${formatINR(variant.price)}`).join('  ·  ')}
       </span>
     </li>
   );

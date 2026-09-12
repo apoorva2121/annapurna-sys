@@ -28,7 +28,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit import AuditLog
-from app.models.menu import MenuCategory, MenuItem, MenuItemVariant, ModifierGroup
+from app.models.menu import (
+    MenuCategory,
+    MenuItem,
+    MenuItemModifierGroup,
+    MenuItemVariant,
+    Modifier,
+    ModifierGroup,
+)
 from app.models.setup import Station, TaxGroup, TaxRate
 from tests.helpers.queries import count_queries
 from tests.test_setup_endpoints import _auth, _token, _world
@@ -143,6 +150,14 @@ class TestTheMenuTree:
 
         small_count = sum(len(c["items"]) for c in small_response.json()["categories"])
         large_count = sum(len(c["items"]) for c in large_response.json()["categories"])
+        # The generated dishes must really carry modifier groups. An empty parent set makes
+        # SQLAlchemy skip a `selectinload` entirely, so without this the comparison below would be
+        # blind to an N+1 in the modifier leg while looking exactly as green.
+        assert all(
+            item["modifier_groups"] and item["modifier_groups"][0]["modifiers"]
+            for category in large_response.json()["categories"]
+            for item in category["items"]
+        )
         assert large_count >= 400 > small_count, (small_count, large_count)
         assert large.count == small.count, (
             f"the tree issued {small.count} queries for {small_count} dishes and "
@@ -617,11 +632,45 @@ async def _bulk_menu(
     dishes: int,
     prefix: str,
 ) -> None:
-    """`dishes` dishes across four categories, each with two variants.
+    """`dishes` dishes across four categories, each with two variants **and a modifier group**.
 
     Written straight to the session. Four hundred POSTs would turn the query-count test into a
     minutes-long test measuring the write path, which is not what it is about.
+
+    **The modifier groups are not decoration.** SQLAlchemy skips a `selectinload` whose parent set
+    is empty, so a generated menu with no attachments never issues the three statements that load
+    `menu_item_modifier_group`, `modifier_group` and `modifier` — and the headline N+1 test was
+    therefore measuring half the loader chain while claiming to measure all of it. An N+1 in the
+    modifier leg would have passed it. Found by the M03/M04 review.
     """
+    groups: list[ModifierGroup] = []
+    for index in range(2):
+        group_row = ModifierGroup(
+            restaurant_id=restaurant_id,
+            code=f"{prefix}_OPT_{index}",
+            name=f"{prefix} Options {index}",
+            min_select=0,
+            max_select=2,
+            is_required=False,
+            is_active=True,
+        )
+        session.add(group_row)
+        await session.flush()
+        for choice in range(3):
+            session.add(
+                Modifier(
+                    restaurant_id=restaurant_id,
+                    modifier_group_id=group_row.id,
+                    code=f"{prefix}_OPT_{index}_{choice}",
+                    name=f"Choice {choice}",
+                    price_delta=Decimal("0.00"),
+                    seq=choice,
+                    is_active=True,
+                )
+            )
+        groups.append(group_row)
+    await session.flush()
+
     for group in range(4):
         category = MenuCategory(
             restaurant_id=restaurant_id,
@@ -645,6 +694,13 @@ async def _bulk_menu(
             )
             session.add(item)
             await session.flush()
+            session.add(
+                MenuItemModifierGroup(
+                    menu_item_id=item.id,
+                    modifier_group_id=groups[index % len(groups)].id,
+                    seq=0,
+                )
+            )
             for variant_code, price in (("HALF", "260.00"), ("FULL", "380.00")):
                 session.add(
                     MenuItemVariant(

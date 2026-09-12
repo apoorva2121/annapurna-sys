@@ -17,6 +17,26 @@ import { strings } from '@staff/strings';
  * them they are signed in and shows them no staff navigation, which is the correct M01 behaviour
  * rather than a placeholder.
  */
+/**
+ * Everywhere this app can go, and what a person must hold to be offered it.
+ *
+ * **In one list, in route order**, because the alternative — a conditional block per screen — is
+ * how M02, M03 and M04 each shipped a screen with a route and no link to it. Every one of those
+ * was reachable only by typing a URL, which is to say not reachable at all. A missing entry here
+ * is now the same kind of visible omission as a missing route.
+ *
+ * `null` means everyone: a waiter with no permissions still has a profile.
+ */
+const links: { to: string; label: string; permission: Permission | null }[] = [
+  { to: '/staff', label: strings.nav.staff, permission: Permission.EMPLOYEE_VIEW },
+  { to: '/settings', label: strings.nav.settings, permission: Permission.RESTAURANT_CONFIGURE },
+  { to: '/menu', label: strings.nav.menu, permission: Permission.MENU_VIEW },
+  { to: '/menu/options', label: strings.nav.menuOptions, permission: Permission.MENU_VIEW },
+  { to: '/stock', label: strings.nav.stock, permission: Permission.RECIPE_VIEW },
+  { to: '/costs', label: strings.nav.costs, permission: Permission.COST_VIEW },
+  { to: '/profile', label: strings.nav.profile, permission: null },
+];
+
 export default function HomeScreen(): ReactElement {
   const { session, can } = useAuth();
   if (session === null || session === undefined) {
@@ -36,18 +56,15 @@ export default function HomeScreen(): ReactElement {
         <Notice tone="info" title={strings.home.noPermissions} />
       ) : (
         <ul className="space-y-2">
-          {can(Permission.EMPLOYEE_VIEW) && (
-            <li>
-              <Link className="text-info underline" to="/staff">
-                {strings.nav.staff}
-              </Link>
-            </li>
-          )}
-          <li>
-            <Link className="text-info underline" to="/profile">
-              {strings.nav.profile}
-            </Link>
-          </li>
+          {links
+            .filter((link) => link.permission === null || can(link.permission))
+            .map((link) => (
+              <li key={link.to}>
+                <Link className="text-info underline" to={link.to}>
+                  {link.label}
+                </Link>
+              </li>
+            ))}
         </ul>
       )}
 

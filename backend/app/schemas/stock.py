@@ -65,6 +65,17 @@ class PreparationProfileResponse(_ReadSchema):
 
 
 class StockItemResponse(_ReadSchema):
+    """A stock item **without its price**.
+
+    `recipe.view` is held by the chef, the kitchen staff and the store manager, and
+    `seed/organization.yaml` is explicit that a chef sees grams and not rupees. An earlier version
+    of this schema carried `current_unit_cost` on every read — so the whole ingredient price list
+    was one `GET /stock-items` away from anyone who could read a recipe, and the separation this
+    module called its headline did not exist. Found by the M03/M04 review.
+
+    `PricedStockItemResponse` adds the price back for a caller holding `cost.view`.
+    """
+
     id: uuid.UUID
     kind: str
     code: str
@@ -72,15 +83,27 @@ class StockItemResponse(_ReadSchema):
     base_unit: str
     category: str | None
     storage_type: str | None
-    # A cache of today's price, and never a historical answer (finding S16).
-    current_unit_cost: Decimal
     is_active: bool
     ingredient: IngredientProfileResponse | None = None
     preparation: PreparationProfileResponse | None = None
 
 
+class PricedStockItemResponse(StockItemResponse):
+    """What a `cost.view` holder sees. Today's price, never a historical answer (finding S16)."""
+
+    current_unit_cost: Decimal
+
+
+# **A union, and a subclass would not do.** The obvious version of this declared the base class and
+# relied on `PricedStockItemResponse` being a subclass — and FastAPI serialises strictly by the
+# declared type, so every price was silently filtered back out and the owner saw the chef's view.
+# Naming both, priced first, lets Pydantic's smart union keep whichever one the route actually
+# built. It also keeps the OpenAPI schema honest: the field genuinely is sometimes absent.
+AnyStockItemResponse = PricedStockItemResponse | StockItemResponse
+
+
 class StockItemListResponse(_Schema):
-    items: list[StockItemResponse]
+    items: list[AnyStockItemResponse]
     next_cursor: uuid.UUID | None = None
 
 
@@ -91,6 +114,12 @@ class RecipeLineResponse(_ReadSchema):
 
 
 class RecipeResponse(_ReadSchema):
+    """A recipe **without its cost** — grams, not rupees.
+
+    `unit_cost` used to sit here, which meant a chef saving a recipe was told what it cost in the
+    response body. Found by the M03/M04 review; `PricedRecipeResponse` carries it for `cost.view`.
+    """
+
     id: uuid.UUID
     menu_item_variant_id: uuid.UUID | None
     produces_stock_item_id: uuid.UUID | None
@@ -99,13 +128,21 @@ class RecipeResponse(_ReadSchema):
     is_current: bool
     effective_from: datetime
     notes: str | None
-    # Frozen when this version became current (finding X8). What M13 reads for a historical cost.
-    unit_cost: Decimal
     # `typed` | `seeded` | `library`. A recipe matched from the starter library carries quantities
     # nobody at this restaurant has checked — `library/PROVENANCE.md` says most of it is estimated.
     source: str
     confirmed_at: datetime | None
     lines: list[RecipeLineResponse]
+
+
+class PricedRecipeResponse(RecipeResponse):
+    """Frozen when this version became current (X8). What M13 reads for a historical cost."""
+
+    unit_cost: Decimal
+
+
+# Same union, same reason: see `AnyStockItemResponse`.
+AnyRecipeResponse = PricedRecipeResponse | RecipeResponse
 
 
 class CostedLineResponse(_Schema):
@@ -157,6 +194,9 @@ class MenuCostResponse(_Schema):
     # two numbers must not be confused.
     average_food_cost_percent: Decimal | None
     uncosted: int
+    # True when the menu is larger than one report can carry. The screen must say so: a worst-first
+    # list that quietly stopped would hide the dish it exists to surface.
+    truncated: bool = False
 
 
 class UsedByResponse(_Schema):
@@ -166,7 +206,7 @@ class UsedByResponse(_Schema):
     screen showing only the direct consumers answers the wrong question.
     """
 
-    preparations: list[StockItemResponse]
+    preparations: list[AnyStockItemResponse]
     dishes: list[uuid.UUID]
     dish_names: list[str]
 

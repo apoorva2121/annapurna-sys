@@ -333,9 +333,27 @@ async def _attachments(
     reconciling against every exception forever.
     """
     for record in records:
-        wanted = [groups[code] for code in record.get("groups", []) if code in groups]
+        # **Refused, not skipped.** Both of these used to filter silently: an unknown group code was
+        # dropped by `if code in groups`, and an unknown category matched no dishes and expanded to
+        # nothing. Either way the seed reported success and the demo restaurant came up with dishes
+        # that quietly had no options — the failure a person only notices while taking an order.
+        # Every other reference in this module raises; these two were the exception.
+        unknown_groups = [code for code in record.get("groups", []) if code not in groups]
+        if unknown_groups:
+            raise MissingSeedReferenceError(
+                f"operations.yaml attaches modifier groups {unknown_groups} that do not exist."
+            )
+        unknown_categories = [
+            code for code in record.get("categories", []) if code not in counts.by_category
+        ]
+        if unknown_categories:
+            raise MissingSeedReferenceError(
+                f"operations.yaml attaches options to categories {unknown_categories}, "
+                "which the menu does not define."
+            )
+        wanted = [groups[code] for code in record.get("groups", [])]
         for category_code in record.get("categories", []):
-            for item in counts.by_category.get(category_code, []):
+            for item in counts.by_category[category_code]:
                 present = {
                     link.modifier_group_id
                     for link in await session.scalars(

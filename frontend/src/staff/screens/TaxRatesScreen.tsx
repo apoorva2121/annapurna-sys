@@ -89,7 +89,9 @@ function TaxGroupCard({ group, today }: { group: TaxGroup; today: string }): Rea
           <p className="font-mono text-xs text-muted-foreground">{group.code}</p>
         </div>
         <p className="text-right">
-          <span className="font-mono text-2xl">{live === undefined ? '—' : asPercent(live.rate)}</span>
+          <span className="font-mono text-2xl">
+            {live === undefined ? '—' : asPercent(live.rate)}
+          </span>
           <span className="ml-2 text-sm text-muted-foreground">
             {live === undefined ? strings.setup.tax.noRates : strings.setup.tax.current}
           </span>
@@ -243,11 +245,7 @@ function AddTaxRate({
       </div>
 
       <div className="flex items-center gap-2">
-        <Switch
-          id={`inclusive-${group.id}`}
-          checked={inclusive}
-          onCheckedChange={setInclusive}
-        />
+        <Switch id={`inclusive-${group.id}`} checked={inclusive} onCheckedChange={setInclusive} />
         <Label htmlFor={`inclusive-${group.id}`}>{strings.setup.tax.inclusive}</Label>
       </div>
 
@@ -353,10 +351,7 @@ function AddTaxGroup({ today }: { today: string }): ReactElement {
 
       {create.isError && <Notice tone="critical" {...errorProps(create.error)} />}
 
-      <Button
-        type="submit"
-        disabled={create.isPending || name.trim() === '' || code.trim() === ''}
-      >
+      <Button type="submit" disabled={create.isPending || name.trim() === '' || code.trim() === ''}>
         {create.isPending ? strings.setup.floor.creating : strings.setup.tax.add}
       </Button>
     </form>

@@ -1,6 +1,9 @@
 # M04 · Stock Items & Recipes — Module Spec
 
-**Status:** **DRAFT — one open decision (S15) needs your answer; everything else is decided.**
+**Status:** **APPROVED.** S15 was the one open question and it is answered: **(a)**, keep the
+arithmetic and fix the ambiguity in the data. `docs/schema.md` §4 now carries the defining sentence.
+Every golden figure stands as `docs/modules.md` names it — Butter Chicken Full ₹126.70, makhani
+gravy ₹0.1489/ml, weighted food cost 25.6%.
 **Estimate:** 5 days · **Depends on:** M03 (built; manual pass pending)
 `docs/modules.md` calls this "the heart of the product. Everything commercially interesting depends
 on this being right."
@@ -194,9 +197,11 @@ like M03's join table, its parent carries one — and the service checks both si
 
 ---
 
-## Open decision — S15, and I think the audit's prescribed fix is wrong
+## S15 — answered: (a)
 
-**This is the only thing I want your answer on. Everything else in this spec I have decided.**
+**Answered.** Option (a): the arithmetic stays, and `docs/schema.md` §4 gained the sentence that
+removes the ambiguity. The reasoning below is kept as the record of why, because the number it
+protects is the product's headline food cost and a future reader will want to know it was a choice.
 
 `docs/audit/remediation-plan.md` assigns M04: *"S15 `yield_factor` on `unit`-based ingredients
 (`EGG 0.88`, `LEMON 0.90`) inflates cost by count → yield applies to weight only."*
@@ -233,13 +238,10 @@ second reading double-counts.
 | Golden tests | pass as `docs/modules.md` specifies them | every golden figure has to be recomputed and the module's headline test rewritten against numbers nobody has validated |
 | Cost | one doc sentence | a coordinated edit across `seed/validate.py`, the service, the seed docs and the audit plan |
 
-If you pick (b) I will implement it and recompute the goldens — but I would be changing the
-product's headline food-cost figure on a finding I think is mistaken, while you are away, and that
-is not a thing to do quietly.
-
-**Until you answer, I am building (a)** — which is the status quo, so the code is identical either
-way except for one doc sentence, and the golden tests are the ones `docs/modules.md` already names.
-Switching to (b) later costs the recomputation and nothing else.
+(b) would have meant changing the product's headline food-cost figure on a finding I think is
+mistaken. **(a) was chosen**, so the code is the status quo, the one doc sentence is written, and
+the golden tests are the ones `docs/modules.md` already names. Switching to (b) later would cost the
+recomputation and nothing else.
 
 ## Decisions I have made
 

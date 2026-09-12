@@ -30,6 +30,13 @@ export const strings = {
     profile: 'Your profile',
     signOut: 'Sign out',
     signingOut: 'Signing out…',
+    // M02-M04 shipped their screens behind routes and nothing linked to them, so every one was
+    // reachable only by typing a URL. Found by the M03/M04 review.
+    settings: 'Restaurant settings',
+    menu: 'Menu',
+    menuOptions: 'Options and add-ons',
+    stock: 'Ingredients and recipes',
+    costs: 'Dish costs',
   },
 
   home: {
@@ -202,7 +209,8 @@ export const strings = {
       addGroupHint:
         'A tax group is a class of item — restaurant food, packaged goods. Menu items point at the group, so changing what it charges later never means re-tagging the menu.',
       code: 'Code',
-      codeHint: 'Permanent, e.g. GST5. Menu items and recipes join on it, so it cannot change later.',
+      codeHint:
+        'Permanent, e.g. GST5. Menu items and recipes join on it, so it cannot change later.',
       name: 'Name',
       rate: 'Rate',
       ratePercent: 'Percent',
@@ -268,6 +276,9 @@ export const strings = {
     addVariant: 'Add a variant',
     priceLocked:
       'Changing a price needs the menu.price permission, which is the owner’s. You can change everything else about this dish.',
+    // A waiter holds menu.view and nothing more. The form used to render for them and 403 on
+    // submit, which reads as a broken product rather than as a boundary in it.
+    readOnly: 'You can read the menu but not change it. Ask a manager to make an edit.',
     deactivate: 'Deactivate',
     reactivate: 'Reactivate',
     modifiersTitle: 'Options asked about this dish',
@@ -283,7 +294,8 @@ export const strings = {
     addOption: 'Add an option',
     optionName: 'Option name',
     priceDelta: 'Price change',
-    priceDeltaHint: 'Leave at 0 for a free choice. Negative is allowed — "no rice" can be a discount.',
+    priceDeltaHint:
+      'Leave at 0 for a free choice. Negative is allowed — "no rice" can be a discount.',
     applyToCategory: 'Apply to every dish in a section',
     applyToCategoryHint:
       'The menu stores options per dish, so one dish can opt out. This applies them in bulk.',
@@ -308,6 +320,7 @@ export const strings = {
     high: 'High',
     noRecipe: 'No recipe',
     unconfirmed: 'Unconfirmed recipe',
+    openRecipe: 'Recipe',
     showBreakdown: 'Breakdown',
     hideBreakdown: 'Hide',
     breakdown: 'Breakdown',
@@ -335,6 +348,36 @@ export const strings = {
     usedByPreparations: 'Preparations',
     usedByDishes: 'Dishes',
     close: 'Close',
+  },
+
+  recipe: {
+    title: 'Recipe',
+    // The chef's screen. Grams, never rupees — `seed/organization.yaml` is explicit that a chef
+    // holds `recipe.manage` and not `cost.view`, so nothing here shows a price.
+    intro:
+      'What goes into one portion, in the unit each item is stored in. Saving makes a new version; past orders keep the version they were costed against.',
+    empty: 'No recipe yet. Add the first ingredient below.',
+    component: 'Ingredient or preparation',
+    quantity: 'Quantity',
+    addLine: 'Add',
+    removeLine: 'Remove',
+    notes: 'Notes for the kitchen',
+    save: 'Save this recipe',
+    saving: 'Saving…',
+    saved: 'Saved as version',
+    version: (n: number) => `Version ${String(n)}`,
+    unconfirmed: 'Nobody has checked these quantities',
+    unconfirmedWhy:
+      'This recipe came from the starter library, which is mostly estimated. Confirm it once a chef has weighed a real portion — until then every cost computed from it is a proposal.',
+    confirm: 'Confirm these quantities',
+    confirming: 'Confirming…',
+    confirmed: 'Confirmed by a chef',
+    readOnly: 'You can read recipes but not change them. A chef holds recipe.manage.',
+    duplicate: 'That item is already on the recipe. Change its quantity instead.',
+    needsLines: 'A recipe needs at least one ingredient.',
+    noQuantity: 'Enter a quantity greater than zero.',
+    pickOne: 'Choose an ingredient or preparation.',
+    chooseComponent: 'Choose…',
   },
 
   errors: {

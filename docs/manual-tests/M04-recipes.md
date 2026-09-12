@@ -80,7 +80,7 @@ nobody wanted. If Butter Chicken is missing here, the walk is broken.
 | # | Step | Expect |
 |---|---|---|
 | D1 | Open **Jeera Rice**'s cost breakdown, note the figure | Around ₹42 |
-| D2 | Through the API, `POST /api/v1/staff/recipes` with that variant and a larger ghee quantity | 201, `version: 2` |
+| D2 | Open the **Recipe** link on that row, raise the ghee quantity, **Save this recipe** | Saves, and the version number above the table goes up by one |
 | D3 | Re-open the cost | It has moved |
 | D4 | `GET /api/v1/staff/recipes/{the version-1 id}` | Still there, `is_current: false`, **its lines unchanged** |
 
@@ -96,8 +96,10 @@ oversight, it is the design.
 |---|---|---|
 | E1 | Sign in as **manager**, open **Dish costs** | Works. A manager sees margins |
 | E2 | Sign in as **chef** (`chef@spicegarden.test`), try `/costs` | **Refused.** The chef sees no rupees anywhere |
-| E3 | As the chef, open **Ingredients & preparations** | Works — grams, shelf lives, batch yields |
+| E3 | As the chef, open **Ingredients & preparations** | Works — grams, shelf lives, batch yields. **There is no cost column at all**, not a column of dashes |
 | E4 | As the **manager**, try `POST /api/v1/staff/recipes` | **403.** A manager may read a recipe and not change it |
+| E5 | As the chef, open any dish's **Recipe** | Works, and shows not one rupee figure anywhere on the page |
+| E6 | Sign in as **kitchen staff**, open the same recipe | Readable, and every save and remove control is gone — with a sentence saying why |
 
 **This split is from your own P1 design**, not my invention. `seed/organization.yaml` says it in a
 comment on the chef role: *"NOT granted: any price, cost or financial permission. A chef sees grams,
@@ -107,6 +109,25 @@ So the person who writes the recipe cannot see the margin, and the person who se
 cannot change the recipe that produces it. **Is that separation right for a restaurant you know?**
 It is a real constraint on a small kitchen where the chef and the manager may be the same
 conversation, and I would rather hear now than after the pilot.
+
+---
+
+## E2 · The recipe editor — *new, and the screen M04 first shipped without*
+
+| # | Step | Expect |
+|---|---|---|
+| R1 | As the **chef**, open **Dish costs** → any row → **Recipe** | The lines, each with its own unit beside the number |
+| R2 | On a dish matched from the library | "Nobody has checked these quantities", with the reason |
+| R3 | Press **Confirm these quantities** | The banner becomes "Confirmed by a chef" and the button goes |
+| R4 | Add the same ingredient that is already on the recipe | Refused, in a sentence, **before** anything is sent |
+| R5 | Add an ingredient with quantity `0` | Refused the same way |
+| R6 | Remove every line and save | "A recipe needs at least one ingredient" — nothing is sent |
+| R7 | Open a dish that has never had a recipe | "No recipe yet", an empty table, and the add row ready |
+
+**R7 is the one worth dwelling on.** A dish with *no* recipe and a dish with an *empty* recipe are
+different things: the first is uncosted and the second costs nothing to make. The cost screen's
+whole honesty rests on never confusing them, so the editor opens empty rather than inventing a
+zero-line recipe.
 
 ---
 
@@ -129,18 +150,24 @@ conversation, and I would rather hear now than after the pilot.
   load into; the matching flow — *"your menu has Butter Chicken, here's a standard recipe"* — is an
   onboarding screen, and designing onboarding before one restaurant has been onboarded is guessing.
   `recipe.source` and `recipe.confirmed_at` ship here so that flow has somewhere to land.
-- **No recipe editor screen.** The API is complete and tested; the editor UI is deferred, because
-  ADR 0006 asks it to "make it visually obvious when a line is a preparation vs a raw ingredient"
-  and that deserves a design pass rather than a table. Backlogged. The seed and the API cover every
-  recipe path meanwhile.
+- **The recipe editor now exists** — section E2 above. It was deferred on the grounds that ADR 0006
+  asks it to "make it visually obvious when a line is a preparation vs a raw ingredient" and that
+  deserved a design pass; the M03/M04 review pointed out that deferring it left a chef with no way
+  to write a recipe at all, which is the module's own headline. The obviousness ADR 0006 asks for is
+  a word beside every line saying *Bought in* or *Made here*, and the unit beside every number.
+  Re-read that pair with a real kitchen in mind — it is the part most likely to be not quite enough.
 - **`stock_item.current_unit_cost` is today's price, not history.** Finding S16 flags reading it for
   a past order; `recipe.unit_cost` is frozen per version for exactly that.
 - **No stock movements, batches or counts.** M05.
 
-## Known, and not yet decided — *please read this one*
+## S15 — answered, and here is the arithmetic behind the answer
 
-**Finding S15 says `yield_factor` should not apply to counted ingredients, and I think that is
-wrong.** The audit's example is `EGG 0.88` and `LEMON 0.90`.
+**You chose (a): the arithmetic stays.** `docs/schema.md` §4 now carries the sentence that removes
+the ambiguity, and every golden figure stands. The reasoning is kept because the number it protects
+is the one the pitch quotes.
+
+The finding said `yield_factor` should not apply to counted ingredients. Its example is `EGG 0.88`
+and `LEMON 0.90`.
 
 A recipe needing 3 eggs, priced ₹7 each:
 
@@ -158,6 +185,4 @@ double-counts.
 moves the weighted food cost off 25.6% — the figures `docs/modules.md` names as this module's
 golden tests, and the number the pitch quotes.
 
-I have built the status quo and left the decision to you, because changing the product's headline
-food-cost figure on a finding I believe is mistaken, while you were away, is not a thing to do
-quietly. Switching later costs only the recomputation.
+The status quo is what shipped. Switching later would cost only the recomputation.

@@ -39,8 +39,8 @@ Legend: **S**pec approved · **M**igration · **B**ackend · **T**ests green · 
 | M00 Foundation | 1d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] |
 | M01 Identity, Roles & Permissions | 3d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [x] | [ ] | [ ] |
 | M02 Restaurant Setup | 2d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [ ] |
-| M03 Menu | 4d | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [x] | [ ] | [ ] |
-| M04 Stock Items & Recipes | 5d | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [x] | [ ] | [ ] |
+| M03 Menu | 4d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [ ] |
+| M04 Stock Items & Recipes | 5d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [ ] |
 | M05 Inventory Ledger | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M06 Procurement `[1.5]` | 3d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M07 Orders / POS | 6d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |

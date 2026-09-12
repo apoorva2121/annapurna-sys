@@ -275,7 +275,7 @@ async def _recipes(
         )
         session.add(recipe)
         await session.flush()
-        _add_lines(session, recipe.id, record["lines"], items, "qty", str(record["code"]))
+        _add_lines(session, recipe, record["lines"], items, "qty", str(record["code"]))
         created += 1
 
     variants = {
@@ -322,7 +322,7 @@ async def _recipes(
             await session.flush()
             _add_lines(
                 session,
-                recipe.id,
+                recipe,
                 variant_record["recipe"],
                 items,
                 "qty",
@@ -385,7 +385,7 @@ async def _freeze_costs(session: AsyncSession, restaurant_id: Any) -> None:
 
 def _add_lines(
     session: AsyncSession,
-    recipe_id: Any,
+    recipe: Recipe,
     records: list[dict[str, Any]],
     items: dict[str, StockItem],
     quantity_key: str,
@@ -406,7 +406,11 @@ def _add_lines(
     for seq, (ref, quantity) in enumerate(combined.items()):
         session.add(
             RecipeLine(
-                recipe_id=recipe_id,
+                # Taken from the recipe rather than from the component, which is the whole point of
+                # the column: the composite foreign keys then refuse any component that does not
+                # share it. Passing the whole recipe instead of its id is what makes that automatic.
+                restaurant_id=recipe.restaurant_id,
+                recipe_id=recipe.id,
                 component_id=items[ref].id,
                 quantity=quantity,
                 seq=seq,

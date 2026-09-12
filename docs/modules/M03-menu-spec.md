@@ -144,18 +144,32 @@ a question the order table already answers.
 
 ### Permissions
 
-Two new codes in `backend/app/core/permissions.json`, which forces a migration by the catalogue
+Three new codes in `backend/app/core/permissions.json`, which forces a migration by the catalogue
 fingerprint (M02's `CATALOGUE_FINGERPRINT` mechanism — expected, not a surprise).
+
+> **Revised during chunk C, from two codes to three.** This section originally proposed a binary
+> `menu.view` / `menu.edit`, owner and admin only. `seed/organization.yaml`'s P1 design — written
+> long before this module — already answered the question better, and the catalogue test refused
+> `menu.edit` for appearing nowhere in it. Revision 2 at the foot of this document has the full
+> argument. The table below is what shipped.
 
 | Code | Held by | Why the split |
 |---|---|---|
 | `menu.view` | every staff role | A waiter cannot take an order without reading the menu |
-| `menu.edit` | owner, admin | Creating dishes, setting prices, attaching tax. This is a money path |
+| `menu.manage` | owner, manager | Names, descriptions, categories, which options a dish asks about. An ordinary Tuesday |
+| `menu.price` | owner | Every price: a variant's, and a modifier's `price_delta`. The money path |
 
-A manager is deliberately excluded from `menu.edit`. A manager running a shift does not reprice the
-menu, for the same reason M02 kept them off `restaurant.configure`. The daily thing a manager
-*actually* needs — taking a dish off tonight — is the gap named under *Known gaps*, and giving them
-`menu.edit` as a workaround would hand them repricing to solve an availability problem.
+A manager holds `menu.manage` and is deliberately excluded from `menu.price`. A manager fixing a
+dish name or adding Friday's special is routine; a manager quietly raising a price and pocketing the
+difference on cash orders is the threat this spec's own table names. A binary permission cannot
+separate those — it either hands over the money path or stops the manager working.
+
+`admin` gets `menu.view` only: admin is roles and access, not the menu.
+
+**A modifier's `price_delta` is behind `menu.price` too**, and that took the M03/M04 review to
+notice. It sat behind `menu.manage` and wrote no audit row, so "Extra paneer +₹150" was reachable by
+exactly the person this split exists to stop, leaving no trace — the same threat, through a door
+nobody had checked.
 
 ### Frontend — the menu manager
 
@@ -238,7 +252,7 @@ refused — because the repository base class cannot catch this one for us.
 
 | Attack | Control |
 |---|---|
-| **A manager quietly raises a price**, takes the difference in cash, and the bill still looks right | `menu.edit` is owner/admin only. Every price change writes `audit_log` with before/after and an actor (invariant 6) |
+| **A manager quietly raises a price**, takes the difference in cash, and the bill still looks right | `menu.price` is the owner's; the manager holds `menu.manage` and can shape everything except the money. Every price change writes `audit_log` with before/after and an actor (invariant 6) — including a modifier's `price_delta`, which was the half this control missed until the M03/M04 review |
 | **A dish is pointed at a lower tax group** so less GST is remitted while the customer pays the same | Tax reference is constrained to that restaurant's groups, change is audited, and `order_line` copies the rate at order time so the discrepancy is visible in the books rather than absorbed |
 | Someone **renames a dish's `code`** so it no longer matches its recipe, breaking cost tracking while sales continue | `code` is immutable after creation. Not a permission — a schema-level refusal |
 | A dish is **deactivated mid-service** with open order lines pointing at it | Deactivation never deletes; M07 owns the open-order refusal and M03 leaves the check point, exactly as M02 did for tables |
@@ -274,7 +288,7 @@ The end-of-module adversarial review is a separate ask — it is where I would w
 5. A price is stored and returned as `Decimal`, never a float, and rendered `₹1,23,456.00`
 6. `menu_item.code` cannot be changed after creation — refused at the API, asserted by test
 7. Attaching a modifier group belonging to another restaurant is refused
-8. A manager receives 403 on every `menu.edit` route and 200 on every `menu.view` route
+8. A manager receives 403 on every `menu.price` route, 200 on every `menu.manage` route, and 200 on every `menu.view` route
 9. Deactivating a category does not delete it, and its items remain resolvable
 10. Every dish in `seed/menu.yaml` loads with its variants, prices and modifier attachments
 11. Every new route declares a permission and passes the four generic suites unmodified
@@ -357,14 +371,15 @@ The half-day is real and I would rather spend it before three modules are built 
 If you pick (b), I will build it as specified and the backlog rows stay open — that is a legitimate
 choice, and the cost is a known manual step at the first rate change, not a bug.
 
-### 2 · Does a manager hold `menu.edit`?
+### 2 · Does a manager hold `menu.edit`? — **answered by the design, not by me**
 
-My recommendation: **no** — owner and admin only, matching `restaurant.configure`. Pricing is a
-money path. The manager's real daily need is tonight-only availability, which is the *Known gaps*
-item, and handing them full menu editing as a workaround is the wrong trade.
+My recommendation was **no** — owner and admin only, matching `restaurant.configure`, because
+pricing is a money path.
 
-Say if managers at a real restaurant you know would expect to edit the menu, because that is
-evidence and my reasoning is inference.
+`seed/organization.yaml` had already answered better, and revision 2 below records the correction:
+the question is not whether a manager may touch the menu but *which part*. A manager holds
+`menu.manage` and is denied `menu.price` by name. That gives them Friday's special and the dish
+rename without giving them the till.
 
 ### 3 · Does `GET /menu` serve the guest bundle too?
 

@@ -36,6 +36,7 @@ from app.schemas.menu import (
     MenuCategoryResponse,
     MenuCategoryUpdateRequest,
     MenuItemCreateRequest,
+    MenuItemDetailResponse,
     MenuItemListResponse,
     MenuItemResponse,
     MenuItemUpdateRequest,
@@ -163,16 +164,20 @@ async def list_items(
     return MenuItemListResponse(items=items, next_cursor=_next_cursor(list(rows), limit))
 
 
-@router.get("/menu/items/{item_id}", response_model=MenuItemResponse)
-async def get_item(actor: _ViewDep, session: SessionDep, item_id: uuid.UUID) -> MenuItemResponse:
+@router.get("/menu/items/{item_id}", response_model=MenuItemDetailResponse)
+async def get_item(
+    actor: _ViewDep, session: SessionDep, item_id: uuid.UUID
+) -> MenuItemDetailResponse:
     item = await MenuService(session).get_item(actor, item_id)
-    return MenuItemResponse.model_validate(item)
+    return MenuItemDetailResponse.model_validate(item)
 
 
-@router.post("/menu/items", response_model=MenuItemResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/menu/items", response_model=MenuItemDetailResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_item(
     actor: _PriceDep, session: SessionDep, request: MenuItemCreateRequest
-) -> MenuItemResponse:
+) -> MenuItemDetailResponse:
     """A dish and the variants it is sold as.
 
     **`menu.price`, not `menu.manage`**, because the request may carry variants and a variant
@@ -181,22 +186,22 @@ async def create_item(
     """
     item = await MenuService(session).create_item(actor, request)
     await session.commit()
-    return MenuItemResponse.model_validate(item)
+    return MenuItemDetailResponse.model_validate(item)
 
 
-@router.patch("/menu/items/{item_id}", response_model=MenuItemResponse)
+@router.patch("/menu/items/{item_id}", response_model=MenuItemDetailResponse)
 async def update_item(
     actor: _ManageDep, session: SessionDep, item_id: uuid.UUID, request: MenuItemUpdateRequest
-) -> MenuItemResponse:
+) -> MenuItemDetailResponse:
     """Everything about a dish except its code and its price. A manager holds this."""
     item = await MenuService(session).update_item(actor, item_id, request)
     await session.commit()
-    return MenuItemResponse.model_validate(item)
+    return MenuItemDetailResponse.model_validate(item)
 
 
 @router.post(
     "/menu/items/{item_id}/variants",
-    response_model=MenuItemResponse,
+    response_model=MenuItemDetailResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def add_variant(
@@ -204,19 +209,19 @@ async def add_variant(
     session: SessionDep,
     item_id: uuid.UUID,
     request: MenuItemVariantCreateRequest,
-) -> MenuItemResponse:
+) -> MenuItemDetailResponse:
     item = await MenuService(session).add_variant(actor, item_id, request)
     await session.commit()
-    return MenuItemResponse.model_validate(item)
+    return MenuItemDetailResponse.model_validate(item)
 
 
-@router.patch("/menu/variants/{variant_id}", response_model=MenuItemResponse)
+@router.patch("/menu/variants/{variant_id}", response_model=MenuItemDetailResponse)
 async def update_variant(
     actor: _PriceDep,
     session: SessionDep,
     variant_id: uuid.UUID,
     request: MenuItemVariantUpdateRequest,
-) -> MenuItemResponse:
+) -> MenuItemDetailResponse:
     """A reprice writes an `audit_log` row with before and after (CLAUDE.md invariant 6).
 
     Returns the whole dish, because the thing a person needs to see after changing one variant's
@@ -225,7 +230,7 @@ async def update_variant(
     """
     item = await MenuService(session).update_variant(actor, variant_id, request)
     await session.commit()
-    return MenuItemResponse.model_validate(item)
+    return MenuItemDetailResponse.model_validate(item)
 
 
 # --------------------------------------------------------------------------- modifiers
@@ -274,8 +279,14 @@ async def update_modifier_group(
     status_code=status.HTTP_201_CREATED,
 )
 async def add_modifier(
-    actor: _ManageDep, session: SessionDep, group_id: uuid.UUID, request: ModifierCreateRequest
+    actor: _PriceDep, session: SessionDep, group_id: uuid.UUID, request: ModifierCreateRequest
 ) -> ModifierGroupResponse:
+    """**`menu.price`, not `menu.manage`.**
+
+    `price_delta` is money: M07 adds it to every order line carrying the option. A `menu.manage`
+    holder creating "Extra paneer +Rs 150" would walk around the boundary the P1 design drew, in
+    exactly the way `POST /menu/items` already guards against. Found by the M03/M04 review.
+    """
     group = await MenuService(session).add_modifier(actor, group_id, request)
     await session.commit()
     return ModifierGroupResponse.model_validate(group)
@@ -283,27 +294,28 @@ async def add_modifier(
 
 @router.patch("/menu/modifiers/{modifier_id}", response_model=ModifierGroupResponse)
 async def update_modifier(
-    actor: _ManageDep,
+    actor: _PriceDep,
     session: SessionDep,
     modifier_id: uuid.UUID,
     request: ModifierUpdateRequest,
 ) -> ModifierGroupResponse:
+    """`menu.price`, for the same reason as above. A reprice writes an `audit_log` row."""
     group = await MenuService(session).update_modifier(actor, modifier_id, request)
     await session.commit()
     return ModifierGroupResponse.model_validate(group)
 
 
-@router.put("/menu/items/{item_id}/modifier-groups", response_model=MenuItemResponse)
+@router.put("/menu/items/{item_id}/modifier-groups", response_model=MenuItemDetailResponse)
 async def attach_modifier_groups(
     actor: _ManageDep,
     session: SessionDep,
     item_id: uuid.UUID,
     request: AttachModifierGroupsRequest,
-) -> MenuItemResponse:
+) -> MenuItemDetailResponse:
     """The whole list, in order. `PUT` because attachment is a set, not a log."""
     item = await MenuService(session).attach_modifier_groups(actor, item_id, request)
     await session.commit()
-    return MenuItemResponse.model_validate(item)
+    return MenuItemDetailResponse.model_validate(item)
 
 
 @router.post("/menu/categories/{category_id}/modifier-groups", response_model=dict[str, int])

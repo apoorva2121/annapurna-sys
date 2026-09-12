@@ -289,8 +289,36 @@ class TestRefusals:
 
         with pytest.raises(RecipeTooDeepError):
             engine.check_depth_and_cycles(
-                [Line(component_id=ids.of("A"), quantity=Decimal("1"))], owner_code="DISH"
+                [Line(component_id=ids.of("A"), quantity=Decimal("1"))],
+                owner_code="DISH",
+                owner_is_preparation=False,
             )
+
+    def test_the_save_time_check_allows_what_costing_allows(self) -> None:
+        """**The other direction, and the one that was wrong.**
+
+        The save-time walk seeds its chain with the owner's code — needed to catch a preparation
+        that contains itself — and then counted that code toward the depth. So it refused at three
+        what `unit_cost` and `seed/validate.py` both allow at three: a dish made of a gravy made of
+        a paste made of a spice mix, which is an ordinary Indian recipe and ships in the seed.
+        Found by the M03/M04 review.
+        """
+        engine, ids = self._engine({"A": ["B"], "B": ["C"], "C": ["RAW"]})
+        lines = [Line(component_id=ids.of("A"), quantity=Decimal("1"))]
+
+        # Costing accepts it, so saving must.
+        assert engine.cost_of(lines).total > 0
+        engine.check_depth_and_cycles(lines, owner_code="DISH", owner_is_preparation=False)
+
+    def test_a_preparation_owner_counts_as_a_level_and_a_dish_does_not(self) -> None:
+        """Which is the whole reason the flag exists. Costing reaches a preparation's components
+        one level down from the preparation; a dish's components are the top. Saving has to count
+        the same way or the two disagree again, in the other direction."""
+        engine, ids = self._engine({"A": ["B"], "B": ["C"], "C": ["RAW"]})
+        lines = [Line(component_id=ids.of("A"), quantity=Decimal("1"))]
+
+        with pytest.raises(RecipeTooDeepError):
+            engine.check_depth_and_cycles(lines, owner_code="PREP_OWNER", owner_is_preparation=True)
 
 
 class TestFoodCostPercentage:

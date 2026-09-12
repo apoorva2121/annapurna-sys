@@ -2,6 +2,8 @@ import { type ReactElement, useState } from 'react';
 
 import { formatINR } from '@shared/money';
 import { Button } from '@shared/ui/button';
+import { Link } from 'react-router-dom';
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@shared/ui/table';
 import { QueryState } from '@staff/components/QueryState';
 import { strings } from '@staff/strings';
@@ -90,10 +92,7 @@ function Summary({
 }): ReactElement {
   return (
     <div className="flex flex-wrap gap-6 rounded-md border p-page">
-      <Figure
-        label={strings.cost.averageFoodCost}
-        value={average === null ? '—' : `${average}%`}
-      />
+      <Figure label={strings.cost.averageFoodCost} value={average === null ? '—' : `${average}%`} />
       <Figure label={strings.cost.dishesCosted} value={String(dishes)} />
       <Figure
         label={strings.cost.uncosted}
@@ -116,9 +115,7 @@ function Figure({
   return (
     <div>
       <p className="text-sm text-muted-foreground">{label}</p>
-      <p
-        className={`font-mono text-2xl tabular-nums ${tone === 'warning' ? 'text-warning' : ''}`}
-      >
+      <p className={`font-mono text-2xl tabular-nums ${tone === 'warning' ? 'text-warning' : ''}`}>
         {value}
       </p>
     </div>
@@ -160,9 +157,7 @@ function CostRow({
             </span>
           )}
         </TableCell>
-        <TableCell className="text-right font-mono tabular-nums">
-          {formatINR(row.price)}
-        </TableCell>
+        <TableCell className="text-right font-mono tabular-nums">{formatINR(row.price)}</TableCell>
         <TableCell className="text-right font-mono tabular-nums">
           {row.has_recipe ? formatINR(row.cost) : '—'}
         </TableCell>
@@ -173,11 +168,22 @@ function CostRow({
           {row.has_recipe ? formatINR(row.margin) : '—'}
         </TableCell>
         <TableCell>
-          {row.has_recipe && (
-            <Button variant="ghost" onClick={onToggle} aria-expanded={isOpen}>
-              {isOpen ? strings.cost.hideBreakdown : strings.cost.showBreakdown}
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {row.has_recipe && (
+              <Button variant="ghost" onClick={onToggle} aria-expanded={isOpen}>
+                {isOpen ? strings.cost.hideBreakdown : strings.cost.showBreakdown}
+              </Button>
+            )}
+            {/* The one action this screen should offer. An owner reading a worst-first margin list
+                wants to change the dish that is losing money, and the recipe is where that starts —
+                a dish with no recipe most of all, which is why the link is not conditional. */}
+            <Link
+              className="self-center text-info underline"
+              to={`/recipes/${row.menu_item_variant_id}`}
+            >
+              {strings.cost.openRecipe}
+            </Link>
+          </div>
         </TableCell>
       </TableRow>
       {isOpen && <BreakdownRow variantId={row.menu_item_variant_id} />}
@@ -193,8 +199,7 @@ function FoodCost({ percent, isHigh }: { percent: number | null; isHigh: boolean
   }
   return (
     <>
-      {percent}%
-      {/* Colour is not the only signal (restaurant-ui rule 5) — "high" is a word. */}
+      {percent}%{/* Colour is not the only signal (restaurant-ui rule 5) — "high" is a word. */}
       {isHigh && (
         <span className="ml-2 rounded-sm bg-critical-soft px-1.5 py-0.5 text-xs text-critical">
           {strings.cost.high}

@@ -178,6 +178,7 @@ its group" a database guarantee rather than a service convention.
 ```
 menu_category
   restaurant_id, name NN, seq smallint NN, is_active
+  code                text NN                    -- UQ (restaurant_id, code)
 
 menu_item
   restaurant_id, menu_category_id NN FK→menu_category
@@ -187,8 +188,10 @@ menu_item
   food_type           text NN check(veg|non_veg|egg)   -- legally required in India
   station_id          uuid NN FK→station         -- routing: which KOT printer/screen
   image_url           text
+  seq                 smallint NN default 0      -- the order a category's dishes are listed in
   is_active
   IX (restaurant_id, menu_category_id, is_active)
+  IX (menu_category_id, is_active)               -- selectinload keys on this alone; no skip-scan
 
 menu_item_variant                                -- Half/Full/Per-piece. PRICE LIVES HERE.
   restaurant_id, menu_item_id NN FK→menu_item
@@ -197,28 +200,54 @@ menu_item_variant                                -- Half/Full/Per-piece. PRICE L
   price               numeric(12,2) NN
   tax_group_id        uuid NN FK→tax_group
   prep_minutes        smallint NN                -- standard; actuals come from kot_ticket
+  seq                 smallint NN default 0      -- Half before Full, as the menu reads
   is_active
   UQ (menu_item_id, code)
 
 modifier_group                                   -- "Choose spice level", "Add-ons"
   restaurant_id, name NN
+  code                text NN                    -- UQ (restaurant_id, code)
   min_select          smallint NN default 0
   max_select          smallint NN default 1
   is_required         bool NN default false
+  is_active
+  CHECK (max_select >= min_select)
+  CHECK (NOT is_required OR min_select >= 1)
 
 modifier
   restaurant_id, modifier_group_id NN FK→modifier_group
+  code                text NN                    -- UQ (modifier_group_id, code)
   name                text NN
   price_delta         numeric(12,2) NN default 0
+  seq                 smallint NN default 0
   is_active
+  IX (modifier_group_id, is_active)
 
 menu_item_modifier_group
   menu_item_id NN FK→menu_item, modifier_group_id NN FK→modifier_group, seq
   PK (menu_item_id, modifier_group_id)
+
+restaurant.menu_version                          -- bumped by every menu write; the guest ETag
 ```
 
 Price on the **variant**, never the item. A half plate is a different price, a different recipe and
 a different food cost.
+
+**Every one of these carries a `code`, and none of them lets it change.** The code is the join key:
+`seed/menu.yaml` and `seed/operations.yaml` reference each other by it, `library/dishes.yaml` matches
+on it, and every recipe M04 attaches finds its dish through it. Renaming one would break cost
+tracking while sales carried on — so the update schemas omit the field rather than validating it.
+
+**`restaurant.menu_version` is not decoration.** The guest menu is the highest-traffic read in the
+product and it is cached on an ETag; a counter the writes bump is what lets a diner's phone skip the
+whole tree on every load but the first. It lives on `restaurant` rather than per-category because a
+modifier group attached to forty dishes changes all of them at once.
+
+The M03 tables above shipped in migrations 0008-0010. The `ix_menu_item_category` index came later,
+in 0013: `selectinload` emits `WHERE menu_category_id IN (…)` with no tenant predicate, the existing
+index leads with `restaurant_id`, and Postgres has no index skip-scan — so the hottest query in the
+product was sequentially scanning `menu_item`. A query-count test cannot see that, because a
+sequential scan is one statement.
 
 ---
 
@@ -272,23 +301,50 @@ recipe                                           -- versioned; a dish, a prepara
   confirmed_at        timestamptz                -- NULL = nobody has checked these quantities
   CHECK (num_nonnulls(menu_item_variant_id, produces_stock_item_id, modifier_id) = 1)
   UQ (menu_item_variant_id, version), UQ (produces_stock_item_id, version), UQ (modifier_id, version)
-  partial UQ on is_current per owner
+  UQ (id, restaurant_id)                         -- the target of recipe_line's composite FK
+  partial UQ on is_current per owner, SCOPED BY restaurant_id
 
 recipe_line
-  recipe_id           uuid NN FK→recipe
-  component_id        uuid NN FK→stock_item      -- ingredient OR preparation: recipes nest
+  restaurant_id       uuid NN FK→restaurant
+  recipe_id           uuid NN
+  component_id        uuid NN                    -- ingredient OR preparation: recipes nest
   quantity            numeric(14,4) NN           -- in the component's base_unit
   seq                 smallint NN
-  IX (recipe_id), IX (component_id)              -- second index answers "what uses paneer?"
+  PK (recipe_id, component_id)
+  FK (recipe_id, restaurant_id)    → recipe(id, restaurant_id)
+  FK (component_id, restaurant_id) → stock_item(id, restaurant_id)
+  IX (component_id)                              -- answers "what uses paneer?"
 ```
 
 Nesting depth is capped at 3 and enforced in the service layer, at save time, and in
-`seed/validate.py`. Historical orders reference the recipe **version** live at the time, so
-food-cost history never rewrites itself.
+`seed/validate.py`. All three count the same levels, which they did not until migration 0013's
+review: the save-time walk seeded its chain with the owner's code and then counted that code, so it
+refused at three what the other two allowed at three. Historical orders reference the recipe
+**version** live at the time, so food-cost history never rewrites itself.
+
+**`recipe_line` carries `restaurant_id` and `menu_item_modifier_group` does not**, and the
+difference is deliberate. The menu join is a pure pair with no second writer; this one has a planned
+second writer — M04 hands the `library/` matching flow to a later module — so the composite foreign
+keys above are what keep a line's component on the line's tenant, rather than a check in one service
+a second writer would never reach. There are no single-column foreign keys beside them: two paths
+between the same pair of tables is a join SQLAlchemy cannot resolve at all.
+
+The three `uq_recipe_current_*` partial indexes are scoped by `restaurant_id` for the same family of
+reason. Keyed on the owner alone, one restaurant could take another's slot and permanently prevent
+the owner from creating their own — a 500 with no recovery, on their own data.
 
 **`recipe.unit_cost` is the frozen answer; `stock_item.current_unit_cost` is a cache.** Finding X8
 asked for the first and finding S16 warns about the second: reading today's ingredient price to
 cost a March order reports the wrong number with no sign that it is wrong. M13 reads the version.
+
+**`yield_factor` is the fraction of what you buy that reaches the pan**, and it applies to every
+base unit. For a weight the loss is *inside* each unit — a kilo of chicken gives up 280 g of bone.
+For a count it is *between* units — an egg is fine or it is cracked, and buying 341 to use 300 is
+what a month actually looks like. Both divide identically, which is why one column covers both
+(M04 spec, open decision S15, resolved in favour of keeping the arithmetic). What the finding was
+pointing at is a data ambiguity rather than a code one: `LEMON 0.90` must mean "one lemon in ten is
+bad" and never "you only get 90% of the juice out", because a recipe calling for `0.25` lemons has
+already accounted for the second.
 
 **`source` and `confirmed_at` exist because of `library/`.** `library/PROVENANCE.md` states that
 most of the starter library is `estimated` — domain knowledge no chef has checked — so a recipe

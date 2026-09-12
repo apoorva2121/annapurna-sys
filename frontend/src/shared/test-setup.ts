@@ -24,3 +24,13 @@ globalThis.ResizeObserver = StubResizeObserver;
 
 // Radix's Select calls this to scroll the highlighted item into view.
 Element.prototype.scrollIntoView = (): void => {};
+
+// The Pointer Events capture API, which jsdom also does not implement. Radix's Select captures the
+// pointer on mousedown so a drag that starts on the trigger and ends on an option still selects it;
+// without these a test that merely *opens* a Select dies inside Radix with
+// "target.hasPointerCapture is not a function". Same reasoning as the stubs above: jsdom has no
+// pointer, so there is nothing truthful to implement, and anything genuinely depending on capture
+// belongs in a browser test.
+Element.prototype.hasPointerCapture = (): boolean => false;
+Element.prototype.setPointerCapture = (): void => {};
+Element.prototype.releasePointerCapture = (): void => {};

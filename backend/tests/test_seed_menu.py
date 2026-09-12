@@ -261,3 +261,67 @@ class TestTheSeedRefusesRatherThanGuesses:
 
         with pytest.raises(MissingSeedReferenceError, match="GST12"):
             await seed_menu(db_session, menu=menu, operations={})
+
+    async def test_attaching_an_unknown_modifier_group_refuses(
+        self, db_session: AsyncSession
+    ) -> None:
+        """A typo in `operations.yaml` used to be filtered out silently, and the seed reported
+        success. The demo restaurant then came up with dishes that had no options at all — a
+        failure nobody notices until somebody tries to take an order. Found by the M03/M04 review.
+        """
+        await seed_identity(db_session)
+        await seed_setup(db_session)
+        await db_session.flush()
+        menu = {
+            "categories": [{"code": "MAIN_VEG", "name": "Veg Main Course", "seq": 1}],
+            "items": [
+                {
+                    "code": "ODD",
+                    "name": "Odd",
+                    "category": "MAIN_VEG",
+                    "food_type": "veg",
+                    "station": "main_kitchen",
+                    "variants": [
+                        {"code": "FULL", "name": "Full", "price": 100, "gst": 5, "prep_minutes": 5}
+                    ],
+                }
+            ],
+        }
+        operations = {
+            "modifier_groups": [{"code": "SPICE_LEVEL", "name": "Spice level", "options": []}],
+            "modifier_attachments": [
+                {"categories": ["MAIN_VEG"], "groups": ["SPICE_LEVEL", "SPYCE_LEVEL"]}
+            ],
+        }
+
+        with pytest.raises(MissingSeedReferenceError, match="SPYCE_LEVEL"):
+            await seed_menu(db_session, menu=menu, operations=operations)
+
+    async def test_attaching_to_an_unknown_category_refuses(self, db_session: AsyncSession) -> None:
+        """The other half of the same silence: an unknown category matched no dishes, expanded to
+        nothing, and looked exactly like a rule that had been applied."""
+        await seed_identity(db_session)
+        await seed_setup(db_session)
+        await db_session.flush()
+        menu = {
+            "categories": [{"code": "MAIN_VEG", "name": "Veg Main Course", "seq": 1}],
+            "items": [
+                {
+                    "code": "ODD",
+                    "name": "Odd",
+                    "category": "MAIN_VEG",
+                    "food_type": "veg",
+                    "station": "main_kitchen",
+                    "variants": [
+                        {"code": "FULL", "name": "Full", "price": 100, "gst": 5, "prep_minutes": 5}
+                    ],
+                }
+            ],
+        }
+        operations = {
+            "modifier_groups": [{"code": "SPICE_LEVEL", "name": "Spice level", "options": []}],
+            "modifier_attachments": [{"categories": ["MAIN_NONVEG"], "groups": ["SPICE_LEVEL"]}],
+        }
+
+        with pytest.raises(MissingSeedReferenceError, match="MAIN_NONVEG"):
+            await seed_menu(db_session, menu=menu, operations=operations)

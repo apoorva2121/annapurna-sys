@@ -1,7 +1,7 @@
 import { type FormEvent, type ReactElement, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 
-import { formatDelta, formatINR } from '@shared/money';
+import { formatDelta, formatINR, parseAmount } from '@shared/money';
 import { Button } from '@shared/ui/button';
 import { FoodTypeMark, type FoodType } from '@shared/ui/foodTypeMark';
 import { Label } from '@shared/ui/label';
@@ -68,9 +68,20 @@ export default function MenuItemScreen(): ReactElement {
               )}
             </header>
 
-            <DishDetails dish={dish} />
+            {/* Said once, at the top, for someone who holds `menu.view` and nothing else —
+                which is every waiter. Rendering the forms and letting the save 403 was the M03
+                behaviour, and it reads as a broken product rather than as a boundary in one. */}
+            {!can(Permission.MENU_MANAGE) && <Notice tone="info" title={strings.menu.readOnly} />}
+            <DishDetails dish={dish} mayManage={can(Permission.MENU_MANAGE)} />
             <Variants dish={dish} mayPrice={can(Permission.MENU_PRICE)} />
-            <AttachedGroups dish={dish} groups={groups.data?.items ?? []} />
+            <AttachedGroups
+              // Keyed, so moving between dishes rebuilds the tick list from the new dish rather
+              // than carrying the previous dish's selection into a PUT.
+              key={dish.id}
+              dish={dish}
+              groups={groups.data?.items ?? []}
+              mayManage={can(Permission.MENU_MANAGE)}
+            />
           </>
         )}
       </QueryState>
@@ -78,7 +89,7 @@ export default function MenuItemScreen(): ReactElement {
   );
 }
 
-function DishDetails({ dish }: { dish: MenuItem }): ReactElement {
+function DishDetails({ dish, mayManage }: { dish: MenuItem; mayManage: boolean }): ReactElement {
   const update = useUpdateItem();
   const [name, setName] = useState(dish.name);
   const [description, setDescription] = useState(dish.description ?? '');
@@ -139,9 +150,11 @@ function DishDetails({ dish }: { dish: MenuItem }): ReactElement {
       </div>
 
       {update.isError && <Notice tone="critical" {...errorProps(update.error)} />}
-      <Button type="submit" disabled={update.isPending}>
-        {update.isPending ? strings.menu.creating : strings.menu.save}
-      </Button>
+      {mayManage && (
+        <Button type="submit" disabled={update.isPending}>
+          {update.isPending ? strings.menu.creating : strings.menu.save}
+        </Button>
+      )}
     </form>
   );
 }
@@ -184,22 +197,32 @@ function VariantRow({
   const [price, setPrice] = useState(variant.price);
 
   function save(): void {
-    // Guarded before sending. `Number("")` is 0, and a dish silently repriced to zero is the
-    // unrecoverable version of this mistake — M02's tax screen shipped exactly that defect.
-    const parsed = Number(price);
-    if (!Number.isFinite(parsed) || parsed < 0 || price.trim() === '') {
+    // Guarded before sending, and parsed as a *string*. `Number("")` is 0, and a dish silently
+    // repriced to zero is the unrecoverable version of this mistake — M02's tax screen shipped
+    // exactly that defect. `parseAmount` also refuses `"1e3"` and `"0x10"`, which `Number` accepts.
+    const amount = parseAmount(price);
+    if (amount === null) {
       return;
     }
     update.mutate(
-      { id: variant.id, changes: { price: parsed.toFixed(2) } },
-      { onSuccess: () => { setEditing(false); } },
+      { id: variant.id, changes: { price: amount } },
+      {
+        onSuccess: () => {
+          setEditing(false);
+        },
+      },
     );
   }
 
   return (
     <TableRow>
       <TableCell>
-        {variant.name}
+        {/* The way into the recipe editor, from the thing a recipe is attached to. A chef arrives
+            here from a dish and never from a recipe id, which is why the API grew a route that
+            finds a recipe by its variant. */}
+        <Link className="text-info underline" to={`/recipes/${variant.id}`}>
+          {variant.name}
+        </Link>
         <span className="ml-2 font-mono text-xs text-muted-foreground">{variant.code}</span>
         {!variant.is_active && (
           <span className="ml-2 rounded-sm bg-neutral-soft px-1.5 py-0.5 text-xs text-neutral">
@@ -262,20 +285,23 @@ function VariantRow({
 function AttachedGroups({
   dish,
   groups,
+  mayManage,
 }: {
   dish: MenuItem;
   groups: ModifierGroup[];
+  mayManage: boolean;
 }): ReactElement {
   const attach = useAttachModifierGroups();
-  // The dish list does not carry its attachments, so this starts from nothing selected and the
-  // whole list is what gets sent. The endpoint is a PUT for the same reason: attachment is a set.
-  const [selected, setSelected] = useState<string[]>([]);
+  // **Seeded from what the dish already has.** The endpoint is a PUT because attachment is a set,
+  // so the list sent is the list kept — and this started from nothing ticked, which meant saving
+  // any change at all silently detached every group the dish had. It returned 200 and the options
+  // simply vanished. Found by the M03/M04 review; the API now carries `modifier_group_ids` for
+  // exactly this.
+  const [selected, setSelected] = useState<string[]>(dish.modifier_group_ids ?? []);
 
   function toggle(groupId: string): void {
     setSelected((current) =>
-      current.includes(groupId)
-        ? current.filter((id) => id !== groupId)
-        : [...current, groupId],
+      current.includes(groupId) ? current.filter((id) => id !== groupId) : [...current, groupId],
     );
   }
 
@@ -291,6 +317,7 @@ function AttachedGroups({
               <Switch
                 id={`group-${group.id}`}
                 checked={selected.includes(group.id)}
+                disabled={!mayManage}
                 onCheckedChange={() => {
                   toggle(group.id);
                 }}
@@ -309,14 +336,16 @@ function AttachedGroups({
         </ul>
       )}
       {attach.isError && <Notice tone="critical" {...errorProps(attach.error)} />}
-      <Button
-        disabled={attach.isPending}
-        onClick={() => {
-          attach.mutate({ itemId: dish.id, modifierGroupIds: selected });
-        }}
-      >
-        {attach.isPending ? strings.menu.creating : strings.menu.save}
-      </Button>
+      {mayManage && (
+        <Button
+          disabled={attach.isPending}
+          onClick={() => {
+            attach.mutate({ itemId: dish.id, modifierGroupIds: selected });
+          }}
+        >
+          {attach.isPending ? strings.menu.creating : strings.menu.save}
+        </Button>
+      )}
     </section>
   );
 }

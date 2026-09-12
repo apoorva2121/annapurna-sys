@@ -6,7 +6,7 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query';
 
-import { apiGet, apiPost } from '@shared/api';
+import { ApiClientError, apiGet, apiPost } from '@shared/api';
 
 /**
  * Stock items, recipes and cost.
@@ -45,7 +45,11 @@ export type StockItem = {
   base_unit: 'g' | 'ml' | 'unit';
   category: string | null;
   storage_type: string | null;
-  current_unit_cost: string;
+  /** **Present only for a `cost.view` holder.** The API serialises a stock item at the caller's
+   *  pay grade: `seed/organization.yaml` says a chef sees grams and not rupees, so the price is
+   *  absent from a chef's copy of this row rather than zeroed. Optional here for the same reason —
+   *  a required field would make the type lie about what a chef receives. */
+  current_unit_cost?: string;
   is_active: boolean;
   ingredient: IngredientProfile | null;
   preparation: PreparationProfile | null;
@@ -66,7 +70,8 @@ export type Recipe = {
   is_current: boolean;
   effective_from: string;
   notes: string | null;
-  unit_cost: string;
+  /** Present only for a `cost.view` holder, like `StockItem.current_unit_cost`. */
+  unit_cost?: string;
   source: 'typed' | 'seeded' | 'library';
   confirmed_at: string | null;
   lines: RecipeLine[];
@@ -158,6 +163,33 @@ export function useDishCost(variantId: string | null): UseQueryResult<DishCost> 
     queryKey: [...STOCK_KEY, 'cost', variantId],
     queryFn: () => apiGet<DishCost>(`/staff/menu-variants/${String(variantId)}/cost`),
     enabled: variantId !== null,
+  });
+}
+
+/**
+ * The recipe currently in force for a dish variant, or `null` when it has none.
+ *
+ * **404 is an answer here, not a failure.** A dish with no recipe is the normal starting state and
+ * the editor opens empty on it — while a dish with an *empty* recipe would cost zero, which is a
+ * different and much worse claim. The two must never collapse into each other.
+ */
+export function useCurrentRecipe(variantId: string | undefined): UseQueryResult<Recipe | null> {
+  return useQuery({
+    queryKey: [...STOCK_KEY, 'recipe', 'variant', variantId],
+    queryFn: async () => {
+      try {
+        return await apiGet<Recipe>(`/staff/menu-variants/${String(variantId)}/recipe`);
+      } catch (error) {
+        // On the code, never the status — `shared/api.ts` is explicit that `code` is the stable
+        // contract and the HTTP status is not. A 404 from a proxy is a different thing entirely
+        // from the server saying this dish has no recipe, and only one of them means "start empty".
+        if (error instanceof ApiClientError && error.code === 'recipe.not_found') {
+          return null;
+        }
+        throw error;
+      }
+    },
+    enabled: variantId !== undefined,
   });
 }
 

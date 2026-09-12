@@ -1,8 +1,10 @@
 import { type ReactElement, useState } from 'react';
 
 import { formatINR } from '@shared/money';
+import { Permission } from '@shared/permissions';
 import { Button } from '@shared/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@shared/ui/table';
+import { useAuth } from '@staff/auth/AuthContext';
 import { QueryState } from '@staff/components/QueryState';
 import { strings } from '@staff/strings';
 import { type StockItem, useStockItems, useUsedBy } from '@staff/api/stock';
@@ -28,6 +30,8 @@ export default function StockItemsScreen(): ReactElement {
   const items = useStockItems(kind);
   const [inspecting, setInspecting] = useState<string | null>(null);
   const rows = items.data?.items ?? [];
+  const { can } = useAuth();
+  const mayCost = can(Permission.COST_VIEW);
 
   return (
     <div className="space-y-page">
@@ -69,7 +73,11 @@ export default function StockItemsScreen(): ReactElement {
                 <TableHead>{strings.stock.code}</TableHead>
                 <TableHead>{strings.stock.name}</TableHead>
                 <TableHead>{strings.stock.baseUnit}</TableHead>
-                <TableHead className="text-right">{strings.stock.unitCost}</TableHead>
+                {/* **Only for a `cost.view` holder.** The API stopped sending the price to a
+                    chef, so this column was a row of em dashes for exactly the people
+                    `seed/organization.yaml` says see grams and not rupees — noise standing where
+                    a boundary is. */}
+                {mayCost && <TableHead className="text-right">{strings.stock.unitCost}</TableHead>}
                 <TableHead>{strings.stock.shelfLife}</TableHead>
                 <TableHead />
               </TableRow>
@@ -79,6 +87,7 @@ export default function StockItemsScreen(): ReactElement {
                 <ItemRow
                   key={item.id}
                   item={item}
+                  mayCost={mayCost}
                   onInspect={() => {
                     setInspecting(item.id);
                   }}
@@ -101,7 +110,15 @@ export default function StockItemsScreen(): ReactElement {
   );
 }
 
-function ItemRow({ item, onInspect }: { item: StockItem; onInspect: () => void }): ReactElement {
+function ItemRow({
+  item,
+  onInspect,
+  mayCost,
+}: {
+  item: StockItem;
+  onInspect: () => void;
+  mayCost: boolean;
+}): ReactElement {
   return (
     <TableRow>
       <TableCell className="font-mono text-sm">{item.code}</TableCell>
@@ -116,9 +133,11 @@ function ItemRow({ item, onInspect }: { item: StockItem; onInspect: () => void }
       </TableCell>
       <TableCell className="font-mono text-sm">{item.base_unit}</TableCell>
       {/* Per base unit — per gram, per ml, per piece — so the column is read down and compared. */}
-      <TableCell className="text-right font-mono tabular-nums">
-        {formatINR(item.current_unit_cost)}
-      </TableCell>
+      {mayCost && (
+        <TableCell className="text-right font-mono tabular-nums">
+          {formatINR(item.current_unit_cost)}
+        </TableCell>
+      )}
       <TableCell className="text-sm">
         {item.ingredient !== null
           ? strings.stock.days(item.ingredient.shelf_life_days)

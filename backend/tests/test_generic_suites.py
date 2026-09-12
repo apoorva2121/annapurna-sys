@@ -287,7 +287,13 @@ _VICTIM_PARAMETERS = frozenset(
 
 
 async def _victim_resources(
-    session: AsyncSession, tenant: Tenant, *, prefix: str = "Victim", seq: int = 0, code: str = "V1"
+    session: AsyncSession,
+    tenant: Tenant,
+    *,
+    prefix: str = "Victim",
+    seq: int = 0,
+    code: str = "V1",
+    tax_code: str | None = None,
 ) -> dict[str, str]:
     """One row of every tenant-owned kind, belonging to the victim restaurant.
 
@@ -306,7 +312,11 @@ async def _victim_resources(
     )
     tax = TaxGroup(
         restaurant_id=restaurant_id,
-        code=f"{prefix.upper()}GST",
+        # **Separate from `prefix`, and it has to be.** The tax list pages by `code`, so the
+        # attacker's rows must sort *after* the victim's for a leaked cursor to be visible at all.
+        # Derived from the prefix, "RIVALGST" sorted before "VICTIMGST" and the cursor leg of the
+        # test was inert: both a leaked cursor and a correctly scoped one returned nothing.
+        code=tax_code or f"{prefix.upper()}GST",
         name=f"{prefix} GST",
         is_active=True,
     )
@@ -434,7 +444,13 @@ async def _victim_resources(
     session.add(recipe)
     await session.flush()
     session.add(
-        RecipeLine(recipe_id=recipe.id, component_id=paneer.id, quantity=Decimal("200"), seq=0)
+        RecipeLine(
+            restaurant_id=recipe.restaurant_id,
+            recipe_id=recipe.id,
+            component_id=paneer.id,
+            quantity=Decimal("200"),
+            seq=0,
+        )
     )
     await session.flush()
 
@@ -450,6 +466,7 @@ async def _victim_resources(
         "group_id": str(group.id),
         "modifier_id": str(modifier.id),
         "recipe_id": str(recipe.id),
+        "stock_item_id": str(paneer.id),
     }
 
 
@@ -531,10 +548,17 @@ class TestTenantIsolationAcrossEveryStaffRoute:
         """
         spice = await _tenant(db_session, "spice-garden", ("owner",))
         await _tenant(db_session, "tandoor-house", ("owner",))
-        await _victim_resources(db_session, spice)
+        victims = await _victim_resources(db_session, spice)
         await db_session.commit()
 
         token = await _login(api_client, "owner@tandoor-house.test")
+        # **Ids, not names.** The first version looked for the substring "Victim", which every
+        # seeded row carries in its *name* — and a table has no name, only the code "V1", while an
+        # employee is called "Owner Person" like everybody else. Those two were exempt from the
+        # suite that exists to catch exactly them. Every row serialises its id, so the ids are the
+        # check that cannot be shaped around; the name check stays as a second net.
+        needles = {value: key for key, value in victims.items()}
+        needles["Victim"] = "a row named Victim"
         failures: list[str] = []
         probed = 0
         for route in staff_routes(api):
@@ -546,12 +570,27 @@ class TestTenantIsolationAcrossEveryStaffRoute:
             )
             if response.status_code != 200:
                 continue
-            # Every seeded victim row is named "Victim …" precisely so this can be a substring
-            # check rather than a per-endpoint shape parser.
-            if "Victim" in response.text:
-                failures.append(f"{route.key} -> {response.text[:160]}")
+            leaked = [what for needle, what in needles.items() if needle in response.text]
+            if leaked:
+                failures.append(f"{route.key} leaked {leaked} -> {response.text[:160]}")
         assert not failures, f"a list route returned another tenant's rows: {failures}"
         assert probed >= 5, f"suite 1b only probed {probed} list routes"
+
+        # **The positive control**, without which "no victim row was found" is also what a broken
+        # probe returns. The victim's own token must find its own rows through these same routes,
+        # so the loop above is known to be able to see a leak if one is there.
+        owner = await _login(api_client, "owner@spice-garden.test")
+        seen: set[str] = set()
+        for route in staff_routes(api):
+            if "{" in route.path or route.method != "GET":
+                continue
+            response = await api_client.get(
+                route.path, headers={"Authorization": f"Bearer {owner}"}
+            )
+            if response.status_code != 200:
+                continue
+            seen.update(what for needle, what in needles.items() if needle in response.text)
+        assert len(seen) >= 5, f"suite 1b's probe found only {seen} of the victim's own rows"
 
     async def test_a_cursor_naming_another_tenants_row_does_not_move_the_page(
         self, db_session: AsyncSession, api_client: AsyncClient
@@ -577,7 +616,9 @@ class TestTenantIsolationAcrossEveryStaffRoute:
         victims = await _victim_resources(db_session, spice)
         # The attacker's own floor, deliberately sorting *after* the victim's rows, so a cursor that
         # resolved across the boundary would return these instead of nothing.
-        await _victim_resources(db_session, tandoor, prefix="Rival", seq=5, code="Z9")
+        await _victim_resources(
+            db_session, tandoor, prefix="Rival", seq=5, code="Z9", tax_code="ZRIVALGST"
+        )
         await db_session.commit()
 
         token = await _login(api_client, "owner@tandoor-house.test")

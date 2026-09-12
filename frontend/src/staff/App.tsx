@@ -15,6 +15,7 @@ import HomeScreen from '@staff/screens/HomeScreen';
 import LoginScreen from '@staff/screens/LoginScreen';
 import NewEmployeeScreen from '@staff/screens/NewEmployeeScreen';
 import ProfileScreen from '@staff/screens/ProfileScreen';
+import RecipeScreen from '@staff/screens/RecipeScreen';
 import RestaurantSettingsScreen from '@staff/screens/RestaurantSettingsScreen';
 import StaffListScreen from '@staff/screens/StaffListScreen';
 import StationsScreen from '@staff/screens/StationsScreen';
@@ -127,6 +128,17 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.RECIPE_VIEW}>
               <StockItemsScreen />
+            </RequirePermission>
+          }
+        />
+        {/* The chef's editor, reached from a dish's variant and from the cost screen. Behind
+            `recipe.view`: reading a recipe is the kitchen's job, and the screen itself withholds
+            every write from anyone without `recipe.manage`. */}
+        <Route
+          path="recipes/:variantId"
+          element={
+            <RequirePermission permission={Permission.RECIPE_VIEW}>
+              <RecipeScreen />
             </RequirePermission>
           }
         />

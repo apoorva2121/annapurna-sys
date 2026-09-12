@@ -67,7 +67,12 @@ class MenuCategory(TimestampedUUIDMixin, Base):
     seq: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
-    items: Mapped[list[MenuItem]] = relationship(back_populates="category", lazy="raise")
+    # Ordered, like every other relationship in this file. Without it the tree's `selectinload`
+    # returns whatever order the scan yields, so a dish repriced at 11am moves down its category at
+    # 11:01 — and `menu_item.seq` exists, is maintained, and is indexed. Found by review.
+    items: Mapped[list[MenuItem]] = relationship(
+        back_populates="category", order_by="MenuItem.seq, MenuItem.id", lazy="raise"
+    )
 
 
 class MenuItem(TimestampedUUIDMixin, Base):
@@ -78,6 +83,11 @@ class MenuItem(TimestampedUUIDMixin, Base):
         UniqueConstraint("restaurant_id", "code", name="uq_menu_item_restaurant_code"),
         CheckConstraint("food_type IN ('veg', 'non_veg', 'egg')", name="ck_menu_item_food_type"),
         Index("ix_menu_item_restaurant_category", "restaurant_id", "menu_category_id", "is_active"),
+        # The tree's `selectinload` emits `WHERE menu_category_id IN (…)` with no `restaurant_id`
+        # predicate, and Postgres has no index skip-scan — so the index above was unusable on the
+        # hottest read in the product and it sequentially scanned. A query-count test cannot see
+        # this: a sequential scan is one statement. Found by review (0013).
+        Index("ix_menu_item_category", "menu_category_id", "is_active"),
     )
 
     restaurant_id: Mapped[uuid.UUID] = mapped_column(

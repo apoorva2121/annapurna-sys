@@ -73,6 +73,10 @@ export type MenuItem = {
   seq: number;
   is_active: boolean;
   variants: MenuVariant[];
+  /** Present on the single-dish routes and **absent from the list**, which loads only variants.
+   *  The options editor needs it: attachment is a PUT of the whole set, so without knowing the
+   *  current one the screen could only send a set it had invented. */
+  modifier_group_ids?: string[];
 };
 
 type Page<T> = { items: T[]; next_cursor: string | null };
@@ -92,7 +96,9 @@ export function useMenuCategories(includeInactive = true): UseQueryResult<Page<M
   return useQuery({
     queryKey: [...MENU_KEY, 'categories', includeInactive],
     queryFn: () =>
-      apiGet<Page<MenuCategory>>(`/staff/menu/categories?include_inactive=${String(includeInactive)}`),
+      apiGet<Page<MenuCategory>>(
+        `/staff/menu/categories?include_inactive=${String(includeInactive)}`,
+      ),
   });
 }
 
@@ -115,7 +121,8 @@ export function useUpdateCategory(): UseMutationResult<
 > {
   const invalidate = useInvalidateMenu();
   return useMutation({
-    mutationFn: ({ id, changes }) => apiPatch<MenuCategory>(`/staff/menu/categories/${id}`, changes),
+    mutationFn: ({ id, changes }) =>
+      apiPatch<MenuCategory>(`/staff/menu/categories/${id}`, changes),
     onSuccess: invalidate,
   });
 }
@@ -223,7 +230,10 @@ export function useUpdateItem(): UseMutationResult<
 export function useUpdateVariant(): UseMutationResult<
   MenuItem,
   Error,
-  { id: string; changes: Partial<Pick<MenuVariant, 'name' | 'price' | 'prep_minutes' | 'is_active'>> }
+  {
+    id: string;
+    changes: Partial<Pick<MenuVariant, 'name' | 'price' | 'prep_minutes' | 'is_active'>>;
+  }
 > {
   const invalidate = useInvalidateMenu();
   return useMutation({
@@ -242,7 +252,8 @@ export function useAddVariant(): UseMutationResult<
 > {
   const invalidate = useInvalidateMenu();
   return useMutation({
-    mutationFn: ({ itemId, body }) => apiPost<MenuItem>(`/staff/menu/items/${itemId}/variants`, body),
+    mutationFn: ({ itemId, body }) =>
+      apiPost<MenuItem>(`/staff/menu/items/${itemId}/variants`, body),
     onSuccess: invalidate,
   });
 }

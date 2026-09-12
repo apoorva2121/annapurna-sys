@@ -195,6 +195,34 @@ class MenuItemRepository(RestaurantScopedRepository[MenuItem]):
         )
         return int(highest or 0) + 1
 
+    async def all_for_report(self, *, cap: int = 1000) -> tuple[Sequence[MenuItem], bool]:
+        """Every active dish with its variants, for a report that must cover the whole menu.
+
+        **Not `list_all`.** A cost screen sorted worst-first cannot be paginated: the dish losing
+        the most money might be the two hundredth, and a page of fifty would hide it — which is the
+        one thing that screen exists to show. So this reads the whole menu.
+
+        It is still bounded, because engineering-standards §3 forbids an unbounded result set and is
+        right to: the cap is high enough that no real menu reaches it and low enough that a
+        runaway import cannot exhaust memory. The boolean says whether it was hit, so the screen can
+        tell the truth instead of silently showing part of a menu — which is exactly what the first
+        version of this did, capped at 100, on a product whose own docs talk about 400-dish menus.
+        """
+        rows = (
+            await self.session.scalars(
+                self.scoped()
+                # **Active variants only**, and the filter belongs in the load rather than in the
+                # loop above it: a deactivated Half portion is not on sale, so costing it puts a
+                # dish on a worst-first margin screen that nobody can order. The dish itself is
+                # already filtered below; its variants were not, until the M03/M04 review.
+                .options(selectinload(MenuItem.variants.and_(MenuItemVariant.is_active.is_(True))))
+                .where(MenuItem.is_active.is_(True))
+                .order_by(MenuItem.seq, MenuItem.id)
+                .limit(cap + 1)
+            )
+        ).all()
+        return rows[:cap], len(rows) > cap
+
     async def ids_in_category(self, category_id: uuid.UUID) -> Sequence[uuid.UUID]:
         """Every active item in a category, for the bulk modifier-group apply."""
         return (

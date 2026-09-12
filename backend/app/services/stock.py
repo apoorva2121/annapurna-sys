@@ -41,7 +41,11 @@ from app.models.stock import (
     RecipeLine,
     StockItem,
 )
-from app.repositories.menu import MenuItemRepository, MenuItemVariantRepository
+from app.repositories.menu import (
+    MenuItemRepository,
+    MenuItemVariantRepository,
+    ModifierRepository,
+)
 from app.repositories.stock import CostingRepository, RecipeRepository, StockItemRepository
 from app.schemas.stock import (
     IngredientProfileRequest,
@@ -235,11 +239,23 @@ class StockService:
         # the head of a cycle message, so a person reading it knows where to start unpicking.
         owner_code = await self._owner_code(actor, request)
         engine = CostEngine(components, prep_lines)
-        engine.check_depth_and_cycles(lines, owner_code=owner_code)
+        engine.check_depth_and_cycles(
+            lines,
+            owner_code=owner_code,
+            owner_is_preparation=request.produces_stock_item_id is not None,
+        )
 
         repo = self._recipes(actor)
-        # Rule 1, under a lock: two concurrent versions would otherwise both read "3 is current",
-        # both insert 4, and the partial unique index would answer one with a 500.
+        # Rule 1, and the lock has to be taken on a row that **always exists**.
+        #
+        # An earlier version locked inside `clear_current`, over `WHERE is_current` — which for a
+        # recipe's *first* version matches nothing, so two concurrent creates both computed version
+        # 1 and one hit the unique index as a 500. For later versions it was no better: under READ
+        # COMMITTED the blocked statement re-checks only the locked row rather than re-running
+        # against a new snapshot, so the second writer never saw the version the first had just
+        # committed. `SetupService.add_tax_rate` had this right — it locks the `tax_group` row —
+        # and this is the same fix. Found by review.
+        await self._lock_owner(actor, request)
         await repo.clear_current(
             variant_id=request.menu_item_variant_id,
             produces_id=request.produces_stock_item_id,
@@ -277,6 +293,10 @@ class StockService:
         for seq, line in enumerate(request.lines):
             self.session.add(
                 RecipeLine(
+                    # Redundant with the recipe's own, and deliberately so: it is what the composite
+                    # foreign keys key on, and what makes "this line's component belongs to this
+                    # line's tenant" a database guarantee rather than a service convention.
+                    restaurant_id=actor.restaurant_id,
                     recipe_id=recipe.id,
                     component_id=line.component_id,
                     quantity=line.quantity,
@@ -346,7 +366,7 @@ class StockService:
         ]
         return engine.cost_of(lines), True
 
-    async def menu_costs(self, actor: Actor) -> list[dict[str, Any]]:
+    async def menu_costs(self, actor: Actor) -> tuple[list[dict[str, Any]], bool]:
         """Every dish's cost and margin — the day-1 screen the audit asked for in M04, not M13.
 
         **One snapshot, one engine, one pass.** The engine memoises preparations across every dish
@@ -359,7 +379,10 @@ class StockService:
 
         confirmed = await self._confirmed_variants(actor)
         rows: list[dict[str, Any]] = []
-        items = await MenuItemRepository(self.session, actor.scope).list_all(limit=100)
+        # The whole menu, not a page. A worst-first list that stopped at fifty rows would hide the
+        # dish it exists to surface. `list_all(limit=100)` was the first version of this and it
+        # truncated silently at the hundredth item.
+        items, truncated = await MenuItemRepository(self.session, actor.scope).all_for_report()
         for item in items:
             for variant in item.variants:
                 lines = variant_lines.get(variant.id)
@@ -384,7 +407,7 @@ class StockService:
         # Worst first. An owner opening this screen is looking for the dish that is losing money,
         # not reading an alphabetical list.
         rows.sort(key=lambda row: row["food_cost_percent"] or Decimal(-1), reverse=True)
-        return rows
+        return rows, truncated
 
     async def _confirmed_variants(self, actor: Actor) -> set[uuid.UUID]:
         recipes = await self.session.scalars(
@@ -465,6 +488,22 @@ class StockService:
             prep_minutes=request.prep_minutes,
         )
 
+    async def _lock_owner(self, actor: Actor, request: RecipeVersionRequest) -> None:
+        """Serialise every writer for one recipe owner on a row that is guaranteed to be there.
+
+        The variant, the produced stock item or the modifier — whichever owns this recipe. All three
+        exist by the time this runs (`_require_owner_exists` has resolved one), so the lock always
+        has something to take, which is precisely what locking `WHERE is_current` did not.
+        """
+        if request.menu_item_variant_id is not None:
+            await MenuItemVariantRepository(self.session, actor.scope).get_for_update(
+                request.menu_item_variant_id
+            )
+        elif request.produces_stock_item_id is not None:
+            await self._items(actor).get_for_update(request.produces_stock_item_id)
+        elif request.modifier_id is not None:
+            await ModifierRepository(self.session, actor.scope).get_for_update(request.modifier_id)
+
     def _require_one_owner(self, request: RecipeVersionRequest) -> str:
         owners = [
             ("variant", request.menu_item_variant_id),
@@ -498,12 +537,24 @@ class StockService:
                     f"{item.name!r} is an ingredient. Only a preparation is made from a recipe.",
                     status_code=422,
                 )
+        elif request.modifier_id is not None:
+            # **This branch did not exist**, and its absence was the worst defect the M03/M04 review
+            # found. `modifier_id` was never checked for existence *or* tenancy, so one restaurant
+            # could post a recipe against another's modifier: the row landed with the attacker's
+            # `restaurant_id`, and the (then global) `uq_recipe_current_modifier` index permanently
+            # blocked the owner from creating their own — a 500 with no recovery, forever.
+            # Migration 0013 scoped the index; this closes the other half.
+            modifier = await ModifierRepository(self.session, actor.scope).get(request.modifier_id)
+            if modifier is None:
+                raise NotFoundError("modifier.not_found", "That option does not exist.")
 
     async def _owner_code(self, actor: Actor, request: RecipeVersionRequest) -> str:
         """A label for the head of a cycle or depth message."""
         if request.produces_stock_item_id is not None:
             item = await self._items(actor).get(request.produces_stock_item_id)
             return item.code if item is not None else "this preparation"
+        if request.modifier_id is not None:
+            return "this option"
         return "this dish"
 
     def _unit_cost_for(

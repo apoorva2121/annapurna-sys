@@ -1,6 +1,6 @@
 import { type FormEvent, type ReactElement, useState } from 'react';
 
-import { formatDelta } from '@shared/money';
+import { formatDelta, parseAmount } from '@shared/money';
 import { Button } from '@shared/ui/button';
 import { Label } from '@shared/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select';
@@ -66,8 +66,9 @@ function GroupCard({ group }: { group: ModifierGroup }): ReactElement {
 
   function onSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const parsed = Number(delta);
-    if (!Number.isFinite(parsed) || delta.trim() === '') {
+    // Negative is allowed here and only here: "no rice" is a legitimate discount.
+    const amount = parseAmount(delta, { allowNegative: true });
+    if (amount === null) {
       return;
     }
     add.mutate(
@@ -78,7 +79,7 @@ function GroupCard({ group }: { group: ModifierGroup }): ReactElement {
           // codes, and the row still needs a stable key for M07's order lines to name.
           code: slug(name),
           name: name.trim(),
-          price_delta: parsed.toFixed(2),
+          price_delta: amount,
         },
       },
       {
