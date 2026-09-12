@@ -558,17 +558,7 @@ class ProcurementService:
         if not lines:
             raise AppError("goods_receipt.empty", "A delivery needs at least one line.")
 
-        order = None
-        if purchase_order_id is not None:
-            order = await self._require_order(purchase_order_id)
-            self._assert_receivable(order)
-            supplier_id = order.supplier_id
-        if supplier_id is None:
-            raise AppError(
-                "goods_receipt.supplier_required",
-                "A delivery with no purchase order behind it has to say who it came from.",
-            )
-        await self._require_supplier(supplier_id)
+        order, supplier_id = await self._resolve_source(purchase_order_id, supplier_id)
         await self._assert_invoice_unbooked(supplier_id, invoice_number)
 
         moment = received_at or datetime.now(UTC)
@@ -586,8 +576,15 @@ class ProcurementService:
         self.session.add(receipt)
         await self.session.flush()
 
-        ordered = await self._ordered_quantities(order)
-        priced = self._price_lines(lines, ordered_prices=await self._ordered_prices(order))
+        # One read of the order's lines, not two. The first draft called `_ordered_quantities`
+        # and `_ordered_prices` separately and issued the same SELECT twice per delivery, which is
+        # the shape of an N+1 even at n=2 — and the kind that grows quietly when a third caller
+        # wants a third field off the same rows.
+        order_lines = await self._order_lines(order)
+        ordered = {item_id: quantity for item_id, (quantity, _) in order_lines.items()}
+        priced = self._price_lines(
+            lines, ordered_prices={item_id: price for item_id, (_, price) in order_lines.items()}
+        )
         variances = self._apportion(priced, ordered=ordered, tax_amount=tax_amount)
         await self._post_lines(actor, receipt, variances, moment=moment)
 
@@ -610,6 +607,29 @@ class ProcurementService:
             lines=tuple(variances),
             invoice_line_total=_invoice_line_total(variances),
         )
+
+    async def _resolve_source(
+        self, purchase_order_id: uuid.UUID | None, supplier_id: uuid.UUID | None
+    ) -> tuple[PurchaseOrder | None, uuid.UUID]:
+        """Where this delivery came from: an order, or a supplier named directly.
+
+        Against a purchase order the supplier comes **from the order**, and the caller's own
+        `supplier_id` is ignored rather than checked. A delivery cannot be attributed to a
+        different supplier than the one it was ordered from, and a parameter that could say
+        otherwise is an invitation to try.
+        """
+        order = None
+        if purchase_order_id is not None:
+            order = await self._require_order(purchase_order_id)
+            self._assert_receivable(order)
+            supplier_id = order.supplier_id
+        if supplier_id is None:
+            raise AppError(
+                "goods_receipt.supplier_required",
+                "A delivery with no purchase order behind it has to say who it came from.",
+            )
+        await self._require_supplier(supplier_id)
+        return order, supplier_id
 
     def _assert_receivable(self, order: PurchaseOrder) -> None:
         if order.status in _RECEIVABLE:
@@ -651,19 +671,18 @@ class ProcurementService:
                 },
             )
 
-    async def _ordered_quantities(self, order: PurchaseOrder | None) -> dict[uuid.UUID, Decimal]:
-        if order is None:
-            return {}
-        return {
-            line.stock_item_id: _dec(line.quantity_ordered)
-            for line in await self.orders.lines_of(order.id)
-        }
+    async def _order_lines(
+        self, order: PurchaseOrder | None
+    ) -> dict[uuid.UUID, tuple[Decimal, Decimal]]:
+        """What was ordered and at what price, per item, in one query.
 
-    async def _ordered_prices(self, order: PurchaseOrder | None) -> dict[uuid.UUID, Decimal]:
+        Empty for a market purchase, and that emptiness is what makes `LineVariance.ordered` null
+        rather than zero: nothing was ordered, so nothing was under-supplied.
+        """
         if order is None:
             return {}
         return {
-            line.stock_item_id: _dec(line.unit_price)
+            line.stock_item_id: (_dec(line.quantity_ordered), _dec(line.unit_price))
             for line in await self.orders.lines_of(order.id)
         }
 
@@ -816,7 +835,9 @@ class ProcurementService:
         A test asserts the stored value equals this computation after each transition, because a
         stored derived value with no test is a bug waiting.
         """
-        ordered = await self._ordered_quantities(order)
+        ordered = {
+            item_id: quantity for item_id, (quantity, _) in (await self._order_lines(order)).items()
+        }
         accepted = await self.receipts.accepted_by_item(order.id)
         complete = all(
             accepted.get(item_id, Decimal("0")) >= quantity for item_id, quantity in ordered.items()

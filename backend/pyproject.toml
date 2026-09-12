@@ -101,6 +101,16 @@ module = ["testcontainers.*"]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------- coverage
+[tool.coverage.report]
+# **This line is what makes --cov-fail-under actually fail.** Without it, pytest-cov compares
+# `round(total, precision) < fail_under` with precision 0 while *printing* the verdict from the
+# unrounded `total < fail_under` — so anything in (94.5, 95.0) prints
+# "FAIL Required test coverage of 95% not reached" and exits 0. The gate said `make check: clean`
+# at 94.83% on 2026-09-13, which is how this was found; both obvious causes (pytest not failing,
+# make not propagating) had already been ruled out by measurement. Two decimals makes the
+# comparison and the message agree, and makes the TOTAL row show the number the verdict used.
+precision = 2
+
 [tool.coverage.run]
 # Without this, code executed inside the ASGI application is not traced: httpx's ASGI transport
 # runs handlers under anyio, and SQLAlchemy's async layer runs under greenlet, neither of which

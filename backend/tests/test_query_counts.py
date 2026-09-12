@@ -122,3 +122,107 @@ async def test_an_employee_with_no_roles_is_still_listed(
 
     by_name = {item["full_name"]: item for item in response.json()["items"]}
     assert by_name["Not Yet Assigned"]["roles"] == []
+
+
+# --------------------------------------------------------------------------- M06
+
+
+async def test_the_order_list_costs_the_same_whatever_the_page_size(
+    db_session: AsyncSession, api_client: AsyncClient
+) -> None:
+    """The Definition of Done's "no N+1 on list and detail endpoints", for procurement.
+
+    A purchase order renders with its lines, which is the same trap the staff list has with roles:
+    fetching them per row is the obvious implementation and it turns a store manager's morning
+    screen into one query per order. `selectinload` makes it two whatever the page holds.
+
+    The assertion is the *shape*, not a budget. "At most eight" would pass for three orders while
+    still hiding a query per order, which is precisely the defect.
+    """
+    from tests.test_procurement_endpoints import _ingredient, _order, _supplier
+
+    await _world(db_session, "owner")
+    token = await _token(api_client, "owner")
+    headers = _auth(token)
+    engine = db_session.get_bind().engine
+    item_id = await _ingredient(api_client, token)
+    supplier_id = await _supplier(api_client, token)
+
+    for _ in range(2):
+        await _order(api_client, token, supplier_id, item_id, send=False)
+    with count_queries(engine) as small:
+        small_response = await api_client.get("/api/v1/staff/purchase-orders", headers=headers)
+    assert small_response.status_code == 200
+
+    for _ in range(8):
+        await _order(api_client, token, supplier_id, item_id, send=False)
+    with count_queries(engine) as large:
+        large_response = await api_client.get("/api/v1/staff/purchase-orders", headers=headers)
+    assert large_response.status_code == 200
+
+    assert len(large_response.json()["orders"]) > len(small_response.json()["orders"])
+    assert large.count == small.count, (
+        f"the order list issued {small.count} queries for "
+        f"{len(small_response.json()['orders'])} orders and {large.count} for "
+        f"{len(large_response.json()['orders'])} — the cost is scaling with the page"
+    )
+
+
+async def test_the_supplier_variance_report_is_one_query_over_any_number_of_deliveries(
+    db_session: AsyncSession, api_client: AsyncClient
+) -> None:
+    """The report is the module's product, so its cost must not grow with its subject.
+
+    `docs/waste-model.md` §1's sentence is about *31 deliveries this quarter* — a figure that only
+    means anything if a quarter's worth of them can be summed without a query each. It is one
+    grouped aggregate over `goods_receipt_line`, bounded by `business_date` on an index, and it
+    never touches the stock ledger.
+    """
+    from tests.test_procurement_endpoints import _ingredient, _supplier
+
+    await _world(db_session, "owner")
+    token = await _token(api_client, "owner")
+    headers = _auth(token)
+    engine = db_session.get_bind().engine
+    item_id = await _ingredient(api_client, token)
+    supplier_id = await _supplier(api_client, token)
+
+    async def deliver(invoice: str) -> None:
+        response = await api_client.post(
+            "/api/v1/staff/goods-receipts",
+            json={
+                "supplier_id": supplier_id,
+                "invoice_number": invoice,
+                "lines": [
+                    {
+                        "stock_item_id": item_id,
+                        "quantity_invoiced": "10000.0000",
+                        "quantity_received": "9000.0000",
+                        "unit_price": "0.042000",
+                    }
+                ],
+            },
+            headers=headers,
+        )
+        assert response.status_code == 201, response.text
+
+    await deliver("Q1")
+    with count_queries(engine) as one:
+        first = await api_client.get(
+            f"/api/v1/staff/suppliers/{supplier_id}/variance", headers=headers
+        )
+    assert first.status_code == 200
+
+    for index in range(9):
+        await deliver(f"Q{index + 2}")
+    with count_queries(engine) as ten:
+        second = await api_client.get(
+            f"/api/v1/staff/suppliers/{supplier_id}/variance", headers=headers
+        )
+    assert second.status_code == 200
+
+    # Ten deliveries rather than one, reported in the same number of statements.
+    assert second.json()["deliveries"] == 10
+    assert ten.count == one.count, (
+        f"the variance report issued {one.count} queries over 1 delivery and {ten.count} over 10"
+    )

@@ -15,7 +15,7 @@ Nothing is cancelled; each deferred chunk has a named trigger that un-defers it.
 **The gate now reads: M02 does not begin until R1 and R2 are ticked.** M02 must not be built on a
 test harness that cannot see a rollback, nor on a seniority check that a branch manager can walk
 around. R4 and R7 became one piece of work (an origin fix cannot be verified without deploying it),
-and R3, R5, R6 and R9 wait for the conditions that make them matter.
+and R3, R5 and R6 wait for the conditions that make them matter. **R9's condition has since arrived** — see its row below; it is overdue rather than deferred.
 
 ---
 
@@ -59,7 +59,7 @@ Rules of engagement for the session (the human enforces these):
 | R6 | Identifiers, rotation grace, session binding | P1-7, P1-8, M2, M10 | ⏸ deferred → real staff on real WiFi. Normalisation may ride along with M02 | — |
 | R7 | Bootstrap command; staging on GCP (now incl. R4) | M15, D6, P1-3, M8 | ⏸ deferred → its own session, human present for the console work | — |
 | R8b | Layering, catalogue, docs drift | D1–D9, M12, X4 | ☑ **done** — zero raw SQL in services, zero repositories in routes, catalogue subset test (which caught real drift), /ready head cached, docs corrected, root cleaned. **D8 file split still declined** | `ab509d4` |
-| R9 | Guardrails become a gate | G-20 | ⏸ deferred → M05, or a second person joins | — |
+| R9 | Guardrails become a gate | G-20 | ⏳ **its trigger has fired and it is now overdue.** The condition was "M05, or a second person joins"; M05 shipped 2026-09-12 and M06 on 2026-09-13, so this is the next thing to do rather than a deferral. What M06 found makes the case louder — a gate can report clean while a floor is breached, and G-20's whole point is that a rule nobody can grep for is a wish | — |
 
 Everything in "Deferred to modules" at the bottom is **not** part of M01-R; it is scheduled into
 the module that owns the table.
@@ -480,6 +480,26 @@ Done addendum (already written) and reference it from `docs/sdlc.md`.
 **Done when:** the script runs green in CI and fails on a deliberately planted violation (test it
 by temporarily adding a `select(` to a service, then reverting).
 
+**Status 2026-09-13 — overdue, not deferred.** The trigger was "M05, or a second person joins".
+M05 shipped on 2026-09-12 and M06 on 2026-09-13, so the condition fired two modules ago and
+`scripts/audit_guardrails.py` still does not exist.
+
+**M06 made the case for it concrete.** `make check` reported `make check: clean` on a run whose
+pytest printed `FAIL Required test coverage of 95% not reached. Total coverage: 94.83%` — because
+pytest-cov compares `round(total, 0) < fail_under` for the exit status while printing the verdict
+from the unrounded comparison. The floor had a half-point blind spot and nothing said so. That is
+G-20's thesis exactly: **a rule nobody can mechanically check is a wish**, and a check whose
+failure does not fail the build is the same thing wearing a uniform. Fixed for coverage by
+`[tool.coverage.report] precision = 2` and guarded by `tests/test_toolchain_pins.py` — but that is
+one rule, found by accident, and the table above lists eight more in the same position.
+
+Two rows worth adding to the script's table when it is written:
+
+| Rule | Check |
+|---|---|
+| G-20 itself | every `--cov-fail-under`-style floor in the repo is asserted to *actually* fail, not merely to be configured |
+| G-13 | every table in `docs/schema.md` appears in a module spec's schema-review checklist |
+
 ---
 
 ## Deferred to modules — not part of M01-R
@@ -490,6 +510,7 @@ by temporarily adding a `select(` to a service, then reverting).
 | M03 | S3 modifier recipes · S10 availability flags · X9 ETag on `/menu` |
 | M04 | S11 org-level recipe library · S15 yield on weight only · X8 persisted `unit_cost` · day-1 dish-margin screen |
 | M05 | X7 stock balance snapshot · S16 cache rule · prep-sheet thin slice (give it a module number) |
+| M06 | ☑ done 2026-09-13 — `stock_batch.supplier_id` and `goods_receipt_line_id` finally got their foreign keys (migration 0017), which `docs/schema.md` §5 had been asking for since M05 |
 | M07 | S1 `invoice` · S4 channel fields + CSV import · S5 cash close · S6 tips · S7 charges · S9 table merge · PWA manifest + service worker + outbox |
 | M08 | S2 `kot_ticket_line` timestamps · M4 pure-ASGI middleware · X6 SSE fan-out and `min-instances=1` · print-agent design note |
 | M10 | S8 consent columns · M13 separate guest key · M7 field-level PII gating |

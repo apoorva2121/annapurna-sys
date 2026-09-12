@@ -227,6 +227,14 @@ class GoodsReceiptRepository(RestaurantScopedRepository[GoodsReceipt]):
         return result.first()
 
     def _accepted(self) -> Select[tuple[uuid.UUID, object]]:
+        """Scoped on the **line**, and that is enough — deliberately, not by omission.
+
+        The join to `goods_receipt` carries no `restaurant_id` predicate of its own, which looks
+        like the #1 bug class until you check why it is safe: `fk_gr_line_receipt_tenant` is a
+        composite foreign key on `(goods_receipt_id, restaurant_id)`, so a line and its receipt
+        cannot belong to different restaurants. Postgres guarantees it rather than this query
+        remembering to. The same argument covers the `stock_item` join in `supplier_variance`.
+        """
         accepted = func.sum(GoodsReceiptLine.quantity_received - GoodsReceiptLine.quantity_rejected)
         return (
             select(GoodsReceiptLine.stock_item_id, accepted.label("accepted"))

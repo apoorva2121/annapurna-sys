@@ -23,6 +23,7 @@ from app.seed.identity import MissingSystemRoleError, seed_identity
 from app.seed.inventory import seed_inventory
 from app.seed.loader import SeedDataNotFoundError
 from app.seed.menu import seed_menu
+from app.seed.procurement import seed_procurement
 from app.seed.setup import seed_setup
 from app.seed.stock import seed_stock
 
@@ -52,6 +53,10 @@ async def seed() -> None:
             # Opening stock, and the two planted signals. Last of all, because it consumes the
             # ingredients `seed_stock` just created and cannot run before they exist.
             inventory = await seed_inventory(session)
+            # Suppliers, two orders and three deliveries, including one deliberate short delivery.
+            # After the inventory seeder and not before: both write the stock ledger, and that one
+            # refuses to run at all if any movement already exists.
+            procurement = await seed_procurement(session)
             # The single commit. Everything above it is provisional until this line.
             await session.commit()
     finally:
@@ -64,6 +69,7 @@ async def seed() -> None:
         and menu.created_nothing
         and stock.created_nothing
         and inventory.created_nothing
+        and procurement.created_nothing
     ):
         logger.info("Seed data already present; nothing to do.")
         return
@@ -100,6 +106,13 @@ async def seed() -> None:
         "Seeded %d opening stock batches and %d deliberately negative positions.",
         inventory.batches_created,
         inventory.negatives_planted,
+    )
+    logger.info(
+        "Seeded %d suppliers, %d orders, %d deliveries and %d deliberate short deliveries.",
+        procurement.suppliers_created,
+        procurement.orders_created,
+        procurement.receipts_created,
+        procurement.short_deliveries_planted,
     )
 
 

@@ -109,3 +109,34 @@ def test_the_lockfile_resolves_the_current_dependency_list() -> None:
 
 def test_the_frontend_is_locked_too() -> None:
     assert (_ROOT / "frontend" / "package-lock.json").is_file()
+
+
+def test_the_coverage_floor_can_actually_fail_the_build() -> None:
+    """The gate's blind spot, closed and kept closed.
+
+    `--cov-fail-under=95` looks like it fails at 94.83%. It does not, by default: pytest-cov prints
+    the verdict from `total < fail_under` and sets the exit status from
+    `coverage.results.should_fail_under(total, fail_under, precision)`, which **rounds to
+    `precision` first**. At the default precision of 0, `round(94.83, 0)` is 95, so the run prints
+    `FAIL Required test coverage of 95% not reached` in red and exits 0.
+
+    That is not hypothetical: `make check` reported `make check: clean` on exactly that output on
+    2026-09-13, and the two obvious explanations — pytest not failing, make not propagating — had
+    both already been ruled out by direct measurement. The gap is roughly half a percentage point
+    wide, which is comfortably enough room for a module to land in.
+
+    `[tool.coverage.report] precision = 2` closes it. This test is what stops the line being
+    removed as cosmetic by somebody who reads it as "how many decimals to print".
+    """
+    from coverage.results import should_fail_under
+
+    config = tomllib.loads((_BACKEND / "pyproject.toml").read_text(encoding="utf-8"))
+    precision = config["tool"]["coverage"]["report"]["precision"]
+
+    assert precision >= 2, (
+        "coverage precision is what the fail-under comparison rounds to. At 0, a 94.83% run "
+        "prints FAIL and exits 0."
+    )
+    # The demonstration, not just the setting: the figure that slipped through must now be caught.
+    assert should_fail_under(94.83, 95, precision), "94.83% must fail a 95% floor"
+    assert not should_fail_under(95.0, 95, precision), "95.00% must pass a 95% floor"

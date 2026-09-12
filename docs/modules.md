@@ -124,6 +124,10 @@ The heart of the product. Everything commercially interesting depends on this be
   the PO partially open
 - **Tests** — three-way variance arithmetic; a receipt without a PO (ad-hoc market purchase) still
   creates batches
+- **Manual** — `docs/manual-tests/M06-procurement.md`. Its section C is the one that matters: the
+  two inputs are labelled *"What the bill says"* and *"What the scale says"*, and whether a real
+  store manager fills them with two different numbers is what decides if this module is worth
+  anything
 - **Est.** 3 days
 
 ## M07 · Orders / POS

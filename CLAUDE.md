@@ -62,6 +62,14 @@ gate looks like a passing one — `make: *** [lint-api] Error 1` scrolls past an
 and check the number. Note also that `make lint` runs `ruff format --check`, which *fails* on
 unformatted files — running `ruff format` yourself rewrites them and reports nothing.
 
+**And read the red lines even when the exit code is 0.** The coverage floor had a second, separate
+way of reporting clean while breached: pytest-cov prints its verdict from `total < fail_under` and
+sets the *exit status* from `round(total, precision) < fail_under`, so at the default precision of
+0 anything from ~94.5% to 95% printed `FAIL Required test coverage of 95% not reached` in red and
+exited 0. Closed on 2026-09-13 by `[tool.coverage.report] precision = 2`, guarded by
+`tests/test_toolchain_pins.py`. The general rule it leaves behind: **if a red line and the exit
+code disagree, one of them is a bug and it is worth an hour.**
+
 Never edit a migration that has been applied on staging — write a new one.
 
 ## Invariants — violating any of these is a bug, not a style choice
