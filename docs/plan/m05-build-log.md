@@ -56,6 +56,18 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
 >    failure, and backend coverage falling to 93.37% while 623 tests passed.
 > 3. Then M05's `U` and `D` columns tick in `docs/checklist.md`.
 
+## The gate, run whole, exit code read
+
+```
+EXIT=0
+648 backend tests passed, Total coverage: 96.83% (floor 95%)
+23 frontend test files, 196 tests passed
+5 validators clean; 18 warnings, every one a documented market-rate disagreement
+make check: clean
+```
+
+**Every M05 column in `docs/checklist.md` is now ticked except `U` — your manual pass.**
+
 ## Verified — commands actually run, output actually seen
 
 | Check | Result |
