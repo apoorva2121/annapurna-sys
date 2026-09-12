@@ -71,6 +71,17 @@ class PermissionCode(StrEnum):
     STOCK_ADJUST = "stock.adjust"
     STOCK_COUNT = "stock.count"
 
+    # M06. Three, again straight from `seed/organization.yaml`. The line worth reading is the one
+    # between `purchase.manage` and `stock.receive`: raising an order and signing for a delivery
+    # are different acts, and posting a receipt writes the stock ledger, so it keeps the ledger's
+    # permission. The design's own grants then give separation of duties for free — the accountant
+    # holds `purchase.manage` and not `stock.receive`, so the person who reconciles invoices can
+    # order and can never receive; the chef holds neither, so a kitchen cannot book in a sack it
+    # then cooks.
+    SUPPLIER_VIEW = "supplier.view"
+    SUPPLIER_MANAGE = "supplier.manage"
+    PURCHASE_MANAGE = "purchase.manage"
+
 
 class PermissionSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

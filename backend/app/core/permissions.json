@@ -145,6 +145,24 @@
       "description": "Post a correction to the ledger. The one movement nobody observed, which makes it the one an insider would use to erase a shortfall — so it always carries a reason and always writes an audit row."
     },
     {
+      "code": "supplier.view",
+      "resource": "supplier",
+      "action": "view",
+      "description": "See the supplier list, purchase orders, goods receipts and the supplier variance report. Read-only, and commercially sensitive: it is who you buy from and what you pay."
+    },
+    {
+      "code": "supplier.manage",
+      "resource": "supplier",
+      "action": "manage",
+      "description": "Add or change a supplier. Not held by the kitchen: inventing a supplier is how purchases get laundered, so create and edit are audited with the actor and a supplier is deactivated, never deleted."
+    },
+    {
+      "code": "purchase.manage",
+      "resource": "purchase",
+      "action": "manage",
+      "description": "Raise, send and cancel purchase orders. Separate from stock.receive on purpose - posting a delivery writes the stock ledger, so it is the ledger's permission, and the accountant who reconciles invoices can raise an order without ever signing for one."
+    },
+    {
       "code": "stock.count",
       "resource": "stock",
       "action": "count",
@@ -168,6 +186,7 @@
         "menu.manage",
         "menu.price",
         "menu.view",
+        "purchase.manage",
         "recipe.manage",
         "recipe.view",
         "restaurant.configure",
@@ -176,7 +195,9 @@
         "stock.count",
         "stock.produce",
         "stock.receive",
-        "stock.view"
+        "stock.view",
+        "supplier.manage",
+        "supplier.view"
       ]
     },
     {
@@ -216,13 +237,16 @@
         "employee.view",
         "menu.manage",
         "menu.view",
+        "purchase.manage",
         "recipe.view",
         "role.view",
         "stock.adjust",
         "stock.count",
         "stock.produce",
         "stock.receive",
-        "stock.view"
+        "stock.view",
+        "supplier.manage",
+        "supplier.view"
       ]
     },
     {
@@ -264,12 +288,15 @@
       "rank": 30,
       "description": "Runs the store room and supplier relationships. Manages stock, not people.",
       "permissions": [
+        "purchase.manage",
         "recipe.view",
         "stock.adjust",
         "stock.count",
         "stock.produce",
         "stock.receive",
-        "stock.view"
+        "stock.view",
+        "supplier.manage",
+        "supplier.view"
       ]
     },
     {
@@ -283,9 +310,11 @@
       "code": "accountant",
       "name": "Accountant",
       "rank": 30,
-      "description": "Reads the staff list because payroll needs to know who is employed. Changes nothing about them.",
+      "description": "Reads the staff list because payroll needs to know who is employed, and reconciles what suppliers billed against what arrived. Holds purchase.manage and NOT stock.receive: an accountant may raise an order and may never sign for a delivery.",
       "permissions": [
-        "employee.view"
+        "employee.view",
+        "purchase.manage",
+        "supplier.view"
       ]
     }
   ]
