@@ -25,6 +25,13 @@ from app.models.menu import (
     Modifier,
     ModifierGroup,
 )
+from app.models.procurement import (
+    GoodsReceipt,
+    GoodsReceiptLine,
+    PurchaseOrder,
+    PurchaseOrderLine,
+    Supplier,
+)
 from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, TaxRate
 from app.models.stock import (
     IngredientProfile,
@@ -41,6 +48,8 @@ __all__ = [
     "DiningArea",
     "Employee",
     "EmployeeRoleAssignment",
+    "GoodsReceipt",
+    "GoodsReceiptLine",
     "IngredientProfile",
     "MenuCategory",
     "MenuItem",
@@ -51,6 +60,8 @@ __all__ = [
     "Organization",
     "Permission",
     "PreparationProfile",
+    "PurchaseOrder",
+    "PurchaseOrderLine",
     "Recipe",
     "RecipeLine",
     "Restaurant",
@@ -63,6 +74,7 @@ __all__ = [
     "StockCountLine",
     "StockItem",
     "StockMovement",
+    "Supplier",
     "TaxGroup",
     "TaxRate",
     "UserAccount",

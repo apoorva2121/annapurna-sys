@@ -441,9 +441,12 @@ reads as a real link), non-negative `quantity_received`, `unit_cost` and `counte
 `approved_by <> counted_by` on `stock_count` — separation of duties held by the database, not only
 by the service.
 
-**`supplier_id` and `goods_receipt_line_id` are columns without foreign keys** until M06 creates
-the tables they point at. The migration-order note at the foot of this document anticipates exactly
-this.
+**`supplier_id` and `goods_receipt_line_id` were columns without foreign keys** until M06 created
+the tables they point at. The migration-order note at the foot of this document anticipated exactly
+this; migration **0017** adds both constraints, composite and tenant-safe against
+`uq_supplier_id_restaurant` and `uq_gr_line_id_restaurant`. Nothing before 0017 wrote either column,
+and 0017 asserts that rather than assuming it - a migration that fails loudly beats one that
+silently validates nothing.
 
 **One index beyond the sketch:** `ix_stock_movement_batch` on `stock_batch_id`, because the FEFO
 selection's second statement aggregates movements grouped by batch.
@@ -462,7 +465,8 @@ the cheapest money in the product (`docs/waste-model.md` §1).
 supplier
   restaurant_id, name NN, contact_person, phone, email, gstin
   payment_terms_days  smallint
-  is_active
+  is_active, deactivated_at                      -- master data tier, ADR 0008
+  UQ (restaurant_id, name)                       -- two spellings of one supplier cannot be summed
   IX (restaurant_id, is_active)
 
 purchase_order
@@ -475,29 +479,79 @@ purchase_order
   IX (restaurant_id, status)
 
 purchase_order_line
-  purchase_order_id NN FK→purchase_order, stock_item_id NN FK→stock_item
+  restaurant_id NN                               -- carried so the tenant-safe composite FKs work
+  purchase_order_id NN FK→(purchase_order.id, restaurant_id)
+  stock_item_id     NN FK→(stock_item.id, restaurant_id)
   quantity_ordered    numeric(14,4) NN           -- base units
-  unit_price          numeric(14,6) NN
+  unit_price          numeric(14,6) NN           -- quoted, excluding tax
+  UQ (purchase_order_id, stock_item_id)          -- an item appears once on an order
 
-goods_receipt
+goods_receipt                                    -- APPEND-ONLY LEDGER. Never update, never delete.
   restaurant_id, purchase_order_id FK→purchase_order   -- nullable: ad-hoc market purchases
   supplier_id NN, received_at NN, business_date NN
   invoice_number      text
-  invoice_amount      numeric(12,2)              -- what they billed
+  invoice_amount      numeric(12,2)              -- the total payable, tax included
+  tax_amount          numeric(12,2)              -- how much of it was tax (compliance A6)
   received_by         uuid FK→employee
+  UQ (restaurant_id, supplier_id, invoice_number) WHERE invoice_number IS NOT NULL
   IX (restaurant_id, business_date)
+  IX (restaurant_id, supplier_id)
 
-goods_receipt_line
-  goods_receipt_id NN FK→goods_receipt, stock_item_id NN FK→stock_item
+goods_receipt_line                               -- APPEND-ONLY, with its parent
+  restaurant_id NN                               -- carried so the tenant-safe composite FKs work
+  goods_receipt_id NN FK→(goods_receipt.id, restaurant_id)
+  stock_item_id    NN FK→(stock_item.id, restaurant_id)
   quantity_invoiced   numeric(14,4) NN           -- what the bill says
   quantity_received   numeric(14,4) NN           -- what the scale says   <-- the variance
   quantity_rejected   numeric(14,4) NN default 0 -- quality rejection
-  unit_price          numeric(14,6) NN
+  unit_price          numeric(14,6) NN           -- excluding tax; landed cost adds it back
   rejection_reason    text
+  UQ (goods_receipt_id, stock_item_id)           -- an item appears once on a delivery
+  IX (restaurant_id, stock_item_id)
 ```
 
 Ordered / invoiced / received as three separate numbers is the whole point. Collapse them and
 "Supplier A short-delivered 4.2% this quarter — ₹18,400" becomes unanswerable.
+
+### What migration 0017 added beyond the sketch above
+
+The sketch is the design; these are the guarantees that turned out to be needed to make it true.
+All are in `0017_m06_procurement`, argued in `docs/modules/M06-procurement-spec.md`.
+
+**`goods_receipt` and `goods_receipt_line` refuse UPDATE and DELETE**, by the same trigger 0015 put
+on `stock_movement`. ADR 0008 does not assign these two a tier, so the M06 spec assigns them to
+*ledger* — for the threat rather than the taxonomy. A receipt writes stock movements the database
+already refuses to change, so an editable receipt is one `UPDATE` away from *"weigh 47, take 3 home,
+edit the receipt to say 50 so the invoice reconciles"*: two records that disagree, with nothing able
+to say which was altered. Corrections are `adjustment` movements carrying
+`ref_type='goods_receipt'` — a reference `stock_movement`'s CHECK constraint already permits.
+
+**Tenant-safe composite foreign keys, so `purchase_order_line` and `goods_receipt_line` carry a
+`restaurant_id` the sketch did not give them.** Identical reasoning to `stock_count_line`: every
+parent reference is on `(id, restaurant_id)`, so attaching a receipt line to another restaurant's
+stock item is refused by Postgres rather than by a repository remembering to filter.
+
+**`goods_receipt.tax_amount`.** `docs/compliance-rules.md` §A6 — a restaurant on the 5% composition
+scheme *bears* input GST and cannot reclaim it, so a quoted price is not a cost. Storing only
+`unit_price` understates food cost by the whole tax rate; storing only the tax-inclusive total makes
+"how much input GST did we bear last year" permanently unanswerable. Both are kept, and the landed
+cost frozen onto `stock_batch.unit_cost` apportions the tax pro rata by line value in the service.
+
+**One supplier invoice, booked once:** a partial unique index on
+`(restaurant_id, supplier_id, invoice_number)`. Double-booking is the most ordinary error in
+accounts payable and the most ordinary small fraud, and it silently doubles stock — which makes
+every food-cost figure built on it wrong by more than the money. Partial, because a market purchase
+has no invoice number at all.
+
+**CHECK constraints that catch nonsense:** `quantity_rejected <= quantity_received` (you cannot
+refuse more than arrived), a rejection with no `rejection_reason` refused, `quantity_ordered > 0`,
+non-negative everything else, and `(cancelled_at IS NULL) = (cancel_reason IS NULL)` — a
+cancellation with no reason is the one somebody would use to make an over-order disappear.
+
+**`purchase_order.status` is a stored derived value**, the only one in the module. A PO's state is a
+function of its receipts, which is cheap for one order and quadratic for the list screen a store
+manager lives on. The service maintains it and a test asserts the stored value equals a
+recomputation; a stored derived value with no test is a bug waiting.
 
 ---
 

@@ -152,3 +152,28 @@ class StockCountStatus(StrEnum):
     DRAFT = "draft"
     SUBMITTED = "submitted"
     APPROVED = "approved"
+
+
+class PurchaseOrderStatus(StrEnum):
+    """Where an order is in its life. Forward-only, with two terminal states.
+
+    ```
+    draft ──send──▶ sent ──receive──▶ partial ──receive──▶ received
+      │               │                  │
+      └───cancel──────┴──────cancel──────┘
+    ```
+
+    `partial` is the value that earns the enum. A supplier delivering 30 of 50 sacks is the
+    ordinary case, not an exception, and an order that went straight from `sent` to `received`
+    would lose the fact that 20 are still owed — which is the number a store manager chases.
+
+    `cancelled` and `received` are terminal, and a cancellation always carries a reason (a CHECK
+    constraint pairs the two). A PO is never deleted: ADR 0008 puts it in the transactional tier,
+    where state lives in `status` and the row stays.
+    """
+
+    DRAFT = "draft"
+    SENT = "sent"
+    PARTIAL = "partial"
+    RECEIVED = "received"
+    CANCELLED = "cancelled"

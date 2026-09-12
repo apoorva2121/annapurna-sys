@@ -144,3 +144,26 @@ export const StockCountStatus = {
   APPROVED: 'approved',
 } as const;
 export type StockCountStatus = (typeof StockCountStatus)[keyof typeof StockCountStatus];
+
+/**
+ * Where a purchase order is in its life. Forward-only, with two terminal states.
+ *
+ * ```
+ * draft ──send──▶ sent ──receive──▶ partial ──receive──▶ received
+ *   │               │                  │
+ *   └───cancel──────┴──────cancel──────┘
+ * ```
+ *
+ * `partial` is the value that earns the enum: a supplier delivering 30 of 50 sacks is the ordinary
+ * case, and an order going straight from `sent` to `received` would lose the 20 still owed — which
+ * is the number a store manager chases. `cancelled` and `received` are terminal, and a cancelled
+ * order always carries a reason. A purchase order is never deleted.
+ */
+export const PurchaseOrderStatus = {
+  DRAFT: 'draft',
+  SENT: 'sent',
+  PARTIAL: 'partial',
+  RECEIVED: 'received',
+  CANCELLED: 'cancelled',
+} as const;
+export type PurchaseOrderStatus = (typeof PurchaseOrderStatus)[keyof typeof PurchaseOrderStatus];
