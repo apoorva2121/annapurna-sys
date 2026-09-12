@@ -43,6 +43,13 @@ from app.models.menu import (
     Modifier,
     ModifierGroup,
 )
+from app.models.procurement import (
+    GoodsReceipt,
+    GoodsReceiptLine,
+    PurchaseOrder,
+    PurchaseOrderLine,
+    Supplier,
+)
 from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, TaxRate
 from app.models.stock import IngredientProfile, Recipe, RecipeLine, StockItem
 from app.models.tenancy import Organization, Restaurant
@@ -231,6 +238,31 @@ def _sample_body(route: RouteInfo) -> dict[str, Any]:
         }
     if route.path.endswith("/auth/switch"):
         return {"restaurant_id": str(_PROBE_UUID)}
+    # M06. Each of these has to get *past validation* to reach the permission check; a 422 would
+    # mean the suite asserted nothing while looking green.
+    if route.path.endswith("/suppliers"):
+        return {"name": "Probe Traders"}
+    if route.path.endswith("/purchase-orders"):
+        return {
+            "supplier_id": str(_PROBE_UUID),
+            "lines": [
+                {
+                    "stock_item_id": str(_PROBE_UUID),
+                    "quantity_ordered": "1000.0000",
+                    "unit_price": "0.042000",
+                }
+            ],
+        }
+    if route.path.endswith("/cancel"):
+        return {"reason": "Probe cancellation"}
+    if route.path.endswith("/receive"):
+        return {"lines": [_PROBE_RECEIPT_LINE]}
+    if route.path.endswith("/goods-receipts"):
+        return {"supplier_id": str(_PROBE_UUID), "lines": [_PROBE_RECEIPT_LINE]}
+    if "/suppliers/" in route.path and route.method == "PATCH":
+        return {"contact_person": "Probe Person"}
+    if "/purchase-orders/" in route.path and route.method == "PATCH":
+        return {"expected_at": "2099-01-01T00:00:00Z"}
     if route.path.endswith("/setup/dining-areas"):
         return {"name": "Probe Area"}
     if route.path.endswith("/setup/tables"):
@@ -258,6 +290,15 @@ def _sample_body(route: RouteInfo) -> dict[str, Any]:
 
 
 _PROBE_UUID = uuid.UUID("00000000-0000-0000-0000-0000000000ff")
+
+# One delivered line, shaped to pass validation. `quantity_rejected` is absent rather than zero so
+# the schema's own default is exercised by the probe as well.
+_PROBE_RECEIPT_LINE = {
+    "stock_item_id": str(_PROBE_UUID),
+    "quantity_invoiced": "1000.0000",
+    "quantity_received": "1000.0000",
+    "unit_price": "0.042000",
+}
 
 # Every path parameter the staff surface uses, and the victim resource each one addresses.
 #
@@ -287,6 +328,12 @@ _VICTIM_PARAMETERS = frozenset(
         # `/stock/items/{stock_item_id}/movements` answered 200 for another tenant's item id.
         "stock_item_id",
         "count_id",
+        # M06. A supplier list is who you buy from and what you pay, and a goods receipt is what
+        # you were short of last Tuesday: reading another restaurant's is a direct commercial leak
+        # as well as a tenant one.
+        "supplier_id",
+        "po_id",
+        "receipt_id",
     }
 )
 
@@ -479,10 +526,65 @@ async def _victim_resources(
             variance_value=Decimal("-7.20"),
         )
     )
+    # M06: a supplier, an order against it, and a delivery booked against that order. The supplier
+    # row is the one worth stealing on its own — it is who a competitor buys from and what they pay
+    # — and the receipt is what they were short of, and by how much.
+    supplier = Supplier(
+        restaurant_id=restaurant_id,
+        name=f"{prefix} Traders",
+        contact_person=f"{prefix} Sharma",
+        payment_terms_days=14,
+    )
+    session.add(supplier)
+    await session.flush()
+    order = PurchaseOrder(
+        restaurant_id=restaurant_id,
+        supplier_id=supplier.id,
+        po_number=f"PO-{seq:06d}",
+        # `sent`, so a cross-tenant receive is refused for being another tenant's order rather than
+        # for being a draft — the suite must probe the tenant check, not a status check.
+        status="sent",
+        total_amount=Decimal("4200.00"),
+    )
+    session.add(order)
+    await session.flush()
+    session.add(
+        PurchaseOrderLine(
+            restaurant_id=restaurant_id,
+            purchase_order_id=order.id,
+            stock_item_id=paneer.id,
+            quantity_ordered=Decimal("10000.0000"),
+            unit_price=Decimal("0.420000"),
+        )
+    )
+    receipt = GoodsReceipt(
+        restaurant_id=restaurant_id,
+        purchase_order_id=order.id,
+        supplier_id=supplier.id,
+        received_at=datetime(2026, 1, 3, tzinfo=UTC),
+        business_date=date(2026, 1, 3),
+        invoice_number=f"{prefix.upper()}-4471",
+        invoice_amount=Decimal("3990.00"),
+    )
+    session.add(receipt)
+    await session.flush()
+    session.add(
+        GoodsReceiptLine(
+            restaurant_id=restaurant_id,
+            goods_receipt_id=receipt.id,
+            stock_item_id=paneer.id,
+            quantity_invoiced=Decimal("10000.0000"),
+            quantity_received=Decimal("9500.0000"),
+            unit_price=Decimal("0.420000"),
+        )
+    )
     await session.flush()
 
     return {
         "count_id": str(count.id),
+        "supplier_id": str(supplier.id),
+        "po_id": str(order.id),
+        "receipt_id": str(receipt.id),
         "employee_id": str(employee),
         "area_id": str(area.id),
         "table_id": str(table.id),
