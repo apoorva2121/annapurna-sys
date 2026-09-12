@@ -93,45 +93,54 @@ live:
 
 `make check` is green with 20 warnings, every one of them a real open question rather than noise.
 
-### Earlier pause note (superseded by the outcome above)
+### RESUME HERE — state as of commit `c3082c3`
 
-**The working tree is mid-migration and `make check` is RED.** That is expected, not a bug:
-`library/market-rates.yaml` is still schema v1 while `validate_rates.py` now requires v2 fields
-(`basis_city`, `grade`, `gst_rate`, per-source `as_of`). The merge that reconciles them has not run
-because it is waiting on research still in flight. Last green commit is `04442ac`.
+**The tree is GREEN.** `make check` exits 0 with 20 warnings, every one a real open question
+rather than noise. Nothing is half-migrated; schema v2 is merged, validated and committed.
 
-**Four Sonnet 5 workers were running when this paused.** They write to a session-scoped scratchpad
-that a new session will NOT know the path to — record it here or the work is lost:
+**What blocks the remaining work is search capacity, not effort or model.** The session that did
+this work spent its WebSearch budget (200/200, session-scoped — it does NOT reset when a rate
+limit does), and all four research subagents died on the shared session rate limit. A fresh
+session restores the budget; so does raising `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION`. More
+model effort buys nothing here — none of the remaining work is reasoning-hard.
+
+**Research fragments live in a session-scoped scratchpad a new session cannot guess.** The files
+are still on disk at:
 
 ```
 C:\Users\apoor\AppData\Local\Temp\claude\C--dev-restaurant-os\c61da976-0d9e-4164-9739-dc90dd1f0713\scratchpad\
 ```
 
-| File | Owner | Contents |
-|---|---|---|
-| `rates-*.yaml` (4) | round 1 | base layer, 122 rows, schema v1 — **already on disk** |
-| `backfill-untouched.yaml` | me | 67 rows: `basis_city`, `grade`, 9 `pack_tiers` — **already on disk** |
-| `rescrape-w1.yaml` | worker | 19 rows re-scraped to v2 — *in flight* |
-| `rescrape-w2.yaml` | worker | 18 rows re-scraped to v2 — *in flight* |
-| `rescrape-w3.yaml` | worker | 18 rows re-scraped to v2 — *in flight* |
-| `gst-rates.yaml` | worker | GST rate + HSN for all 122 — *in flight* |
+| File | Contents |
+|---|---|
+| `rates-*.yaml` (4) | base layer, 122 rows — the original research |
+| `backfill-untouched.yaml` | 67 rows: `basis_city`, `grade`, 9 `pack_tiers` |
+| `backfill-pending-rescrape.yaml` | 55 rows: same fields, plus the audit findings as `note_extra` |
 
-**Next action on resume**, in order:
+They are only needed to *re-merge*. `library/market-rates.yaml` is committed and complete, so
+losing the scratchpad costs nothing except the ability to re-run the merge without re-deriving the
+backfills.
 
-1. Check the four in-flight files exist. Any that are missing must be re-dispatched — the briefs
-   are reconstructable from the defect tables above plus the schema in
-   `docs/modules/market-rates-spec.md` § What a rate row is.
-2. `python library/merge_rates.py --fragments <scratchpad path above>`
-3. `python library/validate_rates.py --write-provenance` — expect it to fail first on real defects
-   in the new data; adjudicate rather than loosen the rules.
-4. `python seed/validate_tandoor_house.py` — now reports ex-GST **and** landed food cost.
-5. `make check > check.log 2>&1; echo $?` — **read the number, not the tail.**
-6. Commit.
+**Next actions, in value order** — all five need WebSearch:
 
-Already done and safe on disk: `merge_rates.py` rewritten as a layered merge (base → re-scrape
-override → backfill overlay → GST overlay), `validate_rates.py` rewritten for v2,
-`validate_tandoor_house.py` switched to the ratio conversion and dual-cost reporting, spec updated.
-All three parse clean.
+1. **GST + HSN for all 122** (`gst_rate: null` everywhere; the largest remaining gap, and the only
+   one that changes every dish cost). Prefer CBIC; a secondary source is acceptable when it cites
+   the notification. Write to `gst-rates.yaml` in the scratchpad — `merge_rates.py` already has
+   the overlay layer for it and expects `{code, gst_rate, gst_hsn, assumption, source}`.
+2. **`ROSE_WATER`** — still cosmetic-grade evidence for a food ingredient. Correctness, not polish.
+3. **Second source for the 8 high-impact single-sourced rows**: `OIL` (6.08% of all dish cost),
+   `CASHEW`, `TOMATO`, `CHILLIPWD`, `POTATO`, `CARROT`, `MUSHROOM`, `GINGER`.
+4. **Four genuinely stale prices**: `CLOVE` (198 days), `ROSE_WATER` (196), `AJWAIN` (115),
+   `CORN_KERNELS` (103).
+5. **`SAFFRON`** — its own evidence spans ₹330–550/g against a value of ₹220/g.
+
+Then: `python library/merge_rates.py --fragments <path above>` →
+`python library/validate_rates.py --write-provenance` →
+`python seed/validate_tandoor_house.py` → `make check > check.log 2>&1; echo $?` (**read the
+number, not the tail**) → commit.
+
+Re-scrape briefs are reconstructable from the defect tables above plus
+`docs/modules/market-rates-spec.md` § What a rate row is, which carries the full v2 schema.
 
 **E is data, not a seeded tenant.** The YAML is authored and validated in `make check`, but nothing
 in `backend/app/seed/` reads it. See *What F involves* below — that is the honest next step.
