@@ -26,7 +26,8 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
 
 - [x] **A · Migration + models + enums + schema guarantees** — 0015, 4 tables, append-only trigger,
       composite tenant FKs, 4 new enums mirrored to TS. 8 schema tests green.
-- [ ] **B · Repositories** — FEFO selection with `FOR UPDATE`, on-hand aggregate, query-count assertions
+- [x] **B · Repositories** — FEFO with `NULLS LAST` + row locks, on-hand aggregate, per-basis
+      consumption. 15 tests green.
 - [ ] **C · Services: receive, adjust, consume** — the write path, FEFO + negative-tolerant
 - [ ] **D · Services: production, stock counts** — the two transactional ones
 - [ ] **E · API + permissions + tenant-isolation suite**
@@ -37,9 +38,10 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
 
 ## Next action
 
-> Chunk B. Create `app/repositories/inventory.py`: `on_hand()` as one aggregate query (never a
-> Python loop), `batches_for_item_fefo()` with `ORDER BY expiry_date NULLS LAST, received_at` and
-> `FOR UPDATE`. Follow `app/repositories/stock.py` for the tenant-scoping pattern.
+> Chunk C. Create `app/services/inventory.py`: `receive_stock`, `adjust`, and `consume`. `consume`
+> walks `batches_for_consumption` FEFO, and when the batches run out it charges the remainder to
+> `newest_batch_for_update` and lets on-hand go negative (spec decision 2) — it never refuses.
+> When the item has no batch at all, create a zero-quantity `opening` batch first.
 
 ## Verified — commands actually run, output actually seen
 
@@ -50,6 +52,7 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
 | `pytest tests/test_inventory_schema.py` | **8 passed** |
 | `pytest tests/test_enum_mirror.py` | passed — Python/TS enums in step |
 | `pytest tests/test_database.py` | **19 passed** — migration applies to a real Postgres |
+| `pytest tests/test_inventory_repositories.py` | **15 passed** — FEFO order, NULLS LAST, on-hand, tenant isolation |
 
 ## Notes for whoever picks this up
 
