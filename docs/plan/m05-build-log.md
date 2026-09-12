@@ -39,18 +39,22 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
 - [x] **G · Frontend: on-hand + alerts** — `StockOnHandScreen`, API client, route, nav link,
       7 screen tests. The owner link test was made honest: it claimed "every screen this app has"
       and did not include the new one.
-- [ ] **H · Frontend: receive, produce, count entry**
-- [~] **I · Seed + gate + review + manual script** — seed and manual script done; the adversarial
-      review and the final whole-gate run are what remain after chunk H.
+- [x] **H · Frontend: receive, produce, count entry** — three screens, routed behind their own
+      permissions, 11 screen tests. The owner link test needed updating a second time.
+- [x] **I · Seed + review + manual script + coverage** — seed, manual script, adversarial review
+      (3 findings, each with a regression test), and every M05 module at **100% coverage**.
 
 ## Next action
 
-> Chunk H — the write screens: receive stock, produce a preparation batch, physical count entry.
-> The API and its hooks (`frontend/src/staff/api/inventory.ts`) are complete and tested, so these
-> are forms over existing mutations. Read the `restaurant-ui` skill first; `RecipeScreen.tsx` is
-> the closest model for an editable-lines form. Then chunk I: seed an opening batch for every
-> stock item plus one deliberate negative, re-run the manual script's sections C and D through the
-> screens rather than the API, and do the adversarial review.
+> **M05's build is complete.** What remains is not code:
+>
+> 1. **Your manual pass** — `docs/manual-tests/M05-inventory.md`. Sections C and D can now be done
+>    through the screens rather than the API; that doc still says otherwise and should be corrected
+>    once you have run it.
+> 2. **Re-run `make check` whole** after any further change, and **read the exit code, not the
+>    tail**. It caught two things in this module that the targeted runs did not: an S311 lint
+>    failure, and backend coverage falling to 93.37% while 623 tests passed.
+> 3. Then M05's `U` and `D` columns tick in `docs/checklist.md`.
 
 ## Verified — commands actually run, output actually seen
 
@@ -69,6 +73,38 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
 | `pytest tests/test_inventory_endpoints.py` | **12 passed** |
 | `pytest tests/test_generic_suites.py` | **21 passed** — tenant isolation + permissions on the new routes |
 | `scripts/audit_docs.py` | 0 issues |
+
+## The adversarial review found three more (chunk I)
+
+Each was invisible to a green suite, and for a different reason — which is the argument for the
+review step rather than for simply writing more of the same tests.
+
+1. **Every production shared one reference.** Consumption movements were referenced to `recipe.id`
+   rather than to the batch being produced, so *"show me the movements this production wrote"*
+   returned every production of that recipe since the beginning. Nothing failed: the totals were
+   right, the reference pointed at a real row, and it was wrong only in what it could answer —
+   which happens to be M13's stated requirement that a metric drills through to its own rows. Fixed
+   by creating the output batch **before** consuming the inputs, so the batch's id is the
+   reference. Regression test verified in both directions.
+2. **`open_count` did not deduplicate**, so a client listing the same item twice hit
+   `uq_stock_count_line_count_item` and got a 500 for an obvious, harmless typo.
+3. **`consume` fetched batches with `session.get`**, which reads by primary key with **no tenant
+   filter**. Safe as written — the id came from a scoped query a line earlier — but an unscoped
+   read in the hot path of the most-written table is how the #1 bug class returns via whoever edits
+   the loop next. Now goes through the scoped repository.
+
+## What the coverage gate caught that the tests did not
+
+`make check` failed at **93.37%** with 623 tests passing. Three separate things were hiding behind
+that number, and the third is the one worth remembering:
+
+- `app/seed/inventory.py` at 0% — its tests existed but that run predated them.
+- Several endpoint bodies and error branches never executed at all.
+- **A test that could decide not to run.** `test_producing_a_preparation_over_http` fetched the
+  station list and `return`ed early when it was empty — which it always was in that fixture. The
+  test passed, every time, having done nothing. It now creates the station directly.
+
+All six M05 modules are now at **100%**.
 
 ## Two real bugs the tests found in chunk E — worth knowing before writing another module
 

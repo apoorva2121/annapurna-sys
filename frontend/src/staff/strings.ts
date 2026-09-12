@@ -39,6 +39,9 @@ export const strings = {
     stock: 'Ingredients and recipes',
     costs: 'Dish costs',
     onHand: 'Stock on hand',
+    receive: 'Record a delivery',
+    produce: 'Make a batch',
+    count: 'Stock count',
   },
 
   home: {
@@ -336,6 +339,45 @@ export const strings = {
     movementNote: 'Note',
     basisTheoretical: 'From a recipe',
     basisActual: 'Counted',
+    receiveTitle: 'Record a delivery',
+    receiveIntro:
+      'What arrived, how much of it, and what it cost. This is the anchor every later figure rests on — stock that arrives unrecorded shows up later as a position below zero.',
+    produceTitle: 'Make a batch',
+    produceIntro:
+      'Making a preparation uses up its ingredients and creates a new batch. The batch costs what the ingredients it used actually cost, not what they cost today.',
+    pickItem: 'Choose an item',
+    quantityIn: 'Quantity',
+    unitCost: 'Cost per unit',
+    expiryDate: 'Use by',
+    expiryHint:
+      'Optional. Dated stock is always used before undated stock, so leaving this blank means this batch waits behind everything that has a date.',
+    storage: 'Where it is kept',
+    record: 'Record it',
+    recorded: 'Recorded.',
+    make: 'Make it',
+    made: (quantity: string, cost: string) =>
+      `Made ${quantity}. This batch costs ${cost} per unit.`,
+    shortfallWarning: (quantity: string) =>
+      `${quantity} of this was not in stock. It has been recorded anyway and the position is now below zero — record the missing delivery, or count the shelf.`,
+    failed: 'That could not be recorded.',
+    countTitle: 'Stock count',
+    countIntro:
+      'Write down what is actually on the shelf. Nothing changes the ledger until somebody else approves the count — that second pair of eyes is the point of it.',
+    startCount: 'Start a count',
+    book: 'Book says',
+    counted: 'Counted',
+    variance: 'Difference',
+    saveCount: 'Save what is counted',
+    submitCount: 'Submit for approval',
+    approveCount: 'Approve, and correct the ledger',
+    approveExplains:
+      'Approving posts a correction for every line that differs, so the book matches the shelf. It must be somebody other than the person who counted.',
+    approveRefused: 'That count was not approved.',
+    status: {
+      draft: 'Being counted',
+      submitted: 'Waiting for approval',
+      approved: 'Approved — the ledger has been corrected',
+    },
     types: {
       receipt: 'Delivery',
       production: 'Made here',

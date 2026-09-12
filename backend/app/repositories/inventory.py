@@ -48,12 +48,6 @@ class BatchPosition:
 class StockBatchRepository(RestaurantScopedRepository[StockBatch]):
     model = StockBatch
 
-    async def get_by_code(self, batch_code: str) -> StockBatch | None:
-        result = await self.session.scalars(
-            self.scoped().where(StockBatch.batch_code == batch_code)
-        )
-        return result.first()
-
     async def batches_for_consumption(self, stock_item_id: uuid.UUID) -> list[BatchPosition]:
         """Batches with stock left, first-expired-first-out, **locked for update**.
 

@@ -72,6 +72,9 @@ describe('the staff home screen', () => {
       'recipe.manage',
       'cost.view',
       'stock.view',
+      'stock.receive',
+      'stock.produce',
+      'stock.count',
     ]);
 
     expect(hrefs()).toEqual([
@@ -82,8 +85,19 @@ describe('the staff home screen', () => {
       '/settings',
       '/staff',
       '/stock',
+      '/stock/count',
       '/stock/on-hand',
+      '/stock/produce',
+      '/stock/receive',
     ]);
+  });
+
+  it('offers a chef the batch he makes and not the delivery he does not sign for', () => {
+    // The grant that carries the most meaning in M05, visible at the level a person experiences
+    // it: the chef's home screen has "Make a batch" on it and no way to record a delivery.
+    renderFor(['stock.view', 'stock.produce']);
+
+    expect(hrefs()).toEqual(['/profile', '/stock/on-hand', '/stock/produce']);
   });
 
   it('offers kitchen staff the shelf and nothing that changes it', () => {

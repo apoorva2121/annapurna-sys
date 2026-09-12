@@ -41,6 +41,7 @@ from app.schemas.inventory import (
     AdjustmentRequest,
     BatchResponse,
     ConsumptionLineResponse,
+    ConsumptionRequest,
     ConsumptionResponse,
     CountListResponse,
     CountOpenRequest,
@@ -201,7 +202,7 @@ async def adjust(
     "/stock/consumption", response_model=ConsumptionResponse, status_code=status.HTTP_201_CREATED
 )
 async def consume(
-    payload: ProductionRequest, session: SessionDep, actor: _AdjustDep
+    payload: ConsumptionRequest, session: SessionDep, actor: _AdjustDep
 ) -> ConsumptionResponse:
     """Take stock out without producing anything — the path M09 (waste) and M07 will use.
 

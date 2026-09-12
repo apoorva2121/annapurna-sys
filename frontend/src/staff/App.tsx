@@ -6,7 +6,10 @@ import { RequireAuth, RequirePermission } from '@staff/auth/guards';
 import { AppShell } from '@staff/components/AppShell';
 import EmployeeScreen from '@staff/screens/EmployeeScreen';
 import DishCostScreen from '@staff/screens/DishCostScreen';
+import StockCountScreen from '@staff/screens/StockCountScreen';
 import StockOnHandScreen from '@staff/screens/StockOnHandScreen';
+import StockProduceScreen from '@staff/screens/StockProduceScreen';
+import StockReceiveScreen from '@staff/screens/StockReceiveScreen';
 import FloorPlanScreen from '@staff/screens/FloorPlanScreen';
 import MenuItemScreen from '@staff/screens/MenuItemScreen';
 import MenuScreen from '@staff/screens/MenuScreen';
@@ -156,6 +159,30 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.STOCK_VIEW}>
               <StockOnHandScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="stock/receive"
+          element={
+            <RequirePermission permission={Permission.STOCK_RECEIVE}>
+              <StockReceiveScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="stock/produce"
+          element={
+            <RequirePermission permission={Permission.STOCK_PRODUCE}>
+              <StockProduceScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="stock/count"
+          element={
+            <RequirePermission permission={Permission.STOCK_COUNT}>
+              <StockCountScreen />
             </RequirePermission>
           }
         />

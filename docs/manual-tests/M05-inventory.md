@@ -64,7 +64,7 @@ say so.
 
 | # | Step | Expect |
 |---|---|---|
-| C1 | Record two deliveries of one item: 1 kg expiring in 30 days, then 1 kg expiring in 2 days | Both appear; on-hand shows 2 kg |
+| C1 | **Record a delivery** (`/stock/receive`) twice for one item: 1 kg expiring in 30 days, then 1 kg expiring in 2 days | Both appear; on-hand shows 2 kg |
 | C2 | Consume 500 g | The **2-day batch** is drawn down, not the 30-day one |
 | C3 | Look at **Expiring soon** | The near-dated batch appears with 500 g left |
 
@@ -79,7 +79,7 @@ because it expires soonest.
 
 | # | Step | Expect |
 |---|---|---|
-| D1 | Open a count over a few items, record quantities slightly below what the book says, and submit | The count is **submitted**, and **on-hand has not moved** |
+| D1 | Open **Stock count** (`/stock/count`), press **Start a count**, type quantities slightly below what the book says, save, and submit | The count is **submitted**, and **on-hand has not moved** |
 | D2 | Look at the variance figures | Each line shows the gap **in rupees**, negative where the shelf holds less than the book |
 | D3 | Approve the count **as the person who counted it** | **Refused**, with a sentence saying the approver must be somebody else |
 | D4 | Approve as a different person with `stock.count` | On-hand now matches what was counted, and the correction appears in **History** as a **Correction** with the count's date in its note |
@@ -131,10 +131,6 @@ Specific things worth attacking, because they are the ones that would matter:
 
 These are named so their absence reads as a decision rather than an oversight:
 
-- **The receive / produce / count-entry screens.** The API is complete and tested and the seed
-  exercises it, but the write surfaces are not built — chunk H of
-  `docs/modules/M05-inventory-spec.md`. Sections C and D above are therefore done **through the
-  API** today, and the script will be reissued when the screens land.
 - **Purchase orders and supplier invoices** — M06 owns those. A receipt here is an ad-hoc
   "we bought this", which is how a real market purchase arrives anyway.
 - **Order-driven consumption** — M07 posts it. The service method exists and is tested; no order

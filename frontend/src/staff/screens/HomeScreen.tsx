@@ -35,6 +35,9 @@ const links: { to: string; label: string; permission: Permission | null }[] = [
   { to: '/stock', label: strings.nav.stock, permission: Permission.RECIPE_VIEW },
   { to: '/costs', label: strings.nav.costs, permission: Permission.COST_VIEW },
   { to: '/stock/on-hand', label: strings.nav.onHand, permission: Permission.STOCK_VIEW },
+  { to: '/stock/receive', label: strings.nav.receive, permission: Permission.STOCK_RECEIVE },
+  { to: '/stock/produce', label: strings.nav.produce, permission: Permission.STOCK_PRODUCE },
+  { to: '/stock/count', label: strings.nav.count, permission: Permission.STOCK_COUNT },
   { to: '/profile', label: strings.nav.profile, permission: null },
 ];
 

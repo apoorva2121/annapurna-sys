@@ -491,3 +491,129 @@ class TestTheLedgerAddsUp:
         # must not find half of its consumption.
         assert len(refs) == 2
         assert set(refs) == {order_id}
+
+
+class TestTheRefusalsNobodyHadRead:
+    """The error branches, each of which is a sentence somebody reads while confused.
+
+    `test_stock_service.py` puts it best: an untested error message is an error message nobody has
+    read. These were found by the coverage gate rather than by review — the suite was green while a
+    handful of refusals had never once been executed.
+    """
+
+    async def test_a_negative_unit_cost_is_refused(self, db_session: AsyncSession) -> None:
+        """The schema blocks this too. The service check is defence in depth, for the seeder and
+        any future caller that does not come through HTTP."""
+        world = await _world(db_session, "refuse-cost")
+
+        with pytest.raises(AppError) as raised:
+            await world.service.receive_stock(
+                world.actor,
+                stock_item_id=world.item.id,
+                quantity=Decimal("10"),
+                unit_cost=Decimal("-1"),
+            )
+        assert raised.value.code == "invalid_cost"
+
+    async def test_producing_zero_is_refused(self, db_session: AsyncSession) -> None:
+        world = await _world(db_session, "refuse-produce")
+
+        with pytest.raises(AppError) as raised:
+            await world.service.produce_batch(
+                world.actor, stock_item_id=world.item.id, quantity=Decimal("0")
+            )
+        assert raised.value.code == "invalid_quantity"
+
+    async def test_producing_something_with_no_recipe_says_so(
+        self, db_session: AsyncSession
+    ) -> None:
+        world = await _world(db_session, "refuse-norecipe")
+
+        with pytest.raises(AppError) as raised:
+            await world.service.produce_batch(
+                world.actor, stock_item_id=world.item.id, quantity=Decimal("100")
+            )
+        # An ingredient, so the earlier of the two refusals fires and points at the right verb.
+        assert raised.value.code == "not_a_preparation"
+
+    async def test_recording_against_a_count_that_does_not_exist(
+        self, db_session: AsyncSession
+    ) -> None:
+        world = await _world(db_session, "refuse-count-missing")
+
+        with pytest.raises(NotFoundError):
+            await world.service.record_counted(uuid.uuid4(), counts={world.item.id: Decimal("1")})
+
+    async def test_submitting_a_count_that_does_not_exist(self, db_session: AsyncSession) -> None:
+        world = await _world(db_session, "refuse-submit-missing")
+
+        with pytest.raises(NotFoundError):
+            await world.service.submit_count(uuid.uuid4())
+
+    async def test_approving_a_count_that_does_not_exist(self, db_session: AsyncSession) -> None:
+        world = await _world(db_session, "refuse-approve-missing")
+
+        with pytest.raises(NotFoundError):
+            await world.service.approve_count(world.actor, uuid.uuid4())
+
+    async def test_a_negative_counted_quantity_is_refused(self, db_session: AsyncSession) -> None:
+        """You cannot have minus four kilos of paneer on a shelf. A negative *book* position is
+        meaningful; a negative *count* is somebody mistyping."""
+        world = await _world(db_session, "refuse-negative-count")
+        count = await world.service.open_count(world.actor, stock_item_ids=[world.item.id])
+
+        with pytest.raises(AppError) as raised:
+            await world.service.record_counted(count.id, counts={world.item.id: Decimal("-4")})
+        assert raised.value.code == "invalid_quantity"
+
+    async def test_recording_an_item_the_sheet_does_not_list_is_ignored(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Silently skipped rather than refused: a partial count sheet is a normal thing, and a
+        client sending one extra item has made a harmless mistake the server can absorb."""
+        world = await _world(db_session, "refuse-extra-item")
+        other = StockItem(
+            restaurant_id=world.restaurant.id,
+            kind="ingredient",
+            code="GHEE",
+            name="Ghee",
+            base_unit="g",
+            current_unit_cost=Decimal("0.900000"),
+            is_active=True,
+        )
+        db_session.add(other)
+        await db_session.flush()
+        count = await world.service.open_count(world.actor, stock_item_ids=[world.item.id])
+
+        updated = await world.service.record_counted(count.id, counts={other.id: Decimal("50")})
+
+        assert len(updated.lines) == 1
+        assert updated.lines[0].stock_item_id == world.item.id
+
+
+class TestOnHandFilteredToSomeItems:
+    async def test_it_can_be_asked_about_named_items_only(self, db_session: AsyncSession) -> None:
+        """The path M13 will use: a report about five ingredients should not read the storeroom."""
+        world = await _world(db_session, "onhand-filtered")
+        other = StockItem(
+            restaurant_id=world.restaurant.id,
+            kind="ingredient",
+            code="GHEE",
+            name="Ghee",
+            base_unit="g",
+            current_unit_cost=Decimal("0.900000"),
+            is_active=True,
+        )
+        db_session.add(other)
+        await db_session.flush()
+        for item_id in (world.item.id, other.id):
+            await world.service.receive_stock(
+                world.actor,
+                stock_item_id=item_id,
+                quantity=Decimal("100"),
+                unit_cost=Decimal("1"),
+            )
+
+        rows = await world.service.movements.on_hand(stock_item_ids=[other.id])
+
+        assert [row.code for row in rows] == ["GHEE"]

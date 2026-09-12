@@ -313,7 +313,12 @@ class InventoryService:
             if outstanding <= 0:
                 break
             taken = min(outstanding, position.remaining)
-            batch = await self.session.get(StockBatch, position.batch_id)
+            # Through the scoped repository, not `session.get`. The id came from a scoped query
+            # so this is safe today, but `session.get` fetches by primary key with no tenant
+            # filter at all — and an unscoped read sitting in the hot path of the product's
+            # most-written table is how the #1 bug class gets reintroduced by the next person to
+            # edit this loop.
+            batch = await self.batches.get(position.batch_id)
             if batch is None:  # pragma: no cover - locked a moment ago
                 continue
             self._movement(
@@ -537,6 +542,30 @@ class InventoryService:
         if loaded is None:  # pragma: no cover - fetched a moment ago
             raise AppError("no_current_recipe", "That recipe disappeared while it was in use.")
 
+        expiry: date | None = None
+        if profile.shelf_life_hours:
+            expiry = (moment + timedelta(hours=int(profile.shelf_life_hours))).date()
+
+        # **The output batch is created BEFORE the inputs are consumed, and that ordering is the
+        # fix to a real defect.** The first version referenced the consumption movements to
+        # `recipe.id`, which meant every batch of gravy ever made shared one reference — so
+        # "show me the movements this production wrote" returned every production of that recipe
+        # since the beginning, and M13's requirement that a metric drills through to *its own*
+        # rows was quietly unmeetable. The batch is the production, so the batch's id is the
+        # reference. Its cost is set below, once the inputs have been priced.
+        output = StockBatch(
+            restaurant_id=self.scope.restaurant_id,
+            stock_item_id=stock_item_id,
+            batch_code=await self._next_batch_code(business_date),
+            quantity_received=quantity,
+            unit_cost=Decimal("0"),
+            received_at=moment,
+            expiry_date=expiry,
+            source="production",
+        )
+        self.session.add(output)
+        await self.session.flush()
+
         input_cost = Decimal("0")
         for line in loaded.lines:
             consumed = await self.consume(
@@ -545,27 +574,15 @@ class InventoryService:
                 quantity=_dec(line.quantity) * scale,
                 basis=MovementBasis.THEORETICAL,
                 ref_type="production_batch",
-                ref_id=recipe.id,
+                ref_id=output.id,
                 occurred_at=moment,
             )
             input_cost += consumed.total_value
 
-        expiry: date | None = None
-        if profile.shelf_life_hours:
-            expiry = (moment + timedelta(hours=int(profile.shelf_life_hours))).date()
-
-        output = StockBatch(
-            restaurant_id=self.scope.restaurant_id,
-            stock_item_id=stock_item_id,
-            batch_code=await self._next_batch_code(business_date),
-            quantity_received=quantity,
-            unit_cost=input_cost / quantity,
-            received_at=moment,
-            expiry_date=expiry,
-            source="production",
-        )
-        self.session.add(output)
-        await self.session.flush()
+        # `stock_batch` carries no append-only trigger — only `stock_movement` does — so settling
+        # the cost here is legitimate rather than a workaround. Nothing has read it in between:
+        # this is all one transaction.
+        output.unit_cost = input_cost / quantity
 
         self._movement(
             batch=output,
@@ -578,7 +595,7 @@ class InventoryService:
             business_date=business_date,
             actor=actor,
             ref_type="production_batch",
-            ref_id=recipe.id,
+            ref_id=output.id,
         )
         await self.session.flush()
         self._audit(
@@ -611,6 +628,10 @@ class InventoryService:
         """
         if not stock_item_ids:
             raise AppError("no_items", "A count needs at least one item to count.")
+        # Deduplicated, order preserved. `uq_stock_count_line_count_item` would otherwise turn a
+        # client that sent the same item twice into an IntegrityError — a 500 for something that
+        # is obviously harmless and obviously the caller's typo.
+        stock_item_ids = list(dict.fromkeys(stock_item_ids))
 
         moment = occurred_at or datetime.now(UTC)
         count = StockCount(

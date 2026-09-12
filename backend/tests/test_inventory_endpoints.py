@@ -17,6 +17,7 @@ from decimal import Decimal
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.setup import Station
 from tests.test_setup_endpoints import _auth, _token, _world
 
 STAFF = "/api/v1/staff"
@@ -282,3 +283,212 @@ class TestTheContractRefusesNonsense:
 
         assert isinstance(body["items"][0]["quantity"], str)
         assert Decimal(body["items"][0]["quantity"]) == Decimal("0.05")
+
+
+class TestTheRoutesTheJourneyDoesNotReach:
+    """Coverage the happy path misses, and each of these is a real thing a person does.
+
+    Written after the gate failed on coverage rather than on a test — the suite was green while a
+    fifth of the route module had never been executed, which is the state where a typo in an
+    endpoint ships.
+    """
+
+    async def test_the_expiring_list_answers(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+        item_id = await _ingredient(api_client, token)
+        await api_client.post(
+            f"{STAFF}/stock/receipts",
+            json={
+                "stock_item_id": item_id,
+                "quantity": "500",
+                "unit_cost": "0.36",
+                "expiry_date": "2026-09-14",
+            },
+            headers=_auth(token),
+        )
+
+        response = await api_client.get(
+            f"{STAFF}/stock/expiring?within_days=365", headers=_auth(token)
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["batches"][0]["expiry_date"] == "2026-09-14"
+
+    async def test_producing_a_preparation_over_http(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The one route whose body does real work beyond delegating."""
+        world = await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+        onion_id = await _ingredient(api_client, token, "ONION")
+
+        # Created directly rather than fetched. The first version read the station list and
+        # returned early when it was empty — which it always was in this fixture, so the whole test
+        # silently did nothing and the route it covers stayed at zero coverage. A test that can
+        # decide not to run is not a test.
+        station = Station(
+            restaurant_id=world.restaurant.id, code="prep", name="Prep", seq=0, is_active=True
+        )
+        db_session.add(station)
+        await db_session.flush()
+        station_id = str(station.id)
+
+        created = await api_client.post(
+            f"{STAFF}/stock-items",
+            json={
+                "kind": "preparation",
+                "code": "GRAVY",
+                "name": "Base Gravy",
+                "base_unit": "g",
+                "current_unit_cost": "0.100000",
+                "preparation": {
+                    "batch_yield": "800",
+                    "shelf_life_hours": 48,
+                    "station_id": station_id,
+                    "prep_minutes": 45,
+                },
+            },
+            headers=_auth(token),
+        )
+        assert created.status_code == 201, created.text
+        gravy_id = created.json()["id"]
+
+        await api_client.post(
+            f"{STAFF}/recipes",
+            json={
+                "produces_stock_item_id": gravy_id,
+                "lines": [{"component_id": onion_id, "quantity": "600"}],
+            },
+            headers=_auth(token),
+        )
+        await api_client.post(
+            f"{STAFF}/stock/receipts",
+            json={"stock_item_id": onion_id, "quantity": "5000", "unit_cost": "0.04"},
+            headers=_auth(token),
+        )
+
+        produced = await api_client.post(
+            f"{STAFF}/stock/production",
+            json={"stock_item_id": gravy_id, "quantity": "800"},
+            headers=_auth(token),
+        )
+
+        assert produced.status_code == 201, produced.text
+        assert produced.json()["source"] == "production"
+
+    async def test_a_count_can_be_listed_and_fetched_and_approved_by_someone_else(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The whole count lifecycle over HTTP, ending with a *different person* approving.
+
+        The service test proves self-approval is refused; this proves the other half actually
+        works — that a second holder of `stock.count` can approve and the correction posts.
+        """
+        await _world(db_session, "owner", "manager")
+        owner_token = await _token(api_client, "owner")
+        item_id = await _ingredient(api_client, owner_token)
+        await api_client.post(
+            f"{STAFF}/stock/receipts",
+            json={"stock_item_id": item_id, "quantity": "1000", "unit_cost": "0.36"},
+            headers=_auth(owner_token),
+        )
+
+        count_id = (
+            await api_client.post(
+                f"{STAFF}/stock/counts",
+                json={"stock_item_ids": [item_id], "scope": "spot"},
+                headers=_auth(owner_token),
+            )
+        ).json()["id"]
+        await api_client.patch(
+            f"{STAFF}/stock/counts/{count_id}",
+            json={"lines": [{"stock_item_id": item_id, "counted_quantity": "900"}]},
+            headers=_auth(owner_token),
+        )
+        await api_client.post(f"{STAFF}/stock/counts/{count_id}/submit", headers=_auth(owner_token))
+
+        listed = await api_client.get(f"{STAFF}/stock/counts", headers=_auth(owner_token))
+        assert listed.status_code == 200, listed.text
+        assert len(listed.json()["counts"]) == 1
+
+        fetched = await api_client.get(
+            f"{STAFF}/stock/counts/{count_id}", headers=_auth(owner_token)
+        )
+        assert fetched.json()["scope"] == "spot"
+
+        manager_token = await _token(api_client, "manager")
+        approved = await api_client.post(
+            f"{STAFF}/stock/counts/{count_id}/approve", headers=_auth(manager_token)
+        )
+
+        assert approved.status_code == 200, approved.text
+        assert approved.json()["status"] == "approved"
+
+        on_hand = (
+            await api_client.get(f"{STAFF}/stock/on-hand", headers=_auth(owner_token))
+        ).json()
+        assert on_hand["items"][0]["quantity"] == "900.0000"
+
+    async def test_fetching_a_count_that_does_not_exist_is_a_404(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+
+        response = await api_client.get(
+            f"{STAFF}/stock/counts/01a09600-0000-7000-8000-000000000001", headers=_auth(token)
+        )
+
+        assert response.status_code == 404
+        assert response.json()["code"] == "stock_count_not_found"
+
+    async def test_the_movement_history_answers_for_a_real_item(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+        item_id = await _ingredient(api_client, token)
+        await api_client.post(
+            f"{STAFF}/stock/receipts",
+            json={"stock_item_id": item_id, "quantity": "100", "unit_cost": "1"},
+            headers=_auth(token),
+        )
+
+        response = await api_client.get(
+            f"{STAFF}/stock/items/{item_id}/movements", headers=_auth(token)
+        )
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert len(body) == 1
+        assert body[0]["type"] == "receipt"
+        # Strings, not floats — the same rule as everywhere else in this API.
+        assert body[0]["quantity_delta"] == "100.0000"
+
+    async def test_an_adjustment_over_http_moves_the_position(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+        item_id = await _ingredient(api_client, token)
+        await api_client.post(
+            f"{STAFF}/stock/receipts",
+            json={"stock_item_id": item_id, "quantity": "500", "unit_cost": "0.36"},
+            headers=_auth(token),
+        )
+
+        adjusted = await api_client.post(
+            f"{STAFF}/stock/adjustments",
+            json={"stock_item_id": item_id, "quantity_delta": "-40", "reason": "Dropped a tray"},
+            headers=_auth(token),
+        )
+
+        assert adjusted.status_code == 201, adjusted.text
+        assert adjusted.json()["type"] == "adjustment"
+        assert adjusted.json()["note"] == "Dropped a tray"
+
+        body = (await api_client.get(f"{STAFF}/stock/on-hand", headers=_auth(token))).json()
+        assert body["items"][0]["quantity"] == "460.0000"

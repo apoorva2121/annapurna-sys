@@ -538,3 +538,160 @@ class TestStockCounts:
 
         assert approved.status == StockCountStatus.APPROVED
         assert approved.approved_by == world.approver.employee_id
+
+
+class TestTheAdversarialReviewFindings:
+    """Three defects found by reading this module back, with the test that would have caught each.
+
+    None were found by the existing suite, and each was invisible for a different reason — which is
+    the argument for the review step rather than for more of the same tests.
+    """
+
+    async def test_each_production_references_its_own_batch(self, db_session: AsyncSession) -> None:
+        """**The real bug.** Consumption movements referenced `recipe.id`, not the batch.
+
+        Every batch of gravy ever made therefore shared one reference, so "show me the movements
+        this production wrote" returned every production of that recipe since the beginning — and
+        M13's rule that a metric drills through to *its own* rows was quietly unmeetable.
+
+        Nothing failed. The data looked right, the totals were right, and the reference pointed at
+        a real row. It was wrong only in what it could answer.
+        """
+        world = await _world(db_session, "review-ref")
+        await world.service.receive_stock(
+            world.actor,
+            stock_item_id=world.onion.id,
+            quantity=Decimal("50000"),
+            unit_cost=Decimal("0.04"),
+        )
+        await world.service.receive_stock(
+            world.actor,
+            stock_item_id=world.tomato.id,
+            quantity=Decimal("50000"),
+            unit_cost=Decimal("0.03"),
+        )
+
+        first = await world.service.produce_batch(
+            world.actor, stock_item_id=world.gravy.id, quantity=Decimal("800")
+        )
+        second = await world.service.produce_batch(
+            world.actor, stock_item_id=world.gravy.id, quantity=Decimal("800")
+        )
+
+        refs = (
+            await db_session.scalars(
+                select(StockMovement.ref_id).where(StockMovement.ref_type == "production_batch")
+            )
+        ).all()
+
+        assert first.id != second.id
+        # Two productions, two distinct references — and every movement of each points at its own.
+        assert set(refs) == {first.id, second.id}
+        assert refs.count(first.id) == refs.count(second.id)
+
+    async def test_a_count_tolerates_the_same_item_listed_twice(
+        self, db_session: AsyncSession
+    ) -> None:
+        """`uq_stock_count_line_count_item` turned an obvious client typo into a 500.
+
+        Deduplicating is the right answer rather than rejecting: asking the same item to be counted
+        twice is harmless and unambiguous, and an error here would be the product being pedantic
+        about something it can simply handle.
+        """
+        world = await _world(db_session, "review-dupe")
+
+        count = await world.service.open_count(
+            world.actor,
+            stock_item_ids=[world.onion.id, world.tomato.id, world.onion.id],
+        )
+
+        loaded = await world.service.counts.get_with_lines(count.id)
+        assert loaded is not None
+        assert len(loaded.lines) == 2
+
+    async def test_consumption_reaches_batches_through_the_scoped_repository(
+        self, db_session: AsyncSession
+    ) -> None:
+        """The third finding was a latent one rather than a live bug.
+
+        `consume` fetched each batch with `session.get`, which reads by primary key with no tenant
+        filter at all. It was safe, because the id came from a scoped query a line earlier — but an
+        unscoped read sitting in the hot path of the product's most-written table is exactly how
+        the #1 bug class gets reintroduced by whoever edits the loop next.
+
+        This asserts the behaviour that matters: one restaurant's consumption never touches
+        another's stock, however the batch is fetched.
+        """
+        mine = await _world(db_session, "review-mine")
+        theirs = await _world(db_session, "review-theirs")
+        await theirs.service.receive_stock(
+            theirs.actor,
+            stock_item_id=theirs.onion.id,
+            quantity=Decimal("9000"),
+            unit_cost=Decimal("0.04"),
+        )
+
+        result = await mine.service.consume(
+            mine.actor,
+            stock_item_id=mine.onion.id,
+            quantity=Decimal("100"),
+            basis=MovementBasis.THEORETICAL,
+        )
+
+        # Entirely a shortfall: the other restaurant's 9,000 g was never reachable.
+        assert result.shortfall == Decimal("100")
+        assert await _stock(theirs, theirs.onion) == Decimal("9000.0000")
+
+
+class TestTwoMoreRefusals:
+    async def test_a_preparation_with_no_current_recipe_says_so(
+        self, db_session: AsyncSession
+    ) -> None:
+        """A preparation profile without a recipe: the item exists, the method to make it does not.
+
+        Reachable in real life — somebody creates the preparation, then the recipe is written
+        later, and in between a cook tries to make it.
+        """
+        world = await _world(db_session, "refuse-no-recipe")
+        orphan = StockItem(
+            restaurant_id=world.restaurant.id,
+            kind="preparation",
+            code="MARINADE",
+            name="Marinade",
+            base_unit="ml",
+            current_unit_cost=Decimal("0.200000"),
+            is_active=True,
+        )
+        db_session.add(orphan)
+        await db_session.flush()
+        db_session.add(
+            PreparationProfile(
+                stock_item_id=orphan.id,
+                batch_yield=Decimal("500"),
+                shelf_life_hours=24,
+                station_id=(
+                    await db_session.scalars(
+                        select(Station).where(Station.restaurant_id == world.restaurant.id)
+                    )
+                )
+                .one()
+                .id,
+                prep_minutes=10,
+            )
+        )
+        await db_session.flush()
+
+        with pytest.raises(AppError) as raised:
+            await world.service.produce_batch(
+                world.actor, stock_item_id=orphan.id, quantity=Decimal("500")
+            )
+        assert raised.value.code == "no_current_recipe"
+
+    async def test_submitting_a_count_twice_is_refused(self, db_session: AsyncSession) -> None:
+        world = await _world(db_session, "refuse-resubmit")
+        count = await world.service.open_count(world.actor, stock_item_ids=[world.onion.id])
+        await world.service.submit_count(count.id)
+
+        with pytest.raises(AppError) as raised:
+            await world.service.submit_count(count.id)
+        assert raised.value.code == "count_not_draft"

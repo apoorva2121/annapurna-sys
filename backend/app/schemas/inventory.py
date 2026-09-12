@@ -50,6 +50,18 @@ class ProductionRequest(_Schema):
     quantity: Decimal = Field(gt=0, max_digits=14, decimal_places=4)
 
 
+class ConsumptionRequest(_Schema):
+    """Its own type even though the fields match `ProductionRequest` today.
+
+    Sharing one schema between "make 800 g of gravy" and "take 800 g of paneer out of stock" saves
+    four lines and costs the API contract: the two diverge the moment either gains a field, and a
+    generated client would name one operation after the other's model.
+    """
+
+    stock_item_id: uuid.UUID
+    quantity: Decimal = Field(gt=0, max_digits=14, decimal_places=4)
+
+
 class AdjustmentRequest(_Schema):
     stock_item_id: uuid.UUID
     # Signed, and explicitly allowed to be negative — that is the whole point of an adjustment.
