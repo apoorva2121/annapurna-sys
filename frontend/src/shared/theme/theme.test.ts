@@ -84,7 +84,19 @@ describe('the baseline', () => {
 
   it('keeps the locked layer out of the themeable set', () => {
     // If `--critical` were themeable, a festive theme could repaint "act now" as decoration.
-    for (const locked of ['--critical', '--warning', '--success', '--z-offline', '--target-min']) {
+    // The `--food-*` marks are locked for a stronger reason: the FSS (Labelling and Display)
+    // Regulations, 2020 prescribe green for veg and brown for non-veg, so repainting them is not
+    // a taste decision, it is non-compliance on a menu that prints.
+    for (const locked of [
+      '--critical',
+      '--warning',
+      '--success',
+      '--z-offline',
+      '--target-min',
+      '--food-veg',
+      '--food-nonveg',
+      '--food-egg',
+    ]) {
       expect(Object.values(THEMEABLE)).not.toContain(locked);
     }
   });
@@ -154,7 +166,14 @@ describe('applying a theme', () => {
     applyTheme('deepavali');
     const written = document.documentElement.getAttribute('style') ?? '';
 
-    for (const locked of ['--critical', '--warning', '--z-dialog', '--target-min', '--density:']) {
+    for (const locked of [
+      '--critical',
+      '--warning',
+      '--z-dialog',
+      '--target-min',
+      '--density:',
+      '--food-nonveg',
+    ]) {
       expect(written).not.toContain(locked);
     }
   });

@@ -120,6 +120,28 @@
     --neutral: 215 16% 38%;
     --neutral-soft: 210 24% 96%;
 
+    /*
+     * The FSSAI food-type mark. Locked for a stronger reason than the alert set: these are not
+     * our colours to choose. The Food Safety and Standards (Labelling and Display) Regulations,
+     * 2020 prescribe a green mark for vegetarian and a BROWN one for non-vegetarian — the brown
+     * triangle replaced the older red circle. A theme that repainted these would not be ugly, it
+     * would be non-compliant, and on a menu that prints.
+     *
+     * They are their own tokens rather than borrowed alert colours because the mark and the alert
+     * set mean different things. `--critical` says "this has gone wrong" on all four surfaces; a
+     * chicken biryani has not gone wrong. Painting every non-veg ticket in the failure colour
+     * teaches a kitchen to read that colour as decoration, which is precisely what the locked
+     * alert set exists to prevent. The mark was painted `--critical` until this was caught by an
+     * audit against the 2020 regulations.
+     *
+     * Veg and egg keep the values they have always rendered at, so only the non-veg mark changes.
+     * Lightness is held near the alert set's so the marks survive the dark theme — a brown at the
+     * 30% a paint chart would suggest is barely a colour on a 9% ground (see themes.ts, Jamun).
+     */
+    --food-veg: 142 72% 27%;
+    --food-nonveg: 22 65% 38%;
+    --food-egg: 45 93% 33%;
+
     /* The scrim behind a dialog or a sheet. Locked, and not merely for tidiness: it is the only
        thing separating a modal from the live order behind it, and a festive theme that tinted it
        or lightened it would turn "you must deal with this first" into decoration. Black, carried at

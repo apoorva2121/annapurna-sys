@@ -293,9 +293,67 @@ Design and its risks: `docs/workload-fairness.md`. Decisions: ADR 0011.
   it to someone who has managed staff.
 - **Est.** 5 days
 
+## M18 · Compliance Risk Alarms
+
+The feature that tells an owner **"this decision puts your licence at risk"** before it does, and
+keeps the record that proves they acted. Rules and their statutory basis: `docs/compliance-rules.md`.
+
+Indian restaurants are shut down for paperwork far more often than for bad food, and the owner is
+usually the last to know a licence lapsed. The product already holds every fact needed to see it
+coming — licence dates, turnover, food types, tax rates, GSTIN. This module is the difference
+between holding those facts and *acting* on them.
+
+- **Depends on** — M02 (restaurant identity), M03 (menu), M14 (notifications). Richer once M07
+  (turnover from real sales) and M10 (DPDP consent) exist.
+- **Tables** — *indicative, pending the spec; deliberately not yet in `docs/schema.md`, because a
+  table listed there is a designed table and these are not designed yet* — `compliance_rule` (the
+  catalogue, seeded not user-authored), `compliance_finding` (open/resolved, per restaurant, with
+  the evidence that raised it), `compliance_event` (append-only: raised, acknowledged, resolved,
+  suppressed — and by whom)
+- **Endpoints** — `GET /compliance/findings` (open, by severity); `GET /compliance/history`;
+  `POST /compliance/findings/{id}/acknowledge`; `GET /compliance/export` (the inspection pack)
+- **Screens** — a compliance card on the owner home that is **silent when nothing is wrong**; a
+  findings list with what to do about each; an exportable record for an inspection
+- **Rules**
+  - **Four states, never conflated** — `in_force` · `notified_not_in_force` · `unsettled` ·
+    `unverified`. **Only `in_force` may raise a blocking alarm.** A rule commencing in 2027 may
+    inform, never block, and must say so in words.
+  - **Every rule cites its instrument** — name, number, commencement date, and the date the
+    citation was last checked. A rule with no check date is a rumour and does not ship.
+  - **Severity is legal exposure, not annoyance** — `critical` (operating illegally right now),
+    `warning` (will become so on a known date), `advisory` (good practice, no statutory basis).
+  - **Never cry wolf.** A false alarm costs more than a missing one, because it teaches an owner to
+    dismiss the card — the same reason the locked alert colours exist (`docs/ui/conventions.md`).
+    A rule that cannot state its evidence does not fire.
+  - **Explain and instruct.** A finding names what is wrong, what it risks, and the next action. It
+    never renders a bare statute reference at a person who did not ask for one.
+  - **The record is the product.** `compliance_event` is append-only; acknowledging is an event, not
+    a status flip. The export is what an owner hands an inspector, so it must reconstruct *what was
+    known when*, not merely what is true now.
+  - **Suppression is allowed and logged.** An owner may dismiss a finding with a reason; that is a
+    recorded decision, not a deletion. Advice ignored is still advice given.
+  - **No legal advice.** The app states the rule, the fact, and the gap. It does not opine on
+    consequences or quantify penalties.
+- **Rules to seed first** (each already detectable from data the product holds)
+  - FSSAI licence expired, or expiring within 30 days — **it prints on every bill**
+  - FSSAI licence tier below what declared turnover requires (₹1.5 Cr / ₹50 Cr bands, w.e.f. 1 Apr 2026)
+  - Menu item live with no allergen declaration *(blocked on that field existing — see backlog)*
+  - Calorie declaration required (Central Licence **or** ≥10 outlets) and absent
+  - GSTIN absent or malformed while bills are being issued
+  - A tax group in use with no rate row effective today
+  - A tax rate unchanged across a known statutory change date — the GST 2.0 case, where a correct
+    configuration silently became wrong on 22 Sep 2025
+- **Tests** — a rule in `notified_not_in_force` cannot raise a `critical`; every seeded rule carries
+  an instrument and a checked-on date; acknowledging appends rather than overwrites; the export
+  reconstructs a past state; a resolved finding does not re-raise on the same evidence; the owner
+  home renders **nothing** when there are no findings
+- **Manual** — show the findings list to a restaurant owner who has been inspected. The question is
+  not "is it accurate" but **"would you have known this without us?"**
+- **Est.** 4 days
+
 ## M16 · Hardening & Production
 
-- **Depends on** — M00–M15, M17 (everything)
+- **Depends on** — M00–M15, M17, M18 (everything)
 - **Delivers** — full security checklist pass, load test (k6), backup + **tested restore**, runbooks,
   cost alerts, production deploy, DPDP consent flows verified, GST invoice numbering verified across
   a financial-year boundary
@@ -318,7 +376,7 @@ M11, M12 and M14 have only an M01 dependency — they are the natural fill for a
 critical-path module is blocked. M17 sits late because it consumes almost everything: orders, KOT
 timestamps, feedback, shifts and the dashboard query layer.
 
-**Total ≈ 62 working days** — roughly twelve and a half weeks of focused solo work, not four.
+**Total ≈ 66 working days** — roughly twelve and a half weeks of focused solo work, not four.
 (57 before M17 Workload Fairness was added at 5 days.)
 
 Month 1 (20 working days) covers **M00–M05 complete and M07 begun**: 1+3+2+3+4+4 = 17 days, leaving

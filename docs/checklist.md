@@ -53,9 +53,10 @@ Legend: **S**pec approved · **M**igration · **B**ackend · **T**ests green · 
 | M14 Audit & Notifications | 3d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M15 Seed Generator & Demo | 3d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M17 Workload Fairness & Recognition | 5d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
+| M18 Compliance Risk Alarms | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M16 Hardening & Production | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 
-**62 days total.** Month 1 target: M00–M05 complete, M07 begun.
+**66 days total.** Month 1 target: M00–M05 complete, M07 begun.
 
 **M01's row is stale rather than accurate** — the module is built and its tests are in the suite,
 but nobody has re-verified each column since, so the boxes are left as they were found rather than

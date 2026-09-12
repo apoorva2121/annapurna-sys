@@ -13,6 +13,12 @@ is offered automatically to any session touching `frontend/`) ·
 `docs/engineering-standards.md` · `docs/security.md` · `docs/observability.md` ·
 `docs/testing-strategy.md`
 
+**Read before touching menus, restaurant identity, tax, pricing or customer data:**
+`docs/compliance-rules.md` — the Indian rules that actually bind this product, each with its
+instrument, commencement date and enforcing test. It also lists what does *not* apply (aggregator
+duties) and the open gaps. Its first rule: **never fill an Indian rate, threshold or commencement
+date from memory** — research returned stale-but-confident law three times in one session.
+
 **Read before ANY code change:** `docs/engineering-guardrails.md` (rules from the 2026-09-11
 audit; extends the Definition of Done) and `docs/audit/remediation-plan.md` (open findings —
 **M02 does not start until R1, R2 and R8a are ticked**; the plan's state table is the source of
@@ -88,6 +94,14 @@ Never edit a migration that has been applied on staging — write a new one.
   §Definition of Done addendum. Both lists must be true.
 - Ideas that arrive mid-module go to `docs/backlog.md`. They never become scope.
 - Docs are updated in the same PR as the code.
+- **`docs/compliance-rules.md` binds every module from here on.** A change touching menus,
+  restaurant identity, tax, pricing or customer data is not done until it is checked against that
+  file. Its rules are not preferences — a breach is a licence risk for a real restaurant, which is
+  why M18 exists to surface them. Two standing rules, both learned the hard way:
+  **(1) never fill an Indian rate, threshold or commencement date from memory** — research returned
+  stale-but-confident law three times in one session; look it up and cite the instrument.
+  **(2) never conflate *in force* with *notified but not in force* with *unsettled* with
+  *unverified*.** Only the first is safe to build on, and only the first may block a user.
 
 ## Deliberately out of scope for month 1
 

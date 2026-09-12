@@ -327,3 +327,34 @@ class TestTheNumbersThatPrintOnEveryBill:
         ).first()
         assert entry is not None
         assert entry.new_value == {"fssai_licence": "11522998000123"}
+
+    async def test_an_fssai_licence_must_start_with_a_licence_or_registration_digit(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The first digit of an FSSAI number is its type: `1` licence, `2` basic registration.
+        Nothing else is issued. The pattern accepted any 14 digits, so `00000000000000` passed
+        format validation and printed on every bill.
+
+        This is the cheap half of the check and all the cheap half can ever be. **An FSSAI number
+        carries no check digit**, so no amount of pattern matching establishes that a well-formed
+        number was ever issued — only a FoSCoS lookup does. Tightening the prefix removes the
+        typos and the obvious fabrications; it does not make the number true.
+        """
+        await _owner_at_a_restaurant_with_an_address(db_session)
+        token = await _token(api_client)
+
+        for rejected in ("00000000000000", "31522998000123", "9152299800012"):
+            response = await api_client.patch(
+                "/api/v1/staff/restaurant",
+                json={"fssai_licence": rejected},
+                headers=_auth(token),
+            )
+            assert response.status_code == 422, f"{rejected} was accepted: {response.text}"
+
+        for accepted in ("11522998000123", "21522998000123"):
+            response = await api_client.patch(
+                "/api/v1/staff/restaurant",
+                json={"fssai_licence": accepted},
+                headers=_auth(token),
+            )
+            assert response.status_code == 200, f"{accepted} was rejected: {response.text}"

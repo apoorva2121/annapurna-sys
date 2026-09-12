@@ -64,6 +64,12 @@ export default {
         success: { DEFAULT: withAlpha('--success'), soft: withAlpha('--success-soft') },
         neutral: { DEFAULT: withAlpha('--neutral'), soft: withAlpha('--neutral-soft') },
 
+        // The FSSAI veg / non-veg / egg mark. Prescribed by regulation, not chosen by us, so it
+        // is locked like the alert set and deliberately separate from it — see tokens.css.
+        'food-veg': withAlpha('--food-veg'),
+        'food-nonveg': withAlpha('--food-nonveg'),
+        'food-egg': withAlpha('--food-egg'),
+
         // The scrim behind a modal. `bg-scrim/70` rather than shadcn's generated `bg-black/80`,
         // which is a palette colour no theme or ADR can reach.
         scrim: withAlpha('--scrim'),

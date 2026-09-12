@@ -176,7 +176,14 @@ class RestaurantUpdateRequest(_Schema):
     gstin: str | None = Field(
         default=None, pattern=r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$"
     )
-    fssai_licence: str | None = Field(default=None, pattern=r"^[0-9]{14}$")
+    # The first digit is the number's type: `1` licence, `2` basic registration. Nothing else is
+    # issued, so `^[0-9]{14}$` let `00000000000000` through onto a printed bill.
+    #
+    # This is as far as a pattern can go, and saying so matters more than the pattern: **an FSSAI
+    # number has no check digit.** A well-formed number cannot be shown to have been issued to
+    # anyone — only a FoSCoS lookup does that. The prefix check removes typos and lazy
+    # fabrications; it is not verification, and nothing downstream should treat it as such.
+    fssai_licence: str | None = Field(default=None, pattern=r"^[12][0-9]{13}$")
     # Cleared with an explicit null: a cloud kitchen with no shopfront is a real thing.
     address: PostalAddress | None = None
     theme: ThemeSettings | None = None
