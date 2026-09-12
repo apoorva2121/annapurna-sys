@@ -40,7 +40,8 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
       7 screen tests. The owner link test was made honest: it claimed "every screen this app has"
       and did not include the new one.
 - [ ] **H · Frontend: receive, produce, count entry**
-- [ ] **I · Seed + gate + adversarial review + manual script**
+- [~] **I · Seed + gate + review + manual script** — seed and manual script done; the adversarial
+      review and the final whole-gate run are what remain after chunk H.
 
 ## Next action
 

@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.seed.identity import MissingSystemRoleError, seed_identity
+from app.seed.inventory import seed_inventory
 from app.seed.loader import SeedDataNotFoundError
 from app.seed.menu import seed_menu
 from app.seed.setup import seed_setup
@@ -48,6 +49,9 @@ async def seed() -> None:
             # Ingredients, preparations and recipes. Last, because a recipe references a dish
             # variant and a preparation is made at a station — both created above.
             stock = await seed_stock(session)
+            # Opening stock, and the two planted signals. Last of all, because it consumes the
+            # ingredients `seed_stock` just created and cannot run before they exist.
+            inventory = await seed_inventory(session)
             # The single commit. Everything above it is provisional until this line.
             await session.commit()
     finally:
@@ -59,6 +63,7 @@ async def seed() -> None:
         and setup.created_nothing
         and menu.created_nothing
         and stock.created_nothing
+        and inventory.created_nothing
     ):
         logger.info("Seed data already present; nothing to do.")
         return
@@ -90,6 +95,11 @@ async def seed() -> None:
         stock.ingredients_created,
         stock.preparations_created,
         stock.recipes_created,
+    )
+    logger.info(
+        "Seeded %d opening stock batches and %d deliberately negative positions.",
+        inventory.batches_created,
+        inventory.negatives_planted,
     )
 
 
