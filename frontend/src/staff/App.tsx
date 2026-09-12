@@ -6,6 +6,7 @@ import { RequireAuth, RequirePermission } from '@staff/auth/guards';
 import { AppShell } from '@staff/components/AppShell';
 import EmployeeScreen from '@staff/screens/EmployeeScreen';
 import DishCostScreen from '@staff/screens/DishCostScreen';
+import StockOnHandScreen from '@staff/screens/StockOnHandScreen';
 import FloorPlanScreen from '@staff/screens/FloorPlanScreen';
 import MenuItemScreen from '@staff/screens/MenuItemScreen';
 import MenuScreen from '@staff/screens/MenuScreen';
@@ -147,6 +148,14 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.COST_VIEW}>
               <DishCostScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="stock/on-hand"
+          element={
+            <RequirePermission permission={Permission.STOCK_VIEW}>
+              <StockOnHandScreen />
             </RequirePermission>
           }
         />

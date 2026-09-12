@@ -38,6 +38,7 @@ export const strings = {
     menuOptions: 'Options and add-ons',
     stock: 'Ingredients and recipes',
     costs: 'Dish costs',
+    onHand: 'Stock on hand',
   },
 
   home: {
@@ -303,6 +304,49 @@ export const strings = {
     replaceExisting: 'Replace each dish’s existing options instead of adding to them',
     apply: 'Apply',
     applied: (count: number) => `Applied to ${String(count)} ${count === 1 ? 'dish' : 'dishes'}.`,
+  },
+
+  stockLedger: {
+    title: 'Stock on hand',
+    intro:
+      'What the ledger says is on the shelf right now. Every figure here is derived from movements — nothing is stored, so nothing can drift.',
+    empty: 'Nothing has moved yet. Record a delivery and it appears here.',
+    item: 'Item',
+    quantity: 'On hand',
+    value: 'Value',
+    // Deliberately blunt. A negative is not an error state to be apologised for — it is the most
+    // useful thing this screen can say, and the words have to tell a manager what to *do*.
+    negativeBanner: (count: number) =>
+      count === 1
+        ? '1 item has been used without a recorded delivery'
+        : `${String(count)} items have been used without a recorded delivery`,
+    negativeHelp:
+      'The ledger has no record of this stock arriving, so it shows less than nothing. Record the missing delivery, or count the shelf and let the count correct it.',
+    negativeTag: 'No delivery recorded',
+    expiringTitle: 'Expiring soon',
+    expiringEmpty: 'Nothing expiring in the next 7 days.',
+    expiringOn: 'Expires',
+    remaining: 'Left',
+    noExpiry: 'No expiry date',
+    showZero: 'Include items at zero',
+    history: 'History',
+    movementOn: 'Date',
+    movementType: 'Movement',
+    movementQuantity: 'Change',
+    movementNote: 'Note',
+    basisTheoretical: 'From a recipe',
+    basisActual: 'Counted',
+    types: {
+      receipt: 'Delivery',
+      production: 'Made here',
+      consumption: 'Used',
+      wastage: 'Wasted',
+      staff_meal: 'Staff meal',
+      complimentary: 'Complimentary',
+      transfer: 'Transfer',
+      adjustment: 'Correction',
+      count: 'Stock count',
+    },
   },
 
   cost: {

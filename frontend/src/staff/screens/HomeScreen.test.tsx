@@ -71,6 +71,7 @@ describe('the staff home screen', () => {
       'recipe.view',
       'recipe.manage',
       'cost.view',
+      'stock.view',
     ]);
 
     expect(hrefs()).toEqual([
@@ -81,7 +82,17 @@ describe('the staff home screen', () => {
       '/settings',
       '/staff',
       '/stock',
+      '/stock/on-hand',
     ]);
+  });
+
+  it('offers kitchen staff the shelf and nothing that changes it', () => {
+    // `stock.view` alone is what `seed/organization.yaml` grants kitchen_staff. Seeing what is on
+    // the shelf is the job; changing what the book says it is, is not — and the home screen is
+    // where that boundary first becomes visible to the person holding it.
+    renderFor(['stock.view']);
+
+    expect(hrefs()).toEqual(['/profile', '/stock/on-hand']);
   });
 
   it('offers a chef recipes and not rupees', () => {

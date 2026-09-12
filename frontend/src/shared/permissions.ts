@@ -33,6 +33,14 @@ export const Permission = {
   RECIPE_VIEW: 'recipe.view',
   RECIPE_MANAGE: 'recipe.manage',
   COST_VIEW: 'cost.view',
+  // M05. The one worth reading is the chef: STOCK_PRODUCE and not STOCK_RECEIVE. A kitchen turns
+  // ingredients into gravy; it does not sign for the sack at the door, so a cook cannot book in
+  // stock that never arrived.
+  STOCK_VIEW: 'stock.view',
+  STOCK_RECEIVE: 'stock.receive',
+  STOCK_PRODUCE: 'stock.produce',
+  STOCK_ADJUST: 'stock.adjust',
+  STOCK_COUNT: 'stock.count',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

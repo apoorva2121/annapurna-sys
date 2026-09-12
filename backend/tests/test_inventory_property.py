@@ -101,7 +101,11 @@ async def test_on_hand_equals_the_movement_sum_after_a_thousand_operations(
     here and nowhere else.
     """
     service, actor, item = await _world(db_session)
-    rng = random.Random(SEED)
+    # S311 is suppressed below with a reason rather than in config. The rule warns that `random`
+    # is unsuitable for cryptographic use, which is true and irrelevant here: this test needs a
+    # generator that is *predictable*. The fixed seed is the whole design, because a property test
+    # whose sequence changes every run fails once on somebody else's machine and gets deleted.
+    rng = random.Random(SEED)  # noqa: S311
     expected = Decimal("0")
     receipts = consumptions = adjustments = shortfalls = 0
 

@@ -34,17 +34,22 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
       forward-only counts, no self-approval. 18 tests green.
 - [x] **E · API + permissions + tenant-isolation suite** — 13 routes, 5 permissions from the P1
       design, generic suites green. Two real bugs found here: a tenant leak and missing commits.
-- [ ] **F · Backend tests green** — incl. the 1,000-operation property test
-- [ ] **G · Frontend: on-hand + alerts**
+- [x] **F · Backend tests green** — incl. the 1,000-operation property test, which was rebalanced
+      after it was found to pass with the shortfall path disabled
+- [x] **G · Frontend: on-hand + alerts** — `StockOnHandScreen`, API client, route, nav link,
+      7 screen tests. The owner link test was made honest: it claimed "every screen this app has"
+      and did not include the new one.
 - [ ] **H · Frontend: receive, produce, count entry**
 - [ ] **I · Seed + gate + adversarial review + manual script**
 
 ## Next action
 
-> Chunk F. Write `tests/test_inventory_property.py`: the 1,000-operation property test
-> (acceptance criterion 1) — random receipts, consumptions and adjustments against one item, with
-> a **fixed seed** so a failure is reproducible, asserting `on_hand == SUM(quantity_delta)`
-> throughout. Then `make check` whole and read the exit code, not the tail.
+> Chunk H — the write screens: receive stock, produce a preparation batch, physical count entry.
+> The API and its hooks (`frontend/src/staff/api/inventory.ts`) are complete and tested, so these
+> are forms over existing mutations. Read the `restaurant-ui` skill first; `RecipeScreen.tsx` is
+> the closest model for an editable-lines form. Then chunk I: seed an opening batch for every
+> stock item plus one deliberate negative, re-run the manual script's sections C and D through the
+> screens rather than the API, and do the adversarial review.
 
 ## Verified — commands actually run, output actually seen
 
