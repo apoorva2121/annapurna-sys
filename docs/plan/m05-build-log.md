@@ -28,7 +28,8 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
       composite tenant FKs, 4 new enums mirrored to TS. 8 schema tests green.
 - [x] **B · Repositories** — FEFO with `NULLS LAST` + row locks, on-hand aggregate, per-basis
       consumption. 15 tests green.
-- [ ] **C · Services: receive, adjust, consume** — the write path, FEFO + negative-tolerant
+- [x] **C · Services: receive, adjust, consume** — FEFO write path, never-refusing consumption,
+      mandatory adjustment reasons. 18 service + 2 concurrency tests green.
 - [ ] **D · Services: production, stock counts** — the two transactional ones
 - [ ] **E · API + permissions + tenant-isolation suite**
 - [ ] **F · Backend tests green** — incl. the 1,000-operation property test
@@ -38,10 +39,11 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
 
 ## Next action
 
-> Chunk C. Create `app/services/inventory.py`: `receive_stock`, `adjust`, and `consume`. `consume`
-> walks `batches_for_consumption` FEFO, and when the batches run out it charges the remainder to
-> `newest_batch_for_update` and lets on-hand go negative (spec decision 2) — it never refuses.
-> When the item has no batch at all, create a zero-quantity `opening` batch first.
+> Chunk D. Add `produce_batch` and the stock-count workflow to `app/services/inventory.py`.
+> Production consumes inputs **and** creates the output batch in one transaction, with the output's
+> `unit_cost` = total input cost / output quantity via M04's cost engine. Counts are forward-only
+> draft → submitted → approved, and **only approval posts** `adjustment` movements; `approve_count`
+> must refuse an approver equal to `counted_by`.
 
 ## Verified — commands actually run, output actually seen
 
@@ -53,6 +55,8 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
 | `pytest tests/test_enum_mirror.py` | passed — Python/TS enums in step |
 | `pytest tests/test_database.py` | **19 passed** — migration applies to a real Postgres |
 | `pytest tests/test_inventory_repositories.py` | **15 passed** — FEFO order, NULLS LAST, on-hand, tenant isolation |
+| `pytest tests/test_inventory_service.py` | **18 passed** — receive/consume/adjust, shortfalls, business date |
+| `pytest tests/test_inventory_concurrency.py` | **2 passed** — and **verified to fail with the lock removed** |
 
 ## Notes for whoever picks this up
 
@@ -62,5 +66,11 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
 - `supplier_id` and `goods_receipt_line_id` on `stock_batch` are **columns without foreign keys**.
   Both target M06 tables that do not exist. `docs/schema.md` asks for the constraints in a
   follow-up migration; M06 adds them. Nothing in M05 writes either column.
+- **The concurrency test was worthless in its first form and is not now.** A plain
+  `asyncio.gather` of two consumptions passed identically with `with_for_update()` removed, because
+  the coroutines never interleaved at the moment that matters. It now forces contention by holding
+  the first transaction open, and it has been re-verified in both directions: **fails without the
+  lock, passes with it.** Any change to the FEFO read should repeat that check — remove the lock,
+  confirm the test goes red, put it back.
 - The append-only trigger does **not** break the suite: `conftest.py` cleans up by rolling back an
   outer transaction rather than issuing DELETEs, and row triggers do not fire on TRUNCATE.
