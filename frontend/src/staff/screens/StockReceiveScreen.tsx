@@ -2,6 +2,7 @@ import { type FormEvent, type ReactElement, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Button } from '@shared/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { errorProps } from '@staff/components/errorProps';
@@ -71,25 +72,24 @@ export default function StockReceiveScreen(): ReactElement {
         error={items.error}
         pendingLabel={strings.stockLedger.pickItem}
       >
-        <label className="flex flex-col gap-1 text-sm">
-          {strings.stockLedger.item}
-          <select
-            id="receive-item"
-            value={stockItemId}
-            onChange={(event) => {
-              setStockItemId(event.target.value);
-            }}
-            required
-            className="min-h-target rounded border border-input bg-background px-3"
-          >
-            <option value="">{strings.stockLedger.pickItem}</option>
-            {(items.data?.items ?? []).map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name} ({item.base_unit})
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="flex flex-col gap-1 text-sm">
+          <span>{strings.stockLedger.item}</span>
+          {/* Radix rather than a bare `<select>`: restaurant-ui rule 4, and the reason
+              `shared/ui/select.tsx` exists — a hand-rolled select gets the appearance right and
+              the keyboard wrong, and this one is aimed at with a glove on. */}
+          <Select value={stockItemId} onValueChange={setStockItemId}>
+            <SelectTrigger aria-label={strings.stockLedger.item}>
+              <SelectValue placeholder={strings.stockLedger.pickItem} />
+            </SelectTrigger>
+            <SelectContent>
+              {(items.data?.items ?? []).map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name} ({item.base_unit})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </QueryState>
 
       <Field
