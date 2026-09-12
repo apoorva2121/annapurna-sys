@@ -6,6 +6,9 @@ import { RequireAuth, RequirePermission } from '@staff/auth/guards';
 import { AppShell } from '@staff/components/AppShell';
 import EmployeeScreen from '@staff/screens/EmployeeScreen';
 import FloorPlanScreen from '@staff/screens/FloorPlanScreen';
+import MenuItemScreen from '@staff/screens/MenuItemScreen';
+import MenuScreen from '@staff/screens/MenuScreen';
+import ModifierGroupsScreen from '@staff/screens/ModifierGroupsScreen';
 import HomeScreen from '@staff/screens/HomeScreen';
 import LoginScreen from '@staff/screens/LoginScreen';
 import NewEmployeeScreen from '@staff/screens/NewEmployeeScreen';
@@ -85,6 +88,33 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.RESTAURANT_CONFIGURE}>
               <StationsScreen />
+            </RequirePermission>
+          }
+        />
+        {/* The menu. `menu.view` for reading, and the write routes guard themselves — a manager
+            holds `menu.manage` but not `menu.price`, so the screen renders the price control
+            conditionally rather than offering one that 403s. */}
+        <Route
+          path="menu"
+          element={
+            <RequirePermission permission={Permission.MENU_VIEW}>
+              <MenuScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="menu/options"
+          element={
+            <RequirePermission permission={Permission.MENU_VIEW}>
+              <ModifierGroupsScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="menu/:itemId"
+          element={
+            <RequirePermission permission={Permission.MENU_VIEW}>
+              <MenuItemScreen />
             </RequirePermission>
           }
         />

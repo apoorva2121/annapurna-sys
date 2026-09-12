@@ -6,7 +6,7 @@ Marking rules — a box is ticked only when the thing is **actually true**, neve
 true. `[~]` means in progress. A module's box is ticked only when its full Definition of Done is
 met, **including your manual pass**.
 
-Last updated: 2026-09-08
+Last updated: 2026-09-12
 
 ---
 
@@ -15,7 +15,7 @@ Last updated: 2026-09-08
 - [x] **P0 · Discovery & requirements**
 - [x] **P1 · Architecture & design**
 - [x] **P2 · Planning**
-- [ ] **P3 · Implementation** — 0 / 18 modules
+- [ ] **P3 · Implementation** — 0 / 18 modules complete (M00–M03 built; each waits on a manual pass)
 - [ ] **P4 · Integration & system testing**
 - [ ] **P5 · Deployment & release**
 - [ ] **P6 · Operations & iteration**
@@ -38,8 +38,8 @@ Legend: **S**pec approved · **M**igration · **B**ackend · **T**ests green · 
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | M00 Foundation | 1d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] |
 | M01 Identity, Roles & Permissions | 3d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [x] | [ ] | [ ] |
-| M02 Restaurant Setup | 2d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
-| M03 Menu | 3d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
+| M02 Restaurant Setup | 2d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [ ] |
+| M03 Menu | 4d | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [x] | [ ] | [ ] |
 | M04 Stock Items & Recipes | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M05 Inventory Ledger | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M06 Procurement `[1.5]` | 3d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -56,6 +56,10 @@ Legend: **S**pec approved · **M**igration · **B**ackend · **T**ests green · 
 | M16 Hardening & Production | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 
 **62 days total.** Month 1 target: M00–M05 complete, M07 begun.
+
+**M01's row is stale rather than accurate** — the module is built and its tests are in the suite,
+but nobody has re-verified each column since, so the boxes are left as they were found rather than
+ticked on inference. Marking rules above: a box is ticked only when the thing is actually true.
 
 ---
 

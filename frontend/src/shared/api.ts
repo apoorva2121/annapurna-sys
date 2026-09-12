@@ -125,7 +125,7 @@ async function errorFrom(response: Response): Promise<ApiClientError> {
 
 // ---------------------------------------------------------------- transport
 
-type Method = 'GET' | 'POST' | 'PATCH';
+type Method = 'GET' | 'POST' | 'PATCH' | 'PUT';
 
 async function send(method: Method, path: string, body?: unknown): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json' };
@@ -248,4 +248,14 @@ export function apiPost<T = void>(path: string, body?: unknown): Promise<T> {
 
 export function apiPatch<T>(path: string, body: unknown): Promise<T> {
   return request<T>('PATCH', path, body);
+}
+
+/**
+ * PUT, for a resource whose whole value is being replaced rather than patched.
+ *
+ * M03's modifier attachment is the first: a dish's list of modifier groups is a set, not a log, so
+ * "these are the groups now" is the honest request and PATCH would imply a merge nobody wants.
+ */
+export function apiPut<T>(path: string, body: unknown): Promise<T> {
+  return request<T>('PUT', path, body);
 }

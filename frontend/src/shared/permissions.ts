@@ -19,6 +19,13 @@ export const Permission = {
   ROLE_VIEW: 'role.view',
   // M02. The whole setup surface sits behind this one: settings, floor, stations, tax.
   RESTAURANT_CONFIGURE: 'restaurant.configure',
+  // M03. Three, because `seed/organization.yaml`'s P1 design draws a line a single permission
+  // cannot: a manager may shape the menu and may not price it. The UI uses MENU_PRICE to decide
+  // whether to render a price control at all — a disabled input that 403s reads as a bug in the
+  // product rather than as a boundary in it.
+  MENU_VIEW: 'menu.view',
+  MENU_MANAGE: 'menu.manage',
+  MENU_PRICE: 'menu.price',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
