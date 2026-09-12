@@ -20,10 +20,10 @@ import { strings } from '@staff/strings';
 /**
  * Everywhere this app can go, and what a person must hold to be offered it.
  *
- * **In one list, in route order**, because the alternative — a conditional block per screen — is
- * how M02, M03 and M04 each shipped a screen with a route and no link to it. Every one of those
- * was reachable only by typing a URL, which is to say not reachable at all. A missing entry here
- * is now the same kind of visible omission as a missing route.
+ * **In one list, in route order.** M03 and M04 each shipped screens with a route and no link of
+ * any kind, reachable only by typing a URL — which is to say not reachable. `AppShell`'s header is
+ * the primary fix, because it is on every screen; this list is the landing page saying the same
+ * thing to somebody who has just signed in. A missing entry here is a visible omission.
  *
  * `null` means everyone: a waiter with no permissions still has a profile.
  */

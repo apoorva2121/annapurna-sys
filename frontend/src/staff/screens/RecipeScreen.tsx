@@ -12,7 +12,7 @@ import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
 import { errorProps } from '@staff/components/errorProps';
 import { strings } from '@staff/strings';
-import { type Draft, problemWith } from '@staff/screens/recipeLine';
+import { type Draft, isQuantity, problemWith, serialise } from '@staff/screens/recipeLine';
 import {
   type Recipe,
   type StockItem,
@@ -68,6 +68,14 @@ export default function RecipeScreen(): ReactElement {
   );
 }
 
+/** A recipe's lines as an editable draft. `null` — no recipe at all — starts from nothing. */
+function savedLines(current: Recipe | null): Draft[] {
+  return (current?.lines ?? []).map((line) => ({
+    component_id: line.component_id,
+    quantity: line.quantity,
+  }));
+}
+
 function Editor({
   variantId,
   current,
@@ -80,14 +88,13 @@ function Editor({
   mayManage: boolean;
 }): ReactElement {
   const save = useSaveRecipeVersion();
-  const [draft, setDraft] = useState<Draft[]>(() =>
-    (current?.lines ?? []).map((line) => ({
-      component_id: line.component_id,
-      quantity: line.quantity,
-    })),
-  );
+  const [draft, setDraft] = useState<Draft[]>(() => savedLines(current));
   const [notes, setNotes] = useState(current?.notes ?? '');
   const [problem, setProblem] = useState<string | null>(null);
+
+  // What the server holds, compared with what is on screen. It is the whole reason Confirm can be
+  // trusted: without it a chef could edit three lines and certify the version underneath them.
+  const dirty = serialise(draft) !== serialise(savedLines(current));
 
   function add(componentId: string, quantity: string): void {
     const found = problemWith(componentId, quantity, draft);
@@ -100,6 +107,13 @@ function Editor({
   function onSave(): void {
     if (draft.length === 0) {
       setProblem(strings.recipe.needsLines);
+      return;
+    }
+    // Every line, not only the one just added: quantities are editable in place, so a line that
+    // was valid when it was added can be blank or zero by the time Save is pressed. The server's
+    // CHECK would refuse it, but after a round trip and with the whole version rejected.
+    if (draft.some((line) => !isQuantity(line.quantity))) {
+      setProblem(strings.recipe.noQuantity);
       return;
     }
     setProblem(null);
@@ -120,6 +134,11 @@ function Editor({
           onRemove={(componentId) => {
             setDraft((lines) => lines.filter((row) => row.component_id !== componentId));
           }}
+          onQuantity={(componentId, quantity) => {
+            setDraft((lines) =>
+              lines.map((row) => (row.component_id === componentId ? { ...row, quantity } : row)),
+            );
+          }}
         />
       )}
       {mayManage && <AddLine catalogue={catalogue} onAdd={add} />}
@@ -139,7 +158,7 @@ function Editor({
             <Button onClick={onSave} disabled={save.isPending}>
               {save.isPending ? strings.recipe.saving : strings.recipe.save}
             </Button>
-            <ConfirmButton current={current} />
+            <ConfirmButton current={current} dirty={dirty} />
           </div>
         </>
       )}
@@ -178,8 +197,21 @@ function Status({
   );
 }
 
-/** "A chef has weighed this." Absent before the first save, and absent once it is true. */
-function ConfirmButton({ current }: { current: Recipe | null }): ReactElement {
+/**
+ * "A chef has weighed this." Absent before the first save, and absent once it is true.
+ *
+ * **Disabled while the draft has unsaved edits.** Confirmation applies to the saved version, so a
+ * chef who changed three quantities and then pressed this would mark the *old* numbers as checked —
+ * and `confirmed_at` is what the dish-cost screen reads to decide whether a cost is a proposal or a
+ * fact. Certifying the wrong version is worse than certifying nothing.
+ */
+function ConfirmButton({
+  current,
+  dirty,
+}: {
+  current: Recipe | null;
+  dirty: boolean;
+}): ReactElement {
   const confirm = useConfirmRecipe();
   if (current === null || current.confirmed_at !== null) {
     return <></>;
@@ -188,13 +220,16 @@ function ConfirmButton({ current }: { current: Recipe | null }): ReactElement {
     <>
       <Button
         variant="secondary"
-        disabled={confirm.isPending}
+        disabled={confirm.isPending || dirty}
         onClick={() => {
           confirm.mutate({ id: current.id });
         }}
       >
         {confirm.isPending ? strings.recipe.confirming : strings.recipe.confirm}
       </Button>
+      {dirty && (
+        <p className="self-center text-sm text-muted-foreground">{strings.recipe.confirmBlocked}</p>
+      )}
       {confirm.isError && <Notice tone="critical" {...errorProps(confirm.error)} />}
     </>
   );
@@ -210,11 +245,13 @@ function Lines({
   catalogue,
   mayManage,
   onRemove,
+  onQuantity,
 }: {
   draft: Draft[];
   catalogue: StockItem[];
   mayManage: boolean;
   onRemove: (componentId: string) => void;
+  onQuantity: (componentId: string, quantity: string) => void;
 }): ReactElement {
   const byId = new Map(catalogue.map((item) => [item.id, item]));
   return (
@@ -227,38 +264,81 @@ function Lines({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {draft.map((line) => {
-          const item = byId.get(line.component_id);
-          return (
-            <TableRow key={line.component_id}>
-              <TableCell>
-                {item?.name ?? line.component_id}
-                <span className="ml-2 rounded-sm bg-neutral-soft px-1.5 py-0.5 text-xs text-neutral">
-                  {item?.kind === 'preparation'
-                    ? strings.stock.preparations
-                    : strings.stock.ingredients}
-                </span>
-              </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">
-                {line.quantity} {item?.base_unit ?? ''}
-              </TableCell>
-              {mayManage && (
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      onRemove(line.component_id);
-                    }}
-                  >
-                    {strings.recipe.removeLine}
-                  </Button>
-                </TableCell>
-              )}
-            </TableRow>
-          );
-        })}
+        {draft.map((line) => (
+          <LineRow
+            key={line.component_id}
+            line={line}
+            item={byId.get(line.component_id)}
+            mayManage={mayManage}
+            onRemove={onRemove}
+            onQuantity={onQuantity}
+          />
+        ))}
       </TableBody>
     </Table>
+  );
+}
+
+/** One line: what it is, how much of it, and the two controls that change those. */
+function LineRow({
+  line,
+  item,
+  mayManage,
+  onRemove,
+  onQuantity,
+}: {
+  line: Draft;
+  item: StockItem | undefined;
+  mayManage: boolean;
+  onRemove: (componentId: string) => void;
+  onQuantity: (componentId: string, quantity: string) => void;
+}): ReactElement {
+  // Falls back to the id rather than rendering blank: a line pointing at something the catalogue
+  // did not return is a real state (a deactivated item, a slow second query), and a nameless row
+  // with a quantity beside it is worse than an ugly one.
+  const name = item?.name ?? line.component_id;
+  return (
+    <TableRow>
+      <TableCell>
+        {name}
+        {/* ADR 0006 asks the editor to make it obvious when a line nests. A word, not a colour. */}
+        <span className="ml-2 rounded-sm bg-neutral-soft px-1.5 py-0.5 text-xs text-neutral">
+          {item?.kind === 'preparation' ? strings.stock.preparations : strings.stock.ingredients}
+        </span>
+      </TableCell>
+      <TableCell className="text-right font-mono tabular-nums">
+        {/* **Editable in place.** The first version of this screen offered only Add and Remove, so
+            correcting 200 g to 180 g meant deleting the line and retyping it — on the screen whose
+            whole job is a chef correcting library quantities during onboarding. The unit stays
+            beside the number: a figure with no unit next to it is the easiest way there is to put
+            200 kg of paneer into a dish. */}
+        {mayManage ? (
+          <input
+            className="min-h-target w-24 rounded-md border border-input bg-card px-2 text-right font-mono tabular-nums focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            aria-label={strings.recipe.quantityFor(name)}
+            value={line.quantity}
+            onChange={(event) => {
+              onQuantity(line.component_id, event.target.value);
+            }}
+          />
+        ) : (
+          line.quantity
+        )}{' '}
+        {item?.base_unit ?? ''}
+      </TableCell>
+      {mayManage && (
+        <TableCell>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              onRemove(line.component_id);
+            }}
+          >
+            {strings.recipe.removeLine}
+          </Button>
+        </TableCell>
+      )}
+    </TableRow>
   );
 }
 

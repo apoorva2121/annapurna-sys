@@ -146,7 +146,24 @@ describe('what a chef sees', () => {
     renderScreen(CHEF);
 
     expect(await screen.findByText('Paneer')).toBeInTheDocument();
-    expect(screen.getByText(/200\.0000\s*g/)).toBeInTheDocument();
+    // The quantity is an editable field, and the unit sits beside it rather than inside it — a
+    // number with no unit next to it is the easiest way there is to put 200 kg of paneer in a dish.
+    expect(screen.getByLabelText('Quantity of Paneer')).toHaveValue('200.0000');
+    expect(screen.getByRole('cell', { name: /g$/ })).toBeInTheDocument();
+  });
+
+  it('lets a chef correct a quantity in place', async () => {
+    // The first version of this screen offered only Add and Remove, so changing 200 g to 180 g
+    // meant deleting the line and retyping it — on the screen whose whole job is a chef correcting
+    // library quantities during onboarding.
+    const user = userEvent.setup();
+    renderScreen(CHEF);
+    const field = await screen.findByLabelText('Quantity of Paneer');
+
+    await user.clear(field);
+    await user.type(field, '180');
+
+    expect(field).toHaveValue('180');
   });
 
   it('shows no rupee figure anywhere', async () => {
@@ -246,6 +263,48 @@ describe('saving', () => {
     await user.click(screen.getByRole('button', { name: /Save this recipe/i }));
 
     expect(await screen.findByText(/needs at least one ingredient/i)).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some((call) => (call[1] as RequestInit | undefined)?.method === 'POST'),
+    ).toBe(false);
+  });
+});
+
+describe('confirming', () => {
+  it('will not certify a version while the draft has unsaved edits', async () => {
+    // `confirmed_at` is what the dish-cost screen reads to decide whether a cost is a proposal or
+    // a fact. A chef who changed three quantities and pressed Confirm would have marked the *old*
+    // numbers as checked — certifying the wrong version is worse than certifying nothing.
+    const user = userEvent.setup();
+    renderScreen(CHEF);
+    const field = await screen.findByLabelText('Quantity of Paneer');
+
+    await user.clear(field);
+    await user.type(field, '180');
+
+    expect(screen.getByRole('button', { name: /Confirm these quantities/i })).toBeDisabled();
+    expect(await screen.findByText(/Save your changes before confirming/i)).toBeInTheDocument();
+  });
+
+  it('is offered on an untouched recipe, which is the normal case', async () => {
+    renderScreen(CHEF);
+    await screen.findByText('Paneer');
+
+    expect(screen.getByRole('button', { name: /Confirm these quantities/i })).toBeEnabled();
+  });
+});
+
+describe('saving', () => {
+  it('refuses a line whose quantity was edited down to nothing', async () => {
+    // Checked again at save time and not only when a line is added, because quantities are now
+    // editable in place: a line that was valid when added can be blank by the time Save is pressed.
+    const user = userEvent.setup();
+    const fetchMock = renderScreen(CHEF);
+    const field = await screen.findByLabelText('Quantity of Paneer');
+
+    await user.clear(field);
+    await user.click(screen.getByRole('button', { name: /Save this recipe/i }));
+
+    expect(await screen.findByText(/greater than zero/i)).toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some((call) => (call[1] as RequestInit | undefined)?.method === 'POST'),
     ).toBe(false);

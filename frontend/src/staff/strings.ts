@@ -30,8 +30,9 @@ export const strings = {
     profile: 'Your profile',
     signOut: 'Sign out',
     signingOut: 'Signing out…',
-    // M02-M04 shipped their screens behind routes and nothing linked to them, so every one was
-    // reachable only by typing a URL. Found by the M03/M04 review.
+    // M03 and M04 shipped their screens behind routes with nothing linking to them, so each was
+    // reachable only by typing a URL. Found by the M03/M04 review. (M02's four screens were always
+    // in the header — an earlier version of this comment said otherwise and was wrong.)
     settings: 'Restaurant settings',
     menu: 'Menu',
     menuOptions: 'Options and add-ons',
@@ -378,6 +379,8 @@ export const strings = {
     noQuantity: 'Enter a quantity greater than zero.',
     pickOne: 'Choose an ingredient or preparation.',
     chooseComponent: 'Choose…',
+    quantityFor: (name: string) => `Quantity of ${name}`,
+    confirmBlocked: 'Save your changes before confirming, so what gets confirmed is what you see.',
   },
 
   errors: {

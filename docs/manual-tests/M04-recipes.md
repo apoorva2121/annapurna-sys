@@ -123,6 +123,8 @@ conversation, and I would rather hear now than after the pilot.
 | R5 | Add an ingredient with quantity `0` | Refused the same way |
 | R6 | Remove every line and save | "A recipe needs at least one ingredient" — nothing is sent |
 | R7 | Open a dish that has never had a recipe | "No recipe yet", an empty table, and the add row ready |
+| R8 | Change a quantity in place, without saving | The **Confirm** button greys out, and says why |
+| R9 | Clear a quantity entirely and press Save | Refused, and nothing is sent |
 
 **R7 is the one worth dwelling on.** A dish with *no* recipe and a dish with an *empty* recipe are
 different things: the first is uncosted and the second costs nothing to make. The cost screen's

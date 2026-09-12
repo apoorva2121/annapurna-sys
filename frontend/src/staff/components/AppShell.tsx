@@ -42,6 +42,19 @@ export function AppShell(): ReactElement {
               <Link to="/settings/tax">{strings.setup.navTax}</Link>
             </>
           )}
+          {/* M03 and M04. These shipped as routes with nothing linking to them, so every one was
+              reachable only by typing a URL — which is to say not reachable. The header is where
+              they belong rather than only the home page: a chef standing at the pass is already
+              inside the app, and going back to a landing page to reach the next screen is not how
+              anybody works a shift. */}
+          {can(Permission.MENU_VIEW) && (
+            <>
+              <Link to="/menu">{strings.nav.menu}</Link>
+              <Link to="/menu/options">{strings.nav.menuOptions}</Link>
+            </>
+          )}
+          {can(Permission.RECIPE_VIEW) && <Link to="/stock">{strings.nav.stock}</Link>}
+          {can(Permission.COST_VIEW) && <Link to="/costs">{strings.nav.costs}</Link>}
           <Link to="/profile">{strings.nav.profile}</Link>
         </nav>
         {/* Renders nothing for the great majority of staff, who work at one restaurant. */}
