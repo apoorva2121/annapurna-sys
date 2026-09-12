@@ -30,7 +30,8 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
       consumption. 15 tests green.
 - [x] **C · Services: receive, adjust, consume** — FEFO write path, never-refusing consumption,
       mandatory adjustment reasons. 18 service + 2 concurrency tests green.
-- [ ] **D · Services: production, stock counts** — the two transactional ones
+- [x] **D · Services: production, stock counts** — atomic production with real input costing,
+      forward-only counts, no self-approval. 18 tests green.
 - [ ] **E · API + permissions + tenant-isolation suite**
 - [ ] **F · Backend tests green** — incl. the 1,000-operation property test
 - [ ] **G · Frontend: on-hand + alerts**
@@ -39,11 +40,12 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
 
 ## Next action
 
-> Chunk D. Add `produce_batch` and the stock-count workflow to `app/services/inventory.py`.
-> Production consumes inputs **and** creates the output batch in one transaction, with the output's
-> `unit_cost` = total input cost / output quantity via M04's cost engine. Counts are forward-only
-> draft → submitted → approved, and **only approval posts** `adjustment` movements; `approve_count`
-> must refuse an approver equal to `counted_by`.
+> Chunk E. Add `app/api/v1/staff/inventory.py`. Endpoints per `docs/modules.md` M05:
+> `POST /stock/receipts`, `/stock/production`, `/stock/adjustments`; `GET /stock/on-hand`,
+> `/stock/expiring`; stock count create/submit/approve. **Every route declares a permission**
+> (default-deny) and gets a tenant-isolation test — `tests/test_generic_suites.py` enumerates
+> routes, so a new one with no permission fails there automatically. Follow
+> `app/api/v1/staff/stock.py` for the shape.
 
 ## Verified — commands actually run, output actually seen
 
@@ -57,6 +59,8 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
 | `pytest tests/test_inventory_repositories.py` | **15 passed** — FEFO order, NULLS LAST, on-hand, tenant isolation |
 | `pytest tests/test_inventory_service.py` | **18 passed** — receive/consume/adjust, shortfalls, business date |
 | `pytest tests/test_inventory_concurrency.py` | **2 passed** — and **verified to fail with the lock removed** |
+| `pytest tests/test_inventory_production.py` | **18 passed** — production costing, atomicity, count workflow |
+| all five M05 files together | **61 passed** |
 
 ## Notes for whoever picks this up
 

@@ -24,6 +24,7 @@ in the country, and wrong by five and a half hours for all of them.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -33,18 +34,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
 from app.core.business_day import business_date_of
-from app.core.enums import MovementBasis, MovementType
+from app.core.enums import MovementBasis, MovementType, StockCountScope, StockCountStatus
 from app.core.errors import AppError, NotFoundError
 from app.core.tenancy import TenantScope
 from app.models.audit import AuditLog
-from app.models.inventory import StockBatch, StockMovement
+from app.models.inventory import StockBatch, StockCount, StockCountLine, StockMovement
+from app.models.stock import PreparationProfile
 from app.models.tenancy import Restaurant
 from app.repositories.inventory import (
     OnHandRow,
     StockBatchRepository,
+    StockCountRepository,
     StockMovementRepository,
 )
-from app.repositories.stock import StockItemRepository
+from app.repositories.stock import RecipeRepository, StockItemRepository
 
 # A movement that consumes must be one of these. Kept as a set rather than checked inline so the
 # list is visible in one place when M09 (waste) and M07 (orders) start calling in.
@@ -102,6 +105,8 @@ class InventoryService:
         self.batches = StockBatchRepository(session, scope)
         self.movements = StockMovementRepository(session, scope)
         self.items = StockItemRepository(session, scope)
+        self.recipes = RecipeRepository(session, scope)
+        self.counts = StockCountRepository(session, scope)
 
     # ------------------------------------------------------------------ helpers
 
@@ -479,3 +484,247 @@ class InventoryService:
     async def expiring(self, *, within_days: int = 7) -> list[Any]:
         cutoff = await self.business_date_now()
         return await self.batches.expiring_before(cutoff + timedelta(days=within_days))
+
+    # ------------------------------------------------------------------ production
+
+    async def produce_batch(
+        self,
+        actor: Actor,
+        *,
+        stock_item_id: uuid.UUID,
+        quantity: Decimal,
+        occurred_at: datetime | None = None,
+    ) -> StockBatch:
+        """Make a preparation: consume the inputs **and** create the output, atomically.
+
+        Either both halves land or neither does. A production that consumed its inputs and failed
+        to create its output would destroy stock on the books; one that created its output without
+        consuming would invent it. Both are worse than the operation simply failing, which is why
+        there is no partial path through here.
+
+        The output's `unit_cost` is **what the inputs actually cost**, divided by what came out.
+        Not the recipe's frozen cost and not the item's current price: this batch of gravy cost what
+        this batch of onions cost, and that is the number every dish made from it should carry.
+
+        Yield loss is implicit and correct. If the inputs total 1,200 g and the batch yields
+        1,000 g, the output costs 20% more per gram than its inputs did — which is exactly what
+        reduction does to a sauce.
+        """
+        if quantity <= 0:
+            raise AppError("invalid_quantity", "A production must make more than zero.")
+
+        item = await self._require_item(stock_item_id)
+        profile = await self.session.get(PreparationProfile, stock_item_id)
+        if profile is None:
+            raise AppError(
+                "not_a_preparation",
+                f"{item.name} is an ingredient, not a preparation. Receive it rather than make it.",
+            )
+        recipe = await self.recipes.current_for_preparation(stock_item_id)
+        if recipe is None:
+            raise AppError(
+                "no_current_recipe",
+                f"{item.name} has no current recipe, so there is nothing to make it from.",
+                {"stock_item_id": str(stock_item_id)},
+            )
+
+        batch_yield = _dec(profile.batch_yield)
+        scale = quantity / batch_yield
+        moment = occurred_at or datetime.now(UTC)
+        business_date = await self.business_date_now(moment)
+
+        loaded = await self.recipes.get_with_lines(recipe.id)
+        if loaded is None:  # pragma: no cover - fetched a moment ago
+            raise AppError("no_current_recipe", "That recipe disappeared while it was in use.")
+
+        input_cost = Decimal("0")
+        for line in loaded.lines:
+            consumed = await self.consume(
+                actor,
+                stock_item_id=line.component_id,
+                quantity=_dec(line.quantity) * scale,
+                basis=MovementBasis.THEORETICAL,
+                ref_type="production_batch",
+                ref_id=recipe.id,
+                occurred_at=moment,
+            )
+            input_cost += consumed.total_value
+
+        expiry: date | None = None
+        if profile.shelf_life_hours:
+            expiry = (moment + timedelta(hours=int(profile.shelf_life_hours))).date()
+
+        output = StockBatch(
+            restaurant_id=self.scope.restaurant_id,
+            stock_item_id=stock_item_id,
+            batch_code=await self._next_batch_code(business_date),
+            quantity_received=quantity,
+            unit_cost=input_cost / quantity,
+            received_at=moment,
+            expiry_date=expiry,
+            source="production",
+        )
+        self.session.add(output)
+        await self.session.flush()
+
+        self._movement(
+            batch=output,
+            stock_item_id=stock_item_id,
+            movement_type=MovementType.PRODUCTION,
+            quantity_delta=quantity,
+            unit_cost=_dec(output.unit_cost),
+            basis=MovementBasis.ACTUAL,
+            occurred_at=moment,
+            business_date=business_date,
+            actor=actor,
+            ref_type="production_batch",
+            ref_id=recipe.id,
+        )
+        await self.session.flush()
+        self._audit(
+            actor,
+            "stock.produced",
+            output.id,
+            {
+                "stock_item_id": str(stock_item_id),
+                "quantity": str(quantity),
+                "input_cost": str(input_cost),
+            },
+        )
+        return output
+
+    # ------------------------------------------------------------------ counts
+
+    async def open_count(
+        self,
+        actor: Actor,
+        *,
+        stock_item_ids: Sequence[uuid.UUID],
+        count_scope: str = StockCountScope.FULL,
+        occurred_at: datetime | None = None,
+    ) -> StockCount:
+        """Start a count sheet, freezing the book position on every line as it is written.
+
+        `system_quantity` is captured now and never recomputed. The ledger keeps moving while
+        somebody walks the storeroom with a clipboard, and a variance recalculated at approval
+        against a book that has since changed is not the variance anybody observed.
+        """
+        if not stock_item_ids:
+            raise AppError("no_items", "A count needs at least one item to count.")
+
+        moment = occurred_at or datetime.now(UTC)
+        count = StockCount(
+            restaurant_id=self.scope.restaurant_id,
+            counted_at=moment,
+            business_date=await self.business_date_now(moment),
+            scope=count_scope,
+            status=StockCountStatus.DRAFT,
+            counted_by=actor.employee_id,
+        )
+        self.session.add(count)
+        await self.session.flush()
+
+        for stock_item_id in stock_item_ids:
+            await self._require_item(stock_item_id)
+            system = await self.movements.quantity_for_item(stock_item_id)
+            self.session.add(
+                StockCountLine(
+                    restaurant_id=self.scope.restaurant_id,
+                    stock_count_id=count.id,
+                    stock_item_id=stock_item_id,
+                    system_quantity=system,
+                    counted_quantity=system,
+                    variance_value=Decimal("0"),
+                )
+            )
+        await self.session.flush()
+        return count
+
+    async def record_counted(
+        self, count_id: uuid.UUID, *, counts: dict[uuid.UUID, Decimal]
+    ) -> StockCount:
+        """Write what was actually on the shelf, and value the gap in rupees."""
+        count = await self.counts.get_with_lines(count_id)
+        if count is None:
+            raise NotFoundError("stock_count_not_found", "That stock count does not exist here.")
+        if count.status != StockCountStatus.DRAFT:
+            raise AppError(
+                "count_not_draft",
+                "A count can only be edited while it is a draft. A submitted count is fixed.",
+            )
+
+        for line in count.lines:
+            if line.stock_item_id not in counts:
+                continue
+            counted = counts[line.stock_item_id]
+            if counted < 0:
+                raise AppError("invalid_quantity", "A counted quantity cannot be negative.")
+            item = await self._require_item(line.stock_item_id)
+            line.counted_quantity = counted
+            # Negative means less on the shelf than the book claims, which is the direction that
+            # costs money. Valued at the item's current cost rather than a batch's: stock that has
+            # gone missing is not attributable to any one batch, precisely because it is missing.
+            line.variance_value = (counted - _dec(line.system_quantity)) * _dec(
+                item.current_unit_cost
+            )
+        await self.session.flush()
+        return count
+
+    async def submit_count(self, count_id: uuid.UUID) -> StockCount:
+        count = await self.counts.get_for_update(count_id)
+        if count is None:
+            raise NotFoundError("stock_count_not_found", "That stock count does not exist here.")
+        if count.status != StockCountStatus.DRAFT:
+            raise AppError("count_not_draft", "This count has already been submitted.")
+        count.status = StockCountStatus.SUBMITTED
+        await self.session.flush()
+        return count
+
+    async def approve_count(self, actor: Actor, count_id: uuid.UUID) -> StockCount:
+        """Approval is the only thing that reaches the ledger.
+
+        Two rules the storeroom depends on.
+
+        **Nobody approves their own count.** The person who walked the shelves and the person who
+        accepts the result must differ, because a count is the one document that can make a
+        shortfall official — and if one person can do both, the control is decorative. The database
+        carries the same constraint, so it holds even for a path that forgets to ask.
+
+        **Approval cannot run twice.** The count is locked and its status checked under that lock,
+        so two approvals racing cannot both post adjustments and double the correction.
+        """
+        count = await self.counts.get_for_update(count_id)
+        if count is None:
+            raise NotFoundError("stock_count_not_found", "That stock count does not exist here.")
+        if count.status == StockCountStatus.APPROVED:
+            raise AppError("count_already_approved", "This count has already been approved.")
+        if count.status != StockCountStatus.SUBMITTED:
+            raise AppError(
+                "count_not_submitted", "A count must be submitted before it can be approved."
+            )
+        if count.counted_by is not None and count.counted_by == actor.employee_id:
+            raise AppError(
+                "self_approval",
+                "A count must be approved by somebody other than the person who counted it.",
+                status_code=403,
+            )
+
+        for line in await self.counts.lines_of(count_id):
+            delta = _dec(line.counted_quantity) - _dec(line.system_quantity)
+            if delta == 0:
+                continue
+            await self.adjust(
+                actor,
+                stock_item_id=line.stock_item_id,
+                quantity_delta=delta,
+                reason=f"Stock count {count.business_date:%Y-%m-%d}: {line.reason or 'counted'}",
+                occurred_at=count.counted_at,
+            )
+
+        count.status = StockCountStatus.APPROVED
+        count.approved_by = actor.employee_id
+        await self.session.flush()
+        self._audit(
+            actor, "stock.count_approved", count.id, {"business_date": str(count.business_date)}
+        )
+        return count
