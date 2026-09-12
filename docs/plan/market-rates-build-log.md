@@ -20,7 +20,8 @@ Not a numbered module — a data-layer dependency that `docs/onboarding-cold-sta
 | D | `stock_item.cost_source` — migration 0014, enum both sides, schema, docs | ✅ done |
 | E | `seed/tandoor-house.yaml` + `seed/validate_tandoor_house.py` | ✅ data only |
 | F | Loading Tandoor House into the database | ❌ **not started** |
-| G | Audit remediation — schema v2 (`basis_city`, `as_of`, `grade`, `gst_rate`, `pack_tiers`) | 🔄 in progress |
+| G | Audit remediation — schema v2 (`basis_city`, `as_of`, `grade`, `gst_rate`, `pack_tiers`) | ✅ done |
+| H | Input GST — `gst_rate` + `gst_hsn` on all 122, post-GST-2.0 (`library/gst_build.py`) | ✅ done |
 
 ---
 
@@ -85,27 +86,70 @@ live:
 
 | Gap | State |
 |---|---|
-| GST / landed cost | `gst_rate: null` on all 122. Validator **warns**, does not fail — a hard failure on an unsourced legal lookup only pressures whoever unblocks the build into inventing a rate |
+| ~~GST / landed cost~~ | **closed 2026-09-12** — all 122 rows carry `gst_rate` and `gst_hsn`. See *Round 3* below |
 | `ROSE_WATER` | still cosmetic-grade evidence for a food ingredient; `grade` now says so explicitly |
 | 8 high-impact single-sourced rows | `OIL` (6.08% of all dish cost), `TOMATO`, `POTATO`, `CARROT`, `GINGER`, `MUSHROOM`, `CASHEW`, `CHILLIPWD` — each carries the finding in its `note` |
 | 4 genuinely stale rows | dates are now honest; the prices are still February–June quotes |
 | `SAFFRON` | its own evidence spans ₹330–550/g against a value of ₹220/g — recorded, unreconciled |
 
-`make check` is green with 20 warnings, every one of them a real open question rather than noise.
+---
 
-### RESUME HERE — state as of commit `c3082c3`
+## Round 3 — input GST, and a tax reform that invalidated memory
 
-**The tree is GREEN.** `make check` exits 0 with 20 warnings, every one a real open question
-rather than noise. Nothing is half-migrated; schema v2 is merged, validated and committed.
+The largest gap from round 2 is closed. All 122 rows carry `gst_rate` and `gst_hsn`, so landed
+cost is computable for the first time: `inr_per_base_unit * (1 + gst_rate/100)`.
 
-**What blocks the remaining work is search capacity, not effort or model.** The session that did
-this work spent its WebSearch budget (200/200, session-scoped — it does NOT reset when a rate
-limit does), and all four research subagents died on the shared session rate limit. A fresh
-session restores the budget; so does raising `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION`. More
-model effort buys nothing here — none of the remaining work is reasoning-hard.
+**The finding that matters most here is that recall was unusable.** GST 2.0 — 56th Council,
+notification 09/2025-CTR of 17 Sep 2025, in force **22 Sep 2025** — abolished the 12% and 28%
+slabs outright. Ghee, butter and cheese left 12%; sauces left 12%; ice cream left 18%; paneer and
+UHT milk went to **nil**. Any rate filled in from pre-reform knowledge would have been wrong on
+roughly a third of this file, and `validate_rates.py` would have passed it silently, because `12`
+is still a member of its `GST_RATES` legal-value set. Every rate here was researched, and the
+distribution table in `PRICE_PROVENANCE.md` now shows **12% = 0 and 28% = 0**, which is the
+visible evidence that the reform was applied rather than a stale table copied.
 
-**Research fragments live in a session-scoped scratchpad a new session cannot guess.** The files
-are still on disk at:
+**A rate is not a property of an ingredient — it is a property of a heading plus a form.** Under
+GST most agricultural commodities are nil when loose or unbranded and 5% when "pre-packaged and
+labelled", a phrase that borrows its definition from the Legal Metrology Act, 2009 — including a
+**25 kg / 25 L ceiling** above which goods are not a pre-packaged commodity at all. So a 50 kg
+mill bag of maida is nil while a 10 kg labelled sack of besan is 5%, which inverts the intuition
+that buying bigger means paying more tax. This bites here because the file's declared basis is
+*wholesale / trade*, and `grade` already recorded which form each row was priced in — so the
+answer was derivable from evidence in the file, exactly as `basis_city`, `as_of` and `grade` were
+in round 2. No new research was needed for the split, only for the rates themselves.
+
+`library/gst_build.py` holds the derivation: 122 codes → HSN heading, 9 cited rate rules, and one
+classifier that reads the form off `grade`. It is a generator rather than 122 hand-typed literals
+because literals record answers and destroy reasoning — a later reader could not tell a researched
+rate from a guessed one. Re-run it when the law next changes and every row moves together.
+
+| Policy | Rows | Meaning |
+|---|---|---|
+| nil at the heading | 39 | fresh produce, fresh/chilled meat, eggs, salt, Indian breads, papad |
+| flat-rated | 42 | processed goods where packaging is not the question — dairy fats, sauces, oil, sugar |
+| form-dependent | 41 | the classifier decides: 10 read as loose/nil, 31 as pre-packaged |
+
+Final distribution: **49 rows nil · 70 at 5% · 3 at 18%.** The three at 18% are the only rows in
+the file not taxed as food — `BAKING_SODA` (2836, a chemical), `VINEGAR` (2209) and `ROSE_WATER`
+(3303, a Chapter 33 odoriferous preparation). `ROSE_WATER` sitting outside the food slabs is
+consistent with its still-unresolved cosmetic-grade sourcing rather than papering over it.
+
+**One decision was made by Claude and not by the product owner, and should be revisited.** The
+ambiguous middle — `"bulk trade"`, `"mill grade"`, `"trade grade"`, rows naming neither a brand
+nor a size — defaults to **taxed**. The reasoning: this product exists because owners underestimate
+food cost, so of the two ways to be wrong, understating feeds the exact error the product corrects.
+The owner was asked and the work was told to continue without an answer, so the default stands and
+every row it decided says so in its own `gst_assumption`. Anyone who knows how the pilot restaurant
+actually buys should overturn it in `is_prepackaged_and_labelled()`; it is a one-line change and a
+re-run.
+
+### RESUME HERE — state after round 3
+
+**The tree is GREEN.** `make check` exits 0. Warnings dropped **20 → 18** as the
+`122 of 122 rates have no gst_rate` warning cleared. Nothing is half-migrated.
+
+**Research fragments live in a session-scoped scratchpad a new session cannot guess.** Round 2's
+files are still on disk at:
 
 ```
 C:\Users\apoor\AppData\Local\Temp\claude\C--dev-restaurant-os\c61da976-0d9e-4164-9739-dc90dd1f0713\scratchpad\
@@ -117,27 +161,28 @@ C:\Users\apoor\AppData\Local\Temp\claude\C--dev-restaurant-os\c61da976-0d9e-4164
 | `backfill-untouched.yaml` | 67 rows: `basis_city`, `grade`, 9 `pack_tiers` |
 | `backfill-pending-rescrape.yaml` | 55 rows: same fields, plus the audit findings as `note_extra` |
 
-They are only needed to *re-merge*. `library/market-rates.yaml` is committed and complete, so
-losing the scratchpad costs nothing except the ability to re-run the merge without re-deriving the
-backfills.
+They are only needed to *re-merge*, and `gst-rates.yaml` no longer needs to be among them —
+`library/gst_build.py --out <dir>` regenerates it into any fragments directory on demand, which is
+why it moved into the repo. `library/market-rates.yaml` is committed and complete, so losing the
+scratchpad costs nothing except the ability to re-run the merge without re-deriving the backfills.
 
-**Next actions, in value order** — all five need WebSearch:
+**Next actions, in value order** — all four need WebSearch:
 
-1. **GST + HSN for all 122** (`gst_rate: null` everywhere; the largest remaining gap, and the only
-   one that changes every dish cost). Prefer CBIC; a secondary source is acceptable when it cites
-   the notification. Write to `gst-rates.yaml` in the scratchpad — `merge_rates.py` already has
-   the overlay layer for it and expects `{code, gst_rate, gst_hsn, assumption, source}`.
-2. **`ROSE_WATER`** — still cosmetic-grade evidence for a food ingredient. Correctness, not polish.
-3. **Second source for the 8 high-impact single-sourced rows**: `OIL` (6.08% of all dish cost),
+1. **`ROSE_WATER`** — still cosmetic-grade evidence for a food ingredient. Correctness, not polish.
+   Re-pricing it may also move it off 3303 and into a food heading, changing its 18%.
+2. **Second source for the 8 high-impact single-sourced rows**: `OIL` (6.08% of all dish cost),
    `CASHEW`, `TOMATO`, `CHILLIPWD`, `POTATO`, `CARROT`, `MUSHROOM`, `GINGER`.
-4. **Four genuinely stale prices**: `CLOVE` (198 days), `ROSE_WATER` (196), `AJWAIN` (115),
+3. **Four genuinely stale prices**: `CLOVE` (198 days), `ROSE_WATER` (196), `AJWAIN` (115),
    `CORN_KERNELS` (103).
-5. **`SAFFRON`** — its own evidence spans ₹330–550/g against a value of ₹220/g.
+4. **`SAFFRON`** — its own evidence spans ₹330–550/g against a value of ₹220/g.
 
-Then: `python library/merge_rates.py --fragments <path above>` →
+Then: `python library/gst_build.py --out <dir>` (only if a heading or the classifier changed) →
+`python library/merge_rates.py --fragments <dir>` →
 `python library/validate_rates.py --write-provenance` →
 `python seed/validate_tandoor_house.py` → `make check > check.log 2>&1; echo $?` (**read the
 number, not the tail**) → commit.
+
+**Not blocked by search:** chunk F below, which is the honest next step for the tenant itself.
 
 Re-scrape briefs are reconstructable from the defect tables above plus
 `docs/modules/market-rates-spec.md` § What a rate row is, which carries the full v2 schema.

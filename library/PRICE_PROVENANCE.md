@@ -23,10 +23,10 @@ A restaurant on the 5% no-ITC scheme bears input GST, so landed cost is
 
 | Rate | Count |
 |---|---|
-| 0% | 0 |
-| 5% | 0 |
+| 0% | 49 |
+| 5% | 70 |
 | 12% | 0 |
-| 18% | 0 |
+| 18% | 3 |
 | 28% | 0 |
 
 ## Freshness
