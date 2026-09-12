@@ -59,6 +59,18 @@ class PermissionCode(StrEnum):
     RECIPE_MANAGE = "recipe.manage"
     COST_VIEW = "cost.view"
 
+    # M05. These five come straight from `seed/organization.yaml`'s P1 design rather than being
+    # invented here — an earlier draft coined `stock.move` and `stock.count.approve`, and
+    # `tests/test_permissions_catalogue.py` correctly refused them as enforced-but-undesigned.
+    # The design is finer-grained than the invention was, and the grants carry real meaning: the
+    # chef holds `stock.produce` and NOT `stock.receive`, because a kitchen turns ingredients into
+    # gravy but does not sign for the sack at the door.
+    STOCK_VIEW = "stock.view"
+    STOCK_RECEIVE = "stock.receive"
+    STOCK_PRODUCE = "stock.produce"
+    STOCK_ADJUST = "stock.adjust"
+    STOCK_COUNT = "stock.count"
+
 
 class PermissionSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

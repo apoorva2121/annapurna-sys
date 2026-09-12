@@ -409,12 +409,44 @@ stock_count                                      -- physical count header
   IX (restaurant_id, business_date)
 
 stock_count_line
-  stock_count_id NN FK→stock_count, stock_item_id NN FK→stock_item
-  system_quantity     numeric(14,4) NN           -- what the ledger says
+  restaurant_id NN                               -- carried so the tenant-safe composite FKs work
+  stock_count_id NN FK→(stock_count.id, restaurant_id)
+  stock_item_id  NN FK→(stock_item.id, restaurant_id)
+  system_quantity     numeric(14,4) NN           -- what the ledger says, FROZEN when written
   counted_quantity    numeric(14,4) NN           -- what is on the shelf
   variance_value      numeric(12,2) NN           -- the leakage number, in rupees
   reason              text
+  UQ (stock_count_id, stock_item_id)             -- an item appears once on a sheet
 ```
+
+### What migration 0015 added beyond the sketch above
+
+The sketch is the design; these are the guarantees that turned out to be needed to make it true.
+All are in `0015_m05_inventory`, argued in `docs/modules/M05-inventory-spec.md`.
+
+**`stock_movement` refuses UPDATE and DELETE**, via a trigger. Invariant 2 as a repository
+convention is one careless `session.merge()` away from silent violation, and afterwards no test can
+see it — the row simply looks different. Corrections are new `adjustment` rows, which is what the
+invariant already prescribes.
+
+**Tenant-safe composite foreign keys.** `stock_batch`, `stock_movement` and `stock_count_line`
+reference their parents on `(id, restaurant_id)` rather than on `id` alone, against the
+`uq_*_id_restaurant` constraints. Attaching a batch to another restaurant's item is therefore
+refused by Postgres rather than by a repository remembering to filter — which is why
+`stock_count_line` carries a `restaurant_id` the original sketch did not give it.
+
+**CHECK constraints that catch nonsense:** `quantity_delta <> 0` (a zero movement is always a bug
+and pollutes every average after it), `(ref_type IS NULL) = (ref_id IS NULL)` (a dangling reference
+reads as a real link), non-negative `quantity_received`, `unit_cost` and `counted_quantity`, and
+`approved_by <> counted_by` on `stock_count` — separation of duties held by the database, not only
+by the service.
+
+**`supplier_id` and `goods_receipt_line_id` are columns without foreign keys** until M06 creates
+the tables they point at. The migration-order note at the foot of this document anticipates exactly
+this.
+
+**One index beyond the sketch:** `ix_stock_movement_batch` on `stock_batch_id`, because the FEFO
+selection's second statement aggregates movements grouped by batch.
 
 `basis` is load-bearing. Recipe-driven consumption is `theoretical`; a physical count is `actual`.
 Their difference is the product (invariant 7) — a query that sums both together is a bug.

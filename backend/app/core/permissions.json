@@ -119,6 +119,36 @@
       "resource": "cost",
       "action": "view",
       "description": "See what a dish costs and what it earns. Deliberately not the chef's: seed/organization.yaml's design says a chef sees grams, not rupees."
+    },
+    {
+      "code": "stock.view",
+      "resource": "stock",
+      "action": "view",
+      "description": "See what is on hand, what is expiring, and the movements behind both. Read-only: it shows the position, it cannot change it."
+    },
+    {
+      "code": "stock.receive",
+      "resource": "stock",
+      "action": "receive",
+      "description": "Record a delivery arriving. Held by the store manager, who takes the delivery, and by the manager and owner above them."
+    },
+    {
+      "code": "stock.produce",
+      "resource": "stock",
+      "action": "produce",
+      "description": "Make a preparation batch, consuming its inputs. The chef holds this and not stock.receive: a kitchen turns ingredients into gravy, it does not sign for the sack."
+    },
+    {
+      "code": "stock.adjust",
+      "resource": "stock",
+      "action": "adjust",
+      "description": "Post a correction to the ledger. The one movement nobody observed, which makes it the one an insider would use to erase a shortfall — so it always carries a reason and always writes an audit row."
+    },
+    {
+      "code": "stock.count",
+      "resource": "stock",
+      "action": "count",
+      "description": "Open a count sheet, record what is on the shelf, and approve the result. Approval is what posts the corrections, and the service refuses an approver who is also the counter — a control carried by a CHECK constraint as well, so it holds for a path that forgets to ask."
     }
   ],
   "roles": [
@@ -128,20 +158,25 @@
       "rank": 0,
       "description": "The person whose money is at risk. Holds everything, always.",
       "permissions": [
-        "employee.view",
+        "cost.view",
         "employee.create",
-        "employee.edit",
         "employee.deactivate",
-        "employee.role.assign",
+        "employee.edit",
         "employee.password.reset",
-        "role.view",
-        "restaurant.configure",
-        "menu.view",
+        "employee.role.assign",
+        "employee.view",
         "menu.manage",
         "menu.price",
-        "recipe.view",
+        "menu.view",
         "recipe.manage",
-        "cost.view"
+        "recipe.view",
+        "restaurant.configure",
+        "role.view",
+        "stock.adjust",
+        "stock.count",
+        "stock.produce",
+        "stock.receive",
+        "stock.view"
       ]
     },
     {
@@ -150,15 +185,20 @@
       "rank": 10,
       "description": "The owner's delegate for system configuration. Trusted, not operational.",
       "permissions": [
-        "employee.view",
         "employee.create",
-        "employee.edit",
         "employee.deactivate",
-        "employee.role.assign",
+        "employee.edit",
         "employee.password.reset",
-        "role.view",
+        "employee.role.assign",
+        "employee.view",
+        "menu.view",
         "restaurant.configure",
-        "menu.view"
+        "role.view",
+        "stock.adjust",
+        "stock.count",
+        "stock.produce",
+        "stock.receive",
+        "stock.view"
       ]
     },
     {
@@ -167,17 +207,22 @@
       "rank": 20,
       "description": "Runs the floor. Staffs a shift at 7am when the owner is not on site, and appoints junior roles and other managers — but can never promote anyone above manager, nor change their own roles. Every assignment is written to the audit trail.",
       "permissions": [
-        "employee.view",
+        "cost.view",
         "employee.create",
-        "employee.edit",
         "employee.deactivate",
-        "employee.role.assign",
+        "employee.edit",
         "employee.password.reset",
-        "role.view",
-        "menu.view",
+        "employee.role.assign",
+        "employee.view",
         "menu.manage",
+        "menu.view",
         "recipe.view",
-        "cost.view"
+        "role.view",
+        "stock.adjust",
+        "stock.count",
+        "stock.produce",
+        "stock.receive",
+        "stock.view"
       ]
     },
     {
@@ -188,8 +233,10 @@
       "permissions": [
         "employee.view",
         "menu.view",
+        "recipe.manage",
         "recipe.view",
-        "recipe.manage"
+        "stock.produce",
+        "stock.view"
       ]
     },
     {
@@ -198,7 +245,8 @@
       "rank": 40,
       "description": "Cooks to tickets. Nothing in M01.",
       "permissions": [
-        "recipe.view"
+        "recipe.view",
+        "stock.view"
       ]
     },
     {
@@ -216,7 +264,12 @@
       "rank": 30,
       "description": "Runs the store room and supplier relationships. Manages stock, not people.",
       "permissions": [
-        "recipe.view"
+        "recipe.view",
+        "stock.adjust",
+        "stock.count",
+        "stock.produce",
+        "stock.receive",
+        "stock.view"
       ]
     },
     {

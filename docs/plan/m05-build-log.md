@@ -32,7 +32,8 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
       mandatory adjustment reasons. 18 service + 2 concurrency tests green.
 - [x] **D · Services: production, stock counts** — atomic production with real input costing,
       forward-only counts, no self-approval. 18 tests green.
-- [ ] **E · API + permissions + tenant-isolation suite**
+- [x] **E · API + permissions + tenant-isolation suite** — 13 routes, 5 permissions from the P1
+      design, generic suites green. Two real bugs found here: a tenant leak and missing commits.
 - [ ] **F · Backend tests green** — incl. the 1,000-operation property test
 - [ ] **G · Frontend: on-hand + alerts**
 - [ ] **H · Frontend: receive, produce, count entry**
@@ -40,12 +41,10 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
 
 ## Next action
 
-> Chunk E. Add `app/api/v1/staff/inventory.py`. Endpoints per `docs/modules.md` M05:
-> `POST /stock/receipts`, `/stock/production`, `/stock/adjustments`; `GET /stock/on-hand`,
-> `/stock/expiring`; stock count create/submit/approve. **Every route declares a permission**
-> (default-deny) and gets a tenant-isolation test — `tests/test_generic_suites.py` enumerates
-> routes, so a new one with no permission fails there automatically. Follow
-> `app/api/v1/staff/stock.py` for the shape.
+> Chunk F. Write `tests/test_inventory_property.py`: the 1,000-operation property test
+> (acceptance criterion 1) — random receipts, consumptions and adjustments against one item, with
+> a **fixed seed** so a failure is reproducible, asserting `on_hand == SUM(quantity_delta)`
+> throughout. Then `make check` whole and read the exit code, not the tail.
 
 ## Verified — commands actually run, output actually seen
 
@@ -61,6 +60,22 @@ Schema: `docs/schema.md` §5. Branch: `feat/m01-identity`.
 | `pytest tests/test_inventory_concurrency.py` | **2 passed** — and **verified to fail with the lock removed** |
 | `pytest tests/test_inventory_production.py` | **18 passed** — production costing, atomicity, count workflow |
 | all five M05 files together | **61 passed** |
+| `pytest tests/test_inventory_endpoints.py` | **12 passed** |
+| `pytest tests/test_generic_suites.py` | **21 passed** — tenant isolation + permissions on the new routes |
+| `scripts/audit_docs.py` | 0 issues |
+
+## Two real bugs the tests found in chunk E — worth knowing before writing another module
+
+1. **A tenant leak.** `GET /stock/items/{id}/movements` answered **200 with an empty list** for
+   another tenant's item id. `test_generic_suites.py` suite 1 refused it, exactly as designed. The
+   fix resolves the item in tenant scope first and 404s. **Any new route with a path parameter
+   needs the parameter registered in `_VICTIM_PARAMETERS` and a victim row seeded**, or the suite
+   fails the build rather than silently skipping the route.
+2. **Missing commits.** This codebase's convention is that **the route commits and the service only
+   flushes**. The first draft of the inventory routes omitted every commit, and the symptom was not
+   a crash: each write returned `201` with a populated body and then vanished when the session
+   closed. No unit test could have caught it — inside one transaction the write is visible to the
+   code that made it. Only the endpoint tests, which cross request boundaries, could.
 
 ## Notes for whoever picks this up
 

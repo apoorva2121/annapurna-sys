@@ -35,6 +35,7 @@ from app.core.permissions import CATALOGUE, permissions_for_role
 from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
 from app.models.identity import Employee, UserAccount
+from app.models.inventory import StockCount, StockCountLine
 from app.models.menu import (
     MenuCategory,
     MenuItem,
@@ -282,6 +283,10 @@ _VICTIM_PARAMETERS = frozenset(
         "modifier_id",
         # M04. The suite refused the build the moment `/recipes/{recipe_id}/confirm` registered.
         "recipe_id",
+        # M05. It refused again for these two, and the probe it then ran found a real leak:
+        # `/stock/items/{stock_item_id}/movements` answered 200 for another tenant's item id.
+        "stock_item_id",
+        "count_id",
     }
 )
 
@@ -452,9 +457,32 @@ async def _victim_resources(
             seq=0,
         )
     )
+    # M05: a count belonging to the victim. A count is the document that says what a competitor
+    # was short of and by how much, so reading somebody else's is a direct commercial leak as well
+    # as a tenant one.
+    count = StockCount(
+        restaurant_id=restaurant_id,
+        counted_at=datetime(2026, 1, 2, tzinfo=UTC),
+        business_date=date(2026, 1, 2),
+        scope="full",
+        status="draft",
+    )
+    session.add(count)
+    await session.flush()
+    session.add(
+        StockCountLine(
+            restaurant_id=restaurant_id,
+            stock_count_id=count.id,
+            stock_item_id=paneer.id,
+            system_quantity=Decimal("500"),
+            counted_quantity=Decimal("480"),
+            variance_value=Decimal("-7.20"),
+        )
+    )
     await session.flush()
 
     return {
+        "count_id": str(count.id),
         "employee_id": str(employee),
         "area_id": str(area.id),
         "table_id": str(table.id),
