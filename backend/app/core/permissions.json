@@ -101,6 +101,24 @@
       "resource": "menu",
       "action": "price",
       "description": "Set a variant's price and its tax group. Separate from menu.manage because it is the money path: seed/organization.yaml withholds it from a manager by name."
+    },
+    {
+      "code": "recipe.view",
+      "resource": "recipe",
+      "action": "view",
+      "description": "Read recipes and their quantities. A chef reads recipes — that is the job."
+    },
+    {
+      "code": "recipe.manage",
+      "resource": "recipe",
+      "action": "manage",
+      "description": "Create stock items and recipe versions. Held by the chef, who owns the recipe, and the owner."
+    },
+    {
+      "code": "cost.view",
+      "resource": "cost",
+      "action": "view",
+      "description": "See what a dish costs and what it earns. Deliberately not the chef's: seed/organization.yaml's design says a chef sees grams, not rupees."
     }
   ],
   "roles": [
@@ -120,7 +138,10 @@
         "restaurant.configure",
         "menu.view",
         "menu.manage",
-        "menu.price"
+        "menu.price",
+        "recipe.view",
+        "recipe.manage",
+        "cost.view"
       ]
     },
     {
@@ -154,7 +175,9 @@
         "employee.password.reset",
         "role.view",
         "menu.view",
-        "menu.manage"
+        "menu.manage",
+        "recipe.view",
+        "cost.view"
       ]
     },
     {
@@ -164,7 +187,9 @@
       "description": "Runs the kitchen and needs to know who is on. Reads the staff list, changes nothing.",
       "permissions": [
         "employee.view",
-        "menu.view"
+        "menu.view",
+        "recipe.view",
+        "recipe.manage"
       ]
     },
     {
@@ -172,7 +197,9 @@
       "name": "Kitchen Staff",
       "rank": 40,
       "description": "Cooks to tickets. Nothing in M01.",
-      "permissions": []
+      "permissions": [
+        "recipe.view"
+      ]
     },
     {
       "code": "waiter",
@@ -188,7 +215,9 @@
       "name": "Store Manager",
       "rank": 30,
       "description": "Runs the store room and supplier relationships. Manages stock, not people.",
-      "permissions": []
+      "permissions": [
+        "recipe.view"
+      ]
     },
     {
       "code": "cleaner",

@@ -5,10 +5,12 @@ import { Permission } from '@shared/permissions';
 import { RequireAuth, RequirePermission } from '@staff/auth/guards';
 import { AppShell } from '@staff/components/AppShell';
 import EmployeeScreen from '@staff/screens/EmployeeScreen';
+import DishCostScreen from '@staff/screens/DishCostScreen';
 import FloorPlanScreen from '@staff/screens/FloorPlanScreen';
 import MenuItemScreen from '@staff/screens/MenuItemScreen';
 import MenuScreen from '@staff/screens/MenuScreen';
 import ModifierGroupsScreen from '@staff/screens/ModifierGroupsScreen';
+import StockItemsScreen from '@staff/screens/StockItemsScreen';
 import HomeScreen from '@staff/screens/HomeScreen';
 import LoginScreen from '@staff/screens/LoginScreen';
 import NewEmployeeScreen from '@staff/screens/NewEmployeeScreen';
@@ -115,6 +117,24 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.MENU_VIEW}>
               <MenuItemScreen />
+            </RequirePermission>
+          }
+        />
+        {/* Stock and cost. Two permissions, because the P1 design separates them: a chef reads
+            recipes and may not see rupees, a manager sees rupees and may not change a recipe. */}
+        <Route
+          path="stock"
+          element={
+            <RequirePermission permission={Permission.RECIPE_VIEW}>
+              <StockItemsScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="costs"
+          element={
+            <RequirePermission permission={Permission.COST_VIEW}>
+              <DishCostScreen />
             </RequirePermission>
           }
         />

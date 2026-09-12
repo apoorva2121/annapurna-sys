@@ -51,6 +51,13 @@ class PermissionCode(StrEnum):
     MENU_VIEW = "menu.view"
     MENU_MANAGE = "menu.manage"
     MENU_PRICE = "menu.price"
+    # M04. The interesting line is the one that is *absent*: a chef holds `recipe.manage` and not
+    # `cost.view`. `seed/organization.yaml` says why — "a chef sees grams, not rupees" — so the
+    # recipe editor and the dish-cost screen are different surfaces behind different permissions,
+    # and the person who owns the recipe is deliberately not shown what it costs.
+    RECIPE_VIEW = "recipe.view"
+    RECIPE_MANAGE = "recipe.manage"
+    COST_VIEW = "cost.view"
 
 
 class PermissionSpec(BaseModel):

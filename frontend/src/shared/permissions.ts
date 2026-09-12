@@ -26,6 +26,13 @@ export const Permission = {
   MENU_VIEW: 'menu.view',
   MENU_MANAGE: 'menu.manage',
   MENU_PRICE: 'menu.price',
+  // M04. The separation is in both directions and it comes from the P1 design: a chef holds
+  // RECIPE_MANAGE and not COST_VIEW ("a chef sees grams, not rupees"); a manager holds COST_VIEW
+  // and not RECIPE_MANAGE. So the person who writes the recipe cannot see the margin, and the
+  // person who sees the margin cannot change the recipe that produces it.
+  RECIPE_VIEW: 'recipe.view',
+  RECIPE_MANAGE: 'recipe.manage',
+  COST_VIEW: 'cost.view',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

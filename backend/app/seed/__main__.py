@@ -23,6 +23,7 @@ from app.seed.identity import MissingSystemRoleError, seed_identity
 from app.seed.loader import SeedDataNotFoundError
 from app.seed.menu import seed_menu
 from app.seed.setup import seed_setup
+from app.seed.stock import seed_stock
 
 logger = logging.getLogger("app.seed")
 
@@ -44,13 +45,21 @@ async def seed() -> None:
             # The menu. After setup, because every dish routes to a station and every variant names
             # a tax group, and both are created there.
             menu = await seed_menu(session)
+            # Ingredients, preparations and recipes. Last, because a recipe references a dish
+            # variant and a preparation is made at a station — both created above.
+            stock = await seed_stock(session)
             # The single commit. Everything above it is provisional until this line.
             await session.commit()
     finally:
         # Always: a failure must not leave the process holding an open pool.
         await engine.dispose()
 
-    if summary.created_nothing and setup.created_nothing and menu.created_nothing:
+    if (
+        summary.created_nothing
+        and setup.created_nothing
+        and menu.created_nothing
+        and stock.created_nothing
+    ):
         logger.info("Seed data already present; nothing to do.")
         return
     logger.info(
@@ -75,6 +84,12 @@ async def seed() -> None:
         menu.variants_created,
         menu.modifier_groups_created,
         menu.attachments_created,
+    )
+    logger.info(
+        "Seeded %d ingredients, %d preparations, %d recipes.",
+        stock.ingredients_created,
+        stock.preparations_created,
+        stock.recipes_created,
     )
 
 

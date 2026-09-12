@@ -235,7 +235,7 @@ stock_item                                       -- ingredients AND preparations
   code                text NN                    -- UQ (restaurant_id, code)
   name                text NN
   base_unit           text NN check(g|ml|unit)   -- ADR 0004: one canonical unit, always
-  category            text                       -- meat|dairy|veg|grain|spice|oil
+  category            text                       -- meat|dairy|veg|grain|spice|oil|bakery|sweet
   storage_type        text check(ambient|chilled|frozen)
   current_unit_cost   numeric(14,6) NN default 0 -- cached weighted average; batches hold truth
   is_active
@@ -258,16 +258,20 @@ preparation_profile                              -- 1:1 where kind='preparation'
   station_id          uuid NN FK→station
   prep_minutes        smallint NN
 
-recipe                                           -- versioned; belongs to a dish OR a preparation
+recipe                                           -- versioned; a dish, a preparation OR a modifier
   restaurant_id
   menu_item_variant_id    uuid FK→menu_item_variant
   produces_stock_item_id  uuid FK→stock_item     -- the preparation this recipe makes
+  modifier_id             uuid FK→modifier       -- "extra cheese" is 40 g of cheese (M03 → M04)
   version             smallint NN
   is_current          bool NN
   effective_from      timestamptz NN
   notes               text
-  CHECK (num_nonnulls(menu_item_variant_id, produces_stock_item_id) = 1)
-  UQ (menu_item_variant_id, version), UQ (produces_stock_item_id, version)
+  unit_cost           numeric(14,6) NN default 0 -- frozen when this version became current (X8)
+  source              text NN check(typed|seeded|library)
+  confirmed_at        timestamptz                -- NULL = nobody has checked these quantities
+  CHECK (num_nonnulls(menu_item_variant_id, produces_stock_item_id, modifier_id) = 1)
+  UQ (menu_item_variant_id, version), UQ (produces_stock_item_id, version), UQ (modifier_id, version)
   partial UQ on is_current per owner
 
 recipe_line
@@ -278,8 +282,18 @@ recipe_line
   IX (recipe_id), IX (component_id)              -- second index answers "what uses paneer?"
 ```
 
-Nesting depth is capped at 3 and enforced in the service layer plus `seed/validate.py`. Historical
-orders reference the recipe **version** live at the time, so food-cost history never rewrites itself.
+Nesting depth is capped at 3 and enforced in the service layer, at save time, and in
+`seed/validate.py`. Historical orders reference the recipe **version** live at the time, so
+food-cost history never rewrites itself.
+
+**`recipe.unit_cost` is the frozen answer; `stock_item.current_unit_cost` is a cache.** Finding X8
+asked for the first and finding S16 warns about the second: reading today's ingredient price to
+cost a March order reports the wrong number with no sign that it is wrong. M13 reads the version.
+
+**`source` and `confirmed_at` exist because of `library/`.** `library/PROVENANCE.md` states that
+most of the starter library is `estimated` — domain knowledge no chef has checked — so a recipe
+matched from it must be distinguishable from one a chef wrote, or the dish-cost screen states a
+number with confidence nobody has earned.
 
 ---
 

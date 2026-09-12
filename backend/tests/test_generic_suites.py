@@ -43,6 +43,7 @@ from app.models.menu import (
     ModifierGroup,
 )
 from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, TaxRate
+from app.models.stock import IngredientProfile, Recipe, RecipeLine, StockItem
 from app.models.tenancy import Organization, Restaurant
 from tests.helpers.routes import RouteInfo, all_routes, staff_routes
 
@@ -279,6 +280,8 @@ _VICTIM_PARAMETERS = frozenset(
         "variant_id",
         "group_id",
         "modifier_id",
+        # M04. The suite refused the build the moment `/recipes/{recipe_id}/confirm` registered.
+        "recipe_id",
     }
 )
 
@@ -394,6 +397,47 @@ async def _victim_resources(
     ).first()
     assert employee is not None, "the victim tenant has no employee to probe"
 
+    # M04: an ingredient, a preparation, and a recipe that ties them to the dish above. A probe can
+    # then try to read another tenant's recipe — which is the row that says what a competitor's
+    # dishes are made of, and how much of each.
+    paneer = StockItem(
+        restaurant_id=restaurant_id,
+        kind="ingredient",
+        code=f"{prefix.upper()}_PANEER",
+        name=f"{prefix} Paneer",
+        base_unit="g",
+        category="dairy",
+        storage_type="chilled",
+        current_unit_cost=Decimal("0.360000"),
+        is_active=True,
+    )
+    session.add(paneer)
+    await session.flush()
+    session.add(
+        IngredientProfile(
+            stock_item_id=paneer.id,
+            purchase_unit="kg",
+            purchase_to_base=Decimal("1000"),
+            yield_factor=Decimal("0.98"),
+            shelf_life_days=4,
+        )
+    )
+    recipe = Recipe(
+        restaurant_id=restaurant_id,
+        menu_item_variant_id=variant.id,
+        version=1,
+        is_current=True,
+        effective_from=datetime(2026, 1, 1, tzinfo=UTC),
+        unit_cost=Decimal("72.000000"),
+        source="seeded",
+    )
+    session.add(recipe)
+    await session.flush()
+    session.add(
+        RecipeLine(recipe_id=recipe.id, component_id=paneer.id, quantity=Decimal("200"), seq=0)
+    )
+    await session.flush()
+
     return {
         "employee_id": str(employee),
         "area_id": str(area.id),
@@ -405,6 +449,7 @@ async def _victim_resources(
         "variant_id": str(variant.id),
         "group_id": str(group.id),
         "modifier_id": str(modifier.id),
+        "recipe_id": str(recipe.id),
     }
 
 

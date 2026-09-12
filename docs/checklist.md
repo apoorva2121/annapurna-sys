@@ -15,7 +15,7 @@ Last updated: 2026-09-12
 - [x] **P0 · Discovery & requirements**
 - [x] **P1 · Architecture & design**
 - [x] **P2 · Planning**
-- [ ] **P3 · Implementation** — 0 / 18 modules complete (M00–M03 built; each waits on a manual pass)
+- [ ] **P3 · Implementation** — 0 / 18 modules complete (M00–M04 built; each waits on a manual pass)
 - [ ] **P4 · Integration & system testing**
 - [ ] **P5 · Deployment & release**
 - [ ] **P6 · Operations & iteration**
@@ -40,7 +40,7 @@ Legend: **S**pec approved · **M**igration · **B**ackend · **T**ests green · 
 | M01 Identity, Roles & Permissions | 3d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [x] | [ ] | [ ] |
 | M02 Restaurant Setup | 2d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [ ] |
 | M03 Menu | 4d | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [x] | [ ] | [ ] |
-| M04 Stock Items & Recipes | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
+| M04 Stock Items & Recipes | 5d | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [x] | [ ] | [ ] |
 | M05 Inventory Ledger | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M06 Procurement `[1.5]` | 3d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M07 Orders / POS | 6d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
