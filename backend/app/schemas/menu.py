@@ -1,0 +1,355 @@
+"""The API contract for the menu.
+
+Same three conventions as `schemas/setup.py`, for the same reasons: money is a string in JSON, an
+absent PATCH field means "leave it alone", and `extra="forbid"` refuses a misspelled field rather
+than returning 200 and changing nothing.
+
+Two rules specific to this module:
+
+**A code is settable once and never again.** `menu_item.code`, `menu_category.code` and
+`modifier_group.code` appear on create requests and on no update request. That is the first place
+the rule is enforced, before the service and before the database: there is no field here to send.
+They are join keys to `seed/`, to `library/dishes.yaml` and to every recipe M04 will attach.
+
+**Price is on the variant and nowhere else.** `MenuItemCreateRequest` cannot carry one. A dish does
+not have a price; the thing you can order does.
+"""
+
+from __future__ import annotations
+
+import uuid
+from decimal import Decimal
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+# The code format shared by every code in this module. Uppercase, digits and underscore, starting
+# with a letter — which is what `seed/menu.yaml` and `library/dishes.yaml` already use.
+_CODE_PATTERN = r"^[A-Z][A-Z0-9_]*$"
+
+
+class _Schema(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class _ReadSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+
+
+def _strip(value: Any) -> Any:
+    """Strip **before** the length constraint, not after — see `schemas/setup.py` for why."""
+    return value.strip() if isinstance(value, str) else value
+
+
+def _upper(value: Any) -> Any:
+    """Uppercase a code at the boundary rather than refusing a lowercase one.
+
+    The pattern would reject `butter_chicken` for its case, which is a rule the person typing it
+    has no way to know in advance. Normalising is friendlier and produces exactly one spelling in
+    the database, which is what the unique constraint needs.
+    """
+    return value.strip().upper() if isinstance(value, str) else value
+
+
+# --------------------------------------------------------------------------- read models
+
+
+class ModifierResponse(_ReadSchema):
+    id: uuid.UUID
+    code: str
+    name: str
+    # A string in JSON, never a float. "no rice" may legitimately be negative.
+    price_delta: Decimal
+    is_active: bool
+
+
+class ModifierGroupResponse(_ReadSchema):
+    id: uuid.UUID
+    code: str
+    name: str
+    min_select: int
+    max_select: int
+    is_required: bool
+    is_active: bool
+    modifiers: list[ModifierResponse]
+
+
+class ModifierGroupListResponse(_Schema):
+    items: list[ModifierGroupResponse]
+    next_cursor: uuid.UUID | None = None
+
+
+class MenuItemVariantResponse(_ReadSchema):
+    id: uuid.UUID
+    code: str
+    name: str
+    # A string in JSON. engineering-standards §4, CLAUDE.md invariant 3.
+    price: Decimal
+    tax_group_id: uuid.UUID
+    prep_minutes: int
+    seq: int
+    is_active: bool
+
+
+class MenuItemResponse(_ReadSchema):
+    id: uuid.UUID
+    menu_category_id: uuid.UUID
+    code: str
+    name: str
+    description: str | None
+    food_type: str
+    station_id: uuid.UUID
+    image_url: str | None
+    seq: int
+    is_active: bool
+    variants: list[MenuItemVariantResponse]
+
+
+class MenuItemListResponse(_Schema):
+    items: list[MenuItemResponse]
+    next_cursor: uuid.UUID | None = None
+
+
+class MenuCategoryResponse(_ReadSchema):
+    id: uuid.UUID
+    code: str
+    name: str
+    seq: int
+    is_active: bool
+
+
+class MenuCategoryListResponse(_Schema):
+    items: list[MenuCategoryResponse]
+    next_cursor: uuid.UUID | None = None
+
+
+# --------------------------------------------------------------------------- the tree
+
+
+class GuestVariant(_Schema):
+    """What a diner may see of a variant: what it is called and what it costs.
+
+    Not `prep_minutes` — a kitchen's standard time is an internal number, and a guest shown "11
+    minutes" will hold the restaurant to it.
+    """
+
+    id: uuid.UUID
+    code: str
+    name: str
+    price: Decimal
+
+
+class GuestItem(_Schema):
+    """A dish, as a diner sees it. No station (which is kitchen routing and, aggregated, tells a
+    competitor how the kitchen is laid out) and no internal codes."""
+
+    id: uuid.UUID
+    name: str
+    description: str | None
+    food_type: str
+    image_url: str | None
+    variants: list[GuestVariant]
+    modifier_groups: list[ModifierGroupResponse]
+
+
+class GuestCategory(_Schema):
+    id: uuid.UUID
+    name: str
+    items: list[GuestItem]
+
+
+class StaffItem(_Schema):
+    """A dish, as staff see it: everything, including what routes it and how long it takes."""
+
+    id: uuid.UUID
+    code: str
+    name: str
+    description: str | None
+    food_type: str
+    station_id: uuid.UUID
+    image_url: str | None
+    is_active: bool
+    variants: list[MenuItemVariantResponse]
+    modifier_groups: list[ModifierGroupResponse]
+
+
+class StaffCategory(_Schema):
+    id: uuid.UUID
+    code: str
+    name: str
+    is_active: bool
+    items: list[StaffItem]
+
+
+class MenuTreeResponse(_Schema):
+    """The whole menu. `version` is the `ETag` a conditional GET compares against."""
+
+    version: int
+    categories: list[StaffCategory]
+
+
+class GuestMenuResponse(_Schema):
+    version: int
+    categories: list[GuestCategory]
+
+
+# --------------------------------------------------------------------------- write models
+
+
+class MenuCategoryCreateRequest(_Schema):
+    code: str = Field(min_length=1, max_length=32, pattern=_CODE_PATTERN)
+    name: str = Field(min_length=1, max_length=80)
+
+    _upper_code = field_validator("code", mode="before")(_upper)
+    _strip_name = field_validator("name", mode="before")(_strip)
+
+
+class MenuCategoryUpdateRequest(_Schema):
+    """No `code`. It is the key `seed/menu.yaml` and `library/dishes.yaml` join on."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    seq: int | None = Field(default=None, ge=0)
+    is_active: bool | None = None
+
+    _strip_name = field_validator("name", mode="before")(_strip)
+
+
+class MenuItemCreateRequest(_Schema):
+    """A dish, and optionally the variants it is sold as.
+
+    Variants are accepted here because a dish with none cannot be ordered, and making the client
+    issue two requests means every failure between them leaves an unsellable dish on the menu.
+    """
+
+    menu_category_id: uuid.UUID
+    code: str = Field(min_length=1, max_length=64, pattern=_CODE_PATTERN)
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+    # FSSAI requires the declaration. No default: a dish whose food type nobody chose is a dish
+    # nobody may legally print on a menu.
+    food_type: str = Field(pattern=r"^(veg|non_veg|egg)$")
+    station_id: uuid.UUID
+    image_url: str | None = Field(default=None, max_length=500)
+    variants: list[MenuItemVariantCreateRequest] = Field(default_factory=list)
+
+    _upper_code = field_validator("code", mode="before")(_upper)
+    _strip_name = field_validator("name", mode="before")(_strip)
+    _strip_description = field_validator("description", mode="before")(_strip)
+
+
+class MenuItemUpdateRequest(_Schema):
+    """No `code`, and no price — price is a property of a variant."""
+
+    menu_category_id: uuid.UUID | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+    food_type: str | None = Field(default=None, pattern=r"^(veg|non_veg|egg)$")
+    station_id: uuid.UUID | None = None
+    image_url: str | None = Field(default=None, max_length=500)
+    seq: int | None = Field(default=None, ge=0)
+    is_active: bool | None = None
+
+    _strip_name = field_validator("name", mode="before")(_strip)
+    _strip_description = field_validator("description", mode="before")(_strip)
+
+
+class MenuItemVariantCreateRequest(_Schema):
+    code: str = Field(min_length=1, max_length=32, pattern=_CODE_PATTERN)
+    name: str = Field(min_length=1, max_length=60)
+    # `ge=0` and not `gt=0`: a complimentary side is a real menu line at zero. `max_digits`/
+    # `decimal_places` mirror NUMERIC(12,2), so a third decimal is refused here rather than
+    # silently rounded by Postgres.
+    price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
+    tax_group_id: uuid.UUID
+    prep_minutes: int = Field(gt=0, le=600)
+
+    _upper_code = field_validator("code", mode="before")(_upper)
+    _strip_name = field_validator("name", mode="before")(_strip)
+
+
+class MenuItemVariantUpdateRequest(_Schema):
+    """Price *is* editable, unlike a tax rate.
+
+    A menu price genuinely changes, and `order_line` copies the price when the line is added (M07),
+    so a reprice cannot rewrite a past bill. The protection is structural rather than a refusal
+    here — see `models/menu.py`.
+    """
+
+    name: str | None = Field(default=None, min_length=1, max_length=60)
+    price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
+    tax_group_id: uuid.UUID | None = None
+    prep_minutes: int | None = Field(default=None, gt=0, le=600)
+    seq: int | None = Field(default=None, ge=0)
+    is_active: bool | None = None
+
+    _strip_name = field_validator("name", mode="before")(_strip)
+
+
+class ModifierCreateRequest(_Schema):
+    code: str = Field(min_length=1, max_length=32, pattern=_CODE_PATTERN)
+    name: str = Field(min_length=1, max_length=60)
+    # No `ge`: "no rice" can be a discount.
+    price_delta: Decimal = Field(default=Decimal(0), max_digits=12, decimal_places=2)
+
+    _upper_code = field_validator("code", mode="before")(_upper)
+    _strip_name = field_validator("name", mode="before")(_strip)
+
+
+class ModifierUpdateRequest(_Schema):
+    name: str | None = Field(default=None, min_length=1, max_length=60)
+    price_delta: Decimal | None = Field(default=None, max_digits=12, decimal_places=2)
+    seq: int | None = Field(default=None, ge=0)
+    is_active: bool | None = None
+
+    _strip_name = field_validator("name", mode="before")(_strip)
+
+
+class ModifierGroupCreateRequest(_Schema):
+    """A group and, optionally, its choices.
+
+    `min_select`/`max_select` are checked against each other by the database as well as here: a
+    group that allows fewer choices than it requires is a question with no valid answer.
+    """
+
+    code: str = Field(min_length=1, max_length=32, pattern=_CODE_PATTERN)
+    name: str = Field(min_length=1, max_length=80)
+    min_select: int = Field(default=0, ge=0, le=50)
+    max_select: int = Field(default=1, ge=1, le=50)
+    is_required: bool = False
+    modifiers: list[ModifierCreateRequest] = Field(default_factory=list)
+
+    _upper_code = field_validator("code", mode="before")(_upper)
+    _strip_name = field_validator("name", mode="before")(_strip)
+
+
+class ModifierGroupUpdateRequest(_Schema):
+    """No `code` — `seed/operations.yaml` attaches groups to categories by it."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    min_select: int | None = Field(default=None, ge=0, le=50)
+    max_select: int | None = Field(default=None, ge=1, le=50)
+    is_required: bool | None = None
+    is_active: bool | None = None
+
+    _strip_name = field_validator("name", mode="before")(_strip)
+
+
+class AttachModifierGroupsRequest(_Schema):
+    """The whole attachment list, in order. A PUT, because attachment is a set and not a log."""
+
+    modifier_group_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
+
+
+class BulkAttachRequest(_Schema):
+    """Apply modifier groups to every active item in a category.
+
+    The data model is per item — one dish in MAIN_VEG can opt out of Jain preference because it has
+    no onion — but "all main courses get a spice level" is how an owner describes a menu and how
+    `seed/operations.yaml` writes one down. This endpoint is the bridge, and it expands at call time
+    rather than storing a category-level rule that would then have to be reconciled forever.
+    """
+
+    modifier_group_ids: list[uuid.UUID] = Field(min_length=1, max_length=50)
+    # Replace an item's whole list, or add to it. Adding is the safer default; replacing is what
+    # someone wants after deciding the category's modifiers were wrong from the start.
+    replace: bool = False

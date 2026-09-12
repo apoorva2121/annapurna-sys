@@ -406,9 +406,26 @@ its dates — a rename cannot lose a row) and builds the identity table above it
 tax_group_id` now points at an identity, which is what `docs/schema.md` always said it did. Two
 backlog rows closed. `tax_group.code` doubles as the class discriminator the second row asked for.
 
-**2 · A manager does not hold `menu.edit`.** Owner and admin only, matching `restaurant.configure`.
-Revisit if a real manager expects otherwise — the *Known gaps* availability item is the need that
-actually drives this, and it has its own un-defer trigger at M07.
+**2 · REVISED during chunk C — three permissions, not two, and the product's own plan said so.**
+
+The answer above was `menu.view` / `menu.edit`, owner and admin only. Building it, the catalogue
+test refused `menu.edit` because it "appears nowhere in seed/organization.yaml's design" — and the
+design, written long before this module, already answers the question:
+
+```yaml
+  - code: manager
+      - menu.view, menu.manage
+    # deliberately NOT granted: menu.price, report.financial.view, ...  - these are the owner's.
+```
+
+That is a better answer than mine. A manager fixing a dish name or adding Friday's special is an
+ordinary Tuesday; a manager quietly raising a price and pocketing the difference on cash orders is
+the threat this spec's own table names. A binary permission cannot separate those — it either hands
+over the money path or stops the manager working. So: **`menu.view`, `menu.manage`, `menu.price`**,
+granted exactly as the design specifies (`admin` gets `menu.view` only — admin is roles and
+configuration, not the menu; `chef` likewise, because "a chef sees grams, not rupees").
+
+I had asked for evidence against my inference. The evidence was already in the repository.
 
 **3 · `GET /menu` is persona-aware from the start.** The filter is written in chunk E; no guest
 screen ships. A guest sees name, description, `food_type`, variants and prices — never station,

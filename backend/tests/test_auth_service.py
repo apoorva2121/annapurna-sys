@@ -108,9 +108,14 @@ class TestLogin:
 
         result = await AuthService(db_session).login("manager@spicegarden.test", PASSWORD)
 
-        # A waiter holds nothing in M01 — asserted so the resolver cannot quietly return
-        # everything, which is the failure mode that looks like it works.
-        assert result.permissions == frozenset()
+        # A waiter holds exactly what the catalogue grants a waiter, and nothing else. Written as
+        # a literal rather than derived from `permissions_for_role`, so that widening a waiter's
+        # powers has to be a deliberate edit here — the failure mode this guards is a resolver that
+        # quietly returns everything, which looks like it works.
+        #
+        # It was `frozenset()` until M03, when the P1 design's `menu.view` reached every role that
+        # works a shift: a waiter who cannot read the menu cannot take an order.
+        assert result.permissions == frozenset({"menu.view"})
 
     async def test_a_phone_number_logs_in_the_same_way_an_email_does(
         self, db_session: AsyncSession

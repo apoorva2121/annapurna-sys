@@ -43,6 +43,14 @@ class PermissionCode(StrEnum):
     # M02. Owner and admin only: a manager runs a shift, and changing what a day means or what tax
     # is charged is not running a shift (M02 spec decision 1).
     RESTAURANT_CONFIGURE = "restaurant.configure"
+    # M03. Three, not two, because `seed/organization.yaml`'s P1 design already drew the line and
+    # drew it better than the spec's first draft did: a manager may fix a dish name or add Friday's
+    # special (`menu.manage`) and may not change what anything costs (`menu.price`). The design
+    # withholds the second from a manager by name. A binary permission cannot express that — it
+    # either hands over the money path or stops the manager doing their job.
+    MENU_VIEW = "menu.view"
+    MENU_MANAGE = "menu.manage"
+    MENU_PRICE = "menu.price"
 
 
 class PermissionSpec(BaseModel):

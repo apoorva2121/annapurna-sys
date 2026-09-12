@@ -197,7 +197,13 @@ class TestSwitchingBranch:
         )
 
         switched = decode_access_token(response.json()["access_token"])
-        assert not switched.permissions, "a waiter at R2 holds nothing in M01's catalogue"
+        # She keeps what a waiter holds and loses everything else. Asserted both ways: the
+        # inclusion alone would pass for a token carrying every permission there is, and the
+        # exclusion alone would pass for an empty one.
+        assert switched.permissions == frozenset({"menu.view"})
+        assert "employee.view" not in switched.permissions, (
+            "switching branch carried her owner permissions across"
+        )
         assert response.json()["roles"] == ["waiter"]
 
     async def test_the_switched_token_is_actually_refused_where_it_should_be(

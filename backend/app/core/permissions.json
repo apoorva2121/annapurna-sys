@@ -83,6 +83,24 @@
       "resource": "restaurant",
       "action": "configure",
       "description": "Change the restaurant's settings, floor plan, kitchen stations and tax rates."
+    },
+    {
+      "code": "menu.view",
+      "resource": "menu",
+      "action": "view",
+      "description": "Read the menu: categories, dishes, variants and modifiers. A waiter cannot take an order without it."
+    },
+    {
+      "code": "menu.manage",
+      "resource": "menu",
+      "action": "manage",
+      "description": "Create and change categories, dishes, variants and modifiers — everything about the menu except what it costs."
+    },
+    {
+      "code": "menu.price",
+      "resource": "menu",
+      "action": "price",
+      "description": "Set a variant's price and its tax group. Separate from menu.manage because it is the money path: seed/organization.yaml withholds it from a manager by name."
     }
   ],
   "roles": [
@@ -99,7 +117,10 @@
         "employee.role.assign",
         "employee.password.reset",
         "role.view",
-        "restaurant.configure"
+        "restaurant.configure",
+        "menu.view",
+        "menu.manage",
+        "menu.price"
       ]
     },
     {
@@ -115,7 +136,8 @@
         "employee.role.assign",
         "employee.password.reset",
         "role.view",
-        "restaurant.configure"
+        "restaurant.configure",
+        "menu.view"
       ]
     },
     {
@@ -130,7 +152,9 @@
         "employee.deactivate",
         "employee.role.assign",
         "employee.password.reset",
-        "role.view"
+        "role.view",
+        "menu.view",
+        "menu.manage"
       ]
     },
     {
@@ -139,7 +163,8 @@
       "rank": 30,
       "description": "Runs the kitchen and needs to know who is on. Reads the staff list, changes nothing.",
       "permissions": [
-        "employee.view"
+        "employee.view",
+        "menu.view"
       ]
     },
     {
@@ -154,7 +179,9 @@
       "name": "Waiter",
       "rank": 40,
       "description": "Takes orders. Staff records carry phone numbers and dates of birth, so no access here.",
-      "permissions": []
+      "permissions": [
+        "menu.view"
+      ]
     },
     {
       "code": "store_manager",

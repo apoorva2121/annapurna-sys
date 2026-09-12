@@ -15,6 +15,7 @@ from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
     Index,
+    Integer,
     String,
     Text,
     Time,
@@ -74,3 +75,11 @@ class Restaurant(TimestampedUUIDMixin, Base):
         JSONB, nullable=False, default=dict, server_default="{}"
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Bumped by every menu write, and served as the `ETag` on `GET /menu` (M03). The waiter PWA
+    # loads the whole menu on every app start, on a restaurant basement network; without a version
+    # to compare, "cached" would be the client guessing. An integer rather than a hash because the
+    # tree is assembled from six tables and hashing it means building it first, which is the cost
+    # the cache exists to avoid.
+    menu_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )

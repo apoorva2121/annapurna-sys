@@ -35,6 +35,13 @@ from app.core.permissions import CATALOGUE, permissions_for_role
 from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
 from app.models.identity import Employee, UserAccount
+from app.models.menu import (
+    MenuCategory,
+    MenuItem,
+    MenuItemVariant,
+    Modifier,
+    ModifierGroup,
+)
 from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, TaxRate
 from app.models.tenancy import Organization, Restaurant
 from tests.helpers.routes import RouteInfo, all_routes, staff_routes
@@ -258,7 +265,22 @@ _PROBE_UUID = uuid.UUID("00000000-0000-0000-0000-0000000000ff")
 # `{table_id}`, `{station_id}` and `{tax_group_id}`, the suite went on passing while probing none of
 # them — the four routes where a cross-tenant *write* would happen. A future module adding
 # `{menu_item_id}` now gets a failing build telling it to seed a victim row here.
-_VICTIM_PARAMETERS = frozenset({"employee_id", "area_id", "table_id", "station_id", "tax_group_id"})
+_VICTIM_PARAMETERS = frozenset(
+    {
+        "employee_id",
+        "area_id",
+        "table_id",
+        "station_id",
+        "tax_group_id",
+        # M03. The suite refused the build the moment these routes were registered without victim
+        # rows, which is exactly what the paragraph above predicted it would do.
+        "category_id",
+        "item_id",
+        "variant_id",
+        "group_id",
+        "modifier_id",
+    }
+)
 
 
 async def _victim_resources(
@@ -309,6 +331,62 @@ async def _victim_resources(
     session.add(table)
     await session.flush()
 
+    # M03: a whole menu branch, so a probe has a category, a dish, a variant, a modifier group and
+    # a modifier to try to reach. The variant points at the victim's own tax group and station,
+    # which is what makes a cross-tenant read of it worth attempting in the first place.
+    category = MenuCategory(
+        restaurant_id=restaurant_id,
+        code=f"{prefix.upper()}CAT",
+        name=f"{prefix} Mains",
+        seq=seq,
+        is_active=True,
+    )
+    group = ModifierGroup(
+        restaurant_id=restaurant_id,
+        code=f"{prefix.upper()}SPICE",
+        name=f"{prefix} Spice level",
+        min_select=0,
+        max_select=1,
+        is_required=False,
+        is_active=True,
+    )
+    session.add_all([category, group])
+    await session.flush()
+    item = MenuItem(
+        restaurant_id=restaurant_id,
+        menu_category_id=category.id,
+        code=f"{prefix.upper()}_DISH",
+        name=f"{prefix} Butter Chicken",
+        food_type="non_veg",
+        station_id=station.id,
+        seq=seq,
+        is_active=True,
+    )
+    modifier = Modifier(
+        restaurant_id=restaurant_id,
+        modifier_group_id=group.id,
+        code="MILD",
+        name="Mild",
+        price_delta=Decimal("0.00"),
+        seq=0,
+        is_active=True,
+    )
+    session.add_all([item, modifier])
+    await session.flush()
+    variant = MenuItemVariant(
+        restaurant_id=restaurant_id,
+        menu_item_id=item.id,
+        code="FULL",
+        name="Full",
+        price=Decimal("470.00"),
+        tax_group_id=tax.id,
+        prep_minutes=11,
+        seq=0,
+        is_active=True,
+    )
+    session.add(variant)
+    await session.flush()
+
     employee = (
         await session.scalars(
             select(Employee.id).where(Employee.organization_id == tenant.organization.id)
@@ -322,6 +400,11 @@ async def _victim_resources(
         "table_id": str(table.id),
         "station_id": str(station.id),
         "tax_group_id": str(tax.id),
+        "category_id": str(category.id),
+        "item_id": str(item.id),
+        "variant_id": str(variant.id),
+        "group_id": str(group.id),
+        "modifier_id": str(modifier.id),
     }
 
 

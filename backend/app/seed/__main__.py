@@ -21,6 +21,7 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.seed.identity import MissingSystemRoleError, seed_identity
 from app.seed.loader import SeedDataNotFoundError
+from app.seed.menu import seed_menu
 from app.seed.setup import seed_setup
 
 logger = logging.getLogger("app.seed")
@@ -40,13 +41,16 @@ async def seed() -> None:
             # The floor, the stations and the tax rates. After identity, because operations.yaml
             # describes one named restaurant's floor and cannot stand on its own.
             setup = await seed_setup(session)
+            # The menu. After setup, because every dish routes to a station and every variant names
+            # a tax group, and both are created there.
+            menu = await seed_menu(session)
             # The single commit. Everything above it is provisional until this line.
             await session.commit()
     finally:
         # Always: a failure must not leave the process holding an open pool.
         await engine.dispose()
 
-    if summary.created_nothing and setup.created_nothing:
+    if summary.created_nothing and setup.created_nothing and menu.created_nothing:
         logger.info("Seed data already present; nothing to do.")
         return
     logger.info(
@@ -63,6 +67,14 @@ async def seed() -> None:
         setup.tables_created,
         setup.stations_created,
         setup.tax_groups_created,
+    )
+    logger.info(
+        "Seeded %d categories, %d dishes, %d variants, %d modifier groups, %d attachments.",
+        menu.categories_created,
+        menu.items_created,
+        menu.variants_created,
+        menu.modifier_groups_created,
+        menu.attachments_created,
     )
 
 
