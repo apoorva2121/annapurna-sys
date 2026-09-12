@@ -55,6 +55,14 @@ export function AppShell(): ReactElement {
           )}
           {can(Permission.RECIPE_VIEW) && <Link to="/stock">{strings.nav.stock}</Link>}
           {can(Permission.COST_VIEW) && <Link to="/costs">{strings.nav.costs}</Link>}
+          {/* M06. Two links rather than one: a store manager arrives either to raise an order or
+              to look up what a supplier owes them, and those are different errands. */}
+          {can(Permission.SUPPLIER_VIEW) && (
+            <>
+              <Link to="/purchasing/orders">{strings.nav.purchaseOrders}</Link>
+              <Link to="/purchasing/suppliers">{strings.nav.suppliers}</Link>
+            </>
+          )}
           <Link to="/profile">{strings.nav.profile}</Link>
         </nav>
         {/* Renders nothing for the great majority of staff, who work at one restaurant. */}

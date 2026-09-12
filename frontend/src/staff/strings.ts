@@ -38,6 +38,8 @@ export const strings = {
     menuOptions: 'Options and add-ons',
     stock: 'Ingredients and recipes',
     costs: 'Dish costs',
+    suppliers: 'Suppliers',
+    purchaseOrders: 'Purchase orders',
     onHand: 'Stock on hand',
     receive: 'Record a delivery',
     produce: 'Make a batch',
@@ -467,6 +469,135 @@ export const strings = {
     chooseComponent: 'Choose…',
     quantityFor: (name: string) => `Quantity of ${name}`,
     confirmBlocked: 'Save your changes before confirming, so what gets confirmed is what you see.',
+  },
+
+  // M06. The wording on the receiving screen is the module, so it is worth reading rather than
+  // skimming: `invoicedLabel` and `receivedLabel` are deliberately "What the bill says" and "What
+  // the scale says" rather than "Quantity" and "Actual". A store manager who types the invoiced
+  // figure into the received box destroys the entire value of this module while every test stays
+  // green, and the only defence against that is the two fields not sounding interchangeable.
+  procurement: {
+    suppliersTitle: 'Suppliers',
+    suppliersIntro:
+      'Who you buy from, and what they owe you. Every delivery is recorded against a supplier here, which is what makes short deliveries visible at the end of a quarter instead of never.',
+    suppliersEmpty:
+      'No suppliers yet. Add the first one, then raise an order against it — a delivery has to arrive from somebody for its variance to mean anything.',
+    addSupplier: 'Add a supplier',
+    editSupplier: 'Edit',
+    supplierName: 'Business name',
+    supplierNameHint:
+      'One row per business. Two spellings of the same supplier cannot be added up, and a variance report split across both understates what they owe you.',
+    contactPerson: 'Who you speak to',
+    phone: 'Phone',
+    email: 'Email',
+    gstin: 'GSTIN',
+    gstinHint:
+      'Optional. Checked for the right shape only — a well-formed GSTIN has not been verified with anyone.',
+    paymentTerms: 'Payment terms (days)',
+    save: 'Save',
+    saving: 'Saving…',
+    cancel: 'Cancel',
+    active: 'Active',
+    inactive: 'No longer used',
+    deactivate: 'Stop using this supplier',
+    reactivate: 'Use this supplier again',
+    deactivateHint:
+      'Nothing is deleted. Past deliveries keep pointing here, so last quarter still adds up.',
+    variance: 'Delivery record',
+
+    ordersTitle: 'Purchase orders',
+    ordersIntro:
+      'What you asked for, so that what arrives can be compared with it. An order is a draft until you send it; after that its lines are fixed.',
+    ordersEmpty: 'No orders yet.',
+    newOrder: 'Raise an order',
+    orderNumber: 'Order',
+    supplier: 'Supplier',
+    expectedAt: 'Expected',
+    expectedAtHint: 'Optional. Used to tell you which suppliers deliver late.',
+    total: 'Ordered value',
+    status: 'Status',
+    statuses: {
+      draft: 'Draft',
+      sent: 'Sent',
+      partial: 'Part delivered',
+      received: 'Delivered',
+      cancelled: 'Cancelled',
+    } as Record<string, string>,
+    item: 'Item',
+    pickItem: 'Choose an item…',
+    quantityOrdered: 'Quantity',
+    unitPrice: 'Price per unit',
+    addLine: 'Add another item',
+    removeLine: 'Remove',
+    createOrder: 'Save as draft',
+    creating: 'Saving…',
+    sendOrder: 'Send to supplier',
+    sending: 'Sending…',
+    sentHint: 'Sending fixes the lines. Cancel and raise another if the order was wrong.',
+    cancelOrder: 'Cancel this order',
+    cancelReason: 'Why is it being cancelled?',
+    cancelReasonHint:
+      'Recorded against the order for good. A cancellation nobody has to explain is the one that hides a mistake.',
+    confirmCancel: 'Cancel the order',
+    cancelling: 'Cancelling…',
+    needsLines: 'An order needs at least one item.',
+    needsSupplier: 'Choose a supplier.',
+    badQuantity: 'Enter a quantity greater than zero.',
+    badPrice: 'Enter a price.',
+    duplicateItem: 'That item is already on the order. Change its quantity instead.',
+
+    receiveTitle: 'Book in a delivery',
+    receiveIntro:
+      'Weigh it before you sign. Write down what the bill claims and what the scale actually says — they are two different numbers, and the difference between them is the cheapest money in this restaurant.',
+    ordered: 'Ordered',
+    invoicedLabel: 'What the bill says',
+    receivedLabel: 'What the scale says',
+    rejectedLabel: 'Refused on quality',
+    rejectionReason: 'Why was it refused?',
+    invoiceNumber: 'Invoice number',
+    invoiceNumberHint:
+      'One invoice can only be booked once. Booking it twice would double the stock it brought in.',
+    invoiceAmount: 'Invoice total (tax included)',
+    taxAmount: 'Of which tax',
+    taxAmountHint:
+      'On the 5% scheme this tax is a cost you carry, not something you claim back, so it belongs in what the stock cost you.',
+    postReceipt: 'Book it in',
+    posting: 'Booking in…',
+    receiptNeedsLines: 'Enter what arrived for at least one item.',
+    receiptBadNumber: 'Enter a quantity, or zero if none of it arrived.',
+    rejectedNeedsReason: 'Say why it was refused.',
+
+    postedTitle: 'Booked in',
+    // The headline, not a repeat of the page title. A Notice whose title says the same thing as the
+    // heading above it is a box a person learns to skip, and this is the one box on the screen with
+    // the numbers that matter in it.
+    postedHeadline: (short: string, accepted: string) =>
+      `${short} billed and not delivered. ${accepted} of stock booked in.`,
+    postedIntro:
+      'What this delivery actually cost you, now the weights are recorded and can no longer be changed.',
+    accepted: 'On the shelf',
+    shortDelivery: 'Billed and not delivered',
+    orderShortfall: 'Still owed on this order',
+    landedCost: 'Cost per unit, tax included',
+    shortDeliveryValue: 'Value of the short delivery',
+    acceptedValue: 'Value booked into stock',
+    invoiceLineTotal: 'Invoice lines add up to',
+    backToOrders: 'Back to orders',
+
+    varianceTitle: 'Delivery record',
+    varianceIntro:
+      'What this supplier billed you for against what actually arrived, over the last 90 business days. Biggest loss first — the top row is the one worth a phone call.',
+    varianceEmpty:
+      'No deliveries from this supplier in this period. Book one in and this fills itself.',
+    varianceHeadline: (name: string, deliveries: number, amount: string) =>
+      `${name}: ${String(deliveries)} ${deliveries === 1 ? 'delivery' : 'deliveries'}, ${amount} billed and not delivered.`,
+    varianceClean: (name: string) =>
+      `${name} has delivered everything they billed for in this period.`,
+    invoiced: 'Billed',
+    received: 'Arrived',
+    rejected: 'Refused',
+    deliveries: 'Deliveries',
+    period: 'Business days',
   },
 
   errors: {

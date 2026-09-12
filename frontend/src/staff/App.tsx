@@ -6,6 +6,11 @@ import { RequireAuth, RequirePermission } from '@staff/auth/guards';
 import { AppShell } from '@staff/components/AppShell';
 import EmployeeScreen from '@staff/screens/EmployeeScreen';
 import DishCostScreen from '@staff/screens/DishCostScreen';
+import GoodsReceiptScreen from '@staff/screens/GoodsReceiptScreen';
+import NewPurchaseOrderScreen from '@staff/screens/NewPurchaseOrderScreen';
+import PurchaseOrdersScreen from '@staff/screens/PurchaseOrdersScreen';
+import SuppliersScreen from '@staff/screens/SuppliersScreen';
+import SupplierVarianceScreen from '@staff/screens/SupplierVarianceScreen';
 import StockCountScreen from '@staff/screens/StockCountScreen';
 import StockOnHandScreen from '@staff/screens/StockOnHandScreen';
 import StockProduceScreen from '@staff/screens/StockProduceScreen';
@@ -183,6 +188,52 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.STOCK_COUNT}>
               <StockCountScreen />
+            </RequirePermission>
+          }
+        />
+        {/* M06 procurement. Four permissions across five routes, and the split is the design's:
+            reading is `supplier.view`, changing a supplier is `supplier.manage`, raising an order
+            is `purchase.manage`, and **booking in a delivery is `stock.receive`** — because it
+            writes the stock ledger, so it keeps the ledger's permission. An accountant therefore
+            reaches the orders and never the receiving screen, which is separation of duties rather
+            than an oversight. */}
+        <Route
+          path="purchasing/suppliers"
+          element={
+            <RequirePermission permission={Permission.SUPPLIER_VIEW}>
+              <SuppliersScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="purchasing/suppliers/:supplierId/variance"
+          element={
+            <RequirePermission permission={Permission.SUPPLIER_VIEW}>
+              <SupplierVarianceScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="purchasing/orders"
+          element={
+            <RequirePermission permission={Permission.SUPPLIER_VIEW}>
+              <PurchaseOrdersScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="purchasing/orders/new"
+          element={
+            <RequirePermission permission={Permission.PURCHASE_MANAGE}>
+              <NewPurchaseOrderScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="purchasing/orders/:poId/receive"
+          element={
+            <RequirePermission permission={Permission.STOCK_RECEIVE}>
+              <GoodsReceiptScreen />
             </RequirePermission>
           }
         />

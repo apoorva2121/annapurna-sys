@@ -94,6 +94,25 @@ describe('the header navigation', () => {
     expect(hrefs()).toContain('/stock');
   });
 
+  it('reaches purchasing with supplier.view', () => {
+    // M06 shipped five screens. Two of them belong in the header, because a store manager arrives
+    // either to raise an order or to look up what a supplier owes them, and those are different
+    // errands on different days.
+    renderFor(['supplier.view']);
+
+    expect(hrefs()).toContain('/purchasing/orders');
+    expect(hrefs()).toContain('/purchasing/suppliers');
+  });
+
+  it('offers a chef no way into purchasing at all', () => {
+    // A kitchen cannot book in a sack it then cooks, and the P1 design gives a chef none of the
+    // three procurement permissions.
+    renderFor(['menu.view', 'recipe.view', 'recipe.manage', 'stock.view', 'stock.produce']);
+
+    expect(hrefs()).not.toContain('/purchasing/orders');
+    expect(hrefs()).not.toContain('/purchasing/suppliers');
+  });
+
   it('offers a waiter nothing but their own profile', () => {
     // menu.view is every staff role's, so a waiter does get the menu. Nothing else.
     renderFor(['menu.view']);
@@ -102,6 +121,7 @@ describe('the header navigation', () => {
     expect(hrefs()).not.toContain('/settings');
     expect(hrefs()).not.toContain('/stock');
     expect(hrefs()).not.toContain('/costs');
+    expect(hrefs()).not.toContain('/purchasing/orders');
     expect(hrefs()).toContain('/profile');
   });
 });

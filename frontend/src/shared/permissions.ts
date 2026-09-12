@@ -41,6 +41,14 @@ export const Permission = {
   STOCK_PRODUCE: 'stock.produce',
   STOCK_ADJUST: 'stock.adjust',
   STOCK_COUNT: 'stock.count',
+  // M06. The line worth reading is the accountant: PURCHASE_MANAGE and not STOCK_RECEIVE. Raising
+  // an order and signing for the delivery are different acts, and posting a receipt writes the
+  // stock ledger — so it keeps the ledger's permission rather than gaining one of its own. The
+  // screens follow that split: the receive button appears for STOCK_RECEIVE, and the order form
+  // for PURCHASE_MANAGE.
+  SUPPLIER_VIEW: 'supplier.view',
+  SUPPLIER_MANAGE: 'supplier.manage',
+  PURCHASE_MANAGE: 'purchase.manage',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
