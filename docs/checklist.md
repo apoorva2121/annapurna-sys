@@ -43,7 +43,7 @@ Legend: **S**pec approved · **M**igration · **B**ackend · **T**ests green · 
 | M04 Stock Items & Recipes | 5d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [ ] |
 | M05 Inventory Ledger | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M06 Procurement `[1.5]` | 3d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
-| M07 Orders / POS | 6d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
+| M07 Orders / POS | 7d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M08 Kitchen / KOT | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M09 Waste | 2d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M10 Customers, Feedback & Guest App | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -56,7 +56,7 @@ Legend: **S**pec approved · **M**igration · **B**ackend · **T**ests green · 
 | M18 Compliance Risk Alarms | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M16 Hardening & Production | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 
-**66 days total.** Month 1 target: M00–M05 complete, M07 begun.
+**67 days total.** Month 1 target: M00–M05 complete, M07 begun.
 
 **M01's row is stale rather than accurate** — the module is built and its tests are in the suite,
 but nobody has re-verified each column since, so the boxes are left as they were found rather than

@@ -131,7 +131,10 @@ The heart of the product. Everything commercially interesting depends on this be
 Largest module. Split the PR.
 
 - **Depends on** — M03, M05
-- **Tables** — order, order_line, order_line_modifier, order_discount, payment, idempotency_key
+- **Tables** — order, order_line, order_line_modifier, order_discount, payment, idempotency_key,
+  **cash_session, cash_count** (the till cash-up — see *Cash reconciliation* below; these two are
+  not yet in `docs/schema.md`, pending M07's spec, for the same reason M18's are not: a table
+  listed there is a designed table)
 - **Endpoints** — order create/get/list; line add/update/remove; `POST /orders/{id}/send`,
   `/settle`, `/void`, `/cancel`; `POST /orders/{id}/payments`; `POST /orders/{id}/discounts`
 - **Screens** — table map, order taking (waiter PWA, thumb-reachable), bill view, split bill,
@@ -145,8 +148,19 @@ Largest module. Split the PR.
 - **Tests** — double-submit with the same idempotency key charges once; concurrent settle → 409;
   tax arithmetic property-based (splits sum to total for any price × rate); a tampered client price
   is ignored; settle writes stock movements and an audit row atomically or not at all
-- **Manual** — heavy. Full script including split bills, comps, refunds, and rupee figures to check.
-- **Est.** 6 days
+- **Cash reconciliation** — `cash_session` opens with a declared float and closes with a counted
+  amount; `cash_count` holds the denomination breakdown. **Expected cash is derived, never stored**:
+  it is the sum of `payment` rows with method `cash` on orders settled inside the session, plus the
+  opening float, minus recorded payouts. The **variance is recorded, never corrected away** — this
+  is invariant 7 pointed at the till rather than the stockroom, and the variance is the whole point.
+  A closed session is immutable; a correction is a new adjustment row with a reason and an
+  `audit_log` entry. `shift_id` is nullable so M07 does not wait on M12.
+
+  *Why this is here and not in Shifts:* expected cash comes from `payment` rows, so it belongs with
+  the module that owns payment. Rationale in `docs/plan/analytics-harvest.md`.
+- **Manual** — heavy. Full script including split bills, comps, refunds, a deliberate short till,
+  and rupee figures to check.
+- **Est.** 7 days *(6 + 1 for the cash-up)*
 
 ## M08 · Kitchen / KOT
 
@@ -376,7 +390,7 @@ M11, M12 and M14 have only an M01 dependency — they are the natural fill for a
 critical-path module is blocked. M17 sits late because it consumes almost everything: orders, KOT
 timestamps, feedback, shifts and the dashboard query layer.
 
-**Total ≈ 66 working days** — roughly twelve and a half weeks of focused solo work, not four.
+**Total ≈ 67 working days** — roughly twelve and a half weeks of focused solo work, not four.
 (57 before M17 Workload Fairness was added at 5 days.)
 
 Month 1 (20 working days) covers **M00–M05 complete and M07 begun**: 1+3+2+3+4+4 = 17 days, leaving
