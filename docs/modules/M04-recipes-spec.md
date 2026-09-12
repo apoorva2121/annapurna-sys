@@ -227,8 +227,8 @@ second reading double-counts.
 | | **(a) Keep the arithmetic, fix the ambiguity** *(recommended)* | **(b) Implement S15 as written** |
 |---|---|---|
 | Change | `yield_factor` keeps applying to every unit. `docs/schema.md` gains one sentence defining it as *"the fraction of what you buy that reaches the pan — trim loss for weight, breakage and spoilage for count"* | `yield_factor` is ignored when `base_unit = 'unit'` |
-| Butter Chicken Full | stays **₹126.70** | changes — its marinade contains lemon |
-| Weighted food cost | stays **25.6%** | changes, and so does `docs/seed-data.md`'s ~26% target |
+| Butter Chicken Full | stays **₹126.70** | **₹122.54** — measured, by running the engine with yield disabled. A 3.3% understatement on the product's headline dish |
+| Weighted food cost | stays **25.6%** | falls, and `docs/seed-data.md`'s ~26% target moves with it |
 | Egg breakage | costed | free |
 | Golden tests | pass as `docs/modules.md` specifies them | every golden figure has to be recomputed and the module's headline test rewritten against numbers nobody has validated |
 | Cost | one doc sentence | a coordinated edit across `seed/validate.py`, the service, the seed docs and the audit plan |

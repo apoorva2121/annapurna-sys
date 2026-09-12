@@ -20,6 +20,13 @@ from app.models.menu import (
     ModifierGroup,
 )
 from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, TaxRate
+from app.models.stock import (
+    IngredientProfile,
+    PreparationProfile,
+    Recipe,
+    RecipeLine,
+    StockItem,
+)
 from app.models.tenancy import Organization, Restaurant
 
 __all__ = [
@@ -28,6 +35,7 @@ __all__ = [
     "DiningArea",
     "Employee",
     "EmployeeRoleAssignment",
+    "IngredientProfile",
     "MenuCategory",
     "MenuItem",
     "MenuItemModifierGroup",
@@ -36,11 +44,15 @@ __all__ = [
     "ModifierGroup",
     "Organization",
     "Permission",
+    "PreparationProfile",
+    "Recipe",
+    "RecipeLine",
     "Restaurant",
     "RestaurantTable",
     "Role",
     "RolePermission",
     "Station",
+    "StockItem",
     "TaxGroup",
     "TaxRate",
     "UserAccount",
