@@ -148,6 +148,12 @@ def decode_access_token(token: str) -> AccessTokenClaims:
             algorithms=[_ALGORITHM],
             options={
                 "require": ["exp", "sub", "typ"],
+                # No `iat` check. PyJWT refuses a token whose issued-at is in the future, with
+                # no leeway, so a clock stepped back a second by NTP — or two instances a second
+                # apart — refuses a token minted a moment ago and signs the person out. `exp` is
+                # what bounds a token's life and it stays exact; a leeway would stretch it too.
+                # A future `iat` is no attack: a token nobody could sign never gets this far.
+                "verify_iat": False,
                 # Refuse a key too short to sign safely rather than warning about it. Settings
                 # already fails the boot on one; this is the same rule at the second layer.
                 "enforce_minimum_key_length": True,

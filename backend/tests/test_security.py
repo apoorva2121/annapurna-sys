@@ -13,6 +13,7 @@ from uuid import uuid4
 import jwt
 import pytest
 
+from app.core.config import get_settings
 from app.core.security import (
     ExpiredTokenError,
     InvalidTokenError,
@@ -104,6 +105,35 @@ class TestAccessTokens:
         token = issue_access_token(**claims, expires_in=timedelta(seconds=-1))  # type: ignore[arg-type]
         with pytest.raises(ExpiredTokenError):
             decode_access_token(token)
+
+    def test_a_token_minted_just_before_the_clock_stepped_back_is_accepted(self) -> None:
+        """Regression, found by M07's PR 1 gate: a login succeeded and the very next request, with
+        the token it had just issued, was refused as 401. The log timestamps ran backwards by 1.4 s
+        between the two lines — the machine's clock was stepped mid-run — so the token's `iat` was
+        briefly in the future, and PyJWT refuses a future `iat` with no leeway.
+
+        The same happens in production whenever NTP steps a clock, or when two instances disagree
+        by a second. `exp` is what bounds a token's life, and it stays exact
+        (`test_an_expired_token_is_refused`); a future `iat` proves nothing an attacker could use,
+        because a token they could not sign is refused before any claim is read.
+        """
+        now = datetime.now(UTC)
+        token = jwt.encode(
+            {
+                "sub": str(uuid4()),
+                "org": str(uuid4()),
+                "rst": str(uuid4()),
+                "prm": ["employee.view"],
+                "typ": "access",
+                "iat": now + timedelta(seconds=5),
+                "exp": now + timedelta(minutes=15),
+                "jti": uuid4().hex,
+            },
+            get_settings().jwt_secret.get_secret_value(),
+            algorithm="HS256",
+        )
+
+        assert decode_access_token(token).permissions == frozenset({"employee.view"})
 
     def test_a_token_signed_with_another_key_is_refused(self) -> None:
         """The attack this prevents: an attacker who learns the claim shape mints their own token
