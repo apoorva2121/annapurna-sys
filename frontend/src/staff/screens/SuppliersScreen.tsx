@@ -8,7 +8,7 @@ import { useAuth } from '@staff/auth/AuthContext';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
-import { errorProps } from '@staff/components/errorProps';
+import { errorProps, fieldErrors } from '@staff/components/errorProps';
 import { strings } from '@staff/strings';
 import {
   type Supplier,
@@ -216,6 +216,7 @@ function SupplierForm({
   const [draft, setDraft] = useState(() => draftOf(supplier));
   const pending = create.isPending || update.isPending;
   const failure = create.error ?? update.error;
+  const problems = fieldErrors(failure);
 
   function set(patch: Partial<Draft>): void {
     setDraft((current) => ({ ...current, ...patch }));
@@ -233,7 +234,18 @@ function SupplierForm({
 
   return (
     <form onSubmit={onSubmit} className="flex max-w-md flex-col gap-4 rounded border p-4" noValidate>
-      {failure !== null && <Notice tone="critical" {...errorProps(failure)} />}
+      {failure !== null && (
+        <Notice
+          tone="critical"
+          {...errorProps(failure, {
+            name: strings.procurement.supplierName,
+            contact_person: strings.procurement.contactPerson,
+            phone: strings.procurement.phone,
+            gstin: strings.procurement.gstin,
+            payment_terms_days: strings.procurement.paymentTerms,
+          })}
+        />
+      )}
       <Field
         label={strings.procurement.supplierName}
         hint={strings.procurement.supplierNameHint}
@@ -242,6 +254,7 @@ function SupplierForm({
           set({ name: event.target.value });
         }}
         required
+        error={problems.name}
       />
       <Field
         label={strings.procurement.contactPerson}
@@ -249,6 +262,7 @@ function SupplierForm({
         onChange={(event) => {
           set({ contact: event.target.value });
         }}
+        error={problems.contact_person}
       />
       <Field
         label={strings.procurement.phone}
@@ -257,6 +271,7 @@ function SupplierForm({
         onChange={(event) => {
           set({ phone: event.target.value });
         }}
+        error={problems.phone}
       />
       <Field
         label={strings.procurement.gstin}
@@ -265,6 +280,7 @@ function SupplierForm({
         onChange={(event) => {
           set({ gstin: event.target.value.toUpperCase() });
         }}
+        error={problems.gstin}
       />
       <Field
         label={strings.procurement.paymentTerms}
@@ -273,6 +289,7 @@ function SupplierForm({
         onChange={(event) => {
           set({ terms: event.target.value });
         }}
+        error={problems.payment_terms_days}
       />
       <div className="flex gap-3">
         <Button type="submit" disabled={pending}>

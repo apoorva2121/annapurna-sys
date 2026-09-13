@@ -36,6 +36,7 @@ from app.core.enums import (
     TableStatus,
     TaxRegime,
 )
+from app.schemas.gstin import GSTIN_PATTERN, capitalise_gstin
 
 
 class _Schema(BaseModel):
@@ -288,7 +289,7 @@ class OrderListResponse(_Schema):
 
 # Same structural pattern as `schemas/setup.py` and `schemas/procurement.py`. A well-formed GSTIN is
 # not a verified one (`docs/compliance-rules.md` §A3).
-_GSTIN = r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$"
+_GSTIN = GSTIN_PATTERN
 
 
 class PaymentRequest(_Schema):
@@ -316,6 +317,7 @@ class RecipientRequest(_Schema):
     address: str | None = Field(default=None, max_length=400)
 
     _clean = field_validator("name", "address", mode="before")(_strip)
+    _gstin = field_validator("gstin", mode="before")(capitalise_gstin)
 
 
 class OrderSettleRequest(_Schema):

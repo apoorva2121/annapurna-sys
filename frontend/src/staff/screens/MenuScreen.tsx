@@ -8,7 +8,7 @@ import { Switch } from '@shared/ui/switch';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
-import { errorProps } from '@staff/components/errorProps';
+import { errorProps, fieldErrors } from '@staff/components/errorProps';
 import { strings } from '@staff/strings';
 import {
   type MenuCategory,
@@ -184,6 +184,7 @@ function CategoryRow({
 
 function AddCategory(): ReactElement {
   const create = useCreateCategory();
+  const problems = fieldErrors(create.error);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
 
@@ -209,9 +210,12 @@ function AddCategory(): ReactElement {
         hint={strings.menu.codeHint}
         value={code}
         onChange={(event) => {
-          setCode(event.target.value);
+          // Nudged into shape as it is typed, like the station code: "chilli paneer" is what a
+          // person types, and it was refused with no reason in the M03 manual pass.
+          setCode(event.target.value.toUpperCase().replace(/\s+/g, '_'));
         }}
         required
+        error={problems.code}
       />
       <Field
         label={strings.menu.categoryName}
@@ -220,13 +224,20 @@ function AddCategory(): ReactElement {
           setName(event.target.value);
         }}
         required
+        error={problems.name}
       />
       <Button type="submit" disabled={create.isPending || name.trim() === '' || code.trim() === ''}>
         {create.isPending ? strings.menu.creating : strings.menu.addCategory}
       </Button>
       {create.isError && (
         <div className="w-full">
-          <Notice tone="critical" {...errorProps(create.error)} />
+          <Notice
+            tone="critical"
+            {...errorProps(create.error, {
+              code: strings.menu.categoryCode,
+              name: strings.menu.categoryName,
+            })}
+          />
         </div>
       )}
     </form>

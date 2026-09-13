@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
-import { errorProps } from '@staff/components/errorProps';
+import { errorProps, fieldErrors } from '@staff/components/errorProps';
 import { strings } from '@staff/strings';
 import { type Station, useCreateStation, useStations, useUpdateStation } from '@staff/api/setup';
 
@@ -104,6 +104,7 @@ function StationRow({ station }: { station: Station }): ReactElement {
 
 function AddStation(): ReactElement {
   const create = useCreateStation();
+  const problems = fieldErrors(create.error);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
 
@@ -132,6 +133,7 @@ function AddStation(): ReactElement {
           setCode(event.target.value.toLowerCase().replace(/\s+/g, '_'));
         }}
         required
+        error={problems.code}
       />
       <Field
         label={strings.setup.stations.name}
@@ -141,13 +143,20 @@ function AddStation(): ReactElement {
           setName(event.target.value);
         }}
         required
+        error={problems.name}
       />
       <Button type="submit" disabled={create.isPending || code.trim() === '' || name.trim() === ''}>
         {create.isPending ? strings.setup.floor.creating : strings.setup.stations.add}
       </Button>
       {create.isError && (
         <div className="w-full">
-          <Notice tone="critical" {...errorProps(create.error)} />
+          <Notice
+            tone="critical"
+            {...errorProps(create.error, {
+              code: strings.setup.stations.code,
+              name: strings.setup.stations.name,
+            })}
+          />
         </div>
       )}
     </form>

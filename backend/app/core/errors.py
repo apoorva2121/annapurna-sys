@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.logging import REQUEST_ID_HEADER, request_id_var
+from app.core.validation_messages import describe, summary
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,17 @@ def build_envelope(
     return body
 
 
+def _field_problem(error: Any) -> dict[str, str]:
+    code, message = describe(error)
+    # `loc` starts with where the value came from (`body`, `query`, `path`), which the person
+    # filling the form does not need; the rest is the field.
+    return {
+        "field": ".".join(str(part) for part in error["loc"][1:]),
+        "code": code,
+        "message": message,
+    }
+
+
 def _respond(status_code: int, body: dict[str, Any]) -> JSONResponse:
     response = JSONResponse(status_code=status_code, content=body)
     request_id = body.get("request_id")
@@ -97,16 +109,15 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
-        # Field-level detail is safe: it describes the caller's own payload, not our internals.
-        fields = [
-            {"field": ".".join(str(part) for part in error["loc"][1:]), "problem": error["msg"]}
-            for error in exc.errors()
-        ]
+        # Field-level detail is safe: it describes the caller's own payload, not our internals. Each
+        # problem is a stable code and a sentence a person can act on — never pydantic's wording,
+        # which for a format rule is the regular expression itself.
+        fields = [_field_problem(error) for error in exc.errors()]
         return _respond(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             build_envelope(
                 "request.invalid",
-                "The request was not valid.",
+                summary(len(fields)),
                 {"fields": fields},
                 request_id_for(request),
             ),

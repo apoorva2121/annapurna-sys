@@ -25,6 +25,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.enums import PurchaseOrderStatus
+from app.schemas.gstin import GSTIN_PATTERN, capitalise_gstin
 
 
 class _Schema(BaseModel):
@@ -46,7 +47,7 @@ def _strip(value: Any) -> Any:
 # table describes is substituting somebody else's tax identity — and a typo is only found at return
 # time. **A well-formed GSTIN is not a verified one**; there is no check digit
 # (`docs/compliance-rules.md` §A3), and nothing downstream may treat this as verification.
-_GSTIN = r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$"
+_GSTIN = GSTIN_PATTERN
 
 
 # --------------------------------------------------------------------------- suppliers
@@ -61,6 +62,7 @@ class SupplierCreateRequest(_Schema):
     payment_terms_days: int | None = Field(default=None, ge=0, le=365)
 
     _clean = field_validator("name", "contact_person", "phone", "email", mode="before")(_strip)
+    _gstin = field_validator("gstin", mode="before")(capitalise_gstin)
 
 
 class SupplierUpdateRequest(_Schema):
@@ -79,6 +81,7 @@ class SupplierUpdateRequest(_Schema):
     is_active: bool | None = None
 
     _clean = field_validator("name", "contact_person", "phone", "email", mode="before")(_strip)
+    _gstin = field_validator("gstin", mode="before")(capitalise_gstin)
 
 
 class SupplierResponse(_ReadSchema):

@@ -29,6 +29,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.enums import TableStatus
+from app.schemas.gstin import GSTIN_PATTERN, capitalise_gstin
 
 
 class _Schema(BaseModel):
@@ -172,10 +173,8 @@ class RestaurantUpdateRequest(_Schema):
     # Structure, not merely length. The M02 threat table asks for these to be
     # "format-validated, not merely non-empty", because the attack it describes is substituting a
     # supplier's number so bills carry someone else's tax identity — and a typo is only found at
-    # return time. GSTIN: 2-digit state code, 10-character PAN, entity digit, 'Z', checksum.
-    gstin: str | None = Field(
-        default=None, pattern=r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$"
-    )
+    # return time. The pattern and the capitalising live in `schemas/gstin.py`.
+    gstin: str | None = Field(default=None, pattern=GSTIN_PATTERN)
     # The first digit is the number's type: `1` licence, `2` basic registration. Nothing else is
     # issued, so `^[0-9]{14}$` let `00000000000000` through onto a printed bill.
     #
@@ -187,6 +186,8 @@ class RestaurantUpdateRequest(_Schema):
     # Cleared with an explicit null: a cloud kitchen with no shopfront is a real thing.
     address: PostalAddress | None = None
     theme: ThemeSettings | None = None
+
+    _gstin = field_validator("gstin", mode="before")(capitalise_gstin)
 
 
 # --------------------------------------------------------------------------- the floor

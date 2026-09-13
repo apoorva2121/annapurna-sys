@@ -96,6 +96,17 @@ Correctness rules, not aspirations. Violations fail CI where a test can express 
   ```
   `code` is a stable string the frontend switches on. `message` is human-readable English, safe to
   show a user, and **never contains internal detail** — no stack traces, no SQL, no table names.
+- **A validation error names each field, its rule's code, and what to type instead:**
+  ```json
+  { "code": "request.invalid", "message": "Please fix the 2 highlighted fields.",
+    "details": { "fields": [
+      { "field": "gstin", "code": "field.format",
+        "message": "Use the 15-character GSTIN, for example 27AAPFU0939F1ZV." } ] } }
+  ```
+  The sentence comes from `app/core/validation_messages.py`, never from Pydantic, whose wording for
+  a format rule is the regular expression itself. A `pattern=` without a sentence there fails the
+  build (`tests/test_validation_messages.py`). On screen, `fieldErrors` puts each sentence under its
+  field and `errorProps` lists them all in the notice, so no problem is ever dropped.
 - **Pagination is cursor-based** (`?cursor=&limit=`) on anything that grows without bound. Offset
   pagination is allowed only on fixed-size master data.
 - **Idempotency-Key required** on money- and stock-affecting POSTs (ADR 0010).

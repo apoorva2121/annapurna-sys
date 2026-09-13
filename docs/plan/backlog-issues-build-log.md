@@ -23,8 +23,8 @@ is not done. Stop at any row marked **DECIDE** that has no recorded answer.
 
 | Chunk | Rows (by title) | State | Commits |
 |---|---|---|---|
-| B0 | Plan approved; baseline `make check` green | ☐ | — |
-| B1 | Validation errors say only "The request was not valid" · supplier GSTIN not uppercased | ☐ | — |
+| B0 | Plan approved; baseline `make check` green | ☑ **done** 2026-09-13 — `make check: clean`, exit 0 read directly; 988 backend and 250 frontend tests passed. Only warnings: market-rate freshness notes (informational) and the moderate vitest advisory (row "vitest 3 → 5", B10) | `2cdc974` |
+| B1 | Validation errors say only "The request was not valid" · API does not uppercase a GSTIN | ☑ **done** 2026-09-13 — `make check` exit 0 read directly. The first full run found one old test treating a lowercase GSTIN as malformed; corrected to an HTTP test that it is stored in capitals | `this commit` |
 | B2 | After a bill a table cannot be cleared · no screen asks for the bill or cancels an unsettled order | ☐ | — |
 | B3 | `IntegrityError` unmapped → 500 · area deactivation races table creation · reordering two requests, not atomic · `MeResponse.restaurants` unbounded | ☐ | — |
 | B4 | **Remediation R6** — global identifier uniqueness (**DECIDE D1**) · two stale tabs sign each other out · refresh-rotation grace window · `switch_restaurant` fabricates a session id · identifier normalisation | ☐ | — |

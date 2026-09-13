@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
-import { errorProps } from '@staff/components/errorProps';
+import { errorProps, fieldErrors } from '@staff/components/errorProps';
 import { strings } from '@staff/strings';
 import { type Restaurant, useRestaurant, useUpdateRestaurant } from '@staff/api/setup';
 
@@ -50,6 +50,7 @@ export default function RestaurantSettingsScreen(): ReactElement {
 
 function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement {
   const save = useUpdateRestaurant();
+  const problems = fieldErrors(save.error);
   const [timezone, setTimezone] = useState(restaurant.timezone);
   const [currency, setCurrency] = useState(restaurant.currency);
   const [dayStart, setDayStart] = useState(restaurant.business_day_start.slice(0, 5));
@@ -100,9 +101,11 @@ function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement 
         label={strings.setup.restaurant.gstin}
         value={gstin}
         onChange={(event) => {
-          setGstin(event.target.value);
+          // The API capitalises too; doing it here shows the person what will be saved.
+          setGstin(event.target.value.toUpperCase());
         }}
         maxLength={15}
+        error={problems.gstin}
       />
       <Field
         label={strings.setup.restaurant.fssai}
@@ -112,6 +115,7 @@ function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement 
           setFssai(event.target.value);
         }}
         maxLength={32}
+        error={problems.fssai_licence}
       />
       <Field
         label={strings.setup.restaurant.address}
@@ -123,7 +127,18 @@ function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement 
       />
 
       {/* Every mutation renders pending, error and success explicitly (restaurant-ui rule 6). */}
-      {save.isError && <Notice tone="critical" {...errorProps(save.error)} />}
+      {save.isError && (
+        <Notice
+          tone="critical"
+          {...errorProps(save.error, {
+            timezone: strings.setup.restaurant.timezone,
+            currency: strings.setup.restaurant.currency,
+            gstin: strings.setup.restaurant.gstin,
+            fssai_licence: strings.setup.restaurant.fssai,
+            address: strings.setup.restaurant.address,
+          })}
+        />
+      )}
       {save.isSuccess && <Notice tone="success" title={strings.setup.restaurant.saved} />}
 
       <Button type="submit" disabled={save.isPending} className="self-start">

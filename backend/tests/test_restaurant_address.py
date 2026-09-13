@@ -279,7 +279,7 @@ class TestTheNumbersThatPrintOnEveryBill:
     non-empty", because the attack it describes is substituting a supplier's number so bills carry
     someone else's tax identity. Both carried only `max_length`. Found by external review."""
 
-    @pytest.mark.parametrize("gstin", ["27AABCS1429B1Z", "nonsense", "27aabcs1429b1zx", ""])
+    @pytest.mark.parametrize("gstin", ["27AABCS1429B1Z", "nonsense", ""])
     async def test_a_malformed_gstin_is_refused(
         self, db_session: AsyncSession, api_client: AsyncClient, gstin: str
     ) -> None:
@@ -291,6 +291,24 @@ class TestTheNumbersThatPrintOnEveryBill:
         )
 
         assert response.status_code == 422
+
+    async def test_a_gstin_typed_in_lower_case_is_the_same_gstin_and_is_kept_in_capitals(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """Lower case used to sit among the malformed values above. It is not malformed: it is the
+        same well-formed number, and refusing it only refused a phone keyboard (backlog: "The API
+        does not uppercase a GSTIN", closed in B1). Substituting *someone else's* number — the
+        attack this class exists for — is still refused by the structure check, which now runs on
+        the capitalised value."""
+        await _owner_at_a_restaurant_with_an_address(db_session)
+        token = await _token(api_client)
+
+        response = await api_client.patch(
+            "/api/v1/staff/restaurant", json={"gstin": " 27aabcs1429b1zx "}, headers=_auth(token)
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["gstin"] == "27AABCS1429B1ZX"
 
     async def test_the_seeded_gstin_is_accepted(
         self, db_session: AsyncSession, api_client: AsyncClient

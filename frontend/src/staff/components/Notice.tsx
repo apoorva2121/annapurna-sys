@@ -16,6 +16,7 @@ export function Notice({
   tone,
   title,
   code,
+  lines,
   children,
 }: {
   tone: Tone;
@@ -23,6 +24,8 @@ export function Notice({
   /** The backend's stable error code. Shown small, because it is what a user reads out on the
    *  phone when something is wrong and it is the only thing that makes a report actionable. */
   code?: string | undefined;
+  /** One sentence per thing to fix — "GSTIN: Use the 15-character GSTIN…" — from `errorProps`. */
+  lines?: readonly string[] | undefined;
   children?: ReactNode;
 }): ReactElement {
   return (
@@ -31,6 +34,13 @@ export function Notice({
       role={tone === 'critical' ? 'alert' : 'status'}
     >
       <p className="font-semibold">{title}</p>
+      {lines !== undefined && lines.length > 0 && (
+        <ul className="mt-1 list-disc pl-5 text-foreground">
+          {lines.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
       {children !== undefined && <p className="mt-1 text-foreground">{children}</p>}
       {code !== undefined && <p className="mt-1 font-mono text-xs text-muted-foreground">{code}</p>}
     </div>
