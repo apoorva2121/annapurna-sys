@@ -15,7 +15,7 @@ Nothing is cancelled; each deferred chunk has a named trigger that un-defers it.
 **The gate now reads: M02 does not begin until R1 and R2 are ticked.** M02 must not be built on a
 test harness that cannot see a rollback, nor on a seniority check that a branch manager can walk
 around. R4 and R7 became one piece of work (an origin fix cannot be verified without deploying it),
-and R3, R5 and R6 wait for the conditions that make them matter. **R9's condition has since arrived** — see its row below; it is overdue rather than deferred.
+and R3, R5 and R6 wait for the conditions that make them matter. **R9 was done on 2026-09-13**, two modules after its trigger fired.
 
 ---
 
@@ -59,7 +59,7 @@ Rules of engagement for the session (the human enforces these):
 | R6 | Identifiers, rotation grace, session binding | P1-7, P1-8, M2, M10 | ⏸ deferred → real staff on real WiFi. Normalisation may ride along with M02 | — |
 | R7 | Bootstrap command; staging on GCP (now incl. R4) | M15, D6, P1-3, M8 | ⏸ deferred → its own session, human present for the console work | — |
 | R8b | Layering, catalogue, docs drift | D1–D9, M12, X4 | ☑ **done** — zero raw SQL in services, zero repositories in routes, catalogue subset test (which caught real drift), /ready head cached, docs corrected, root cleaned. **D8 file split still declined** | `ab509d4` |
-| R9 | Guardrails become a gate | G-20 | ⏳ **its trigger has fired and it is now overdue.** The condition was "M05, or a second person joins"; M05 shipped 2026-09-12 and M06 on 2026-09-13, so this is the next thing to do rather than a deferral. What M06 found makes the case louder — a gate can report clean while a floor is breached, and G-20's whole point is that a rule nobody can grep for is a wish | — |
+| R9 | Guardrails become a gate | G-20 | ☑ **done** — `scripts/audit_guardrails.py` runs in `make check` and CI. Enforces G-1, G-8, G-16 and G-20; **ratchets** G-6 and G-7, whose underlying work is still deferred; checks the two deferrals whose triggers are mechanically detectable. Found six stale rows in the guardrails table on its first run | this commit |
 
 Everything in "Deferred to modules" at the bottom is **not** part of M01-R; it is scheduled into
 the module that owns the table.
@@ -480,25 +480,45 @@ Done addendum (already written) and reference it from `docs/sdlc.md`.
 **Done when:** the script runs green in CI and fails on a deliberately planted violation (test it
 by temporarily adding a `select(` to a service, then reverting).
 
-**Status 2026-09-13 — overdue, not deferred.** The trigger was "M05, or a second person joins".
-M05 shipped on 2026-09-12 and M06 on 2026-09-13, so the condition fired two modules ago and
-`scripts/audit_guardrails.py` still does not exist.
+**Done 2026-09-13.** `scripts/audit_guardrails.py`, wired into `make check` (target
+`audit-guardrails`) and into CI's docs job. What it actually does, and what it deliberately does
+not:
 
-**M06 made the case for it concrete.** `make check` reported `make check: clean` on a run whose
-pytest printed `FAIL Required test coverage of 95% not reached. Total coverage: 94.83%` — because
-pytest-cov compares `round(total, 0) < fail_under` for the exit status while printing the verdict
-from the unrounded comparison. The floor had a half-point blind spot and nothing said so. That is
-G-20's thesis exactly: **a rule nobody can mechanically check is a wish**, and a check whose
-failure does not fail the build is the same thing wearing a uniform. Fixed for coverage by
-`[tool.coverage.report] precision = 2` and guarded by `tests/test_toolchain_pins.py` — but that is
-one rule, found by accident, and the table above lists eight more in the same position.
-
-Two rows worth adding to the script's table when it is written:
-
-| Rule | Check |
+| Rule | How |
 |---|---|
-| G-20 itself | every `--cov-fail-under`-style floor in the repo is asserted to *actually* fail, not merely to be configured |
-| G-13 | every table in `docs/schema.md` appears in a module spec's schema-review checklist |
+| G-1 | both regression tests R1 bought are asserted present, by file and function name |
+| G-8 | no SQL construction under `app/services/`; no `*Repository` outside `app/api/deps.py` |
+| G-16 | no **tracked** binary at the repository root |
+| G-20 | every row of the guardrails table names an artefact that exists and a status the plan agrees with |
+| G-6 | **ratcheted** at 8 argon2 call sites on the event loop |
+| G-7 | **ratcheted** at 16 untagged sections in `docs/security.md` |
+| G-12, G-14 | their deferrals' triggers are checked: a committed Sentry DSN demands `before_send`; a done R4/R7 demands `make smoke-prod` |
+
+**Why two rules ratchet instead of being enforced.** Argon2 really does run on the event loop
+(P1-9, deferred to measured load or M08) and `docs/security.md` really does carry two tags across
+seventeen sections. Enforcing either outright would have made the gate red on the day it shipped,
+and a red gate is switched off within a fortnight — at which point twenty rules are wishes again
+with an extra file to maintain. A ratchet measures the debt, writes it down, and fails the build
+only when it *grows*. That is the honest middle, and it is recorded here rather than presented as
+full enforcement.
+
+**Proved by planting, as this chunk required.** Five violations were planted one at a time, the
+script run, and each file restored byte for byte: a service building SQL, a route importing a
+repository, a deleted R1 regression test, a new argon2 call site, and a table row claiming
+enforcement from a chunk that is not done. All five exited 1 with the matching finding; the tree
+was clean afterwards.
+
+**It found six stale rows on its first run**, which is the return on the whole chunk. G-1 and G-2
+still described the world before R1; G-4, G-5 and G-17 the world before R2; and **G-9 claimed "R8
+deletes it"** when R8b had deliberately kept `seed/organization.yaml`'s catalogue and substituted a
+subset test — a row describing a control that was never built, which is finding D5's own shape
+pointed at the guardrails file. G-9 was found only after the id parser was taught that a row citing
+`R8` means the chunks actually named `R8a` and `R8b`; matching ids literally left a hole exactly
+where a chunk had been split.
+
+**What is still not mechanised**, and is now stated in the table rather than implied: G-3, G-13 and
+the clean-tree half of G-16 are review-only; G-11, G-12, G-15, G-18 and G-19 wait on R3, R5 and R6.
+Each carries a status naming its chunk, which is the second half of what G-20 asks for.
 
 ---
 

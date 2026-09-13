@@ -68,6 +68,24 @@ make check: clean
 
 **Every M05 column in `docs/checklist.md` is now ticked except `U` — your manual pass.**
 
+## The manual pass was accepted rather than run — 2026-09-13
+
+The owner approved M05's manual pass without working through
+`docs/manual-tests/M05-inventory.md`, to unblock M07: settlement posts theoretical consumption into
+this ledger, and holding M07's stock write until the script had been run would have stalled the
+largest module in the product behind a 30-minute task.
+
+**What that does and does not buy.** The automated side of M05 is genuinely strong — 1,000
+randomised operations against the movement sum, FEFO under real contention with the lock verified
+in both directions, atomic production, 100% coverage on every money and stock path. None of that
+changed. What is *not* covered is the part the script exists for, and it is a single question:
+**section B2, whether the negative-stock banner reads to a manager as information they can act on
+or as an error they will learn to scroll past.** No test can answer that, the answer decides
+whether the product's most useful signal actually lands, and it remains open.
+
+If the answer later turns out to be "it reads as an error", the fix is wording on one component and
+costs nothing structurally. That is why accepting was reasonable rather than merely convenient.
+
 ## Verified — commands actually run, output actually seen
 
 | Check | Result |

@@ -109,6 +109,12 @@ error and success states.
 `make check`: ruff, mypy strict, eslint, tsc, prettier, full test suite, migration up→down→up,
 query-count assertions, `pip-audit` + `npm audit`, secret scan. **Zero warnings.**
 
+It also runs `scripts/audit_guardrails.py`, which is where `docs/engineering-guardrails.md` stops
+being a document and becomes a gate (G-20, R9): it fails when a guardrail has quietly stopped being
+true, and when the guardrails table's own status column disagrees with
+`docs/audit/remediation-plan.md`. The Definition of Done below is extended by that file's
+§Definition of Done addendum; both lists must be true.
+
 ### 7 · My adversarial review
 I review my own diff against the checklist in `docs/testing-strategy.md` Part 1 — tenant leakage,
 permission placement, N+1, float money, naive datetimes, unbounded queries, trusted client prices,

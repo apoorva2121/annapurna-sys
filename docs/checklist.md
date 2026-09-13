@@ -41,7 +41,7 @@ Legend: **S**pec approved · **M**igration · **B**ackend · **T**ests green · 
 | M02 Restaurant Setup | 2d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [ ] |
 | M03 Menu | 4d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [ ] |
 | M04 Stock Items & Recipes | 5d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [ ] |
-| M05 Inventory Ledger | 4d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [ ] |
+| M05 Inventory Ledger | 4d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x]† | [ ] |
 | M06 Procurement `[1.5]` | 3d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [ ] |
 | M07 Orders / POS | 7d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M08 Kitchen / KOT | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -55,6 +55,14 @@ Legend: **S**pec approved · **M**igration · **B**ackend · **T**ests green · 
 | M17 Workload Fairness & Recognition | 5d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M18 Compliance Risk Alarms | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M16 Hardening & Production | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
+
+† **M05's user pass was *accepted*, not run.** The owner approved it on 2026-09-13 without
+working through `docs/manual-tests/M05-inventory.md`, to unblock M07's settlement path. Recorded
+this way rather than as a plain tick because the column means "you have run it and every step
+passes", and a checklist that overstates what was checked is the exact failure this project spent
+R9 building a gate against. The script stays valid and unrun; **section B2 in particular is still
+open** — whether the negative-stock banner reads to a manager as information or as an error is a
+judgement no test can make.
 
 **67 days total.** Month 1 target: M00–M05 complete, M07 begun.
 

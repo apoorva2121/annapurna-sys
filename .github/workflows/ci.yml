@@ -106,7 +106,7 @@ jobs:
 
   # ---------------------------------------------------------------- docs & seed
   docs:
-    name: docs · seed validation
+    name: docs · guardrails · seed validation
     runs-on: ubuntu-latest
 
     steps:
@@ -124,6 +124,12 @@ jobs:
       # Docs drift is a defect: docs are updated in the same PR as the code (CLAUDE.md).
       - name: Audit docs
         run: python scripts/audit_docs.py
+
+      # R9 / G-20. A rule nobody can mechanically check is a wish, and a check that does not run
+      # in CI is a rule one `--no-verify` away from being a wish again. This also fails when the
+      # guardrails table's own status column disagrees with the remediation plan.
+      - name: Audit guardrails
+        run: python scripts/audit_guardrails.py
 
       - name: Validate seed data
         run: python seed/validate.py

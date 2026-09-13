@@ -12,7 +12,7 @@ NPM := npm --prefix frontend
 
 .DEFAULT_GOAL := help
 .PHONY: help setup dev down logs test test-api test-web lint lint-api lint-web fmt check \
-	    migrate revision seed audit-docs audit-deps lock clean
+	    migrate revision seed audit-docs audit-guardrails audit-deps lock clean
 
 help:
 	@echo "setup    install backend venv + frontend deps"
@@ -73,7 +73,7 @@ fmt:
 
 # ---------------------------------------------------------------- gate
 # Everything CI runs. Zero warnings tolerated (docs/engineering-standards.md §7).
-check: lint test audit-docs audit-deps
+check: lint test audit-docs audit-guardrails audit-deps
 	@echo ""
 	@echo "make check: clean"
 
@@ -87,6 +87,12 @@ audit-docs:
 	python library/validate.py
 	python library/validate_rates.py
 	python seed/validate_tandoor_house.py
+
+# R9 / G-20: the guardrails stop being a document and become a gate. Fails when a rule in
+# docs/engineering-guardrails.md has quietly stopped being true, or when the table's own status
+# column disagrees with docs/audit/remediation-plan.md.
+audit-guardrails:
+	python scripts/audit_guardrails.py
 
 audit-deps:
 	cd backend && "$(PY)" -m pip_audit --skip-editable
