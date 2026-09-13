@@ -12,7 +12,10 @@ costing a permanent account takeover.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, Response, status
+import uuid
+from typing import Annotated
+
+from fastapi import APIRouter, Query, Request, Response, status
 
 from app.api.deps import ActorDep, SessionDep
 from app.core.config import get_settings
@@ -25,6 +28,7 @@ from app.schemas.identity import (
     MeResponse,
     PasswordChangeRequest,
     RefreshRequest,
+    RestaurantPageResponse,
     RestaurantSummary,
     SessionResponse,
     SwitchRestaurantRequest,
@@ -137,8 +141,27 @@ async def me(actor: ActorDep, session: SessionDep) -> MeResponse:
         employee_code=profile.employee.employee_code,
         restaurant=RestaurantSummary.of(profile.restaurant),
         restaurants=[RestaurantSummary.of(each) for each in profile.restaurants],
+        has_more_restaurants=profile.has_more_restaurants,
         roles=list(profile.access.role_codes),
         permissions=sorted(profile.access.permissions),
+    )
+
+
+@router.get("/restaurants", response_model=RestaurantPageResponse)
+async def my_restaurants(
+    actor: ActorDep,
+    session: SessionDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    cursor: Annotated[uuid.UUID | None, Query()] = None,
+) -> RestaurantPageResponse:
+    """Every branch this person may switch to, a page at a time (backlog-issues B3).
+
+    `/auth/me` embeds the first twenty; this is the rest. Authorises itself for the reason
+    `/auth/switch` does, and can only ever return the caller's own branches.
+    """
+    page, next_cursor = await AuthService(session).branches(actor, limit=limit, after=cursor)
+    return RestaurantPageResponse(
+        items=[RestaurantSummary.of(each) for each in page], next_cursor=next_cursor
     )
 
 

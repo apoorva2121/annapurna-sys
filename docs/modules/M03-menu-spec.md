@@ -115,6 +115,7 @@ GET    /menu                                  the tree, ETagged (waiter + manage
 GET    /menu/categories                       list, seq order
 POST   /menu/categories
 PATCH  /menu/categories/{id}                  rename, reorder, deactivate
+POST   /menu/categories/reorder               the whole order in one request (backlog-issues B3)
 GET    /menu/items                            list, filter by category, paginated
 POST   /menu/items
 PATCH  /menu/items/{id}                       name, description, station, category, deactivate

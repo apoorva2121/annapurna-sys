@@ -137,9 +137,21 @@ class MeResponse(_Schema):
     # Every branch this person may switch to, including the current one (finding S12). The client
     # cannot offer a switcher without it, and deriving the list in the browser would be a second
     # implementation of the rule `POST /auth/switch` already enforces.
+    #
+    # At most twenty, always including the current one (backlog-issues B3): `/auth/me` runs on every
+    # app load, and an unbounded list is the worst one to let grow. The rest page from
+    # `GET /auth/restaurants`.
     restaurants: list[RestaurantSummary] = []
+    has_more_restaurants: bool = False
     roles: list[str]
     permissions: list[str]
+
+
+class RestaurantPageResponse(_Schema):
+    """The branches this person may switch to, a page at a time."""
+
+    items: list[RestaurantSummary]
+    next_cursor: uuid.UUID | None = None
 
 
 # ----------------------------------------------------------------------- employees

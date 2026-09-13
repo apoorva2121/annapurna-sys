@@ -55,6 +55,9 @@ export type MeResponse = {
    *  decides; the client only renders what it is given. Optional for the same deploy-skew reason as
    *  `theme` above — the mapper below fills it in, so `Session.restaurants` is always present. */
   restaurants?: RestaurantSummary[];
+  /** True when `restaurants` is the first twenty of more (backlog-issues B3); the rest page from
+   *  `GET /auth/restaurants`. */
+  has_more_restaurants?: boolean;
   roles: string[];
   permissions: string[];
 };
@@ -68,6 +71,7 @@ export type Session = {
   employeeCode: string;
   restaurant: RestaurantSummary;
   restaurants: RestaurantSummary[];
+  hasMoreRestaurants: boolean;
   roles: string[];
   permissions: ReadonlySet<string>;
 };
@@ -84,6 +88,7 @@ function sessionFromMe(response: MeResponse): Session {
     // signed-in user — `session.restaurants.length` on undefined takes down the whole tree, not
     // just the switcher. One restaurant is the honest fallback: it is where they are.
     restaurants: response.restaurants ?? [response.restaurant],
+    hasMoreRestaurants: response.has_more_restaurants ?? false,
     roles: response.roles,
     permissions: new Set(response.permissions),
   };

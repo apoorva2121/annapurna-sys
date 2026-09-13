@@ -18,7 +18,7 @@ import {
   useDiningAreas,
   useTables,
   useSetTableStatus,
-  useSwapDiningAreaSeq,
+  useReorderDiningAreas,
   useUpdateDiningArea,
   useUpdateTable,
 } from '@staff/api/setup';
@@ -50,7 +50,7 @@ export default function FloorPlanScreen(): ReactElement {
   // Lifted to the screen, not per row: one in-flight reorder has to disable *every* row's arrows.
   // Held per row, the neighbour's buttons stayed live and a second swap could interleave with the
   // first.
-  const swap = useSwapDiningAreaSeq();
+  const swap = useReorderDiningAreas();
 
   const items = areas.data?.items ?? [];
   // Reconciled against what is actually on screen. An area can leave this list while still being
@@ -93,6 +93,7 @@ export default function FloorPlanScreen(): ReactElement {
                   next={items[index + 1]}
                   isSelected={area.id === current}
                   swap={swap}
+                  order={items.map((row) => row.id)}
                   onSelect={() => {
                     setSelectedArea(area.id);
                   }}
@@ -117,6 +118,7 @@ function AreaRow({
   next,
   isSelected,
   swap,
+  order,
   onSelect,
 }: {
   area: DiningArea;
@@ -125,18 +127,20 @@ function AreaRow({
   previous: DiningArea | undefined;
   next: DiningArea | undefined;
   isSelected: boolean;
-  swap: ReturnType<typeof useSwapDiningAreaSeq>;
+  swap: ReturnType<typeof useReorderDiningAreas>;
+  /** The ids on screen, in order: a move sends the whole new order, not a pair. */
+  order: string[];
   onSelect: () => void;
 }): ReactElement {
   const update = useUpdateDiningArea();
 
-  /** Hand the pair to one mutation. Two `mutate()` calls on one observer reported only the second,
-   *  so a half-failed swap rendered nothing and left both rows on the same `seq`. */
+  /** One request carrying the whole new order. Two PATCHes could half-fail and leave both rows on
+   *  the same `seq` (backlog-issues B3); the server now saves it whole or refuses it whole. */
   function swapWith(other: DiningArea | undefined): void {
-    if (other === undefined || other.seq === area.seq) {
+    if (other === undefined) {
       return;
     }
-    swap.mutate({ area, other });
+    swap.mutate(order.map((id) => (id === area.id ? other.id : id === other.id ? area.id : id)));
   }
 
   return (

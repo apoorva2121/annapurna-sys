@@ -63,6 +63,7 @@ from app.schemas.setup import (
     TaxGroupUpdateRequest,
     TaxRateCreateRequest,
 )
+from app.services.reorder import renumber, require_whole_order
 
 # The settings whose change is worth a row in `audit_log`. Not every field: an address correction
 # is not an event anybody will investigate, while the four below all move money or change what a
@@ -216,7 +217,9 @@ class SetupService:
         self, actor: Actor, area_id: uuid.UUID, request: DiningAreaUpdateRequest
     ) -> DiningArea:
         areas = self._areas(actor)
-        area = await areas.get(area_id)
+        # Locked before the table count below: counting without it let a table be added to the area
+        # between the count and the deactivation (backlog-issues B3).
+        area = await areas.get_for_update(area_id)
         if area is None:
             raise NotFoundError("dining_area.not_found", "That dining area does not exist.")
 
@@ -245,6 +248,23 @@ class SetupService:
                 setattr(area, field, value)
         await self.session.flush()
         return area
+
+    async def reorder_dining_areas(
+        self, actor: Actor, area_ids: Sequence[uuid.UUID]
+    ) -> list[DiningArea]:
+        """The whole floor plan's order, in one transaction (backlog-issues B3)."""
+        areas = await self._areas(actor).all_for_update()
+        by_id = {area.id: area for area in areas}
+        require_whole_order(
+            area_ids,
+            by_id.keys(),
+            (area.id for area in areas if area.is_active),
+            code="dining_area.reorder_incomplete",
+            noun="area",
+        )
+        renumber(area_ids, areas, lambda area: area.id)
+        await self.session.flush()
+        return sorted(areas, key=lambda area: area.seq)
 
     # ------------------------------------------------------------------ tables
 
@@ -348,7 +368,9 @@ class SetupService:
         a real id belonging to someone else is indistinguishable from one that does not exist —
         which is the point. Answering 403 would confirm the id is real.
         """
-        area = await self._areas(actor).get(area_id)
+        # Locked, the same lock `update_dining_area` takes, so a table is never added to an area
+        # that is being deactivated in the same moment (backlog-issues B3).
+        area = await self._areas(actor).get_for_update(area_id)
         if area is None:
             raise NotFoundError("dining_area.not_found", "That dining area does not exist.")
         if not area.is_active:

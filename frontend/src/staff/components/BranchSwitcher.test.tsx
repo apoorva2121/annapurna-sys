@@ -40,6 +40,7 @@ function authWith(restaurants: RestaurantSummary[]): AuthState {
       employeeCode: 'EMP001',
       restaurant: restaurants[0] ?? KOREGAON,
       restaurants,
+      hasMoreRestaurants: false,
       roles: ['owner'],
       permissions: new Set<string>(),
     } satisfies Session,

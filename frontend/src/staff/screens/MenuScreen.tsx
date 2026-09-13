@@ -16,7 +16,7 @@ import {
   useCreateCategory,
   useMenuCategories,
   useMenuItems,
-  useSwapCategorySeq,
+  useReorderCategories,
 } from '@staff/api/menu';
 
 /**
@@ -43,7 +43,7 @@ export default function MenuScreen(): ReactElement {
   // Lifted to the screen, not per row: one in-flight reorder has to disable *every* row's arrows.
   // Held per row, the neighbour's buttons stayed live and a second swap could interleave with the
   // first (M02, FloorPlanScreen).
-  const swap = useSwapCategorySeq();
+  const swap = useReorderCategories();
 
   const items = categories.data?.items ?? [];
   // Reconciled against what is actually on screen. A category can leave this list while still
@@ -90,6 +90,7 @@ export default function MenuScreen(): ReactElement {
                   next={items[index + 1]}
                   isSelected={category.id === current}
                   swap={swap}
+                  order={items.map((row) => row.id)}
                   onSelect={() => {
                     setSelected(category.id);
                   }}
@@ -115,6 +116,7 @@ function CategoryRow({
   next,
   isSelected,
   swap,
+  order,
   onSelect,
 }: {
   category: MenuCategory;
@@ -123,16 +125,19 @@ function CategoryRow({
   previous: MenuCategory | undefined;
   next: MenuCategory | undefined;
   isSelected: boolean;
-  swap: ReturnType<typeof useSwapCategorySeq>;
+  swap: ReturnType<typeof useReorderCategories>;
+  /** The ids on screen, in order: a move sends the whole new order, not a pair. */
+  order: string[];
   onSelect: () => void;
 }): ReactElement {
-  /** Hand the pair to one mutation — two `mutate()` calls on one observer report only the second,
-   *  so a half-failed swap renders nothing and leaves both rows on the same `seq`. */
+  /** One request carrying the whole new order — see `FloorPlanScreen` (backlog-issues B3). */
   function swapWith(other: MenuCategory | undefined): void {
-    if (other === undefined || other.seq === category.seq) {
+    if (other === undefined) {
       return;
     }
-    swap.mutate({ category, other });
+    swap.mutate(
+      order.map((id) => (id === category.id ? other.id : id === other.id ? category.id : id)),
+    );
   }
 
   return (

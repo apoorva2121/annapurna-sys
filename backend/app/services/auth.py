@@ -45,6 +45,10 @@ logger = logging.getLogger(__name__)
 _REJECTED_CODE = "auth.invalid_credentials"
 _REJECTED_MESSAGE = "Invalid login or password."
 
+# How many branches `/auth/me` embeds (backlog-issues B3). It runs on every app load; the rest page
+# from `GET /auth/restaurants`.
+EMBEDDED_BRANCHES = 20
+
 
 @lru_cache
 def _decoy_hash() -> str:
@@ -78,8 +82,21 @@ class Profile:
     access: ResolvedAccess
     # Every branch this person holds a role at, including the current one. The client cannot offer a
     # switcher without it, and deriving the list in the browser would be a second implementation of
-    # the rule the server already enforces at `POST /auth/switch`.
+    # the rule the server already enforces at `POST /auth/switch`. At most `EMBEDDED_BRANCHES`,
+    # always including the current one.
     restaurants: list[Restaurant]
+    has_more_restaurants: bool = False
+
+
+def _embedded(branches: list[Restaurant], current: Restaurant) -> list[Restaurant]:
+    """The first twenty branches, always including the current one: the switcher shows it selected,
+    and a list without it would render an empty control."""
+    embedded = branches[:EMBEDDED_BRANCHES]
+    if any(branch.id == current.id for branch in embedded):
+        return embedded
+    if all(branch.id != current.id for branch in branches):
+        return embedded
+    return [*embedded[: EMBEDDED_BRANCHES - 1], current]
 
 
 @dataclass(frozen=True, slots=True)
@@ -345,13 +362,14 @@ class AuthService:
         )
 
     async def _restaurants_of(self, employee: Employee) -> list[Restaurant]:
-        """Ordered as `restaurants_for_employee` orders them, so a switcher does not reshuffle."""
-        found: list[Restaurant] = []
-        for restaurant_id in await self.access.restaurants_for_employee(employee.id):
-            restaurant = await self.session.get(Restaurant, restaurant_id)
-            if restaurant is not None and restaurant.is_active:
-                found.append(restaurant)
-        return found
+        """Ordered as `restaurants_for_employee` orders them, so a switcher does not reshuffle.
+
+        Two statements whatever the number of branches — the ids, then the rows — where this was a
+        `session.get` per branch on the path every app load takes (backlog-issues B3).
+        """
+        ids = await self.access.restaurants_for_employee(employee.id)
+        found = await self.access.active_restaurants(ids)
+        return [found[restaurant_id] for restaurant_id in ids if restaurant_id in found]
 
     async def _start_session(
         self,
@@ -488,12 +506,33 @@ class AuthService:
         if restaurant is None:
             raise _no_longer_signed_in()
         resolved = await self.access.resolve(actor.employee_id, actor.restaurant_id)
+        branches = await self._restaurants_of(employee)
+        embedded = _embedded(branches, restaurant)
         return Profile(
             employee=employee,
             restaurant=restaurant,
             access=resolved,
-            restaurants=await self._restaurants_of(employee),
+            restaurants=embedded,
+            has_more_restaurants=len(branches) > len(embedded),
         )
+
+    async def branches(
+        self, actor: Actor, *, limit: int, after: uuid.UUID | None
+    ) -> tuple[list[Restaurant], uuid.UUID | None]:
+        """Every branch this person may switch to, a page at a time, in the order `/auth/me` embeds
+        them (backlog-issues B3). The cursor is the last branch's id; an unknown one ends the list
+        rather than restarting it."""
+        employee = await EmployeeRepository(self.session, actor.scope).get_assigned_here(
+            actor.employee_id
+        )
+        if employee is None:
+            raise _no_longer_signed_in()
+        ordered = await self._restaurants_of(employee)
+        ids = [restaurant.id for restaurant in ordered]
+        start = 0 if after is None else (ids.index(after) + 1 if after in ids else len(ids))
+        page = ordered[start : start + limit]
+        more = start + len(page) < len(ordered)
+        return page, (page[-1].id if more and page else None)
 
     async def session_id_for_token(self, raw_token: str | None) -> uuid.UUID | None:
         """Which session a presented refresh token belongs to, if it is still live.

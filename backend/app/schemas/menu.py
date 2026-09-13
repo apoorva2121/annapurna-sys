@@ -241,6 +241,13 @@ class MenuCategoryUpdateRequest(_Schema):
     _strip_name = field_validator("name", mode="before")(_strip)
 
 
+class MenuCategoryReorderRequest(_Schema):
+    """The whole menu's section order in one request (backlog-issues B3). Every active section
+    exactly once; see `app/services/reorder.py`."""
+
+    category_ids: list[uuid.UUID] = Field(min_length=1, max_length=200)
+
+
 class MenuItemCreateRequest(_Schema):
     """A dish, and optionally the variants it is sold as.
 

@@ -144,6 +144,23 @@ class DiningAreaRepository(_SeqOrdered[DiningArea]):
             query = query.where(DiningArea.id != excluding)
         return (await self.session.scalars(query)).first() is not None
 
+    async def get_for_update(self, area_id: uuid.UUID) -> DiningArea | None:
+        """Locked, so deactivating an area and adding a table to it cannot interleave
+        (backlog-issues B3). Both paths take this lock: whichever reads the area first decides, and
+        the other waits and sees what it committed."""
+        result = await self.session.scalars(
+            self.scoped().where(DiningArea.id == area_id).with_for_update()
+        )
+        return result.first()
+
+    async def all_for_update(self) -> Sequence[DiningArea]:
+        """Every area, active or not, locked: a reorder renumbers them together, and a second
+        reorder arriving meanwhile waits rather than interleaving (backlog-issues B3)."""
+        result = await self.session.scalars(
+            self.scoped().order_by(DiningArea.seq, DiningArea.id).with_for_update()
+        )
+        return result.all()
+
 
 class StationRepository(_SeqOrdered[Station]):
     model = Station

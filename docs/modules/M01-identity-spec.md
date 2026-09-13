@@ -69,6 +69,7 @@ POST   /auth/refresh            rotates the refresh token, revokes the old one
 POST   /auth/logout             revokes the presented session
 POST   /auth/password           own password change; revokes every other session
 GET    /auth/me                 own profile, roles, effective permissions
+GET    /auth/restaurants        branches beyond the 20 `/auth/me` embeds, cursor-paged (backlog-issues B3)
 
 GET    /staff/employees         list, paginated, filterable by is_active
 POST   /staff/employees         create (optionally with a login)

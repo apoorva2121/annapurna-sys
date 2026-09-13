@@ -73,6 +73,9 @@ _PUBLIC = PUBLIC_ROUTES | {
     # they are employed, which no single permission string can express. The refusal is tested
     # directly in tests/test_auth_switch.py against a two-organization, two-branch fixture (G-17).
     "POST /api/v1/auth/switch",
+    # The same list `/auth/me` embeds the first twenty of, paged (backlog-issues B3). Authorises
+    # itself for the reason `/auth/switch` does, and returns only the caller's own branches.
+    "GET /api/v1/auth/restaurants",
 }
 
 

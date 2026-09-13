@@ -237,6 +237,17 @@ class DiningAreaResponse(_ReadSchema):
     is_active: bool
 
 
+class DiningAreaReorderRequest(_Schema):
+    """The whole floor plan's order in one request (backlog-issues B3).
+
+    Every active area exactly once; deactivated areas may be included, which is what the screen
+    sends while it shows them. Replaces two PATCHes that could half-fail and leave two areas on one
+    position.
+    """
+
+    area_ids: list[uuid.UUID] = Field(min_length=1, max_length=200)
+
+
 class DiningAreaListResponse(_Schema):
     items: list[DiningAreaResponse]
     next_cursor: uuid.UUID | None = None

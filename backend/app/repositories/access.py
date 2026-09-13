@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import MOST_JUNIOR_RANK
 from app.models.access import EmployeeRoleAssignment, Permission, Role, RolePermission
+from app.models.tenancy import Restaurant
 
 
 class ResolvedAccess:
@@ -81,6 +82,23 @@ class AccessRepository:
             )
         )
         return (await self.session.scalars(query)).all()
+
+    async def active_restaurants(
+        self, restaurant_ids: Sequence[uuid.UUID]
+    ) -> dict[uuid.UUID, Restaurant]:
+        """The active rows among these ids, in one statement.
+
+        Replaces a `session.get` per branch on the path every app load takes (backlog-issues B3).
+        The ids come from `restaurants_for_employee`, so the tenant boundary is that query's.
+        """
+        if not restaurant_ids:
+            return {}
+        rows = await self.session.scalars(
+            select(Restaurant).where(
+                Restaurant.id.in_(restaurant_ids), Restaurant.is_active.is_(True)
+            )
+        )
+        return {restaurant.id: restaurant for restaurant in rows}
 
     async def most_senior_rank_anywhere(self, employee_id: uuid.UUID) -> int:
         """This person's seniority across the whole organization, ignoring branch.

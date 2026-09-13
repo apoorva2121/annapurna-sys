@@ -35,6 +35,7 @@ const AUTH: AuthState = {
     employeeCode: 'EMP002',
     restaurant: RESTAURANT,
     restaurants: [RESTAURANT],
+    hasMoreRestaurants: false,
     roles: ['manager'],
     permissions: new Set<string>(),
   } satisfies Session,

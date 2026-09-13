@@ -37,6 +37,7 @@ function renderFor(permissions: string[]): void {
       employeeCode: 'E001',
       restaurant: RESTAURANT,
       restaurants: [RESTAURANT],
+      hasMoreRestaurants: false,
       roles: [],
       permissions: held,
     } satisfies Session,

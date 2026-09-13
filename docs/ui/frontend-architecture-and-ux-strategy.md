@@ -230,6 +230,82 @@ verb through the flow (*Publish* → *Published*); errors say what happened and 
 will appear and how to make it appear (`docs/ui/conventions.md`), and, per
 `docs/onboarding-cold-start.md`, analytics that need history show a countdown, not a blank.
 
+### 1.6 What 54 other design systems added (review, 2026-09-14)
+
+The owner supplied `design-md/`: 54 published write-ups of other companies' web design systems
+(Airbnb, Uber, Stripe, Linear, IBM Carbon, Wise, Notion, Pinterest and others), each in the same
+nine sections — atmosphere, colour roles, type hierarchy, components, layout, depth, do and don't,
+responsive collapse, and a prompt guide for AI agents. **Taken: patterns and structure. Never taken:
+their colours, fonts, names or values** — the same rule as the McKesson screenshots
+(`docs/backlog.md`, the UI skill row). Most of what they cover this document already had. What it
+did not, and what was done with it:
+
+| Gap | Source pattern | Where it went |
+|---|---|---|
+| A system-level do / don't list | every file | `restaurant-ui` skill, *Do and don't* |
+| A prompt guide for AI sessions | every file (§9) | `restaurant-ui` skill, *Asking for a screen* |
+| State changes that re-flow layout | ring-as-border (22 files) | skill rule 10; design-system §1 |
+| Badge contrast measured on the tint, not the page | Notion, Kraken, IBM | skill rule 11; test not built |
+| Controls that shrink on phones | NVIDIA type scaling | skill rule 12 |
+| Photos: slot, absence, overlay | Airbnb, Pinterest, Uber | skill rule 13; spec below |
+| Elevation as a named ladder | every file | design-system §2.4, as built |
+| Rules for authoring a dark theme | IBM, Linear, Mintlify | design-system §3 |
+| Type roles, tracking, phone scaling | IBM Carbon (same typeface), Stripe | proposal below |
+| How each pattern collapses | every file (§8) | proposal below |
+
+**One correction to §1.3.** The late KDS ticket's "thicker red border" is built as an inset ring,
+so a ticket turning late does not re-flow the column (skill rule 10).
+
+**Type by role (proposal, staff surfaces).** §1.1 fixes the sizes; this assigns them to jobs. The
+letter-spacing is IBM Carbon's published tracking for IBM Plex Sans, the typeface this product
+already uses — adopt it only after seeing it beside the current rendering.
+
+| Role | Size / line | Weight | Tracking | Below `md` |
+|---|---|---|---|---|
+| Page title | 25 / 32 | 600 | 0 | 20 / 28 |
+| Section heading | 20 / 28 | 600 | 0 | 18 / 26 |
+| Row or card title | 16 / 24 | 500 | 0 | unchanged |
+| Body, button, input, amount | 16 / 24 | 400 (500 on buttons) | 0 | **never smaller** |
+| Secondary text | 14 / 20 | 400 | 0.16 px | unchanged |
+| Label, badge, timestamp | 12 / 16 | 500 | 0.32 px | unchanged |
+
+Weights stop at 600, as in §1.1. The KDS keeps its own scale.
+
+**An open question: tabular numerals everywhere, or only in data.** `index.css` sets `tabular-nums`
+on `body`. Stripe's system splits it: tabular in tables, charts and amounts; proportional in
+sentences, where fixed-width digits leave visible gaps ("Table 11"). Nearly every number on a
+staff screen is compared, so the global setting stays. **Revisit for the guest app**, which is
+mostly prose.
+
+**How patterns collapse (proposal).**
+
+| Pattern | Tablet and laptop | Phone (below `md`) |
+|---|---|---|
+| Data table | all columns | the first column sticky; lower-priority columns declared per table and hidden; horizontal scroll inside the table container only, never the page |
+| List and detail | two panes | the detail replaces the list; Back returns to the same scroll position |
+| Primary action | right of the page header | sticky bottom bar, bottom-right |
+| Dialog | centred `Dialog` | `Sheet side="bottom"` — same component, same logic |
+| Form | one column, 560 px maximum | full width, labels above |
+| Grid of cells (table map) | as many columns as fit | columns drop; a cell never shrinks below the surface target |
+| Page heading | full size | one step down (the table above); controls never shrink |
+
+**Dish photos (spec for M03's revisit and M10).** Most restaurants this product is for have no
+photographs (`docs/onboarding-cold-start.md`), so **no photo is the normal case**, and the design
+starts there.
+
+- One aspect ratio per slot, declared: 4:3 on a guest menu card, 1:1 as a thumbnail. The slot
+  reserves its space, so nothing moves when the image loads.
+- No photo: the same row without the slot. Never a placeholder box, never a stock photo — a picture
+  of food this kitchen did not cook describes the dish falsely to the person ordering it.
+- The veg / non-veg / egg mark is placed by `docs/compliance-rules.md`, beside the dish name. A photo
+  may repeat it and may never be the only place it appears.
+- No text on a photo without the `scrim` token behind it. Corners use the card radius.
+- Width and height attributes, lazy loading below the fold, and the image budget in §2.3 F.
+
+**Filed as ideas, not scope** (`docs/backlog.md`): a categorical colour set for owner charts with
+more than two series, kept apart from the alert hues (Intercom's report palette); keyboard
+shortcuts with visible key hints on laptop surfaces (Raycast).
+
 ---
 
 ## 2. The UI skill file: a design system that survives handover

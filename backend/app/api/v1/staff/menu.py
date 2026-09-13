@@ -33,6 +33,7 @@ from app.schemas.menu import (
     BulkAttachRequest,
     MenuCategoryCreateRequest,
     MenuCategoryListResponse,
+    MenuCategoryReorderRequest,
     MenuCategoryResponse,
     MenuCategoryUpdateRequest,
     MenuItemCreateRequest,
@@ -126,6 +127,19 @@ async def create_category(
     category = await MenuService(session).create_category(actor, request)
     await session.commit()
     return MenuCategoryResponse.model_validate(category)
+
+
+@router.post("/menu/categories/reorder", response_model=MenuCategoryListResponse)
+async def reorder_categories(
+    actor: _ManageDep, session: SessionDep, request: MenuCategoryReorderRequest
+) -> MenuCategoryListResponse:
+    """The whole section order in one request. Two PATCHes could half-fail and leave two sections
+    on one position (backlog-issues B3)."""
+    rows = await MenuService(session).reorder_categories(actor, request.category_ids)
+    await session.commit()
+    return MenuCategoryListResponse(
+        items=[MenuCategoryResponse.model_validate(row) for row in rows]
+    )
 
 
 @router.patch("/menu/categories/{category_id}", response_model=MenuCategoryResponse)

@@ -67,8 +67,72 @@ afterwards is how a screen ends up with four competing primary actions.
 9. **One primary action per view. One thing per surface may move on its own**, and only to say
    something arrived. A screen that is always moving teaches people to ignore movement.
 
-10. **Before finishing:** `npm run lint`, `npm run typecheck`, `npx vitest run`. All three clean,
+10. **A state never moves the layout.** Selected, focused, invalid, late: show it with a ring
+    (`ring-2`, which is a box-shadow), colour or an icon — never a thicker border, extra padding or
+    a bolder weight that re-flows the text. A row that shifts under a thumb gets the wrong tap.
+    Where a spec says "thicker border" (the late KDS ticket), build it as an inset ring.
+
+11. **A status badge is soft fill, strong ink, and a word.** Background `bg-<alert>-soft`, text and
+    icon `text-<alert>`, `rounded-full`, `text-xs font-medium`. Its contrast is text-on-soft, not
+    text-on-page — check that pair, because the page pair passing proves nothing about it.
+
+12. **Text scales down on a phone; controls do not.** Page and section headings may step down one
+    size below `md`. Body text, button labels, amounts and inputs stay at 16 px or larger — below
+    16 px, iOS Safari zooms the page when an input takes focus.
+
+13. **A photo is decoration, never information** (when dish photos arrive). The slot has a fixed
+    aspect ratio so nothing moves when it loads; a dish with no photo renders the same row without
+    the slot — never a grey box and never a stock photo of somebody else's food; no text on a photo
+    without the `scrim` token behind it; the veg / non-veg / egg mark sits beside the dish name,
+    so a photo can never hide or replace it.
+
+14. **Before finishing:** `npm run lint`, `npm run typecheck`, `npx vitest run`. All three clean,
     zero warnings.
+
+## Do and don't
+
+Real cases from this product, not general advice. Check a finished screen against both lists.
+
+**Do**
+- One ink `primary` button per view, named for the outcome: *Send to kitchen*, *Settle ₹695*.
+- Status as a soft badge with a word: *Occupied*, *Bill asked for*, *Late*.
+- Amounts through `formatINR`, right-aligned, tabular; compare to `"0.00"` to show or hide a row.
+- `min-h-target` on everything a finger aims at, including select items and clickable rows.
+- A skeleton in the shape of the finished layout; an empty state that says what will appear and
+  how to make it appear.
+- Name the thing and the amount in a destructive confirmation: *Cancel order #1042 (₹1,240)?*
+- Disable a control at its limit instead of hiding it, so nothing shifts.
+
+**Don't**
+- Use jamun (`brand`) for emphasis or decoration — it means *interactive or selected*.
+- Use red for anything that is not *someone must act now*; never two reds in one region — collapse
+  them into a count.
+- Put a shadow on a row or a card. Shadows belong to things that float.
+- Rely on hover: the waiter and kitchen surfaces have none. Hover styling goes under
+  `@media (hover: hover)`.
+- Ship an icon-only button, except for an action done fifty times a shift — then 48 px with an
+  `aria-label`.
+- Write a hex value, a fixed height, a raw `z-50`, or English inside a component.
+- Add, subtract or round two rupee amounts on the client.
+
+## Asking for a screen (AI sessions)
+
+Describe a component with **the surface first, then token and component names, then every state**.
+"A light grey box" is an adjective; `bg-muted` is a decision. Examples in this product's terms:
+
+- *"Waiter surface. Order line row: `min-h-target`; `quantity × dish` in `text-base font-medium`;
+  options beneath in `text-sm text-muted-foreground`; line total right-aligned through `formatINR`;
+  status as a soft badge with a word. States: unsent (removable in one tap), sent (asks why before
+  removing), cancelled (struck through, stays visible). No shadow. Strings from `strings.ts`."*
+- *"Manager surface. Suppliers list: `shared/ui/table`; numbers right-aligned and tabular; the whole
+  row is a link with `min-h-target`; `QueryState` for pending and error; an empty state naming how
+  to add the first supplier; cursor paging with a visible 'Load more'."*
+- *"Waiter surface. Cancel-order confirmation: `Sheet side="bottom"`; the title names the order and
+  its amount; a required reason field with its rule under it; the destructive button reads
+  'Yes, cancel it' and is disabled only while pending; the server's error appears in place."*
+
+Then iterate **one component at a time**: build it, check it against *Do and don't* and the state
+matrix (`docs/ui/frontend-architecture-and-ux-strategy.md` §2.3 B), then move on.
 
 ## What is not built yet
 
@@ -79,4 +143,9 @@ Do not cite these as if they exist, and do not add a rule that depends on them:
   settings screen. Themes themselves, the per-device picker and contrast validation exist.
 - hue-distance validation (an accent ≥25° from every alert hue) — designed, not implemented; today
   it is a review question rather than a check.
-- per-surface type scales — only `--target-min` and `--density` vary by surface today
+- per-surface type scales — only `--target-min` and `--density` vary by surface today; the proposed
+  role table (with Plex letter-spacing and phone scaling) is in the strategy document §1.6
+- a `Badge` component and a contrast test for text on each `-soft` fill — rule 11 is followed by
+  hand until then
+- dish photos and an image slot component — rule 13 is ready for when they arrive (M03 revisit,
+  M10 guest app)

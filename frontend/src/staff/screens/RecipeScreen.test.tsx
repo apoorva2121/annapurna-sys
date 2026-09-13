@@ -93,6 +93,7 @@ function auth(permissions: string[]): AuthState {
       employeeCode: 'EMP004',
       restaurant: RESTAURANT,
       restaurants: [RESTAURANT],
+      hasMoreRestaurants: false,
       roles: ['chef'],
       permissions: held,
     } satisfies Session,

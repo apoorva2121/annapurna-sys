@@ -101,6 +101,14 @@ class MenuCategoryRepository(RestaurantScopedRepository[MenuCategory]):
         )
         return result.first()
 
+    async def all_for_update(self) -> Sequence[MenuCategory]:
+        """Every section, active or not, locked: a reorder renumbers them together (backlog-issues
+        B3)."""
+        result = await self.session.scalars(
+            self.scoped().order_by(MenuCategory.seq, MenuCategory.id).with_for_update()
+        )
+        return result.all()
+
     async def next_seq(self) -> int:
         """One past the highest, so a new category lands at the end rather than at the top.
 

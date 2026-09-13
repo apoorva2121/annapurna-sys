@@ -77,6 +77,7 @@ PATCH  /restaurant                     timezone, currency, business_day_start, g
 GET    /setup/dining-areas             list, ordered by seq
 POST   /setup/dining-areas             create
 PATCH  /setup/dining-areas/{id}        rename, reorder, deactivate
+POST   /setup/dining-areas/reorder     the whole order in one request (backlog-issues B3)
 GET    /setup/tables                   list, filterable by dining_area_id
 POST   /setup/tables
 PATCH  /setup/tables/{id}

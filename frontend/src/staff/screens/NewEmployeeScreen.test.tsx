@@ -36,6 +36,7 @@ function authFor(restaurant: RestaurantSummary): AuthState {
     employeeCode: 'EMP001',
     restaurant,
     restaurants: [restaurant],
+    hasMoreRestaurants: false,
     roles: ['owner'],
     permissions: new Set<string>(),
   };

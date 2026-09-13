@@ -179,17 +179,17 @@ export type DiningAreaChanges = { name?: string; seq?: number; is_active?: boole
  * `reorder` endpoint taking the whole ordering — that is in docs/backlog.md; this is as close as a
  * client can get, and at least the failure is visible.
  */
-export function useSwapDiningAreaSeq(): UseMutationResult<
-  void,
+/** The whole floor plan's order in one request (backlog-issues B3). Two PATCHes could half-fail and
+ *  leave two areas on one position; the server now saves the order whole or refuses it whole. */
+export function useReorderDiningAreas(): UseMutationResult<
+  { items: DiningArea[] },
   Error,
-  { area: DiningArea; other: DiningArea }
+  string[]
 > {
   const invalidate = useInvalidateSetup();
   return useMutation({
-    mutationFn: async ({ area, other }) => {
-      await apiPatch<DiningArea>(`/staff/setup/dining-areas/${area.id}`, { seq: other.seq });
-      await apiPatch<DiningArea>(`/staff/setup/dining-areas/${other.id}`, { seq: area.seq });
-    },
+    mutationFn: (areaIds) =>
+      apiPost<{ items: DiningArea[] }>('/staff/setup/dining-areas/reorder', { area_ids: areaIds }),
     onSettled: invalidate,
   });
 }

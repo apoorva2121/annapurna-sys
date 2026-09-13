@@ -29,6 +29,8 @@ one warm lamp. Nobody decorates a pass; it is the most designed object in a rest
 - **Colour never alone.** Always with a word or a shape.
 - **Words are design.** The button names the outcome — *Send to kitchen*, *Settle ₹695* — never
   *Submit*.
+- **A state never moves the layout.** Selection, focus, errors and lateness are rings, colour and
+  icons, never a thicker border or extra padding: a row that shifts under a thumb gets the wrong tap.
 
 ## 2. Foundations
 
@@ -93,6 +95,16 @@ laptop, a phone and a wall tablet.
 `--duration-base` 180 ms, `--duration-slow` 240 ms, one easing. `prefers-reduced-motion: reduce`
 disables all of it, globally, in `index.css`.
 
+**Elevation, as built.** Every level is a tone or a ring; nothing on a page casts a shadow.
+
+| Level | Treatment | Used for |
+|---|---|---|
+| Page | `bg-background` | the canvas |
+| Raised | `bg-card` + `border` hairline | cards, table containers |
+| Recessed | `bg-muted` | row hover, sticky bars, active tabs |
+| Overlay | sheets and dialogs: `bg-background` with a `border` edge over `bg-scrim/70`; select menus: `bg-popover`; each on its `z-` rung | anything that floats — separated by the scrim and an edge, not a shadow |
+| Focus | `ring-2 ring-ring` + `ring-offset-2 ring-offset-background` | keyboard focus. The offset paints a gap in the page colour between control and ring, which keeps the ring visible against a filled `brand` or `primary` button |
+
 ### 2.5 Layering
 
 A named z-index ladder — `sticky 10 · dropdown 20 · sheet 30 · dialog 40 · toast 50 · offline 60`.
@@ -139,6 +151,21 @@ different and everything else stays as it was. A value you never give cannot be 
 **Shipped: `light` (Steel), `dark`, `deepavali`, `monsoon`.** More than one exists deliberately —
 applying a second theme end to end is the only thing that proves the layer works, and a system
 with one theme that claims to be themeable is a claim, not an architecture.
+
+### Making a dark theme
+
+The `dark` entry is the worked example; a new dark entry follows the same rules. A dark theme is
+not the light one inverted.
+
+- **Raised is lighter.** On a dark page a shadow is invisible, so each level steps *lighter*: in
+  `dark`, `background` 9 %, `card` and `popover` 13 %, `muted` 18 %.
+- **Interaction colours go lighter too.** `brand` and `ring` rise in lightness (in `dark`, 58 % and
+  62 % against 32 % and 45 % in light), and `brandForeground` flips to ink so the fill still carries
+  its text.
+- **Text is near-white, never pure white.** Pure white on near-black glares on a phone in a dim
+  room; the contrast guard is still met with room to spare.
+- **Borders are quieter, not brighter.** A hairline that reads as structure in light becomes a grid
+  of lines in dark.
 
 ### What a theme cannot do
 
@@ -225,3 +252,7 @@ content and voice rules, accessibility per pattern, performance budgets, and gov
 arrives with the module that first needs it — M02 adds the form and settings patterns, M03 the data
 table, M08 the KDS ticket. M07's waiter patterns are in §4. The structure they will follow is in
 `docs/ui/frontend-architecture-and-ux-strategy.md` §2.3.
+
+Proposed but not built — a type scale by role with Plex letter-spacing, how each pattern collapses
+on a phone, dish photos, badges — is in the strategy document §1.6, from the 2026-09-14 review of 54
+published design systems.

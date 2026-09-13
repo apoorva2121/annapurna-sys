@@ -107,6 +107,14 @@ Correctness rules, not aspirations. Violations fail CI where a test can express 
   a format rule is the regular expression itself. A `pattern=` without a sentence there fails the
   build (`tests/test_validation_messages.py`). On screen, `fieldErrors` puts each sentence under its
   field and `errorProps` lists them all in the notice, so no problem is ever dropped.
+- **A database refusal is a conflict, not a crash.** Services pre-check (`name_exists`) for the good
+  message; `register_error_handlers` maps the race the pre-check cannot close by SQLSTATE — unique
+  or exclusion → 409 `conflict.duplicate`, check → 422 `request.rejected`, foreign key → 409
+  `conflict.missing`. The constraint name goes to the log, never the body. Any other
+  `IntegrityError` is still a 500: an unknown refusal is a bug to see, not a message to soften.
+- **An order is saved whole.** A list a person arranges (`seq`) is reordered by one `POST
+  .../reorder` naming every active row once, in one locked transaction — never by swapping two rows
+  in two requests, which half-fails silently. Rules in `app/services/reorder.py`.
 - **Pagination is cursor-based** (`?cursor=&limit=`) on anything that grows without bound. Offset
   pagination is allowed only on fixed-size master data.
 - **Idempotency-Key required** on money- and stock-affecting POSTs (ADR 0010).

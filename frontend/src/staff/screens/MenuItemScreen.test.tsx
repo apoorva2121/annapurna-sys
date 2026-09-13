@@ -107,6 +107,7 @@ function auth(permissions: string[]): AuthState {
       employeeCode: 'EMP003',
       restaurant: RESTAURANT,
       restaurants: [RESTAURANT],
+      hasMoreRestaurants: false,
       roles: ['manager'],
       permissions: held,
     } satisfies Session,

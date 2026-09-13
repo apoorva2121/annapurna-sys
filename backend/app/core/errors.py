@@ -13,12 +13,34 @@ from typing import Any
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.logging import REQUEST_ID_HEADER, request_id_var
 from app.core.validation_messages import describe, summary
 
 logger = logging.getLogger(__name__)
+
+# A database refusal a person can recover from, by SQLSTATE (backlog-issues B3). Before this map
+# every one of them — two admins adding "Terrace" in the same second, a double-tap on a slow
+# connection — reached the catch-all as "Something went wrong". The pre-checks in the services still
+# give the specific message on the common path; this answers the race they cannot close. The
+# constraint name goes to the log only: it names a table, which the body never does (§4).
+_DUPLICATE = (
+    409,
+    "conflict.duplicate",
+    "Somebody saved the same thing a moment ago. Reload to see it.",
+)
+_REFUSALS: dict[str, tuple[int, str, str]] = {
+    "23505": _DUPLICATE,  # unique_violation
+    "23P01": _DUPLICATE,  # exclusion_violation: two effective-dated rows claiming one period
+    "23514": (422, "request.rejected", "That value is not allowed here."),  # check_violation
+    "23503": (  # foreign_key_violation
+        409,
+        "conflict.missing",
+        "Something this refers to no longer exists. Reload and try again.",
+    ),
+}
 
 
 class AppError(Exception):
@@ -122,6 +144,24 @@ def register_error_handlers(app: FastAPI) -> None:
                 request_id_for(request),
             ),
         )
+
+    @app.exception_handler(IntegrityError)
+    async def _integrity_error(request: Request, exc: IntegrityError) -> JSONResponse:
+        # `orig.sqlstate` and the cause's `constraint_name` are asyncpg's shape (probed 2026-09-13).
+        # Read defensively: an unknown code or driver falls through to an ordinary 500 below.
+        refusal = _REFUSALS.get(str(getattr(exc.orig, "sqlstate", "")))
+        if refusal is None:
+            logger.exception("unhandled_exception", extra={"error_type": type(exc).__name__})
+            return _respond(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                build_envelope(
+                    "internal.error", "Something went wrong.", None, request_id_for(request)
+                ),
+            )
+        status_code, code, message = refusal
+        constraint = getattr(getattr(exc.orig, "__cause__", None), "constraint_name", None)
+        logger.warning("database.refused", extra={"code": code, "constraint": constraint})
+        return _respond(status_code, build_envelope(code, message, None, request_id_for(request)))
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:

@@ -135,17 +135,18 @@ export function useUpdateCategory(): UseMutationResult<
  * both rows on the same `seq`. The server-side atomic reorder is still backlogged; this keeps the
  * *reporting* honest in the meantime.
  */
-export function useSwapCategorySeq(): UseMutationResult<
-  void,
+/** The whole section order in one request (backlog-issues B3) — see `useReorderDiningAreas`. */
+export function useReorderCategories(): UseMutationResult<
+  { items: MenuCategory[] },
   Error,
-  { category: MenuCategory; other: MenuCategory }
+  string[]
 > {
   const invalidate = useInvalidateMenu();
   return useMutation({
-    mutationFn: async ({ category, other }) => {
-      await apiPatch<MenuCategory>(`/staff/menu/categories/${category.id}`, { seq: other.seq });
-      await apiPatch<MenuCategory>(`/staff/menu/categories/${other.id}`, { seq: category.seq });
-    },
+    mutationFn: (categoryIds) =>
+      apiPost<{ items: MenuCategory[] }>('/staff/menu/categories/reorder', {
+        category_ids: categoryIds,
+      }),
     onSuccess: invalidate,
   });
 }

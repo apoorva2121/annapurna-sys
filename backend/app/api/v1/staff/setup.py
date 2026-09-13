@@ -25,6 +25,7 @@ from app.schemas.setup import (
     BusyWindowSettings,
     DiningAreaCreateRequest,
     DiningAreaListResponse,
+    DiningAreaReorderRequest,
     DiningAreaResponse,
     DiningAreaUpdateRequest,
     RestaurantResponse,
@@ -136,6 +137,17 @@ async def create_dining_area(
     area = await SetupService(session).create_dining_area(actor, request)
     await session.commit()
     return DiningAreaResponse.model_validate(area)
+
+
+@router.post("/setup/dining-areas/reorder", response_model=DiningAreaListResponse)
+async def reorder_dining_areas(
+    actor: _ConfigureDep, session: SessionDep, request: DiningAreaReorderRequest
+) -> DiningAreaListResponse:
+    """The whole floor plan's order in one request. Two PATCHes could half-fail and leave two areas
+    on one position (backlog-issues B3)."""
+    areas = await SetupService(session).reorder_dining_areas(actor, request.area_ids)
+    await session.commit()
+    return DiningAreaListResponse(items=[DiningAreaResponse.model_validate(area) for area in areas])
 
 
 @router.patch("/setup/dining-areas/{area_id}", response_model=DiningAreaResponse)

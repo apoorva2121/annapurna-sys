@@ -69,6 +69,7 @@ from app.schemas.menu import (
     ModifierGroupUpdateRequest,
     ModifierUpdateRequest,
 )
+from app.services.reorder import renumber, require_whole_order
 
 # Changing one of these on a variant is a money event and writes an `audit_log` row. `prep_minutes`
 # is not here: it is an operational standard, not a price.
@@ -194,6 +195,23 @@ class MenuService:
         await self.session.flush()
         await self._touch(actor)
         return category
+
+    async def reorder_categories(
+        self, actor: Actor, category_ids: Sequence[uuid.UUID]
+    ) -> list[MenuCategory]:
+        """The whole section order, in one transaction (backlog-issues B3)."""
+        categories = await self._categories(actor).all_for_update()
+        require_whole_order(
+            category_ids,
+            {category.id for category in categories},
+            (category.id for category in categories if category.is_active),
+            code="menu_category.reorder_incomplete",
+            noun="section",
+        )
+        renumber(category_ids, categories, lambda category: category.id)
+        await self.session.flush()
+        await self._touch(actor)
+        return sorted(categories, key=lambda category: category.seq)
 
     # ------------------------------------------------------------------ items
 
