@@ -362,3 +362,82 @@ class InvoiceResponse(_Schema):
     cancelled_at: datetime | None
     cancel_reason: str | None
     payments: list[PaymentResponse]
+
+
+# --------------------------------------------------------------------------- reversals
+#
+# Appended to app/schemas/orders.py by chunk H's patch, after chunk G's settlement schemas.
+
+
+class InvoiceCancelRequest(_Schema):
+    """Only for an invoice issued in error, on its own business day. The reason is required."""
+
+    reason: Reason
+
+    _clean = field_validator("reason", mode="before")(_strip)
+
+
+class CreditLineRequest(_Schema):
+    order_line_id: uuid.UUID
+    quantity: int = Field(ge=1, le=99)
+
+
+class RefundRequest(_Schema):
+    """Money going back. Sent positive; stored as a negative payment naming the credit note."""
+
+    method: PaymentMethod
+    amount: Money
+    reference: str | None = Field(default=None, max_length=64)
+
+    _clean = field_validator("reference", mode="before")(_strip)
+
+    @model_validator(mode="after")
+    def _real_money(self) -> Self:
+        if self.method == PaymentMethod.DUE:
+            raise ValueError("A refund is money going back, so it cannot be on account.")
+        return self
+
+
+class CreditNoteRequest(_Schema):
+    reason: Reason
+    lines: list[CreditLineRequest] = Field(min_length=1, max_length=50)
+    refunds: list[RefundRequest] = Field(default_factory=list, max_length=5)
+
+    _clean = field_validator("reason", mode="before")(_strip)
+
+    @model_validator(mode="after")
+    def _each_dish_once(self) -> Self:
+        ids = [line.order_line_id for line in self.lines]
+        if len(set(ids)) != len(ids):
+            raise ValueError("Each dish can be named once on a credit note.")
+        return self
+
+
+class CreditNoteLineResponse(_ReadSchema):
+    id: uuid.UUID
+    order_line_id: uuid.UUID
+    quantity: int
+    taxable_value: Decimal
+    cgst_amount: Decimal
+    sgst_amount: Decimal
+    tax_amount: Decimal
+    line_total: Decimal
+
+
+class CreditNoteResponse(_Schema):
+    id: uuid.UUID
+    invoice_id: uuid.UUID
+    credit_note_number: str
+    financial_year: str
+    issued_at: datetime
+    note_date: date
+    business_date: date
+    reason: str
+    issued_by: uuid.UUID
+    taxable_total: Decimal
+    cgst_total: Decimal
+    sgst_total: Decimal
+    non_gst_tax_total: Decimal
+    grand_total: Decimal
+    lines: list[CreditNoteLineResponse]
+    refunds: list[PaymentResponse]

@@ -270,6 +270,11 @@ def _sample_body(route: RouteInfo) -> dict[str, Any]:
         return {"version": 1, "line_ids": [str(_PROBE_UUID)]}
     if route.path.endswith("/settle"):
         return {"version": 1, "payments": [{"method": "cash", "amount": "1.00"}]}
+    if route.path.endswith("/credit-notes"):
+        return {
+            "reason": "Probe credit note",
+            "lines": [{"order_line_id": str(_PROBE_UUID), "quantity": 1}],
+        }
     if route.path.endswith("/remove"):
         return {"version": 1, "reason": "Probe removal"}
     if "/orders/" in route.path and route.method == "PATCH":

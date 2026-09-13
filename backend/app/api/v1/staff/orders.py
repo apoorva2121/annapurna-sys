@@ -1,6 +1,6 @@
 """Orders at the table. Every handler is authorise-call-shape.
 
-Five permissions, from `seed/organization.yaml`'s P1 design:
+Six permissions, from `seed/organization.yaml`'s P1 design:
 
 - `order.view` — read orders and their provisional bills. The accountant holds this and nothing else
   on this path.
@@ -11,9 +11,10 @@ Five permissions, from `seed/organization.yaml`'s P1 design:
   sends it is recorded as its authoriser.
 - `order.settle` — settle a bill: number its invoice, take its payments, post what it consumed.
   Held by a waiter, because the person at the table takes the money.
+- `order.void` — cancel an invoice issued in error, or issue a credit note and refund. Not held by
+  a waiter: cancelling a paid cash bill is how the cash disappears.
 
-Voids and credit notes (`order.void`) are a later chunk and are not registered yet, so no route can
-exist without its permission.
+No route exists without its permission, and `tests/test_generic_suites.py` walks every one.
 
 **Every write returns the whole order, re-read after the commit.** The waiter's screen replaces its
 copy with what the server now believes, version included, so the next change is made against the
@@ -40,9 +41,13 @@ from app.api.idempotency import begin_idempotent
 from app.core.actor import Actor
 from app.core.enums import OrderStatus
 from app.core.permissions import PermissionCode
-from app.models.orders import Invoice, Order, Payment
+from app.models.orders import CreditNote, Invoice, Order, Payment
 from app.repositories.base import DEFAULT_PAGE_SIZE
 from app.schemas.orders import (
+    CreditNoteLineResponse,
+    CreditNoteRequest,
+    CreditNoteResponse,
+    InvoiceCancelRequest,
     InvoiceResponse,
     OrderCancelRequest,
     OrderChargeRequest,
@@ -63,6 +68,7 @@ from app.schemas.orders import (
     PaymentResponse,
 )
 from app.services.orders import OrderService
+from app.services.reversals import CreditLineInput, RefundInput, ReversalService
 from app.services.settlement import PaymentInput, Recipient, SettlementService
 
 router = APIRouter(tags=["orders"])
@@ -72,6 +78,7 @@ _CreateDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_CR
 _ModifyDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_MODIFY))]
 _DiscountDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_DISCOUNT))]
 _SettleDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_SETTLE))]
+_VoidDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_VOID))]
 _LimitDep = Annotated[int | None, Query(ge=1, le=100)]
 _CursorDep = Annotated[uuid.UUID | None, Query()]
 
@@ -428,3 +435,83 @@ async def get_invoice(
     actor: _ViewDep, session: SessionDep, invoice_id: uuid.UUID
 ) -> InvoiceResponse:
     return _invoice_response(*await SettlementService(session, actor.scope).get_invoice(invoice_id))
+
+
+# --------------------------------------------------------------------------- reversals
+#
+# Appended to app/api/v1/staff/orders.py by chunk H's patch, after chunk G's settlement routes.
+
+_CREDIT_NOTE_FIELDS = tuple(
+    name for name in CreditNoteResponse.model_fields if name not in {"lines", "refunds"}
+)
+
+
+def _credit_note_response(note: CreditNote, refunds: Sequence[Payment]) -> CreditNoteResponse:
+    fields = {name: getattr(note, name) for name in _CREDIT_NOTE_FIELDS}
+    return CreditNoteResponse.model_validate(
+        fields
+        | {
+            "lines": [CreditNoteLineResponse.model_validate(line) for line in note.lines],
+            "refunds": [PaymentResponse.model_validate(row) for row in refunds],
+        }
+    )
+
+
+@router.post("/invoices/{invoice_id}/cancel", response_model=InvoiceResponse)
+async def cancel_invoice(
+    actor: _VoidDep,
+    session: SessionDep,
+    invoice_id: uuid.UUID,
+    payload: InvoiceCancelRequest,
+    request: Request,
+) -> InvoiceResponse | JSONResponse:
+    """Withdraw an invoice issued in error, on its business day. It keeps its number and moves no
+    money; money going back is a credit note. Idempotent, like every void (ADR 0010)."""
+    call = await begin_idempotent(request, session, actor)
+    if call.replay is not None:
+        return call.replay
+    await ReversalService(session, actor.scope).cancel_invoice(
+        actor, invoice_id, reason=payload.reason
+    )
+    response = _invoice_response(
+        *await SettlementService(session, actor.scope).get_invoice(invoice_id)
+    )
+    await call.complete(status.HTTP_200_OK, response)
+    await session.commit()
+    return response
+
+
+@router.post(
+    "/invoices/{invoice_id}/credit-notes",
+    response_model=CreditNoteResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def issue_credit_note(
+    actor: _VoidDep,
+    session: SessionDep,
+    invoice_id: uuid.UUID,
+    payload: CreditNoteRequest,
+    request: Request,
+) -> CreditNoteResponse | JSONResponse:
+    """Reduce a settled bill by whole dishes, with any refund against it (CGST Act s.34)."""
+    call = await begin_idempotent(request, session, actor)
+    if call.replay is not None:
+        return call.replay
+    service = ReversalService(session, actor.scope)
+    note_id = await service.issue_credit_note(
+        actor,
+        invoice_id,
+        reason=payload.reason,
+        lines=[
+            CreditLineInput(order_line_id=line.order_line_id, quantity=line.quantity)
+            for line in payload.lines
+        ],
+        refunds=[
+            RefundInput(method=refund.method, amount=refund.amount, reference=refund.reference)
+            for refund in payload.refunds
+        ],
+    )
+    response = _credit_note_response(*await service.get_credit_note(note_id))
+    await call.complete(status.HTTP_201_CREATED, response)
+    await session.commit()
+    return response

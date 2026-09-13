@@ -41,6 +41,8 @@ from app.models.menu import (
 )
 from app.models.orders import (
     CashSession,
+    CreditNote,
+    CreditNoteLine,
     Invoice,
     Order,
     OrderDiscount,
@@ -278,6 +280,11 @@ _INVOICE_NUMBER_LOCK_NAMESPACE = 80_001
 class InvoiceRepository(RestaurantScopedRepository[Invoice]):
     model = Invoice
 
+    async def get_for_update(self, invoice_id: uuid.UUID) -> Invoice | None:
+        """Locked, so a cancellation and a credit note against one invoice cannot interleave."""
+        query = self.scoped().where(Invoice.id == invoice_id).with_for_update()
+        return (await self.session.scalars(query)).first()
+
     async def next_sequence(self, financial_year: str) -> int:
         """The next consecutive number in this restaurant's series for the year, under a lock held
         to commit (CGST Rules, Rule 46(b); spec decision 1).
@@ -324,8 +331,90 @@ class CashSessionRepository(RestaurantScopedRepository[CashSession]):
 class PaymentRepository(RestaurantScopedRepository[Payment]):
     model = Payment
 
+    async def for_credit_note(self, credit_note_id: uuid.UUID) -> Sequence[Payment]:
+        result = await self.session.scalars(
+            self.scoped().where(Payment.credit_note_id == credit_note_id).order_by(Payment.id)
+        )
+        return result.all()
+
     async def for_order(self, order_id: uuid.UUID) -> Sequence[Payment]:
         result = await self.session.scalars(
             self.scoped().where(Payment.order_id == order_id).order_by(Payment.id)
         )
         return result.all()
+
+
+# ------------------------------------------------------------------------------- credit notes
+#
+# Appended to app/repositories/orders.py by chunk H's patch, after chunk G's invoice repositories.
+
+# Its own namespace: a credit-note lock can never collide with an invoice, order or purchase-order
+# lock on the same restaurant.
+_CREDIT_NOTE_LOCK_NAMESPACE = 90_001
+
+
+@dataclass(frozen=True, slots=True)
+class CreditedSoFar:
+    """What earlier credit notes against one invoice already took off one dish."""
+
+    quantity: int = 0
+    taxable: Decimal = Decimal("0.00")
+    cgst: Decimal = Decimal("0.00")
+    tax: Decimal = Decimal("0.00")
+
+
+class CreditNoteRepository(RestaurantScopedRepository[CreditNote]):
+    model = CreditNote
+
+    async def next_sequence(self, financial_year: str) -> int:
+        """Consecutive per restaurant per year, under a lock held to commit — for the same reason
+        `InvoiceRepository.next_sequence` gives. A credit note is a document with its own series
+        (Rule 53), and a gap in it is the same question an invoice gap is."""
+        key = f"{self.scope.restaurant_id}:{financial_year}"
+        await self.session.execute(
+            select(
+                func.pg_advisory_xact_lock(literal(_CREDIT_NOTE_LOCK_NAMESPACE), func.hashtext(key))
+            )
+        )
+        highest = await self.session.scalar(
+            self.scoped()
+            .with_only_columns(func.max(CreditNote.sequence))
+            .where(CreditNote.financial_year == financial_year)
+        )
+        return int(highest or 0) + 1
+
+    async def credited_so_far(self, invoice_id: uuid.UUID) -> dict[uuid.UUID, CreditedSoFar]:
+        """Per dish, what earlier credit notes against this invoice took off. One statement."""
+        rows = await self.session.execute(
+            select(
+                CreditNoteLine.order_line_id,
+                func.sum(CreditNoteLine.quantity),
+                func.sum(CreditNoteLine.taxable_value),
+                func.sum(CreditNoteLine.cgst_amount),
+                func.sum(CreditNoteLine.tax_amount),
+            )
+            .join(CreditNote, CreditNote.id == CreditNoteLine.credit_note_id)
+            .where(
+                CreditNote.invoice_id == invoice_id,
+                CreditNote.restaurant_id == self.scope.restaurant_id,
+                CreditNoteLine.restaurant_id == self.scope.restaurant_id,
+            )
+            .group_by(CreditNoteLine.order_line_id)
+        )
+        return {
+            line_id: CreditedSoFar(
+                quantity=int(quantity),
+                taxable=Decimal(str(taxable)),
+                cgst=Decimal(str(cgst)),
+                tax=Decimal(str(tax)),
+            )
+            for line_id, quantity, taxable, cgst, tax in rows.tuples().all()
+        }
+
+    async def get_detail(self, credit_note_id: uuid.UUID) -> CreditNote | None:
+        query = (
+            self.scoped()
+            .options(selectinload(CreditNote.lines))
+            .where(CreditNote.id == credit_note_id)
+        )
+        return (await self.session.scalars(query)).first()

@@ -21,6 +21,8 @@ const IDEMPOTENT_ENDPOINTS: readonly RegExp[] = [
   /^\/staff\/goods-receipts$/,
   /^\/staff\/purchase-orders\/[^/]+\/receive$/,
   /^\/staff\/orders\/[^/]+\/settle$/,
+  /^\/staff\/invoices\/[^/]+\/cancel$/,
+  /^\/staff\/invoices\/[^/]+\/credit-notes$/,
 ];
 
 export type RequestOptions = { idempotencyKey?: string };

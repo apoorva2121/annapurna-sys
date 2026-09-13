@@ -20,9 +20,9 @@ Spec: `docs/modules/M07-orders-spec.md` (`a40ea95`). **Resume from the State tab
 | 1 | E2 | Discounts, charges, split | ☑ done | `1851657` |
 | 1 | — | **PR 1 gate: full `make check`** | ☑ green on the second run | fix `65e0418` |
 | 2 | F | Idempotency mechanism + retrofit M06 receiving | ☑ done | `817dd27` |
-| 2 | G | Settlement: invoice numbering, payments, consumption, cost freeze | ☑ done | this commit |
-| 2 | H | Credit notes, invoice cancellation, refunds | ☐ next | — |
-| 2 | I | Cash sessions, counts, payouts, adjustments | ☐ | — |
+| 2 | G | Settlement: invoice numbering, payments, consumption, cost freeze | ☑ done | `f567ee0` |
+| 2 | H | Credit notes, invoice cancellation, refunds | ☑ done | this commit |
+| 2 | I | Cash sessions, counts, payouts, adjustments | ☐ next | — |
 | 3 | J | Table map, order taking, bill, split, payment | ☐ | — |
 | 3 | K | Void / credit note, cash-up screens, waiter patterns | ☐ | — |
 | 3 | L | Seed, review, second reader, manual script, compliance-rules.md | ☐ | — |
@@ -345,6 +345,31 @@ invoice or payment behind. The Jaipur bill from the owner's research settles to 
 Green before commit: backend 148 passed (settlement, orders endpoints and schema, idempotency,
 generic suites); ruff, format and mypy over 144 files; `tsc`, eslint and the wrapper's tests; both
 audits.
+
+---
+
+## Chunk H — nothing settled is edited; everything after is a new document
+
+`POST /invoices/{id}/cancel` and `POST /invoices/{id}/credit-notes` (both `order.void`; the credit
+note is idempotent), and `GET /credit-notes/{id}`.
+
+**Cancelling an invoice is for one issued in error**: on its business day of issue, and only while
+nothing has been credited against it. It keeps its number, is reported as cancelled, and voids its
+order. **Cancellation moves no money and no stock.** It withdraws a document raised against the
+wrong table, and the bill is raised again where it belonged. Money going back is always a credit
+note with a refund, the only path that has to carry a reason and a name.
+
+**A credit note reduces an invoice by whole dishes** (CGST Act s.34; Rule 53), in its own series
+(`CN/2026-27/00001`, advisory lock 90_001). Each line carries its share of the original line's
+taxable value and tax, with CGST and SGST kept equal. A dish cannot be credited more times than it
+was billed across every note, and **the note that credits a dish's last unit takes the exact
+remainder**, so crediting three portions one at a time cannot drift a paisa from the bill.
+
+**A refund is a negative payment naming its credit note.** Migration 0019 refuses one without a note,
+and the service refuses one larger than the note or on account. A refund posts to the till open at
+the time. **Neither path reverses stock:** a dish sent back was cooked, and binning it is wastage.
+
+Green before commit: backend 97 passed (reversals, settlement, orders endpoints, generic suites); ruff, format and mypy over 146 files; `tsc` and eslint; both audits.
 
 ---
 
