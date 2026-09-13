@@ -20,6 +20,7 @@ const NEVER_REFRESH: ReadonlySet<string> = new Set(['/auth/login', REFRESH_PATH,
 const IDEMPOTENT_ENDPOINTS: readonly RegExp[] = [
   /^\/staff\/goods-receipts$/,
   /^\/staff\/purchase-orders\/[^/]+\/receive$/,
+  /^\/staff\/orders\/[^/]+\/settle$/,
 ];
 
 export type RequestOptions = { idempotencyKey?: string };

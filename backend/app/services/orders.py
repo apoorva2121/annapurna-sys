@@ -464,14 +464,18 @@ class OrderService:
             extra={"order_id": str(order.id), "lines_sent_to_kitchen": len(cooked)},
         )
 
-    async def _release_tables(self, order: Order) -> None:
-        """Free a table this order occupied, unless another live order still sits there."""
+    async def _release_tables(self, order: Order, *, to: TableStatus = TableStatus.FREE) -> None:
+        """Release a table this order occupied, unless another live order still sits there.
+
+        Cancelling frees it; settling sends it to `cleaning`, because the table a party has just
+        paid at is not ready for the next one.
+        """
         for link in order.tables:
             if await self._orders.live_order_on_table(link.restaurant_table_id, excluding=order.id):
                 continue
             table = await self._tables.get(link.restaurant_table_id)
             if table is not None and table.status == TableStatus.OCCUPIED:
-                table.status = TableStatus.FREE
+                table.status = to
         await self.session.flush()
 
     # ------------------------------------------------------------------ discounts

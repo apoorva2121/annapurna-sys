@@ -31,7 +31,7 @@ from decimal import Decimal
 from sqlalchemy import Integer, Select, cast, func, literal, or_, select, update
 from sqlalchemy.orm import selectinload
 
-from app.core.enums import OrderStatus
+from app.core.enums import CashSessionStatus, OrderStatus
 from app.models.menu import (
     MenuItem,
     MenuItemModifierGroup,
@@ -39,7 +39,15 @@ from app.models.menu import (
     Modifier,
     ModifierGroup,
 )
-from app.models.orders import Order, OrderDiscount, OrderLine, OrderTable
+from app.models.orders import (
+    CashSession,
+    Invoice,
+    Order,
+    OrderDiscount,
+    OrderLine,
+    OrderTable,
+    Payment,
+)
 from app.models.setup import TaxGroup, TaxRate
 from app.repositories.base import RestaurantScopedRepository, ScopedRepository, page_size
 
@@ -256,3 +264,68 @@ class PricingRepository(ScopedRepository[MenuItemVariant]):
         regime, rate, inclusive = row
         rate_value = rate if isinstance(rate, Decimal) else Decimal(str(rate))
         return RateOnDate(regime=str(regime), rate=rate_value, inclusive=bool(inclusive))
+
+
+# ----------------------------------------------------------------------------------------- invoices
+#
+# Appended to app/repositories/orders.py by chunk G's patch.
+
+# Distinct from the order-number (70_001) and purchase-order (60_001) namespaces, so an invoice
+# lock can never collide with either on the same restaurant.
+_INVOICE_NUMBER_LOCK_NAMESPACE = 80_001
+
+
+class InvoiceRepository(RestaurantScopedRepository[Invoice]):
+    model = Invoice
+
+    async def next_sequence(self, financial_year: str) -> int:
+        """The next consecutive number in this restaurant's series for the year, under a lock held
+        to commit (CGST Rules, Rule 46(b); spec decision 1).
+
+        **Gapless because the lock and the insert share a transaction.** A settlement that fails
+        after allocating a number rolls back its invoice row, and the next settlement — waiting on
+        this lock — reads the same maximum and takes the same number. A sequence object would hand
+        out the number and keep it, leaving exactly the gap an assessment asks about.
+        """
+        key = f"{self.scope.restaurant_id}:{financial_year}"
+        await self.session.execute(
+            select(
+                func.pg_advisory_xact_lock(
+                    literal(_INVOICE_NUMBER_LOCK_NAMESPACE), func.hashtext(key)
+                )
+            )
+        )
+        highest = await self.session.scalar(
+            self.scoped()
+            .with_only_columns(func.max(Invoice.sequence))
+            .where(Invoice.financial_year == financial_year)
+        )
+        return int(highest or 0) + 1
+
+    async def for_order(self, order_id: uuid.UUID) -> Invoice | None:
+        return (
+            await self.session.scalars(self.scoped().where(Invoice.order_id == order_id))
+        ).first()
+
+
+class CashSessionRepository(RestaurantScopedRepository[CashSession]):
+    model = CashSession
+
+    async def open_id(self) -> uuid.UUID | None:
+        """The till open now, if any. At most one, by migration 0019's partial unique index."""
+        found: uuid.UUID | None = await self.session.scalar(
+            self.scoped()
+            .with_only_columns(CashSession.id)
+            .where(CashSession.status == CashSessionStatus.OPEN)
+        )
+        return found
+
+
+class PaymentRepository(RestaurantScopedRepository[Payment]):
+    model = Payment
+
+    async def for_order(self, order_id: uuid.UUID) -> Sequence[Payment]:
+        result = await self.session.scalars(
+            self.scoped().where(Payment.order_id == order_id).order_by(Payment.id)
+        )
+        return result.all()

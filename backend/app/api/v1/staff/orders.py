@@ -1,6 +1,6 @@
 """Orders at the table. Every handler is authorise-call-shape.
 
-Four permissions, from `seed/organization.yaml`'s P1 design:
+Five permissions, from `seed/organization.yaml`'s P1 design:
 
 - `order.view` — read orders and their provisional bills. The accountant holds this and nothing else
   on this path.
@@ -9,9 +9,11 @@ Four permissions, from `seed/organization.yaml`'s P1 design:
   bill, cancelling an order that never settled, charges, and splitting a bill by items.
 - `order.discount` — apply or remove a discount or a comp. Not held by a waiter, and the person who
   sends it is recorded as its authoriser.
+- `order.settle` — settle a bill: number its invoice, take its payments, post what it consumed.
+  Held by a waiter, because the person at the table takes the money.
 
-Settlement (`order.settle`) and voids (`order.void`) are later chunks and are not registered yet, so
-no route can exist without its permission.
+Voids and credit notes (`order.void`) are a later chunk and are not registered yet, so no route can
+exist without its permission.
 
 **Every write returns the whole order, re-read after the commit.** The waiter's screen replaces its
 copy with what the server now believes, version included, so the next change is made against the
@@ -26,18 +28,22 @@ one many clients will not send.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi.responses import JSONResponse
 
 from app.api.deps import SessionDep, require_permission
+from app.api.idempotency import begin_idempotent
 from app.core.actor import Actor
 from app.core.enums import OrderStatus
 from app.core.permissions import PermissionCode
-from app.models.orders import Order
+from app.models.orders import Invoice, Order, Payment
 from app.repositories.base import DEFAULT_PAGE_SIZE
 from app.schemas.orders import (
+    InvoiceResponse,
     OrderCancelRequest,
     OrderChargeRequest,
     OrderChargeResponse,
@@ -50,11 +56,14 @@ from app.schemas.orders import (
     OrderListResponse,
     OrderRemoveRequest,
     OrderResponse,
+    OrderSettleRequest,
     OrderSplitRequest,
     OrderSummaryResponse,
     OrderVersionRequest,
+    PaymentResponse,
 )
 from app.services.orders import OrderService
+from app.services.settlement import PaymentInput, Recipient, SettlementService
 
 router = APIRouter(tags=["orders"])
 
@@ -62,6 +71,7 @@ _ViewDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_VIEW
 _CreateDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_CREATE))]
 _ModifyDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_MODIFY))]
 _DiscountDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_DISCOUNT))]
+_SettleDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_SETTLE))]
 _LimitDep = Annotated[int | None, Query(ge=1, le=100)]
 _CursorDep = Annotated[uuid.UUID | None, Query()]
 
@@ -345,3 +355,76 @@ async def split_order(
     )
     await session.commit()
     return _detail(await service.get(new_order_id))
+
+
+# --------------------------------------------------------------------------- settlement
+#
+# Appended to app/api/v1/staff/orders.py by chunk G's patch.
+
+_INVOICE_FIELDS = tuple(name for name in InvoiceResponse.model_fields if name != "payments")
+
+
+def _invoice_response(invoice: Invoice, payments: Sequence[Payment]) -> InvoiceResponse:
+    fields = {name: getattr(invoice, name) for name in _INVOICE_FIELDS}
+    return InvoiceResponse.model_validate(
+        fields | {"payments": [PaymentResponse.model_validate(row) for row in payments]}
+    )
+
+
+@router.post(
+    "/orders/{order_id}/settle",
+    response_model=InvoiceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def settle_order(
+    actor: _SettleDep,
+    session: SessionDep,
+    order_id: uuid.UUID,
+    payload: OrderSettleRequest,
+    request: Request,
+) -> InvoiceResponse | JSONResponse:
+    """Number the invoice, take the payments, post consumption and freeze the cost — atomically.
+
+    Idempotent (ADR 0010): a Settle tapped twice on a stalled connection replays the first invoice
+    rather than charging the table twice. The response is built before the commit, so the ledger
+    stores exactly what is returned.
+    """
+    call = await begin_idempotent(request, session, actor)
+    if call.replay is not None:
+        return call.replay
+    service = SettlementService(session, actor.scope)
+    invoice_id = await service.settle(
+        actor,
+        order_id,
+        version=payload.version,
+        payments=[
+            PaymentInput(
+                method=payment.method,
+                amount=payment.amount,
+                tip_amount=payment.tip_amount,
+                reference=payment.reference,
+                paid_at=payment.paid_at,
+            )
+            for payment in payload.payments
+        ],
+        recipient=(
+            None
+            if payload.recipient is None
+            else Recipient(
+                name=payload.recipient.name,
+                gstin=payload.recipient.gstin,
+                address=payload.recipient.address,
+            )
+        ),
+    )
+    response = _invoice_response(*await service.get_invoice(invoice_id))
+    await call.complete(status.HTTP_201_CREATED, response)
+    await session.commit()
+    return response
+
+
+@router.get("/invoices/{invoice_id}", response_model=InvoiceResponse)
+async def get_invoice(
+    actor: _ViewDep, session: SessionDep, invoice_id: uuid.UUID
+) -> InvoiceResponse:
+    return _invoice_response(*await SettlementService(session, actor.scope).get_invoice(invoice_id))

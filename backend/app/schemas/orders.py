@@ -20,15 +20,19 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.enums import (
     ChargeType,
     DiscountType,
+    DocumentType,
+    InvoiceStatus,
     OrderChannel,
     OrderLineStatus,
     OrderStatus,
     OrderType,
+    PaymentMethod,
+    PaymentStatus,
     TaxRegime,
 )
 
@@ -272,3 +276,89 @@ class OrderResponse(OrderSummaryResponse):
 class OrderListResponse(_Schema):
     items: list[OrderSummaryResponse]
     next_cursor: uuid.UUID | None = None
+
+
+# --------------------------------------------------------------------------- settlement
+#
+# Appended to app/schemas/orders.py by chunk G's patch.
+
+# Same structural pattern as `schemas/setup.py` and `schemas/procurement.py`. A well-formed GSTIN is
+# not a verified one (`docs/compliance-rules.md` §A3).
+_GSTIN = r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$"
+
+
+class PaymentRequest(_Schema):
+    """One payment toward the bill. Several are how "we'll pay separately" works (decision 9).
+
+    `paid_at` is when the money was actually received — a UPI payment confirmed before the bill was
+    printed — because Section 14 counts it. The server refuses a time before the order was placed or
+    after now, so it cannot be used to move a bill across a rate change.
+    """
+
+    method: PaymentMethod
+    amount: Money
+    tip_amount: Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=2)] = Decimal("0.00")
+    reference: str | None = Field(default=None, max_length=64)
+    paid_at: AwareDatetime | None = None
+
+    _clean = field_validator("reference", mode="before")(_strip)
+
+
+class RecipientRequest(_Schema):
+    """A registered customer's details, printed on their tax invoice when they ask (Rule 46(d))."""
+
+    name: str | None = Field(default=None, max_length=160)
+    gstin: str | None = Field(default=None, pattern=_GSTIN)
+    address: str | None = Field(default=None, max_length=400)
+
+    _clean = field_validator("name", "address", mode="before")(_strip)
+
+
+class OrderSettleRequest(_Schema):
+    version: Version
+    payments: list[PaymentRequest] = Field(min_length=1, max_length=10)
+    recipient: RecipientRequest | None = None
+
+
+class PaymentResponse(_ReadSchema):
+    id: uuid.UUID
+    method: PaymentMethod
+    amount: Decimal
+    tip_amount: Decimal
+    reference: str | None
+    status: PaymentStatus
+    paid_at: datetime
+    credit_note_id: uuid.UUID | None
+
+
+class InvoiceResponse(_Schema):
+    """The legal document as issued, with the payments made against it."""
+
+    id: uuid.UUID
+    order_id: uuid.UUID
+    document_type: DocumentType
+    invoice_number: str
+    financial_year: str
+    status: InvoiceStatus
+    issued_at: datetime
+    invoice_date: date
+    business_date: date
+    supplier_name: str
+    supplier_address: dict[str, Any] | None
+    supplier_gstin: str | None
+    fssai_licence: str | None
+    recipient_name: str | None
+    recipient_gstin: str | None
+    recipient_address: str | None
+    sac_code: str
+    taxable_total: Decimal
+    cgst_total: Decimal
+    sgst_total: Decimal
+    non_gst_tax_total: Decimal
+    discount_total: Decimal
+    charge_total: Decimal
+    round_off: Decimal
+    grand_total: Decimal
+    cancelled_at: datetime | None
+    cancel_reason: str | None
+    payments: list[PaymentResponse]

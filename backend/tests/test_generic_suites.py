@@ -43,7 +43,7 @@ from app.models.menu import (
     Modifier,
     ModifierGroup,
 )
-from app.models.orders import Order, OrderCharge, OrderDiscount, OrderLine
+from app.models.orders import Invoice, Order, OrderCharge, OrderDiscount, OrderLine
 from app.models.procurement import (
     GoodsReceipt,
     GoodsReceiptLine,
@@ -268,6 +268,8 @@ def _sample_body(route: RouteInfo) -> dict[str, Any]:
         return {"version": 1, "type": "packaging", "amount": "20.00"}
     if route.path.endswith("/split"):
         return {"version": 1, "line_ids": [str(_PROBE_UUID)]}
+    if route.path.endswith("/settle"):
+        return {"version": 1, "payments": [{"method": "cash", "amount": "1.00"}]}
     if route.path.endswith("/remove"):
         return {"version": 1, "reason": "Probe removal"}
     if "/orders/" in route.path and route.method == "PATCH":
@@ -363,6 +365,7 @@ _VICTIM_PARAMETERS = frozenset(
         "line_id",
         "discount_id",
         "charge_id",
+        "invoice_id",
     }
 )
 
@@ -658,12 +661,31 @@ async def _victim_resources(
     )
     session.add_all([victim_discount, victim_charge])
     await session.flush()
+    # A bill of supply, so the victim restaurant needs no GSTIN for the row to be valid.
+    victim_invoice = Invoice(
+        restaurant_id=restaurant_id,
+        order_id=victim_order.id,
+        document_type="bill_of_supply",
+        financial_year="2026-27",
+        sequence=1,
+        invoice_number="2026-27/000001",
+        status="issued",
+        issued_at=datetime.now(UTC),
+        invoice_date=date(2026, 9, 13),
+        business_date=date(2026, 9, 13),
+        supplier_name=f"{prefix} Restaurant",
+        taxable_total=Decimal("470.00"),
+        grand_total=Decimal("470.00"),
+    )
+    session.add(victim_invoice)
+    await session.flush()
 
     return {
         "order_id": str(victim_order.id),
         "line_id": str(victim_line.id),
         "discount_id": str(victim_discount.id),
         "charge_id": str(victim_charge.id),
+        "invoice_id": str(victim_invoice.id),
         "count_id": str(count.id),
         "supplier_id": str(supplier.id),
         "po_id": str(order.id),

@@ -19,9 +19,9 @@ Spec: `docs/modules/M07-orders-spec.md` (`a40ea95`). **Resume from the State tab
 | 1 | E1 | Orders, lines, modifiers, send/serve/bill/cancel · table status | ☑ done | `437a9e6` |
 | 1 | E2 | Discounts, charges, split | ☑ done | `1851657` |
 | 1 | — | **PR 1 gate: full `make check`** | ☑ green on the second run | fix `65e0418` |
-| 2 | F | Idempotency mechanism + retrofit M06 receiving | ☑ done | this commit |
-| 2 | G | Settlement: invoice numbering, payments, consumption, cost freeze | ☐ next | — |
-| 2 | H | Credit notes, invoice cancellation, refunds | ☐ | — |
+| 2 | F | Idempotency mechanism + retrofit M06 receiving | ☑ done | `817dd27` |
+| 2 | G | Settlement: invoice numbering, payments, consumption, cost freeze | ☑ done | this commit |
+| 2 | H | Credit notes, invoice cancellation, refunds | ☐ next | — |
 | 2 | I | Cash sessions, counts, payouts, adjustments | ☐ | — |
 | 3 | J | Table map, order taking, bill, split, payment | ☐ | — |
 | 3 | K | Void / credit note, cash-up screens, waiter patterns | ☐ | — |
@@ -313,6 +313,38 @@ gains a refinement note: the wrapper refuses a keyless request rather than inven
 Green before commit: backend 65 passed (idempotency, procurement endpoints, query counts, generic
 suites); frontend 23 passed (wrapper, key hook, goods receipt); ruff, format and mypy over 142 files;
 `tsc` and eslint; both audits.
+
+---
+
+## Chunk G — settling is one transaction, and its order is the design
+
+`POST /orders/{id}/settle` (`order.settle`, idempotent) and `GET /invoices/{id}`. The service's
+docstring is the specification; the sequence is:
+
+1. **Lock and check first.** Version, status, and the restaurant's ability to issue the document its
+   scheme requires. A regular restaurant with no GSTIN cannot issue a tax invoice, so it is refused
+   before anything is written; a composition restaurant issues a bill of supply with no tax.
+2. **Re-freeze tax from Section 14's date**, the median of served, invoiced and the earliest payment,
+   and reprice every line and charge while the order is still live, because migration 0019 refuses
+   the write one statement after settlement.
+3. **Freeze the plate cost** from today's recipe and unit costs, with the costing snapshot loaded
+   once for the whole bill.
+4. **Post theoretical consumption**: a dish recipe's direct components plus each modifier recipe's,
+   times quantity, summed per stock item. A preparation is consumed as itself, not as the onions it
+   was made from. Settlement is never refused for want of stock (M05 decision 2).
+5. **The payments must cover the re-frozen total exactly.** A payment's `paid_at` may not precede
+   the order or run more than two minutes ahead of the server.
+6. **Number the invoice under an advisory lock** (namespace 80_001, series per financial year),
+   snapshot the restaurant's identity onto it, and write the payments.
+7. **Settle the order last**, send its tables to cleaning, and audit.
+
+**Proven on real transactions:** five bills settling at once take five consecutive numbers, and two
+devices settling one order charge it once. A failure injected after consumption leaves no movement,
+invoice or payment behind. The Jaipur bill from the owner's research settles to the rupee as printed.
+
+Green before commit: backend 148 passed (settlement, orders endpoints and schema, idempotency,
+generic suites); ruff, format and mypy over 144 files; `tsc`, eslint and the wrapper's tests; both
+audits.
 
 ---
 
