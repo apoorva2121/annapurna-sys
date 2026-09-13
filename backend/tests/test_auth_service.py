@@ -115,7 +115,12 @@ class TestLogin:
         #
         # It was `frozenset()` until M03, when the P1 design's `menu.view` reached every role that
         # works a shift: a waiter who cannot read the menu cannot take an order.
-        assert result.permissions == frozenset({"menu.view"})
+        #
+        # M07 added the four a waiter needs to take and settle a bill, and deliberately not
+        # `order.void`, `order.discount` or `cash.manage` — the design's classic leakage vectors.
+        assert result.permissions == frozenset(
+            {"menu.view", "order.create", "order.modify", "order.settle", "order.view"}
+        )
 
     async def test_a_phone_number_logs_in_the_same_way_an_email_does(
         self, db_session: AsyncSession

@@ -68,6 +68,9 @@ permissions:
   - {code: order.settle,            resource: order,       action: settle}
   - {code: order.void,              resource: order,       action: void}
   - {code: order.discount,          resource: order,       action: discount}
+  # till - AMENDED by docs/modules/M07-orders-spec.md. The P1 design had no cash permission, and
+  # a waiter holding order.settle takes cash but must not close the till it went into.
+  - {code: cash.manage,             resource: cash,        action: manage}
   # kitchen
   - {code: kot.view,                resource: kot,         action: view}
   - {code: kot.update,              resource: kot,         action: update}
@@ -156,6 +159,7 @@ roles:
     is_system: true
     permissions:
       - order.view, order.create, order.modify, order.settle, order.void, order.discount
+      - cash.manage                    # M07 amendment
       - kot.view, kot.update
       - menu.view, menu.manage
       - recipe.view, cost.view
@@ -200,6 +204,7 @@ roles:
       - message.send, task.view, task.complete
       - performance.view.own
     # NOT granted: order.void, order.discount, cost.view - the classic leakage vectors.
+    # Nor cash.manage (M07): a waiter takes cash and never closes the till it went into.
 
   - code: store_manager
     name: Inventory / Store Manager

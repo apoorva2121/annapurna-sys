@@ -82,6 +82,20 @@ class PermissionCode(StrEnum):
     SUPPLIER_MANAGE = "supplier.manage"
     PURCHASE_MANAGE = "purchase.manage"
 
+    # M07. Six straight from `seed/organization.yaml`'s P1 design, and one amendment to it. The
+    # waiter's grants are the design's line: `order.settle`, because the person at the table takes
+    # the money, and NOT `order.void` or `order.discount`, which the design itself calls the
+    # classic leakage vectors. `cash.manage` is the amendment: the design had no cash permission,
+    # so the M07 spec added one for owner and manager, in the design file first, which is the only
+    # order the design-subset test permits. A waiter takes cash and never closes the till.
+    ORDER_VIEW = "order.view"
+    ORDER_CREATE = "order.create"
+    ORDER_MODIFY = "order.modify"
+    ORDER_SETTLE = "order.settle"
+    ORDER_VOID = "order.void"
+    ORDER_DISCOUNT = "order.discount"
+    CASH_MANAGE = "cash.manage"
+
 
 class PermissionSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

@@ -242,3 +242,47 @@ def test_the_shipped_catalogue_is_a_subset_of_the_p1_design() -> None:
         f"{sorted(unplanned)} are enforced by the application but appear nowhere in "
         "seed/organization.yaml's design. Either add them there or stop checking them."
     )
+
+
+class TestTheBillAndTheTill:
+    """M07. The grants that decide who can make money disappear, asserted by name because a
+    permission quietly added to a waiter reads exactly like a permission correctly withheld."""
+
+    def test_a_waiter_takes_and_settles_orders(self) -> None:
+        held = permissions_for_role("waiter")
+        assert {"order.view", "order.create", "order.modify", "order.settle"} <= held
+
+    @pytest.mark.parametrize("code", ["order.void", "order.discount", "cash.manage"])
+    def test_a_waiter_cannot_void_discount_or_close_the_till(self, code: str) -> None:
+        """The P1 design's own phrase: "the classic leakage vectors"."""
+        assert code not in permissions_for_role("waiter")
+
+    def test_the_accountant_reads_orders_and_changes_none(self) -> None:
+        held = {
+            code
+            for code in permissions_for_role("accountant")
+            if code.startswith(("order.", "cash."))
+        }
+        assert held == {"order.view"}
+
+    def test_the_manager_runs_the_floor_and_the_till(self) -> None:
+        on_the_floor = {
+            "order.view",
+            "order.create",
+            "order.modify",
+            "order.settle",
+            "order.void",
+            "order.discount",
+            "cash.manage",
+        }
+        assert on_the_floor <= permissions_for_role("manager")
+
+    @pytest.mark.parametrize(
+        "role_code", ["admin", "chef", "kitchen_staff", "store_manager", "cleaner"]
+    )
+    def test_roles_off_the_floor_hold_no_order_or_cash_permission(self, role_code: str) -> None:
+        """Including `admin`, which configures the restaurant and is not in its commerce."""
+        held = {
+            code for code in permissions_for_role(role_code) if code.startswith(("order.", "cash."))
+        }
+        assert not held

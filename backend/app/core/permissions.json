@@ -167,6 +167,48 @@
       "resource": "stock",
       "action": "count",
       "description": "Open a count sheet, record what is on the shelf, and approve the result. Approval is what posts the corrections, and the service refuses an approver who is also the counter — a control carried by a CHECK constraint as well, so it holds for a path that forgets to ask."
+    },
+    {
+      "code": "order.view",
+      "resource": "order",
+      "action": "view",
+      "description": "See orders, bills, invoices and credit notes. The accountant holds this and nothing else on the order path: reconciling the day's takings means reading every bill and changing none."
+    },
+    {
+      "code": "order.create",
+      "resource": "order",
+      "action": "create",
+      "description": "Open an order for a table, a takeaway or a delivery."
+    },
+    {
+      "code": "order.modify",
+      "resource": "order",
+      "action": "modify",
+      "description": "Add, change and send dishes, mark them served, split a bill, add packaging or an optional service charge, and cancel an order that was never settled. The server recomputes every price and tax from the menu; the client sends only what was ordered."
+    },
+    {
+      "code": "order.settle",
+      "resource": "order",
+      "action": "settle",
+      "description": "Take payment and settle a bill, which numbers the invoice, posts the stock the dishes consumed and freezes their food cost. Held by a waiter, because the person at the table is the person who takes the money."
+    },
+    {
+      "code": "order.void",
+      "resource": "order",
+      "action": "void",
+      "description": "Cancel an invoice on its day of issue, or issue a credit note and refund against a settled bill. Not held by a waiter: cancelling a paid cash bill is how the cash disappears, so it needs a more senior person and a reason, and a cancelled invoice keeps its number."
+    },
+    {
+      "code": "order.discount",
+      "resource": "order",
+      "action": "discount",
+      "description": "Apply a discount or a comp, always with a reason and always with this person's name on it. Not held by a waiter: the P1 design names discounts one of the classic leakage vectors."
+    },
+    {
+      "code": "cash.manage",
+      "resource": "cash",
+      "action": "manage",
+      "description": "Open and close the till, count the cash, and record payouts and post-close adjustments. Added to the P1 design by the M07 spec: a waiter takes cash and never closes the till that cash went into."
     }
   ],
   "roles": [
@@ -176,6 +218,7 @@
       "rank": 0,
       "description": "The person whose money is at risk. Holds everything, always.",
       "permissions": [
+        "cash.manage",
         "cost.view",
         "employee.create",
         "employee.deactivate",
@@ -186,6 +229,12 @@
         "menu.manage",
         "menu.price",
         "menu.view",
+        "order.create",
+        "order.discount",
+        "order.modify",
+        "order.settle",
+        "order.view",
+        "order.void",
         "purchase.manage",
         "recipe.manage",
         "recipe.view",
@@ -228,6 +277,7 @@
       "rank": 20,
       "description": "Runs the floor. Staffs a shift at 7am when the owner is not on site, and appoints junior roles and other managers — but can never promote anyone above manager, nor change their own roles. Every assignment is written to the audit trail.",
       "permissions": [
+        "cash.manage",
         "cost.view",
         "employee.create",
         "employee.deactivate",
@@ -237,6 +287,12 @@
         "employee.view",
         "menu.manage",
         "menu.view",
+        "order.create",
+        "order.discount",
+        "order.modify",
+        "order.settle",
+        "order.view",
+        "order.void",
         "purchase.manage",
         "recipe.view",
         "role.view",
@@ -277,9 +333,13 @@
       "code": "waiter",
       "name": "Waiter",
       "rank": 40,
-      "description": "Takes orders. Staff records carry phone numbers and dates of birth, so no access here.",
+      "description": "Takes orders and takes the money: holds order.settle and NOT order.void, order.discount or cash.manage, which are the classic leakage vectors. Staff records carry phone numbers and dates of birth, so no access there.",
       "permissions": [
-        "menu.view"
+        "menu.view",
+        "order.create",
+        "order.modify",
+        "order.settle",
+        "order.view"
       ]
     },
     {
@@ -310,9 +370,10 @@
       "code": "accountant",
       "name": "Accountant",
       "rank": 30,
-      "description": "Reads the staff list because payroll needs to know who is employed, and reconciles what suppliers billed against what arrived. Holds purchase.manage and NOT stock.receive: an accountant may raise an order and may never sign for a delivery.",
+      "description": "Reads the staff list because payroll needs to know who is employed, and reconciles what suppliers billed against what arrived. Holds purchase.manage and NOT stock.receive: an accountant may raise an order and may never sign for a delivery. Reads every order and changes none: order.view is the whole of its order path.",
       "permissions": [
         "employee.view",
+        "order.view",
         "purchase.manage",
         "supplier.view"
       ]

@@ -49,6 +49,17 @@ export const Permission = {
   SUPPLIER_VIEW: 'supplier.view',
   SUPPLIER_MANAGE: 'supplier.manage',
   PURCHASE_MANAGE: 'purchase.manage',
+  // M07. A waiter holds ORDER_SETTLE and not ORDER_VOID or ORDER_DISCOUNT, the P1 design's
+  // classic leakage vectors, and the bill screen renders a void or discount control only for
+  // the permission that makes it work. CASH_MANAGE is the M07 spec's amendment to that design:
+  // a waiter takes cash and never closes the till it went into.
+  ORDER_VIEW: 'order.view',
+  ORDER_CREATE: 'order.create',
+  ORDER_MODIFY: 'order.modify',
+  ORDER_SETTLE: 'order.settle',
+  ORDER_VOID: 'order.void',
+  ORDER_DISCOUNT: 'order.discount',
+  CASH_MANAGE: 'cash.manage',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

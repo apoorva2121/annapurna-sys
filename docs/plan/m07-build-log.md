@@ -13,8 +13,8 @@ Spec: `docs/modules/M07-orders-spec.md` (`a40ea95`). **Resume from the State tab
 |---|---|---|---|---|
 | — | — | Research + spec | ☑ done | `a40ea95` |
 | 1 | A | Log-context fix · UUID redaction fix | ☑ done | `6dfec22` |
-| 1 | B | Migration 0019 + models + schema doc + enums | ☑ done | this commit |
-| 1 | C | Permissions 0020 + `cash.manage` design amendment | ☐ | — |
+| 1 | B | Migration 0019 + models + schema doc + enums | ☑ done | `142105f` |
+| 1 | C | Permissions 0020 + `cash.manage` design amendment | ☑ done | this commit |
 | 1 | D | Tax core: FY, line split, median rate date, apportionment | ☐ | — |
 | 1 | E | Orders, lines, modifiers, charges, discounts, split | ☐ | — |
 | 2 | F | Idempotency mechanism + retrofit M06 receiving | ☐ | — |
@@ -131,6 +131,36 @@ rewritten to the built design with a *"What migration 0019 added"* section; head
 Green before commit: 56 schema tests; 146 across migration round-trip, generic suites, enum mirror
 and the M01/M06 schema suites; ruff, format, mypy over `app` and `tests`; `tsc`, eslint on the enum
 mirror; both audits.
+
+---
+
+## Chunk C — who may make money disappear
+
+Migration `0020_m07_order_permissions`; the catalogue, `PermissionCode` and the frontend mirror.
+
+| Permission | owner | manager | waiter | accountant | everyone else |
+|---|---|---|---|---|---|
+| `order.view` | ✓ | ✓ | ✓ | ✓ | — |
+| `order.create` · `order.modify` · `order.settle` | ✓ | ✓ | ✓ | — | — |
+| `order.void` · `order.discount` | ✓ | ✓ | — | — | — |
+| `cash.manage` | ✓ | ✓ | — | — | — |
+
+Six codes are verbatim from the P1 design. **`cash.manage` is an amendment, and it went into
+`seed/organization.yaml` before the catalogue** — the design-subset test permits no other order.
+`admin` holds none of the seven, as in 0018: configuration and people, not commerce.
+
+New tests name the grants that matter rather than counting them: a waiter settles and cannot void,
+discount or close the till; the accountant's whole order path is `order.view`; `admin`, chef, kitchen
+staff, store manager and cleaner hold no order or cash permission.
+
+**Two existing tests failed, and were meant to.** `test_auth_service.py` and `test_auth_switch.py`
+assert a waiter's resolved permissions as a literal set, with a comment saying widening a waiter's
+powers has to be a deliberate edit there — the failure they guard is a resolver that quietly
+returns everything. Chunk C is that deliberate widening, so both literals now name the waiter's
+five grants, and the comment records what M07 withheld.
+
+**Nothing enforces these yet.** Chunk E's routes are the first to declare them; until then the
+permission-matrix suite has nothing new to walk.
 
 ---
 
