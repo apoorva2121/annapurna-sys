@@ -80,6 +80,7 @@ PATCH  /setup/dining-areas/{id}        rename, reorder, deactivate
 GET    /setup/tables                   list, filterable by dining_area_id
 POST   /setup/tables
 PATCH  /setup/tables/{id}
+POST   /setup/tables/{id}/status            M07: status left the PATCH; free or out_of_service refused under a live order
 GET    /setup/stations                 list, ordered by seq
 POST   /setup/stations
 PATCH  /setup/stations/{id}

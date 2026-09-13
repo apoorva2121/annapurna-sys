@@ -43,6 +43,7 @@ from app.models.menu import (
     Modifier,
     ModifierGroup,
 )
+from app.models.orders import Order, OrderLine
 from app.models.procurement import (
     GoodsReceipt,
     GoodsReceiptLine,
@@ -253,6 +254,22 @@ def _sample_body(route: RouteInfo) -> dict[str, Any]:
                 }
             ],
         }
+    # M07. Every order change carries the version it read (ADR 0010), so each body needs one to
+    # get past validation. The order-cancel branch sits above the generic `/cancel` for that.
+    if route.path.endswith("/orders"):
+        return {"type": "takeaway"}
+    if route.path.endswith("/lines"):
+        return {"version": 1, "menu_item_variant_id": str(_PROBE_UUID), "quantity": 1}
+    if "/orders/" in route.path and route.path.endswith("/cancel"):
+        return {"version": 1, "reason": "Probe cancellation"}
+    if route.path.endswith("/remove"):
+        return {"version": 1, "reason": "Probe removal"}
+    if "/orders/" in route.path and route.method == "PATCH":
+        return {"version": 1, "quantity": 2}
+    if route.path.endswith(("/send", "/served", "/bill")) and "/orders/" in route.path:
+        return {"version": 1}
+    if route.path.endswith("/status"):
+        return {"status": "reserved"}
     if route.path.endswith("/cancel"):
         return {"reason": "Probe cancellation"}
     if route.path.endswith("/receive"):
@@ -334,6 +351,10 @@ _VICTIM_PARAMETERS = frozenset(
         "supplier_id",
         "po_id",
         "receipt_id",
+        # M07. An order and a line of another restaurant's: the bill somebody would most want
+        # to read, and the one a cross-tenant write would most damage.
+        "order_id",
+        "line_id",
     }
 )
 
@@ -580,7 +601,42 @@ async def _victim_resources(
     )
     await session.flush()
 
+    # M07: an order with one line, so a probe has another restaurant's bill to try to read,
+    # change, send, serve, bill or cancel.
+    victim_order = Order(
+        restaurant_id=restaurant_id,
+        order_number="1",
+        type="takeaway",
+        channel="pos",
+        status="open",
+        placed_at=datetime.now(UTC),
+        business_date=date(2026, 9, 13),
+    )
+    session.add(victim_order)
+    await session.flush()
+    victim_line = OrderLine(
+        restaurant_id=restaurant_id,
+        order_id=victim_order.id,
+        menu_item_variant_id=variant.id,
+        quantity=1,
+        unit_price=Decimal("470.00"),
+        line_subtotal=Decimal("470.00"),
+        tax_group_id=tax.id,
+        tax_regime="gst",
+        tax_rate=Decimal("0.0500"),
+        taxable_value=Decimal("470.00"),
+        cgst_amount=Decimal("11.75"),
+        sgst_amount=Decimal("11.75"),
+        tax_amount=Decimal("23.50"),
+        line_total=Decimal("493.50"),
+        status="pending",
+    )
+    session.add(victim_line)
+    await session.flush()
+
     return {
+        "order_id": str(victim_order.id),
+        "line_id": str(victim_line.id),
         "count_id": str(count.id),
         "supplier_id": str(supplier.id),
         "po_id": str(order.id),

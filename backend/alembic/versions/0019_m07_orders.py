@@ -269,6 +269,7 @@ def upgrade() -> None:
         sa.Column("tax_group_id", _uuid(), nullable=False),
         sa.Column("tax_regime", sa.Text(), nullable=False, server_default="gst"),
         sa.Column("tax_rate", sa.Numeric(6, 4), nullable=False),
+        sa.Column("tax_inclusive", sa.Boolean(), nullable=False, server_default=sa.false()),
         _money("taxable_value"),
         _money("cgst_amount", default=True),
         _money("sgst_amount", default=True),

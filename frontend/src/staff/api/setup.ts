@@ -222,7 +222,6 @@ export type TableChanges = {
   dining_area_id?: string;
   code?: string;
   seats?: number;
-  status?: RestaurantTable['status'];
   is_active?: boolean;
 };
 
@@ -235,6 +234,24 @@ export function useUpdateTable(): UseMutationResult<
   return useMutation({
     mutationFn: ({ id, changes }) =>
       apiPatch<RestaurantTable>(`/staff/setup/tables/${id}`, changes),
+    onSuccess: invalidate,
+  });
+}
+
+/**
+ * Status is not a field of the general table edit. It is live state, and the server refuses
+ * `free` or `out_of_service` while an order is still open on the table (M07), so it has its own
+ * transition endpoint and its own refusal to show.
+ */
+export function useSetTableStatus(): UseMutationResult<
+  RestaurantTable,
+  Error,
+  { id: string; status: RestaurantTable['status'] }
+> {
+  const invalidate = useInvalidateSetup();
+  return useMutation({
+    mutationFn: ({ id, status }) =>
+      apiPost<RestaurantTable>(`/staff/setup/tables/${id}/status`, { status }),
     onSuccess: invalidate,
   });
 }

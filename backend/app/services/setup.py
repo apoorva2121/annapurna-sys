@@ -42,6 +42,7 @@ from app.core.errors import AppError, ConflictError, NotFoundError
 from app.models.audit import AuditLog
 from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, TaxRate
 from app.models.tenancy import Restaurant
+from app.repositories.orders import OrderRepository
 from app.repositories.setup import (
     DiningAreaRepository,
     RestaurantRepository,
@@ -299,6 +300,31 @@ class SetupService:
         for field, value in changes.items():
             if value is not None:
                 setattr(table, field, value)
+        await self.session.flush()
+        return table
+
+    async def set_table_status(
+        self, actor: Actor, table_id: uuid.UUID, status: TableStatus
+    ) -> RestaurantTable:
+        """Move a table between states, refusing `free` or `out_of_service` under a live order.
+
+        Marking a table free while its order is still open is how the next party gets seated on
+        top of an unpaid bill — and how that bill stops appearing on the table map anyone looks
+        at. The order has to be settled or cancelled first; the refusal names it.
+        """
+        table = await self._tables(actor).get(table_id)
+        if table is None:
+            raise NotFoundError("table.not_found", "That table does not exist.")
+        if status in (TableStatus.FREE, TableStatus.OUT_OF_SERVICE):
+            live = await OrderRepository(self.session, actor.scope).live_order_on_table(table_id)
+            if live is not None:
+                raise ConflictError(
+                    "table.order_open",
+                    f"Table {table.code} still has order {live.order_number} open. "
+                    "Settle or cancel it first.",
+                    details={"order_id": str(live.id)},
+                )
+        table.status = status
         await self.session.flush()
         return table
 

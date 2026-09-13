@@ -320,6 +320,9 @@ class OrderLine(TimestampedUUIDMixin, Base):
     tax_group_id: Mapped[uuid.UUID] = mapped_column(_uuid(), nullable=False)
     tax_regime: Mapped[str] = mapped_column(Text, nullable=False, default=TaxRegime.GST)
     tax_rate: Mapped[object] = mapped_column(Numeric(6, 4), nullable=False)
+    # The rate's `is_inclusive`, copied with it. A reprice has to know whether the line's price
+    # already contains its tax, and the rate row may have changed since.
+    tax_inclusive: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     taxable_value: Mapped[object] = mapped_column(Numeric(12, 2), nullable=False)
     cgst_amount: Mapped[object] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     sgst_amount: Mapped[object] = mapped_column(Numeric(12, 2), nullable=False, default=0)

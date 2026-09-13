@@ -543,8 +543,8 @@ class TestTables:
         area = await _area(api_client, token)
         table = await _table(api_client, token, area["id"])
 
-        response = await api_client.patch(
-            f"{SETUP}/tables/{table['id']}",
+        response = await api_client.post(
+            f"{SETUP}/tables/{table['id']}/status",
             json={"status": TableStatus.RESERVED},
             headers=_auth(token),
         )
@@ -560,8 +560,28 @@ class TestTables:
         area = await _area(api_client, token)
         table = await _table(api_client, token, area["id"])
 
+        response = await api_client.post(
+            f"{SETUP}/tables/{table['id']}/status",
+            json={"status": "on_fire"},
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 422
+
+    async def test_status_is_not_a_field_of_the_general_table_edit(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """M07. Status has a transition rule, so a PATCH carrying it is refused rather than
+        applied around the rule — an extra field is a 422 under `extra="forbid"`."""
+        await _world(db_session, "owner")
+        token = await _token(api_client, "owner")
+        area = await _area(api_client, token)
+        table = await _table(api_client, token, area["id"])
+
         response = await api_client.patch(
-            f"{SETUP}/tables/{table['id']}", json={"status": "on_fire"}, headers=_auth(token)
+            f"{SETUP}/tables/{table['id']}",
+            json={"status": TableStatus.FREE},
+            headers=_auth(token),
         )
 
         assert response.status_code == 422

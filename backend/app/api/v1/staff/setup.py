@@ -35,6 +35,7 @@ from app.schemas.setup import (
     TableCreateRequest,
     TableListResponse,
     TableResponse,
+    TableStatusRequest,
     TableUpdateRequest,
     TaxGroupCreateRequest,
     TaxGroupListResponse,
@@ -173,6 +174,15 @@ async def update_table(
     actor: _ConfigureDep, session: SessionDep, table_id: uuid.UUID, request: TableUpdateRequest
 ) -> TableResponse:
     table = await SetupService(session).update_table(actor, table_id, request)
+    await session.commit()
+    return TableResponse.model_validate(table)
+
+
+@router.post("/setup/tables/{table_id}/status", response_model=TableResponse)
+async def set_table_status(
+    actor: _ConfigureDep, session: SessionDep, table_id: uuid.UUID, request: TableStatusRequest
+) -> TableResponse:
+    table = await SetupService(session).set_table_status(actor, table_id, request.status)
     await session.commit()
     return TableResponse.model_validate(table)
 

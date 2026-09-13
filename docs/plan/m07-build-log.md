@@ -15,8 +15,9 @@ Spec: `docs/modules/M07-orders-spec.md` (`a40ea95`). **Resume from the State tab
 | 1 | A | Log-context fix · UUID redaction fix | ☑ done | `6dfec22` |
 | 1 | B | Migration 0019 + models + schema doc + enums | ☑ done | `142105f` |
 | 1 | C | Permissions 0020 + `cash.manage` design amendment | ☑ done | `5281f5b` |
-| 1 | D | Tax core: FY, line split, median rate date, apportionment | ☑ done | this commit |
-| 1 | E | Orders, lines, modifiers, charges, discounts, split | ☐ | — |
+| 1 | D | Tax core: FY, line split, median rate date, apportionment | ☑ done | `5151e2a` |
+| 1 | E1 | Orders, lines, modifiers, send/serve/bill/cancel · table status | ☑ done | this commit |
+| 1 | E2 | Discounts, charges, split | ☐ next | — |
 | 2 | F | Idempotency mechanism + retrofit M06 receiving | ☐ | — |
 | 2 | G | Settlement: invoice numbering, payments, consumption, cost freeze | ☐ | — |
 | 2 | H | Credit notes, invoice cancellation, refunds | ☐ | — |
@@ -187,6 +188,46 @@ would have meant the schema and the arithmetic disagreed.
 - The spec named `tax.split_line()`; it is `tax_line()`, returning every figure `order_line` stores.
 
 **Not yet exercised:** `price_bill` has no caller until chunk E's reprice.
+
+---
+
+## Chunk E1 — an order from the first dish to the bill
+
+Chunk E split in two, because discounts, charges and splitting are each a rule with its own
+failure modes, and one commit carrying all of them would be reviewed as one blur. E1: repository,
+service, schemas and routes for orders; the table-status transition endpoint; the floor plan screen
+moved onto it. 29 endpoint tests; the generic suites now probe every order route with a victim
+order and line.
+
+**Decisions, and deviations from the spec's endpoint table:**
+
+- **Taking a dish off is `POST .../lines/{line_id}/remove`, not DELETE.** What it does depends on
+  the kitchen — an unsent line is deleted, a sent one is cancelled with a reason and an audit row —
+  and it needs a body carrying the version. A required query parameter would also have 422'd the
+  generic suites' probes before they reached the tenant check.
+- **A price sent by the client is refused with a 422**, which is stronger than the spec's "ignored":
+  `extra="forbid"` names the field, and a client that sends a price believes it.
+- **`order_line.tax_inclusive` was added by amending 0019**, committed in `142105f` but never applied
+  outside throwaway test databases. A reprice has to know whether a line's price already contains its
+  tax, and the rate row may have changed since. CLAUDE.md forbids editing a migration applied on
+  staging; this one has not been.
+- **Every change reprices the whole order** through `app/core/tax.py`, flushing and re-reading
+  first, and always moves the version — even when no figure changes — because a change the version
+  does not record is one the next stale screen overwrites.
+- **The order row is locked for the length of a change** and the version checked after the lock.
+  Status is checked before version: "this order is cancelled" helps a waiter more than "reload".
+- **Order numbers restart each business day**, allocated under an advisory lock (namespace 70_001).
+- **Opening a dine-in order marks its tables occupied; cancelling frees a table** only when no other
+  live order sits there. Settlement's table handling is chunk G's.
+- **`served_at` is overwritten on each serve** (Section 14's time of supply is when the supply
+  completes); **`bill_requested_at` keeps the first request** (bill-to-settle is measured from when
+  the customer first asked).
+- **Audit rows:** a sent line cancelled, and an order cancelled — with how much had gone to the
+  kitchen, which is the walk-out signal. Adding or removing an unsent line is not audited; the order
+  is its own record. **INFO business events:** `order.opened`, `order.sent`, `order.cancelled`.
+- **Table status:** `status` left `TableUpdateRequest`, so a PATCH carrying it is a 422, and
+  `POST /setup/tables/{table_id}/status` refuses `free` or `out_of_service` under a live order,
+  naming the order. M02's manual step A8 still reads correctly — the control on screen is the same.
 
 ---
 

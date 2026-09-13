@@ -641,6 +641,7 @@ order_line
   tax_group_id        NN FK→(tax_group.id, restaurant_id)
   tax_regime          text NN check(gst|non_gst) default 'gst'
   tax_rate            numeric(6,4) NN            -- snapshot when added, re-frozen at settlement
+  tax_inclusive       bool NN default false      -- the rate's is_inclusive, copied with it
   taxable_value       numeric(12,2) NN
   cgst_amount         numeric(12,2) NN default 0
   sgst_amount         numeric(12,2) NN default 0

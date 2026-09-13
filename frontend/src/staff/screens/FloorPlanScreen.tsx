@@ -17,6 +17,7 @@ import {
   useCreateTable,
   useDiningAreas,
   useTables,
+  useSetTableStatus,
   useSwapDiningAreaSeq,
   useUpdateDiningArea,
   useUpdateTable,
@@ -286,6 +287,7 @@ function TableRowEditor({
   areas: DiningArea[];
 }): ReactElement {
   const update = useUpdateTable();
+  const setStatus = useSetTableStatus();
 
   return (
     <TableRow>
@@ -295,10 +297,7 @@ function TableRowEditor({
         <Select
           value={table.status}
           onValueChange={(status) => {
-            update.mutate({
-              id: table.id,
-              changes: { status: status as RestaurantTable['status'] },
-            });
+            setStatus.mutate({ id: table.id, status: status as RestaurantTable['status'] });
           }}
         >
           <SelectTrigger aria-label={`${strings.setup.floor.status}: ${table.code}`}>
@@ -312,6 +311,7 @@ function TableRowEditor({
             ))}
           </SelectContent>
         </Select>
+        {setStatus.isError && <Notice tone="critical" {...errorProps(setStatus.error)} />}
       </TableCell>
       <TableCell>
         <Select

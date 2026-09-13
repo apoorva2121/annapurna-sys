@@ -249,12 +249,18 @@ class TableUpdateRequest(_Schema):
     dining_area_id: uuid.UUID | None = None
     code: str | None = Field(default=None, min_length=1, max_length=20)
     seats: int | None = Field(default=None, ge=1, le=100)
-    # Live state, and the only field here that changes during service rather than during setup.
-    # `reserved` is set by hand by a manager taking a walk-in booking (M02 spec decision 3).
-    status: TableStatus | None = None
+    # No `status`, since M07. Status is live state with a transition rule — a table with an
+    # order open on it cannot be marked free — so it has its own endpoint, and a PATCH
+    # carrying it is refused rather than quietly applied around the rule.
     is_active: bool | None = None
 
     _strip_code = field_validator("code", mode="before")(_strip)
+
+
+class TableStatusRequest(_Schema):
+    """`reserved` is set by hand by a manager taking a walk-in booking (M02 spec decision 3)."""
+
+    status: TableStatus
 
 
 # --------------------------------------------------------------------------- the kitchen

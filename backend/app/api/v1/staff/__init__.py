@@ -9,12 +9,22 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1.staff import employees, inventory, menu, procurement, roles, setup, stock
+from app.api.v1.staff import (
+    employees,
+    inventory,
+    menu,
+    orders,
+    procurement,
+    roles,
+    setup,
+    stock,
+)
 
 router = APIRouter()
 router.include_router(employees.router)
 router.include_router(inventory.router)
 router.include_router(menu.router)
+router.include_router(orders.router)
 router.include_router(procurement.router)
 router.include_router(roles.router)
 router.include_router(setup.router)
