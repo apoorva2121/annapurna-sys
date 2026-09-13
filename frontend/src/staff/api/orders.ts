@@ -120,6 +120,8 @@ export type Order = {
   lines: OrderLine[];
   discounts: OrderDiscount[];
   charges: OrderCharge[];
+  /** Set once the order is settled or voided, so a manager can reach its invoice. */
+  invoice_id: string | null;
 };
 
 export type FloorOrder = {
@@ -409,6 +411,116 @@ export function useSettle(): UseMutationResult<
       ),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ORDERS_KEY });
+    },
+  });
+}
+
+// ---------------------------------------------------------------- after settlement (chunk K)
+
+export type OrderSummary = Omit<Order, 'lines' | 'discounts' | 'charges' | 'invoice_id'>;
+
+export type OrderPage = { items: OrderSummary[]; next_cursor: string | null };
+
+/**
+ * One business day's settled and cancelled bills, a page at a time: where the manager who has to
+ * credit a dish starts. A full page offers the next one rather than stopping without a word, which
+ * is how M01's staff list once hid everyone after the fiftieth.
+ */
+export function useBills(businessDate: string, cursor: string | null): UseQueryResult<OrderPage> {
+  return useQuery({
+    queryKey: [...ORDERS_KEY, 'bills', businessDate, cursor],
+    queryFn: () => {
+      const query = new URLSearchParams([
+        ['status', 'settled'],
+        ['status', 'voided'],
+        ['business_date', businessDate],
+      ]);
+      if (cursor !== null) {
+        query.append('cursor', cursor);
+      }
+      return apiGet<OrderPage>(`/staff/orders?${query.toString()}`);
+    },
+  });
+}
+
+export type CreditNoteLine = {
+  id: string;
+  order_line_id: string;
+  quantity: number;
+  taxable_value: string;
+  cgst_amount: string;
+  sgst_amount: string;
+  tax_amount: string;
+  line_total: string;
+};
+
+export type CreditNote = {
+  id: string;
+  invoice_id: string;
+  credit_note_number: string;
+  financial_year: string;
+  issued_at: string;
+  note_date: string;
+  business_date: string;
+  reason: string;
+  issued_by: string;
+  taxable_total: string;
+  cgst_total: string;
+  sgst_total: string;
+  non_gst_tax_total: string;
+  grand_total: string;
+  lines: CreditNoteLine[];
+  refunds: Payment[];
+};
+
+export type CreditLineInput = { order_line_id: string; quantity: number };
+
+/** Sent positive; the server stores it as a negative payment naming the credit note. */
+export type RefundInput = { method: PaymentMethod; amount: string; reference?: string };
+
+/** Withdraw an invoice issued in error. Idempotent (ADR 0010): a double tap withdraws it once. */
+export function useCancelInvoice(): UseMutationResult<
+  Invoice,
+  Error,
+  { invoiceId: string; reason: string; idempotencyKey: string }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ invoiceId, reason, idempotencyKey }) =>
+      apiPost<Invoice>(`/staff/invoices/${invoiceId}/cancel`, { reason }, { idempotencyKey }),
+    onSuccess: (invoice) => {
+      client.setQueryData([...ORDERS_KEY, 'invoice', invoice.id], invoice);
+      void client.invalidateQueries({ queryKey: ORDERS_KEY });
+    },
+  });
+}
+
+/**
+ * Reduce a settled bill by whole dishes, with any money given back. A refund changes what the till
+ * should hold, so the till is re-read as well as the bill.
+ */
+export function useCreditNote(): UseMutationResult<
+  CreditNote,
+  Error,
+  {
+    invoiceId: string;
+    reason: string;
+    lines: CreditLineInput[];
+    refunds: RefundInput[];
+    idempotencyKey: string;
+  }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ invoiceId, reason, lines, refunds, idempotencyKey }) =>
+      apiPost<CreditNote>(
+        `/staff/invoices/${invoiceId}/credit-notes`,
+        { reason, lines, refunds },
+        { idempotencyKey },
+      ),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ORDERS_KEY });
+      void client.invalidateQueries({ queryKey: ['staff', 'cash'] });
     },
   });
 }

@@ -104,7 +104,7 @@ def _summary(order: Order) -> OrderSummaryResponse:
     return OrderSummaryResponse.model_validate(fields | {"table_ids": _table_ids(order)})
 
 
-def _detail(order: Order) -> OrderResponse:
+def _detail(order: Order, *, invoice_id: uuid.UUID | None = None) -> OrderResponse:
     fields = {name: getattr(order, name) for name in _SUMMARY_FIELDS}
     return OrderResponse.model_validate(
         fields
@@ -119,6 +119,7 @@ def _detail(order: Order) -> OrderResponse:
                 OrderChargeResponse.model_validate(row)
                 for row in sorted(order.charges, key=lambda row: row.id)
             ],
+            "invoice_id": invoice_id,
         }
     )
 
@@ -153,7 +154,9 @@ async def list_orders(
 
 @router.get("/orders/{order_id}", response_model=OrderResponse)
 async def get_order(actor: _ViewDep, session: SessionDep, order_id: uuid.UUID) -> OrderResponse:
-    return _detail(await _service(session, actor).get(order_id))
+    service = _service(session, actor)
+    order = await service.get(order_id)
+    return _detail(order, invoice_id=await service.invoice_id_for(order))
 
 
 # --------------------------------------------------------------------------- opening

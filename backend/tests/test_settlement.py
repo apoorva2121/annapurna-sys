@@ -260,6 +260,21 @@ class TestASettledBill:
         assert table == "cleaning"
         assert await _count(db_session, AuditLog, AuditLog.action == "order.settle") == 1
 
+    async def test_a_settled_order_names_its_invoice_and_a_live_one_names_none(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The manager's credit-note screen starts from the bill it was asked about: the order."""
+        world, menu, token = await _setup(db_session, api_client)
+        await _registered(db_session, world)
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+        live = await api_client.get(f"{ORDERS}/{order['id']}", headers=_auth(token))
+        assert live.json()["invoice_id"] is None
+
+        invoice = (await _settle(api_client, token, order)).json()
+
+        settled = await api_client.get(f"{ORDERS}/{order['id']}", headers=_auth(token))
+        assert settled.json()["invoice_id"] == invoice["id"]
+
     async def test_the_jaipur_bill_settles_exactly_as_printed(
         self, db_session: AsyncSession, api_client: AsyncClient
     ) -> None:

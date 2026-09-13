@@ -16,6 +16,9 @@ import StockOnHandScreen from '@staff/screens/StockOnHandScreen';
 import StockProduceScreen from '@staff/screens/StockProduceScreen';
 import StockReceiveScreen from '@staff/screens/StockReceiveScreen';
 import BillScreen from '@staff/screens/BillScreen';
+import BillsScreen from '@staff/screens/BillsScreen';
+import CashScreen from '@staff/screens/CashScreen';
+import InvoiceScreen from '@staff/screens/InvoiceScreen';
 import FloorPlanScreen from '@staff/screens/FloorPlanScreen';
 import OrderScreen from '@staff/screens/OrderScreen';
 import TableMapScreen from '@staff/screens/TableMapScreen';
@@ -264,6 +267,32 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.ORDER_SETTLE}>
               <BillScreen />
+            </RequirePermission>
+          }
+        />
+        {/* M07 chunk K. A settled bill behind order.void, the permission both of its writes need,
+            and the till behind cash.manage. A waiter holds neither, so reaches neither. */}
+        <Route
+          path="bills"
+          element={
+            <RequirePermission permission={Permission.ORDER_VOID}>
+              <BillsScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="bills/:orderId"
+          element={
+            <RequirePermission permission={Permission.ORDER_VOID}>
+              <InvoiceScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="cash"
+          element={
+            <RequirePermission permission={Permission.CASH_MANAGE}>
+              <CashScreen />
             </RequirePermission>
           }
         />

@@ -199,10 +199,29 @@ the file: an undocumented adaptation returns to the generated default silently o
 Anything asserted in those docstrings that the code could stop doing belongs in
 `src/shared/ui/ui.test.tsx`.
 
+### Waiter patterns (M07)
+
+The waiter surface is a phone held in one hand, in a dim room, mid-service. `WaiterSurface`
+(`staff/components/WaiterSurface.tsx`) switches `data-surface` to `waiter` while a waiter screen is
+mounted, which gives 48 px targets, and restores what was there when the screen is left. The surface
+belongs to the screen in the hand, not to the person signed in: a manager seating a table is doing a
+waiter's job for those thirty seconds.
+
+| Pattern | Where | Rules |
+|---|---|---|
+| Table map cell | `TableMapScreen` | The table code is large. **Status is a word** ("Free", "Occupied", "Bill asked for"), never only a border colour. A free table is a `button` that opens an order in one tap; an occupied one is a link to its order. A table that is out of service is disabled, not hidden, so the floor keeps its shape |
+| Order line row | `OrderScreen` | `quantity × dish`, options beneath, and the line's status as a word. The line total is right-aligned in tabular numerals. An unsent line comes off in one tap; a sent one asks why first. A cancelled or returned line stays on screen, struck through |
+| Money display | every screen | `formatINR` on the server's string, in tabular numerals, right-aligned. A reduction (discount, refund) uses `formatDelta`'s real minus sign. Show or hide a row by comparing to `"0.00"`; **never add two amounts on the client** (CLAUDE.md invariant 3) |
+| Quantity stepper | `staff/components/QuantityStepper.tsx` | Two buttons and the number, never a text box. Each button is named for what it changes ("One more Dal Makhani"). A button at its limit is disabled rather than hidden, so the row does not move under a thumb. The count is `aria-live="polite"` |
+
+Two layout rules hold on every waiter screen. **The primary action is bottom-right** in a sticky bar:
+Send to kitchen, Settle. **Choices open from the bottom** (`Sheet side="bottom"`) within thumb
+reach, and the sheet's Add stays disabled until every required question has an answer.
+
 ## 5. What this document does not cover yet
 
 Per-component pages with the full state matrix, patterns (data table, form, sheet, KDS ticket),
 content and voice rules, accessibility per pattern, performance budgets, and governance. Each
 arrives with the module that first needs it — M02 adds the form and settings patterns, M03 the data
-table, M07 the waiter patterns, M08 the KDS ticket. The structure they will follow is in
+table, M08 the KDS ticket. M07's waiter patterns are in §4. The structure they will follow is in
 `docs/ui/frontend-architecture-and-ux-strategy.md` §2.3.

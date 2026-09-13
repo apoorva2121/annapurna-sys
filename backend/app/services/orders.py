@@ -72,7 +72,12 @@ from app.models.orders import (
 )
 from app.models.setup import DiningArea, RestaurantTable
 from app.models.tenancy import Restaurant
-from app.repositories.orders import LIVE_ORDER_STATUSES, OrderRepository, PricingRepository
+from app.repositories.orders import (
+    LIVE_ORDER_STATUSES,
+    InvoiceRepository,
+    OrderRepository,
+    PricingRepository,
+)
 from app.repositories.setup import RestaurantRepository, RestaurantTableRepository
 
 logger = logging.getLogger(__name__)
@@ -121,6 +126,17 @@ class OrderService:
         if order is None:
             raise NotFoundError("order.not_found", "That order does not exist.")
         return order
+
+    async def invoice_id_for(self, order: Order) -> uuid.UUID | None:
+        """The invoice a settled or voided order was issued.
+
+        A live order has none and is not asked about, so reading an order during service costs no
+        extra statement. An order is settled at most once, so there is at most one invoice.
+        """
+        if order.status not in (OrderStatus.SETTLED, OrderStatus.VOIDED):
+            return None
+        invoice = await InvoiceRepository(self.session, self.scope).for_order(order.id)
+        return None if invoice is None else invoice.id
 
     async def list_orders(
         self,

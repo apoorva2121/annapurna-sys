@@ -272,6 +272,9 @@ class OrderResponse(OrderSummaryResponse):
     lines: list[OrderLineResponse]
     discounts: list[OrderDiscountResponse]
     charges: list[OrderChargeResponse]
+    # The invoice a settled or voided order was issued, so the screen that credits a bill can
+    # reach it from the order. Filled when the order is read; a live order has none.
+    invoice_id: uuid.UUID | None = None
 
 
 class OrderListResponse(_Schema):

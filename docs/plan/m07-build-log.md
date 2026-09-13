@@ -24,9 +24,9 @@ Spec: `docs/modules/M07-orders-spec.md` (`a40ea95`). **Resume from the State tab
 | 2 | H | Credit notes, invoice cancellation, refunds | ☑ done | `229fedf` |
 | 2 | I | Cash sessions, counts, payouts, adjustments | ☑ done | `706e3e1` |
 | 2 | — | **PR 2 gate: full `make check`** | ☑ green | `9762194` |
-| 3 | J | Table map, order taking, bill, split, payment | ☑ done | this commit |
-| 3 | K | Void / credit note, cash-up screens, waiter patterns | ☐ next | — |
-| 3 | L | Seed, review, second reader, manual script, compliance-rules.md | ☐ | — |
+| 3 | J | Table map, order taking, bill, split, payment | ☑ done | `17992c4` |
+| 3 | K | Void / credit note, cash-up screens, waiter patterns | ☑ done | this commit |
+| 3 | L | Seed, review, second reader, manual script, compliance-rules.md | ☐ next | — |
 
 **Resequenced from the spec:** chunk A was planned as "log-context fix · table status transitions".
 The table-status guard refuses `free` while an order is open, which needs the `order` table — so it
@@ -432,7 +432,38 @@ Every write puts the server's returned order straight into the cache, and a stal
 the order rather than overwriting it. That falls short of the fully optimistic screen the
 conventions ask for; the backlog row is in chunk L.
 
-Green before commit: backend 76 passed (floor, orders endpoints, generic suites, query counts); frontend 26 tests in 7 files, including AppShell and HomeScreen; ruff, format and mypy over 151 files; `tsc`, eslint over the whole app with zero warnings, and prettier; both audits.
+Green before commit: backend 76 passed (floor, orders endpoints, generic suites, query counts); frontend 29 tests in 7 files, including AppShell and HomeScreen; ruff, format and mypy over 151 files; `tsc`, eslint over the whole app with zero warnings, and prettier; both audits.
+
+---
+
+## Chunk K — after the bill, and the till
+
+**The order detail now names its invoice** (`invoice_id`), so the manager's screens can get from a
+bill to its legal document. It is looked up only for a settled or voided order, so reading a live
+order during service costs no extra statement.
+
+Three manager screens:
+
+- **Bills.** Today's settled and cancelled bills, by the restaurant's business day rather than the
+  browser's. A test sets the clock to 01:30 IST and still gets the previous evening. A full page
+  offers the next one rather than stopping silently.
+- **Invoice.** The tax split and the payments, and the two documents that may follow.
+  - **A credit note:** dishes are chosen with the quantity stepper, from none up to what was billed.
+    It takes a reason and an optional refund, typed by whoever hands the money over.
+  - **Cancelling:** behind a second tap, and it asks what the error was.
+  - Nothing on this screen sends a price. The note's figures are the server's.
+- **Cash.**
+  - Open with a float. Payouts and adjustments each carry an idempotency key.
+  - Close with a count per denomination. **The count is blind:** while a till is open the screen shows
+    the float and the payouts, never what the till should hold. Expected cash and the variance
+    appear only after the count.
+  - "Short" or "over" is read from the sign of the server's figure.
+  - An adjusted till keeps its original variance beside the adjusted one.
+
+The waiter patterns M07 owed `docs/ui/design-system.md` are now written into §4: table map cell,
+order line row, money display and quantity stepper.
+
+Green before commit: backend 90 passed (settlement, orders endpoints, generic suites, query counts); frontend 35 passed in 6 files, re-run after splitting the invoice test's fetch mock into a route table for eslint's complexity limit; ruff, format and mypy over 151 files; `tsc`; eslint over the whole app with zero warnings; prettier; both audits.
 
 ---
 

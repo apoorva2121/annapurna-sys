@@ -98,7 +98,13 @@ export function AppShell(): ReactElement {
  * arrive: each permission check is a branch, and the header already carries eight of them. Raising
  * the limit would have hidden the next nine.
  */
-function ServiceLinks(): ReactElement | null {
+function ServiceLinks(): ReactElement {
   const { can } = useAuth();
-  return can(Permission.ORDER_VIEW) ? <Link to="/floor">{strings.orders.navTables}</Link> : null;
+  return (
+    <>
+      {can(Permission.ORDER_VIEW) && <Link to="/floor">{strings.orders.navTables}</Link>}
+      {can(Permission.ORDER_VOID) && <Link to="/bills">{strings.bills.nav}</Link>}
+      {can(Permission.CASH_MANAGE) && <Link to="/cash">{strings.cash.nav}</Link>}
+    </>
+  );
 }
