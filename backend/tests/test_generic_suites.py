@@ -43,7 +43,7 @@ from app.models.menu import (
     Modifier,
     ModifierGroup,
 )
-from app.models.orders import Invoice, Order, OrderCharge, OrderDiscount, OrderLine
+from app.models.orders import CashSession, Invoice, Order, OrderCharge, OrderDiscount, OrderLine
 from app.models.procurement import (
     GoodsReceipt,
     GoodsReceiptLine,
@@ -275,6 +275,15 @@ def _sample_body(route: RouteInfo) -> dict[str, Any]:
             "reason": "Probe credit note",
             "lines": [{"order_line_id": str(_PROBE_UUID), "quantity": 1}],
         }
+    if "/cash/" in route.path:
+        if route.path.endswith("/cash/sessions"):
+            return {"opening_float": "2000.00"}
+        if route.path.endswith("/close"):
+            return {"counts": [{"denomination": "500.00", "quantity": 1}]}
+        if route.path.endswith("/payouts"):
+            return {"amount": "100.00", "reason": "Probe payout"}
+        if route.path.endswith("/adjustments"):
+            return {"amount": "100.00", "reason": "Probe adjustment"}
     if route.path.endswith("/remove"):
         return {"version": 1, "reason": "Probe removal"}
     if "/orders/" in route.path and route.method == "PATCH":
@@ -371,6 +380,7 @@ _VICTIM_PARAMETERS = frozenset(
         "discount_id",
         "charge_id",
         "invoice_id",
+        "session_id",
     }
 )
 
@@ -684,6 +694,17 @@ async def _victim_resources(
     )
     session.add(victim_invoice)
     await session.flush()
+    # A till the victim has open, which a probe would most like to pay out of or close.
+    victim_till = CashSession(
+        restaurant_id=restaurant_id,
+        status="open",
+        opened_at=datetime.now(UTC),
+        opened_by=employee,
+        opening_float=Decimal("1000.00"),
+        business_date=date(2026, 9, 13),
+    )
+    session.add(victim_till)
+    await session.flush()
 
     return {
         "order_id": str(victim_order.id),
@@ -691,6 +712,7 @@ async def _victim_resources(
         "discount_id": str(victim_discount.id),
         "charge_id": str(victim_charge.id),
         "invoice_id": str(victim_invoice.id),
+        "session_id": str(victim_till.id),
         "count_id": str(count.id),
         "supplier_id": str(supplier.id),
         "po_id": str(order.id),

@@ -1,0 +1,279 @@
+"""The till: a float in, cash taken, payouts out, and a count at the end. Chunk I of M07.
+
+Spec decision 11, and `docs/modules.md`'s cash reconciliation. Four rules:
+
+**1 · Expected cash is derived, never stored.** The opening float, plus every cash payment posted to
+the till — a refund is negative, and posts to the till open when it is given — minus the payouts
+made from it. Payments and payouts are append-only, so a closed till's figure cannot move after
+the fact (acceptance criterion 16).
+
+**2 · The variance is stored at close and never corrected away.** Counted minus expected, frozen
+with the count. Finding the missing ₹400 in the wrong drawer next morning is an **adjustment**: a
+new row with a reason, recorded by somebody other than the person who closed the till — M05's
+count-approval rule, held the same way. The adjusted variance is shown beside the original, never
+instead of it, because "short by ₹400, found next day" and "never short" are different evenings.
+
+**3 · A payout is a row.** ₹300 handed to the vegetable seller comes out of the till with an amount,
+a reason and a name, and cannot exceed what the till should hold.
+
+**4 · One till at a time.** Two counters is a real restaurant and out of scope for month 1;
+migration 0019's partial unique index holds it even when two managers open a till in the same
+second.
+"""
+
+from __future__ import annotations
+
+import logging
+import uuid
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from decimal import Decimal
+
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.actor import Actor
+from app.core.business_day import business_date_of
+from app.core.enums import CashMovementType, CashSessionStatus
+from app.core.errors import AppError, ConflictError, NotFoundError
+from app.core.tenancy import TenantScope
+from app.models.audit import AuditLog
+from app.models.orders import CashCount, CashMovement, CashSession
+from app.models.tenancy import Restaurant
+from app.repositories.orders import CashSessionRepository, TillTotals
+from app.repositories.setup import RestaurantRepository
+
+logger = logging.getLogger(__name__)
+
+
+def _dec(value: object) -> Decimal:
+    return value if isinstance(value, Decimal) else Decimal(str(value))
+
+
+@dataclass(frozen=True, slots=True)
+class TillPosition:
+    """A till and the figures derived from its rows. Nothing here is stored except the variance."""
+
+    till: CashSession
+    totals: TillTotals
+
+    @property
+    def expected(self) -> Decimal:
+        return _dec(self.till.opening_float) + self.totals.cash_taken - self.totals.payouts
+
+    @property
+    def adjusted_variance(self) -> Decimal | None:
+        if self.till.variance is None:
+            return None
+        return _dec(self.till.variance) + self.totals.adjustments
+
+
+class CashService:
+    def __init__(self, session: AsyncSession, scope: TenantScope) -> None:
+        self.session = session
+        self.scope = scope
+        self._tills = CashSessionRepository(session, scope)
+
+    # ------------------------------------------------------------------ reads
+
+    async def detail(
+        self, till_id: uuid.UUID
+    ) -> tuple[TillPosition, Sequence[CashCount], Sequence[CashMovement]]:
+        till = await self._tills.get(till_id)
+        if till is None:
+            raise NotFoundError("cash_session.not_found", "That till session does not exist.")
+        position = await self._position_of(till)
+        return (
+            position,
+            await self._tills.counts_of(till.id),
+            await self._tills.movements_of(till.id),
+        )
+
+    async def list_tills(
+        self, *, limit: int | None = None, after: uuid.UUID | None = None
+    ) -> list[TillPosition]:
+        """A page of tills with their derived figures, in three statements whatever its size."""
+        tills = await self._tills.list_page(limit=limit, after=after)
+        totals = await self._tills.totals_for([till.id for till in tills])
+        return [TillPosition(till=till, totals=totals[till.id]) for till in tills]
+
+    # ------------------------------------------------------------------ the day
+
+    async def open(self, actor: Actor, *, opening_float: Decimal) -> uuid.UUID:
+        already = await self._tills.open_id()
+        if already is not None:
+            raise ConflictError(
+                "cash.session_open",
+                "A till is already open. Close it before opening another.",
+                details={"session_id": str(already)},
+            )
+        restaurant = await self._restaurant()
+        now = datetime.now(UTC)
+        till = CashSession(
+            restaurant_id=self.scope.restaurant_id,
+            status=CashSessionStatus.OPEN,
+            opened_at=now,
+            opened_by=actor.employee_id,
+            opening_float=opening_float,
+            business_date=business_date_of(now, restaurant.timezone, restaurant.business_day_start),
+        )
+        self.session.add(till)
+        try:
+            await self.session.flush()
+        except IntegrityError as error:
+            # Two managers in the same second: the index answered for the check above.
+            raise ConflictError(
+                "cash.session_open", "A till was opened a moment ago. Reload to see it."
+            ) from error
+        self._audit(actor, "cash.open", till.id, {"opening_float": str(opening_float)})
+        await self.session.flush()
+        logger.info("cash.opened", extra={"session_id": str(till.id)})
+        return till.id
+
+    async def payout(
+        self, actor: Actor, till_id: uuid.UUID, *, amount: Decimal, reason: str
+    ) -> None:
+        till = await self._locked(till_id)
+        if till.status == CashSessionStatus.CLOSED:
+            raise ConflictError(
+                "cash.session_closed", "This till is closed. A payout comes out of the open till."
+            )
+        position = await self._position_of(till)
+        if amount > position.expected:
+            raise AppError(
+                "cash.payout_exceeds_till",
+                f"The till should hold ₹{position.expected}, so ₹{amount} cannot come out of it.",
+                details={"expected": str(position.expected)},
+                status_code=422,
+            )
+        await self._movement(actor, till, CashMovementType.PAYOUT, amount, reason)
+        self._audit(actor, "cash.payout", till.id, {"amount": str(amount), "reason": reason})
+        await self.session.flush()
+
+    async def close(
+        self, actor: Actor, till_id: uuid.UUID, *, counts: Sequence[tuple[Decimal, int]]
+    ) -> None:
+        till = await self._locked(till_id)
+        if till.status == CashSessionStatus.CLOSED:
+            raise ConflictError("cash.session_closed", "This till is already closed.")
+        denominations = [denomination for denomination, _ in counts]
+        if len(set(denominations)) != len(denominations):
+            raise AppError(
+                "cash.count_duplicate", "Each note or coin is counted once.", status_code=422
+            )
+
+        counted = sum(
+            (denomination * quantity for denomination, quantity in counts), Decimal("0.00")
+        )
+        position = await self._position_of(till)
+        variance = counted - position.expected
+        for denomination, quantity in counts:
+            self.session.add(
+                CashCount(
+                    restaurant_id=self.scope.restaurant_id,
+                    cash_session_id=till.id,
+                    denomination=denomination,
+                    quantity=quantity,
+                )
+            )
+        till.status = CashSessionStatus.CLOSED
+        till.closed_at = datetime.now(UTC)
+        till.closed_by = actor.employee_id
+        till.counted_cash = counted
+        till.variance = variance
+        await self.session.flush()
+        self._audit(
+            actor,
+            "cash.close",
+            till.id,
+            {
+                "expected": str(position.expected),
+                "counted": str(counted),
+                "variance": str(variance),
+            },
+        )
+        await self.session.flush()
+        logger.info("cash.closed", extra={"session_id": str(till.id), "variance": str(variance)})
+
+    async def adjust(
+        self, actor: Actor, till_id: uuid.UUID, *, amount: Decimal, reason: str
+    ) -> None:
+        till = await self._tills.get(till_id)
+        if till is None:
+            raise NotFoundError("cash_session.not_found", "That till session does not exist.")
+        if till.status == CashSessionStatus.OPEN:
+            raise ConflictError(
+                "cash.session_still_open",
+                "A till is adjusted after it is closed. While it is open, the count at close "
+                "settles it.",
+            )
+        if till.closed_by == actor.employee_id:
+            raise ConflictError(
+                "cash.adjustment_by_closer",
+                "The person who closed a till cannot adjust its variance. Another manager has to.",
+            )
+        await self._movement(actor, till, CashMovementType.ADJUSTMENT, amount, reason)
+        self._audit(
+            actor,
+            "cash.adjust",
+            till.id,
+            {"amount": str(amount), "reason": reason, "variance_at_close": str(till.variance)},
+        )
+        await self.session.flush()
+
+    # ------------------------------------------------------------------ plumbing
+
+    async def _position_of(self, till: CashSession) -> TillPosition:
+        totals = await self._tills.totals_for([till.id])
+        return TillPosition(till=till, totals=totals[till.id])
+
+    async def _movement(
+        self,
+        actor: Actor,
+        till: CashSession,
+        kind: CashMovementType,
+        amount: Decimal,
+        reason: str,
+    ) -> None:
+        restaurant = await self._restaurant()
+        now = datetime.now(UTC)
+        self.session.add(
+            CashMovement(
+                restaurant_id=self.scope.restaurant_id,
+                cash_session_id=till.id,
+                type=kind,
+                amount=amount,
+                reason=reason,
+                recorded_by=actor.employee_id,
+                occurred_at=now,
+                business_date=business_date_of(
+                    now, restaurant.timezone, restaurant.business_day_start
+                ),
+            )
+        )
+        await self.session.flush()
+
+    async def _locked(self, till_id: uuid.UUID) -> CashSession:
+        till = await self._tills.get_for_update(till_id)
+        if till is None:
+            raise NotFoundError("cash_session.not_found", "That till session does not exist.")
+        return till
+
+    async def _restaurant(self) -> Restaurant:
+        restaurant = await RestaurantRepository(self.session, self.scope).get()
+        if restaurant is None:
+            raise NotFoundError("restaurant.not_found", "This restaurant no longer exists.")
+        return restaurant
+
+    def _audit(self, actor: Actor, action: str, till_id: uuid.UUID, new: dict[str, object]) -> None:
+        self.session.add(
+            AuditLog(
+                restaurant_id=actor.restaurant_id,
+                actor_employee_id=actor.employee_id,
+                action=action,
+                entity_type="cash_session",
+                entity_id=till_id,
+                new_value=new,
+            )
+        )

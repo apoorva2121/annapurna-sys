@@ -24,14 +24,20 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import Integer, Select, cast, func, literal, or_, select, update
 from sqlalchemy.orm import selectinload
 
-from app.core.enums import CashSessionStatus, OrderStatus
+from app.core.enums import (
+    CashMovementType,
+    CashSessionStatus,
+    OrderStatus,
+    PaymentMethod,
+    PaymentStatus,
+)
 from app.models.menu import (
     MenuItem,
     MenuItemModifierGroup,
@@ -40,6 +46,8 @@ from app.models.menu import (
     ModifierGroup,
 )
 from app.models.orders import (
+    CashCount,
+    CashMovement,
     CashSession,
     CreditNote,
     CreditNoteLine,
@@ -315,6 +323,15 @@ class InvoiceRepository(RestaurantScopedRepository[Invoice]):
         ).first()
 
 
+@dataclass(frozen=True, slots=True)
+class TillTotals:
+    """What moved through one till. Expected cash is derived from these, never stored."""
+
+    cash_taken: Decimal = Decimal("0.00")
+    payouts: Decimal = Decimal("0.00")
+    adjustments: Decimal = Decimal("0.00")
+
+
 class CashSessionRepository(RestaurantScopedRepository[CashSession]):
     model = CashSession
 
@@ -326,6 +343,83 @@ class CashSessionRepository(RestaurantScopedRepository[CashSession]):
             .where(CashSession.status == CashSessionStatus.OPEN)
         )
         return found
+
+    async def get_for_update(self, till_id: uuid.UUID) -> CashSession | None:
+        return (
+            await self.session.scalars(
+                self.scoped().where(CashSession.id == till_id).with_for_update()
+            )
+        ).first()
+
+    async def list_page(
+        self, *, limit: int | None = None, after: uuid.UUID | None = None
+    ) -> Sequence[CashSession]:
+        """Newest first; the UUIDv7 id is the cursor."""
+        query = self.scoped()
+        if after is not None:
+            query = query.where(CashSession.id < after)
+        result = await self.session.scalars(
+            query.order_by(CashSession.id.desc()).limit(page_size(limit))
+        )
+        return result.all()
+
+    async def totals_for(self, till_ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, TillTotals]:
+        """Cash taken, paid out and adjusted, per till, in two statements for any number of tills.
+
+        Cash taken is every successful cash payment posted to the till, refunds included as the
+        negatives they are. Both sums are bounded by the till, on `ix_payment_cash_session` and
+        `ix_cash_movement_session` (G-13 item 6).
+        """
+        totals = {till_id: TillTotals() for till_id in till_ids}
+        if not till_ids:
+            return totals
+        taken = await self.session.execute(
+            select(Payment.cash_session_id, func.sum(Payment.amount))
+            .where(
+                Payment.restaurant_id == self.scope.restaurant_id,
+                Payment.cash_session_id.in_(till_ids),
+                Payment.method == PaymentMethod.CASH,
+                Payment.status == PaymentStatus.SUCCESS,
+            )
+            .group_by(Payment.cash_session_id)
+        )
+        for till_id, amount in taken.tuples().all():
+            if till_id is not None:
+                totals[till_id] = replace(totals[till_id], cash_taken=Decimal(str(amount)))
+        moved = await self.session.execute(
+            select(CashMovement.cash_session_id, CashMovement.type, func.sum(CashMovement.amount))
+            .where(
+                CashMovement.restaurant_id == self.scope.restaurant_id,
+                CashMovement.cash_session_id.in_(till_ids),
+            )
+            .group_by(CashMovement.cash_session_id, CashMovement.type)
+        )
+        for till_id, kind, amount in moved.tuples().all():
+            field = "payouts" if kind == CashMovementType.PAYOUT else "adjustments"
+            totals[till_id] = replace(totals[till_id], **{field: Decimal(str(amount))})
+        return totals
+
+    async def counts_of(self, till_id: uuid.UUID) -> Sequence[CashCount]:
+        result = await self.session.scalars(
+            select(CashCount)
+            .where(
+                CashCount.restaurant_id == self.scope.restaurant_id,
+                CashCount.cash_session_id == till_id,
+            )
+            .order_by(CashCount.denomination.desc())
+        )
+        return result.all()
+
+    async def movements_of(self, till_id: uuid.UUID) -> Sequence[CashMovement]:
+        result = await self.session.scalars(
+            select(CashMovement)
+            .where(
+                CashMovement.restaurant_id == self.scope.restaurant_id,
+                CashMovement.cash_session_id == till_id,
+            )
+            .order_by(CashMovement.id)
+        )
+        return result.all()
 
 
 class PaymentRepository(RestaurantScopedRepository[Payment]):

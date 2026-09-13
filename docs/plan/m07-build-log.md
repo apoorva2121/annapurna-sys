@@ -21,8 +21,9 @@ Spec: `docs/modules/M07-orders-spec.md` (`a40ea95`). **Resume from the State tab
 | 1 | — | **PR 1 gate: full `make check`** | ☑ green on the second run | fix `65e0418` |
 | 2 | F | Idempotency mechanism + retrofit M06 receiving | ☑ done | `817dd27` |
 | 2 | G | Settlement: invoice numbering, payments, consumption, cost freeze | ☑ done | `f567ee0` |
-| 2 | H | Credit notes, invoice cancellation, refunds | ☑ done | this commit |
-| 2 | I | Cash sessions, counts, payouts, adjustments | ☐ next | — |
+| 2 | H | Credit notes, invoice cancellation, refunds | ☑ done | `229fedf` |
+| 2 | I | Cash sessions, counts, payouts, adjustments | ☑ done | this commit |
+| 2 | — | **PR 2 gate: full `make check`** | ☐ next | — |
 | 3 | J | Table map, order taking, bill, split, payment | ☐ | — |
 | 3 | K | Void / credit note, cash-up screens, waiter patterns | ☐ | — |
 | 3 | L | Seed, review, second reader, manual script, compliance-rules.md | ☐ | — |
@@ -370,6 +371,32 @@ and the service refuses one larger than the note or on account. A refund posts t
 the time. **Neither path reverses stock:** a dish sent back was cooked, and binning it is wastage.
 
 Green before commit: backend 97 passed (reversals, settlement, orders endpoints, generic suites); ruff, format and mypy over 146 files; `tsc` and eslint; both audits.
+
+---
+
+## Chunk I — the till knows what it should hold, and keeps the shortfall
+
+`GET`/`POST /cash/sessions`, `GET /cash/sessions/{id}`, `POST …/close`, and `POST …/payouts` and
+`…/adjustments`, both idempotent. All sit behind `cash.manage`. Opening and closing need no key: a
+second open meets the one-open-till index, and a second close finds the till already closed.
+
+**Expected cash is derived, never stored.** It is the opening float, plus every cash payment posted
+to the till, minus the payouts from it. A refund is a negative cash payment and posts to the till
+open when it is given. Every one of those rows is append-only, so a closed till's figure cannot move
+afterwards. The acceptance-criterion-16 test gives a refund in the next shift and asserts the
+counted till is untouched.
+
+**The variance is frozen at close and never corrected away.** Cash found next morning is an
+adjustment: a new row with a reason, recorded by somebody other than the person who closed the till.
+That is M05's count-approval rule, held the same way. The adjusted variance is reported beside the
+original, never instead of it.
+
+**A payout is a row** with an amount, a reason and a name. It cannot exceed what the till should
+hold. A waiter takes cash at the table and never touches the till. A denomination counted twice is
+refused. Only one till is open at a time, held by migration 0019's partial unique index.
+
+Green before commit: backend 70 passed (cash, reversals, settlement, generic suites, query counts);
+ruff, format and mypy over 150 files; `tsc` and eslint; both audits.
 
 ---
 
