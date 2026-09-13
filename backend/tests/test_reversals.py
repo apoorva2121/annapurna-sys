@@ -11,7 +11,8 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 from httpx import AsyncClient, Response
 from sqlalchemy import update
@@ -21,6 +22,8 @@ from app.core.business_day import calendar_date_of, financial_year_of
 from app.models.audit import AuditLog
 from app.models.menu import MenuItemVariant
 from app.models.orders import CreditNote, Invoice, Order, Payment
+from app.repositories.orders import CreditedSoFar
+from app.services.reversals import CreditLineInput, ReversalService
 from tests.test_orders_endpoints import ORDERS, Menu, _added, _open, _setup
 from tests.test_settlement import _count, _registered, _settle
 from tests.test_setup_endpoints import World, _auth, _token
@@ -219,9 +222,11 @@ class TestCreditNotes:
     async def test_crediting_every_portion_one_at_a_time_adds_up_to_the_bill_exactly(
         self, db_session: AsyncSession, api_client: AsyncClient
     ) -> None:
-        """Three portions at ₹101: CGST on ₹303 is ₹7.575, billed as ₹7.58. A third of that is
-        ₹2.5267, so the first two notes take ₹2.53 each — and the last takes the exact remainder,
-        ₹2.52, rather than a third ₹2.53 that would credit a paisa the customer never paid."""
+        """Three portions at ₹101: CGST on ₹303 is ₹7.575, billed as ₹7.58. Each note is the
+        difference between running totals rounded once: a third is ₹2.53, two thirds ₹5.05, all
+        three ₹7.58. So the notes take ₹2.53, ₹2.52 and ₹2.53, adding up to the bill exactly, and
+        at no point has more been credited than was billed — the property rounding each note on
+        its own lost on a cheap dish credited a portion at a time (second reader, finding 5)."""
         world, menu, token = await _setup(db_session, api_client)
         await _registered(db_session, world)
         await db_session.execute(
@@ -243,7 +248,7 @@ class TestCreditNotes:
             assert response.status_code == 201, response.text
             notes.append(response.json())
 
-        assert [note["cgst_total"] for note in notes] == ["2.53", "2.53", "2.52"]
+        assert [note["cgst_total"] for note in notes] == ["2.53", "2.52", "2.53"]
         assert sum(Decimal(note["taxable_total"]) for note in notes) == Decimal("303.00")
         assert sum(Decimal(note["grand_total"]) for note in notes) == Decimal(
             invoice["grand_total"]
@@ -321,3 +326,71 @@ class TestCreditNotes:
         response = await _credit(api_client, token, invoice)
 
         assert response.status_code == 403
+
+
+# --------------------------------------------------------------------------- the second reader
+
+
+class TestCreditNotesNeverOvershootTheBill:
+    """Second reader, finding 5: one note per portion must add up to the line, never past it."""
+
+    def test_nineteen_single_portion_notes_never_credit_more_tax_than_was_billed(self) -> None:
+        """19 of a ₹3 dish at 5%: the line carries CGST ₹1.43. Rounding each note's own share
+        gives ₹0.08 a note and ₹1.44 after eighteen, more than was billed, leaving a nineteenth
+        that would have to credit minus a paisa. Rounding the running share cannot drift."""
+        line_id = uuid.uuid4()
+        line = SimpleNamespace(
+            quantity=19,
+            taxable_value=Decimal("57.00"),
+            cgst_amount=Decimal("1.43"),
+            tax_amount=Decimal("2.86"),
+            tax_regime="gst",
+        )
+        billed = cast(Any, {line_id: line})
+        so_far: dict[uuid.UUID, CreditedSoFar] = {}
+
+        for _ in range(19):
+            credit = ReversalService._credit_for(
+                billed, so_far, CreditLineInput(order_line_id=line_id, quantity=1)
+            )
+            before = so_far.get(line_id, CreditedSoFar())
+            so_far[line_id] = CreditedSoFar(
+                quantity=before.quantity + 1,
+                taxable=before.taxable + credit.taxable,
+                cgst=before.cgst + credit.cgst,
+                tax=before.tax + credit.tax,
+            )
+            assert credit.cgst >= 0
+            assert so_far[line_id].cgst <= Decimal("1.43")
+
+        total = so_far[line_id]
+        assert (total.taxable, total.cgst, total.tax) == (
+            Decimal("57.00"),
+            Decimal("1.43"),
+            Decimal("2.86"),
+        )
+
+
+class TestARefundNeedsMoneyReceived:
+    async def test_a_bill_settled_on_account_cannot_be_refunded_in_cash(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """Second reader, finding 6. A bill settled as `due` received no money. A credit note may
+        reduce what the customer owes; it may not hand cash over the counter for it."""
+        world, menu, token = await _setup(db_session, api_client)
+        await _registered(db_session, world)
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+        settled = await _settle(
+            api_client, token, order, payments=[{"method": "due", "amount": order["grand_total"]}]
+        )
+        assert settled.status_code == 201, settled.text
+        invoice = settled.json()
+        manager = await _token(api_client, "manager")
+
+        refused = await _credit(
+            api_client, manager, invoice, refunds=[{"method": "cash", "amount": "493.50"}]
+        )
+
+        assert refused.status_code == 422, refused.text
+        assert refused.json()["code"] == "credit_note.refund_exceeds_received"
+        assert (await _credit(api_client, manager, invoice)).status_code == 201

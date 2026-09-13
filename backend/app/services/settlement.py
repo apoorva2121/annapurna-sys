@@ -152,6 +152,7 @@ class SettlementService(OrderService):
 
         invoice = await self._issue_invoice(order, restaurant, document_type, recipient, now)
         # Cash goes into whichever till is open, so the cash-up can derive what should be in it.
+        # `open_id` share-locks it: a till closing at this moment is waited for, not written into.
         till_id = await CashSessionRepository(self.session, self.scope).open_id()
         for payment in payments:
             moment = payment.paid_at or now

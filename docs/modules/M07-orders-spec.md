@@ -196,6 +196,10 @@ shares sum to the discount exactly, to the paisa, with no rounding residue to lo
   without it.
 - `order.discount` is not held by a waiter (P1 design: *"the classic leakage vectors"*).
 - **After settlement a discount is a credit note** (R10(b)), never an edit.
+- **A discount never grows past what its authoriser approved.** A percentage or a comp is
+  recomputed as the bill changes, so a dish coming off shrinks it, but dishes added afterwards
+  do not stretch it: `authorised_amount` records the rupee figure at authorisation, and
+  `amount <= authorised_amount` is a CHECK (second reader, finding 4; migration 0021).
 
 ### 7 · Charges: packaging taxed, service charge off by default, tips outside the base
 
@@ -279,6 +283,12 @@ payments and payouts are append-only and a later refund posts to the session in 
 The **variance is stored at close and never corrected away**; a correction is a new adjustment row
 with a reason, by a different employee from the one who closed it (M05's count-approval rule, held
 the same way).
+
+**Cash is posted only into an open till.** Settlement and refunds share-lock the open till, so a
+till being closed is waited for rather than written into, and migration 0021 refuses a payment
+into a closed one. **A cancelled invoice's cash stops counting towards its till**, because the same
+notes are settled again against the right table; once that till has been counted, the invoice can
+no longer be cancelled, so a closed till still never moves (second reader, findings 1 and 3).
 
 **Payouts are modelled nowhere today**, though `docs/modules.md`'s own formula subtracts them — ₹300
 handed to a vegetable vendor from the till is the most ordinary cash event in the country. So

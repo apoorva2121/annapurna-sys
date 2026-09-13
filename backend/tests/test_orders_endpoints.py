@@ -1162,3 +1162,38 @@ class TestSplittingByItems:
 
         assert response.status_code == 409
         assert response.json()["code"] == "order.split_everything"
+
+
+# --------------------------------------------------------------------------- the second reader
+
+
+class TestADiscountNeverGrowsPastItsAuthorisation:
+    async def test_a_comp_does_not_grow_when_a_waiter_orders_more_of_the_dish(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """Second reader, finding 4. A manager comps one dal. The waiter, who holds no discount
+        permission, raises the unsent dal to three. The comp covers what the manager authorised,
+        ₹470, and the other two dals are billed."""
+        _, menu, waiter = await _setup(db_session, api_client)
+        manager = await _token(api_client, "manager")
+        order = await _added(api_client, waiter, await _open(api_client, waiter, menu), menu.dal)
+        comped = await _discounted(
+            api_client,
+            manager,
+            order,
+            type="comp",
+            rate="1.0000",
+            order_line_id=_line_of(order, menu.dal)["id"],
+            reason="dish was late",
+        )
+        dal = _line_of(comped, menu.dal)
+
+        changed = await api_client.patch(
+            f"{ORDERS}/{comped['id']}/lines/{dal['id']}",
+            json={"version": comped["version"], "quantity": 3},
+            headers=_auth(waiter),
+        )
+
+        assert changed.status_code == 200, changed.text
+        assert _line_of(changed.json(), menu.dal)["line_discount"] == "470.00"
+        assert changed.json()["discount_total"] == "470.00"

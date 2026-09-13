@@ -673,6 +673,7 @@ order_discount
   rate                numeric(6,4)               -- percentage and comp only
   flat_amount         numeric(12,2)              -- flat only
   amount              numeric(12,2) NN           -- the rupees actually taken off, frozen
+  authorised_amount   numeric(12,2) NN           -- what the authoriser approved; amount <= it, by CHECK
   reason              text NN
   authorised_by       uuid NN FK→employee        -- comps need a name. Always.
   IX (order_id), IX (restaurant_id, authorised_by)
@@ -760,7 +761,7 @@ payment                                          -- APPEND-ONLY
   order_id            NN FK→(order.id, restaurant_id)
   invoice_id          FK→(invoice.id, restaurant_id)
   credit_note_id      FK→(credit_note.id, restaurant_id)   -- NN when amount < 0, by CHECK
-  cash_session_id     FK→(cash_session.id, restaurant_id)
+  cash_session_id     FK→(cash_session.id, restaurant_id)   -- an OPEN till only, by trigger (0021)
   method              text NN check(cash|card|upi|wallet|online|due)
   amount              numeric(12,2) NN           -- NEGATIVE for a refund. No separate table.
   tip_amount          numeric(12,2) NN default 0 -- outside taxable value

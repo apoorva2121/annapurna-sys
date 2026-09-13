@@ -9,6 +9,10 @@ stock.** It withdraws the legal document — "billed to the wrong table" — and
 again where it belonged. Money going back is always a credit note with a refund, because that is
 the only path that reduces what was charged, and the only one that has to carry a reason and a name.
 
+**A cancelled invoice's cash stops counting towards its till**, because the same notes are settled
+again against the right table; and once that till has been counted, the invoice can no longer be
+cancelled, so a closed till still never moves (second reader, finding 3).
+
 **2 · A credit note reduces an invoice by whole dishes** (CGST Act s.34; Rule 53): its own series,
 its lines naming which dishes and how many, each carrying its share of the original line's taxable
 value and tax, with CGST and SGST kept equal. A dish cannot be credited more times than it was
@@ -37,6 +41,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.actor import Actor
 from app.core.business_day import business_date_of, calendar_date_of, financial_year_of
 from app.core.enums import (
+    CashSessionStatus,
     InvoiceStatus,
     OrderLineStatus,
     OrderStatus,
@@ -128,6 +133,16 @@ class ReversalService:
                 "cannot be cancelled as though it had been issued in error.",
             )
 
+        tills = CashSessionRepository(self.session, self.scope)
+        for till_id in await self._payments.tills_holding_cash_of(invoice.id):
+            # Share-locked, so a close cannot count this till between the check and the cancel.
+            if await tills.status_for_share(till_id) != CashSessionStatus.OPEN:
+                raise ConflictError(
+                    "invoice.till_closed",
+                    f"The cash on invoice {invoice.invoice_number} went into a till that has "
+                    "already been counted. Cancelling it now would change that count.",
+                )
+
         await self._orders.lock(invoice.order_id)
         order = await self._orders.get_detail(invoice.order_id, refresh=True)
         if order is None or order.status != OrderStatus.SETTLED:  # pragma: no cover - 0019 holds it
@@ -212,6 +227,17 @@ class ReversalService:
                 f"A refund of ₹{refunded} is more than the ₹{grand} this credit note reduces "
                 "the bill by.",
                 details={"credit_note_total": str(grand), "refund": str(refunded)},
+                status_code=422,
+            )
+        # Money can only go back if it came in. A bill settled on account (`due`) received none, so
+        # a note may reduce what is owed but not hand cash over for it (second reader, finding 6).
+        received = await self._payments.received_on(invoice.id) if refunded > 0 else ZERO
+        if refunded > received:
+            raise AppError(
+                "credit_note.refund_exceeds_received",
+                f"Invoice {invoice.invoice_number} has ₹{received} actually received, less "
+                f"earlier refunds, so a refund of ₹{refunded} cannot be given against it.",
+                details={"received": str(received), "refund": str(refunded)},
                 status_code=422,
             )
 
@@ -316,7 +342,13 @@ class ReversalService:
         so_far: dict[uuid.UUID, CreditedSoFar],
         request: CreditLineInput,
     ) -> _Credit:
-        """This dish's share of the bill, or the exact remainder when it is the last of it."""
+        """This dish's share of the bill: its rounded running share less what earlier notes took.
+
+        Each note is the difference between two running totals, each rounded once, so no note can
+        be negative and the notes can never add up to more than the line. Rounding each note's own
+        share instead drifts a paisa at a time on a cheap dish credited one portion per note
+        (second reader, finding 5). The last portion's running total is the line itself.
+        """
         line = billed.get(request.order_line_id)
         if line is None:
             raise AppError(
@@ -340,15 +372,17 @@ class ReversalService:
         tax_billed = _dec(line.tax_amount)
         non_gst = line.tax_regime == TaxRegime.NON_GST
 
-        if request.quantity == remaining:
-            taxable = taxable_billed - previous.taxable
-            half = cgst_billed - previous.cgst
-            tax = half + half if not non_gst else tax_billed - previous.tax
+        credited = previous.quantity + request.quantity
+        if credited == billed_quantity:
+            taxable_to_date, cgst_to_date, tax_to_date = taxable_billed, cgst_billed, tax_billed
         else:
-            share = Decimal(request.quantity) / Decimal(billed_quantity)
-            taxable = to_paisa(taxable_billed * share)
-            half = to_paisa(cgst_billed * share)
-            tax = half + half if not non_gst else to_paisa(tax_billed * share)
+            share = Decimal(credited) / Decimal(billed_quantity)
+            taxable_to_date = to_paisa(taxable_billed * share)
+            cgst_to_date = to_paisa(cgst_billed * share)
+            tax_to_date = to_paisa(tax_billed * share)
+        taxable = taxable_to_date - previous.taxable
+        half = cgst_to_date - previous.cgst
+        tax = half + half if not non_gst else tax_to_date - previous.tax
         cgst = ZERO if non_gst else half
         return _Credit(
             order_line_id=request.order_line_id,

@@ -7,18 +7,23 @@ corrected by the person who caused it, a refund that reaches back into a till al
 
 from __future__ import annotations
 
+import asyncio
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from httpx import AsyncClient, Response
+import pytest
+from httpx import ASGITransport, AsyncClient, Response
+from sqlalchemy import select, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.orders import CashMovement
-from tests.test_orders_endpoints import _added, _open, _setup
+from app.models.orders import CashMovement, Payment
+from tests.test_orders_endpoints import _added, _menu, _open, _setup
 from tests.test_reversals import _credit
-from tests.test_settlement import _count, _registered, _settle
-from tests.test_setup_endpoints import _auth, _token
+from tests.test_settlement import _GSTIN, _count, _fresh_app, _registered, _settle
+from tests.test_setup_endpoints import _auth, _token, _world
 
 CASH = "/api/v1/staff/cash/sessions"
 
@@ -308,3 +313,155 @@ class TestARefundInALaterTill:
             closed_a["variance"],
         )
         assert Decimal(after_b["expected_cash"]) == Decimal("1000.00") - Decimal("493.50")
+
+
+# --------------------------------------------------------------------------- the second reader
+
+INVOICES = "/api/v1/staff/invoices"
+
+
+async def _cash_bill(
+    session: AsyncSession, client: AsyncClient
+) -> tuple[Any, dict[str, Any], dict[str, Any], dict[str, Any], str]:
+    """A till open with a ₹2,000 float and one dal settled into it in cash."""
+    world, menu, waiter = await _setup(session, client)
+    await _registered(session, world)
+    manager = await _token(client, "manager")
+    till = await _open_till(client, manager)
+    order = await _added(client, waiter, await _open(client, waiter, menu), menu.dal)
+    paid = await _settle(client, waiter, order, payments=[{"method": "cash", "amount": "493.50"}])
+    assert paid.status_code == 201, paid.text
+    return world, till, order, paid.json(), manager
+
+
+class TestACancelledBillsCash:
+    """Second reader, finding 3. Cancelling is for a bill raised against the wrong table, and the
+    same notes are then settled again against the right one. Left in, they are expected twice."""
+
+    async def test_a_cancelled_invoice_takes_its_cash_out_of_what_the_open_till_expects(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        _, till, _, invoice, manager = await _cash_bill(db_session, api_client)
+
+        cancelled = await api_client.post(
+            f"{INVOICES}/{invoice['id']}/cancel",
+            json={"reason": "billed to table 7"},
+            headers=_keyed(manager),
+        )
+
+        assert cancelled.status_code == 200, cancelled.text
+        now = (await api_client.get(f"{CASH}/{till['id']}", headers=_auth(manager))).json()
+        assert (now["cash_taken"], now["expected_cash"]) == ("0.00", "2000.00")
+
+    async def test_an_invoice_whose_cash_is_already_counted_cannot_be_cancelled(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """Cancelling it would change a till that was closed and counted, which nothing may do."""
+        _, till, _, invoice, manager = await _cash_bill(db_session, api_client)
+        closed = await _close(api_client, manager, till, [("500.00", 5)])
+        assert closed.status_code == 200, closed.text
+
+        refused = await api_client.post(
+            f"{INVOICES}/{invoice['id']}/cancel",
+            json={"reason": "billed to table 7"},
+            headers=_keyed(manager),
+        )
+
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["code"] == "invoice.till_closed"
+        after = (await api_client.get(f"{CASH}/{till['id']}", headers=_auth(manager))).json()
+        assert after["expected_cash"] == closed.json()["expected_cash"]
+
+
+class TestCashIntoACountedTill:
+    """Second reader, finding 1: cash must never be posted into a till that has been counted."""
+
+    async def test_the_database_refuses_cash_posted_into_a_closed_till(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        world, till, order, invoice, manager = await _cash_bill(db_session, api_client)
+        assert (await _close(api_client, manager, till, [("500.00", 5)])).status_code == 200
+
+        db_session.add(
+            Payment(
+                restaurant_id=world.restaurant.id,
+                order_id=uuid.UUID(order["id"]),
+                invoice_id=uuid.UUID(invoice["id"]),
+                cash_session_id=uuid.UUID(till["id"]),
+                method="cash",
+                amount=Decimal("100.00"),
+                paid_at=datetime.now(UTC),
+                business_date=datetime.now(UTC).date(),
+            )
+        )
+        with pytest.raises(DBAPIError) as raised:
+            await db_session.flush()
+        assert "closed" in str(raised.value)
+
+
+async def test_cash_settled_while_the_till_is_being_closed_never_lands_in_that_till(
+    fresh_database: str,
+) -> None:
+    """The close holds the till row. A settle looking for the open till waits for it, and once the
+    close commits there is no open till, so the cash is posted to none rather than to the till just
+    counted.
+
+    **To re-verify this test is not decorative:** remove `with_for_update(read=True)` from
+    `CashSessionRepository.open_id`. The settle then fails on migration 0021's trigger instead of
+    succeeding; drop the trigger as well, and it posts its cash into the closed till.
+    """
+    application, factory, engine = await _fresh_app(fresh_database)
+    try:
+        async with factory() as setup:
+            world = await _world(setup, "owner")
+            menu = await _menu(setup, world)
+            world.restaurant.gstin = _GSTIN
+            await setup.commit()
+            restaurant_id = world.restaurant.id
+        async with AsyncClient(
+            transport=ASGITransport(app=application), base_url="http://test"
+        ) as client:
+            owner = await _token(client, "owner")
+            till = await _open_till(client, owner)
+            opened = await _open(client, owner, menu, type="takeaway", table_ids=[])
+            order = await _added(client, owner, opened, menu.dal)
+            params = {"id": till["id"], "restaurant_id": str(restaurant_id)}
+            async with factory() as closer:
+                # What `CashService.close` does, held open: lock the till, then mark it counted.
+                await closer.execute(
+                    text(
+                        "SELECT id FROM cash_session"
+                        " WHERE id = :id AND restaurant_id = :restaurant_id FOR UPDATE"
+                    ),
+                    params,
+                )
+                await closer.execute(
+                    text(
+                        "UPDATE cash_session SET status = 'closed', closed_at = now(),"
+                        " closed_by = opened_by, counted_cash = opening_float, variance = 0"
+                        " WHERE id = :id AND restaurant_id = :restaurant_id"
+                    ),
+                    params,
+                )
+                settling = asyncio.create_task(
+                    _settle(
+                        client,
+                        owner,
+                        order,
+                        payments=[{"method": "cash", "amount": order["grand_total"]}],
+                    )
+                )
+                await asyncio.sleep(3)
+                assert not settling.done(), "the settle should be waiting on the till being closed"
+                await closer.commit()
+            response = await settling
+
+        assert response.status_code == 201, response.text
+        async with factory() as check:
+            posted_to = await check.scalar(
+                select(Payment.cash_session_id).where(Payment.restaurant_id == restaurant_id)
+            )
+        assert posted_to is None
+    finally:
+        application.dependency_overrides.clear()
+        await engine.dispose()

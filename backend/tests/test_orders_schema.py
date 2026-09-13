@@ -459,6 +459,7 @@ class TestAnOrdersRowsFollowIt:
                 type="comp",
                 rate=Decimal("1.0000"),
                 amount=Decimal("940.00"),
+                authorised_amount=Decimal("940.00"),
                 reason="regular",
                 authorised_by=world.employee.id,
             )
@@ -572,6 +573,7 @@ class TestTheTaxArithmeticIsHeldByTheDatabase:
                 type="percentage",
                 rate=Decimal("0.1000"),
                 amount=Decimal("94.00"),
+                authorised_amount=Decimal("94.00"),
                 reason="regular",
             )
         )
@@ -591,6 +593,7 @@ class TestTheTaxArithmeticIsHeldByTheDatabase:
                 type="flat",
                 rate=Decimal("0.1000"),
                 amount=Decimal("94.00"),
+                authorised_amount=Decimal("94.00"),
                 reason="regular",
                 authorised_by=world.employee.id,
             )

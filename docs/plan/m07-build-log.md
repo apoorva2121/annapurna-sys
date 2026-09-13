@@ -26,7 +26,8 @@ Spec: `docs/modules/M07-orders-spec.md` (`a40ea95`). **Resume from the State tab
 | 2 | — | **PR 2 gate: full `make check`** | ☑ green | `9762194` |
 | 3 | J | Table map, order taking, bill, split, payment | ☑ done | `17992c4` |
 | 3 | K | Void / credit note, cash-up screens, waiter patterns | ☑ done | `700efc6` |
-| 3 | L | Seed, review, second reader, manual script, compliance-rules.md | ☑ done | this commit |
+| 3 | L | Seed, review, second reader, manual script, compliance-rules.md | ☑ done | `9b54c29` |
+| 3 | — | Second reader's findings 1 and 3–6 fixed, each with a test written first | ☑ done | this commit |
 | 3 | — | **PR 3 gate: full `make check`** | ☐ next | — |
 | — | — | **Your manual pass** — `docs/manual-tests/M07-orders.md` | ☐ | — |
 
@@ -491,6 +492,47 @@ Green before commit: backend 90 passed (settlement, orders endpoints, generic su
 **Review.** An independent second reader went through the whole M07 diff, and the uncommitted seeder, and reported six findings. It found nothing in tenant isolation, immutability, idempotency, permissions or the frontend. The six findings: cash posting into a till that closed mid-settle; cash taken with no till open; a cancelled invoice's cash double-counted in the till; a comp growing past what was authorised; credit-note rounding drift on many one-portion notes; and a refund larger than money received. Each fix gets its regression test written first, in the commit after this one, and cash with no till open goes to the owner as a backlog row. My own review before it found and fixed the closed-till list stopping silently at one page, and a screen test asserting an ambiguous word.
 
 Green before commit: seed tests 33 passed (4 new for the orders seeder, plus seed, seed CLI and procurement seed), re-run 4 passed after reading model money through `Decimal(str(...))` for mypy; ruff, format and mypy over 153 files; both audits.
+
+---
+
+## The second reader — six findings, and what each became
+
+One fresh agent, read-only, went over the whole M07 diff and the uncommitted seeder. It found nothing
+in tenant isolation, immutability, idempotency, permissions or the frontend. It did find six things,
+and each regression test below was written and run **red** before its fix: 7 failed in 30.81s.
+
+1. **Cash could land in a till while it was being closed.** Settlement looked up the open till
+   without a lock, so a settle racing a close posted its cash into the till the close had just
+   counted, moving a closed till's expected cash.
+   - **Fixed.** `open_id` share-locks the till: a till being closed is waited for, and once the close
+     commits there is no open till.
+   - **Held in the database too.** Migration 0021's trigger share-locks the till and refuses a payment
+     into a closed one.
+   - **Tested** by a real two-connection race and by a direct insert the database refuses.
+2. **Cash taken with no till open belongs to no till.** Not a code defect: refusing it would force
+   every restaurant onto the till. It is a backlog row, for the owner to decide at the manual pass.
+3. **A cancelled invoice's cash was expected twice.** The same notes are settled again against the
+   right table.
+   - **Fixed.** Till totals leave out cash on a cancelled invoice.
+   - Cancelling is refused once that cash sits in a counted till. The till is share-locked, so a close
+     cannot interleave, and a closed till still never moves.
+4. **A comp grew past what was authorised.** A waiter adding dishes stretched a manager's comp.
+   - **Fixed.** `order_discount.authorised_amount` records the rupee figure at authorisation. The
+     reprice caps at it, and `amount <= authorised_amount` is a CHECK.
+5. **Credit-note rounding drifted.** Nineteen single-portion notes on a ₹3 dish credited ₹1.44 of
+   CGST against ₹1.43 billed, and the last portion could not be credited.
+   - **Fixed.** Each note is now the difference between two rounded running totals.
+   - The existing three-portion test pinned the old per-note split: ₹2.53, ₹2.53, ₹2.52. It now
+     expects ₹2.53, ₹2.52, ₹2.53, because the running totals are ₹2.53, ₹5.05 and ₹7.58. The notes
+     still sum to ₹7.58 exactly, and its sum assertions are unchanged.
+6. **A refund could exceed money received.** A bill settled on account could have cash refunded
+   against it.
+   - **Fixed.** Refunds are capped at money received net of earlier refunds. `due` counts for nothing.
+
+The reader also noted that no screen marks an order served, asks for the bill, or cancels an unsettled
+order. Settlement needs none of them, so this is a backlog row rather than a fix.
+
+Green after the fixes: the seven new tests 7 passed in 30.49s; every suite the fixes touch 184 passed in 280.98s (0:04:40).
 
 ---
 

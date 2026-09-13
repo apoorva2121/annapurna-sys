@@ -28,12 +28,13 @@ from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import Integer, Select, cast, func, literal, or_, select, update
+from sqlalchemy import Integer, Select, and_, cast, func, literal, or_, select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import (
     CashMovementType,
     CashSessionStatus,
+    InvoiceStatus,
     OrderStatus,
     PaymentMethod,
     PaymentStatus,
@@ -363,11 +364,28 @@ class CashSessionRepository(RestaurantScopedRepository[CashSession]):
     model = CashSession
 
     async def open_id(self) -> uuid.UUID | None:
-        """The till open now, if any. At most one, by migration 0019's partial unique index."""
+        """The till open now, if any, share-locked until the transaction ends.
+
+        At most one, by migration 0019's partial unique index. The lock is what keeps cash out of a
+        till being counted: a close holds the row, so a caller posting a payment waits for it, and
+        once the close commits the re-checked status no longer matches and there is no open till
+        (second reader, finding 1). Migration 0021's trigger refuses the write regardless.
+        """
         found: uuid.UUID | None = await self.session.scalar(
             self.scoped()
             .with_only_columns(CashSession.id)
             .where(CashSession.status == CashSessionStatus.OPEN)
+            .with_for_update(read=True)
+        )
+        return found
+
+    async def status_for_share(self, till_id: uuid.UUID) -> str | None:
+        """A till's status, share-locked so a close cannot finish while the caller acts on it."""
+        found: str | None = await self.session.scalar(
+            self.scoped()
+            .with_only_columns(CashSession.status)
+            .where(CashSession.id == till_id)
+            .with_for_update(read=True)
         )
         return found
 
@@ -402,11 +420,21 @@ class CashSessionRepository(RestaurantScopedRepository[CashSession]):
             return totals
         taken = await self.session.execute(
             select(Payment.cash_session_id, func.sum(Payment.amount))
+            .join(
+                Invoice,
+                and_(
+                    Invoice.id == Payment.invoice_id,
+                    Invoice.restaurant_id == Payment.restaurant_id,
+                ),
+            )
             .where(
                 Payment.restaurant_id == self.scope.restaurant_id,
                 Payment.cash_session_id.in_(till_ids),
                 Payment.method == PaymentMethod.CASH,
                 Payment.status == PaymentStatus.SUCCESS,
+                # Cash on an invoice cancelled as issued in error is settled again against the
+                # right order; counting it here too would expect the same notes twice.
+                Invoice.status == InvoiceStatus.ISSUED,
             )
             .group_by(Payment.cash_session_id)
         )
@@ -451,6 +479,34 @@ class CashSessionRepository(RestaurantScopedRepository[CashSession]):
 
 class PaymentRepository(RestaurantScopedRepository[Payment]):
     model = Payment
+
+    async def received_on(self, invoice_id: uuid.UUID) -> Decimal:
+        """Money actually received on an invoice, net of refunds already given.
+
+        `due` is a promise to pay rather than money, so it counts for nothing here.
+        """
+        total = await self.session.scalar(
+            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+                Payment.restaurant_id == self.scope.restaurant_id,
+                Payment.invoice_id == invoice_id,
+                Payment.method != PaymentMethod.DUE,
+                Payment.status == PaymentStatus.SUCCESS,
+            )
+        )
+        return Decimal(str(total))
+
+    async def tills_holding_cash_of(self, invoice_id: uuid.UUID) -> list[uuid.UUID]:
+        """Every till an invoice's cash, or a refund of it, was posted into."""
+        rows = await self.session.scalars(
+            select(Payment.cash_session_id)
+            .distinct()
+            .where(
+                Payment.restaurant_id == self.scope.restaurant_id,
+                Payment.invoice_id == invoice_id,
+                Payment.cash_session_id.is_not(None),
+            )
+        )
+        return [till_id for till_id in rows.all() if till_id is not None]
 
     async def for_credit_note(self, credit_note_id: uuid.UUID) -> Sequence[Payment]:
         result = await self.session.scalars(

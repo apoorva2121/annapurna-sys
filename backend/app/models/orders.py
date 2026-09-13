@@ -403,6 +403,7 @@ class OrderDiscount(TimestampedUUIDMixin, Base):
         CheckConstraint("rate IS NULL OR (rate > 0 AND rate <= 1)", name="ck_order_discount_rate"),
         CheckConstraint("flat_amount IS NULL OR flat_amount > 0", name="ck_order_discount_flat"),
         CheckConstraint("amount >= 0", name="ck_order_discount_amount"),
+        CheckConstraint("amount <= authorised_amount", name="ck_order_discount_within_authorised"),
         Index("ix_order_discount_order", "order_id"),
         Index("ix_order_discount_authoriser", "restaurant_id", "authorised_by"),
     )
@@ -415,6 +416,8 @@ class OrderDiscount(TimestampedUUIDMixin, Base):
     rate: Mapped[object | None] = mapped_column(Numeric(6, 4))
     flat_amount: Mapped[object | None] = mapped_column(Numeric(12, 2))
     amount: Mapped[object] = mapped_column(Numeric(12, 2), nullable=False)
+    # The rupee figure its authoriser approved. `amount` may shrink below it and never exceed it.
+    authorised_amount: Mapped[object] = mapped_column(Numeric(12, 2), nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     # Comps need a name. Always. Seed signal 11 is unanswerable without it.
     authorised_by: Mapped[uuid.UUID] = mapped_column(

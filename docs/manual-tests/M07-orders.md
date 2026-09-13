@@ -96,6 +96,7 @@ undo A's dish, and the kitchen would cook something that is no longer on the bil
 | D2 | Settle a fresh bill, open it, and **Cancel this invoice**, giving "billed to the wrong table" | It asks what the error was, then says **cancelled**. The invoice **keeps its number**; the next bill takes the next number, never this one again |
 | D3 | Try to cancel the **seeded** invoice, which already has a credit note | Refused: an invoice with a credit note cannot be cancelled as though it had been issued in error |
 | D4 | On the seeded invoice, try to credit the naan again | The naan was already credited, so it is refused, saying none is left to credit |
+| D5 | Settle a fresh bill in **cash**, close the till, then try to cancel that invoice | Refused: its cash went into a till that has already been counted, and cancelling now would change that count |
 
 **D2 is the difference that matters.** Cancelling is for a document that should never have been
 issued: the same day, nothing credited, and **no money moves**. Money going back is always a credit

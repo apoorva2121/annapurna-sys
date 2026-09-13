@@ -577,6 +577,7 @@ class OrderService:
             rate=rate,
             flat_amount=flat_amount,
             amount=amount,
+            authorised_amount=amount,
             reason=reason,
             authorised_by=actor.employee_id,
         )
@@ -893,12 +894,20 @@ class OrderService:
 
     @staticmethod
     def _discount_on(discount: OrderDiscount, base: Decimal) -> Decimal:
-        return discount_amount(
+        """What the discount takes off `base` now, never more than its authoriser approved.
+
+        A percentage or a comp is recomputed on the bill as it stands, so a dish coming off shrinks
+        it. Dishes added afterwards must not stretch it: a comp on one dal is not a comp on the two
+        more a waiter orders later (second reader, finding 4). The cap is the rupee figure recorded
+        when it was authorised, and migration 0021 holds it as a CHECK.
+        """
+        computed = discount_amount(
             discount.type,
             base,
             rate=_optional_dec(discount.rate),
             flat_amount=_optional_dec(discount.flat_amount),
         )
+        return min(computed, _dec(discount.authorised_amount))
 
     # ------------------------------------------------------------------ plumbing
 

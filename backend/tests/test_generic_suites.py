@@ -665,6 +665,7 @@ async def _victim_resources(
         type="comp",
         rate=Decimal("1.0000"),
         amount=Decimal("470.00"),
+        authorised_amount=Decimal("470.00"),
         reason="Victim comp",
         authorised_by=employee,
     )
