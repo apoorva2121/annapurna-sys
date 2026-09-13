@@ -22,9 +22,9 @@ Spec: `docs/modules/M07-orders-spec.md` (`a40ea95`). **Resume from the State tab
 | 2 | F | Idempotency mechanism + retrofit M06 receiving | ☑ done | `817dd27` |
 | 2 | G | Settlement: invoice numbering, payments, consumption, cost freeze | ☑ done | `f567ee0` |
 | 2 | H | Credit notes, invoice cancellation, refunds | ☑ done | `229fedf` |
-| 2 | I | Cash sessions, counts, payouts, adjustments | ☑ done | this commit |
-| 2 | — | **PR 2 gate: full `make check`** | ☐ next | — |
-| 3 | J | Table map, order taking, bill, split, payment | ☐ | — |
+| 2 | I | Cash sessions, counts, payouts, adjustments | ☑ done | `706e3e1` |
+| 2 | — | **PR 2 gate: full `make check`** | ☑ green | this commit |
+| 3 | J | Table map, order taking, bill, split, payment | ☐ next | — |
 | 3 | K | Void / credit note, cash-up screens, waiter patterns | ☐ | — |
 | 3 | L | Seed, review, second reader, manual script, compliance-rules.md | ☐ | — |
 
@@ -397,6 +397,12 @@ refused. Only one till is open at a time, held by migration 0019's partial uniqu
 
 Green before commit: backend 70 passed (cash, reversals, settlement, generic suites, query counts);
 ruff, format and mypy over 150 files; `tsc` and eslint; both audits.
+
+---
+
+## PR 2 gate — the money chunks, F to I
+
+Full `make check` over the tree at `706e3e1`. Exit code 0. Backend: 972 passed in 20 min, coverage 97.10% against the 95% floor. Frontend: 219 tests in 26 files passed. `tsc`, eslint (zero warnings), ruff and mypy were clean, and `audit_docs` and `audit_guardrails` reported 0 issues. The only yellow output is the market-rate validator flagging stale prices in `library/`; it predates M07 and is not a gate failure.
 
 ---
 
