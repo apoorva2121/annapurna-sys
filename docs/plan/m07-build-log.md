@@ -27,8 +27,8 @@ Spec: `docs/modules/M07-orders-spec.md` (`a40ea95`). **Resume from the State tab
 | 3 | J | Table map, order taking, bill, split, payment | ☑ done | `17992c4` |
 | 3 | K | Void / credit note, cash-up screens, waiter patterns | ☑ done | `700efc6` |
 | 3 | L | Seed, review, second reader, manual script, compliance-rules.md | ☑ done | `9b54c29` |
-| 3 | — | Second reader's findings 1 and 3–6 fixed, each with a test written first | ☑ done | this commit |
-| 3 | — | **PR 3 gate: full `make check`** | ☐ next | — |
+| 3 | — | Second reader's findings 1 and 3–6 fixed, each with a test written first | ☑ done | `61bb6af` |
+| 3 | — | **PR 3 gate: full `make check`** | ◐ all but the full frontend test run (see below) | — |
 | — | — | **Your manual pass** — `docs/manual-tests/M07-orders.md` | ☐ | — |
 
 **Resequenced from the spec:** chunk A was planned as "log-context fix · table status transitions".
@@ -533,6 +533,30 @@ The reader also noted that no screen marks an order served, asks for the bill, o
 order. Settlement needs none of them, so this is a backlog row rather than a fix.
 
 Green after the fixes: the seven new tests 7 passed in 30.49s; every suite the fixes touch 184 passed in 280.98s (0:04:40).
+
+---
+
+## PR 3 gate — everything but the frontend tests, which the machine could not start
+
+Everything below ran over the tree at `61bb6af`, the last code commit.
+
+- **`make check` ran lint and the backend.** Lint means ruff, format, mypy, eslint over the whole app,
+  and `tsc`. The backend had **988 passed, coverage 97.15%**.
+- **It then stopped.** `vitest` failed to start with `0xC0000142` as the machine ran out of memory.
+  A retry with a single worker was killed the same way. About 1.8 GB of RAM and 2.8 GB of commit
+  were free, with Chrome, WSL and the session holding the rest.
+- **`make audit-docs audit-guardrails audit-deps` passed on their own:** 0 issues, 0 guardrail issues,
+  and no known Python vulnerabilities. npm is clean at `--audit-level=high`; its two moderates are the
+  vitest dev-only advisory, in the backlog since M00.
+
+**Not yet verified: a complete frontend test run on this tree.**
+- J's and K's own screen tests passed when those chunks were committed (29 and 35 tests).
+- eslint and `tsc` pass over the whole app.
+- The last complete `vitest` run was the PR 2 gate's, before J.
+
+Nothing after K touched the frontend: L and the fixes are backend and docs only. But the full suite
+has still not run over J and K's screens together with everything else. **Run `make test-web`, or
+`make check`, with memory to spare before calling M07's gate green**, then replace this entry.
 
 ---
 
