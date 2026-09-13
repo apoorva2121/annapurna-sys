@@ -30,6 +30,7 @@ export function AppShell(): ReactElement {
           {session?.restaurant.name ?? strings.appName}
         </Link>
         <nav className="flex flex-wrap items-center gap-x-4">
+          <ServiceLinks />
           {can(Permission.EMPLOYEE_VIEW) && <Link to="/staff">{strings.nav.staff}</Link>}
           {/* Four links rather than one, because they are four different jobs done at four
               different times — the floor changes when tables move, tax when a rate changes, and a
@@ -87,4 +88,17 @@ export function AppShell(): ReactElement {
       </main>
     </div>
   );
+}
+
+/**
+ * M07. The links for running service, first in the header because for everyone who holds them they
+ * are the screens of the shift.
+ *
+ * A component of its own so `AppShell` stays under eslint's complexity limit as service screens
+ * arrive: each permission check is a branch, and the header already carries eight of them. Raising
+ * the limit would have hidden the next nine.
+ */
+function ServiceLinks(): ReactElement | null {
+  const { can } = useAuth();
+  return can(Permission.ORDER_VIEW) ? <Link to="/floor">{strings.orders.navTables}</Link> : null;
 }

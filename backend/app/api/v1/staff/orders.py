@@ -47,6 +47,10 @@ from app.schemas.orders import (
     CreditNoteLineResponse,
     CreditNoteRequest,
     CreditNoteResponse,
+    FloorArea,
+    FloorOrder,
+    FloorResponse,
+    FloorTable,
     InvoiceCancelRequest,
     InvoiceResponse,
     OrderCancelRequest,
@@ -515,3 +519,38 @@ async def issue_credit_note(
     await call.complete(status.HTTP_201_CREATED, response)
     await session.commit()
     return response
+
+
+# --------------------------------------------------------------------------- the floor
+
+_FLOOR_ORDER_FIELDS = tuple(FloorOrder.model_fields)
+
+
+@router.get("/floor", response_model=FloorResponse)
+async def get_floor(actor: _ViewDep, session: SessionDep) -> FloorResponse:
+    """`/floor`, not `/orders/floor`: under `/orders` the word would be read as an order id."""
+    areas = await _service(session, actor).floor()
+    return FloorResponse(
+        areas=[
+            FloorArea(
+                id=view.area.id,
+                name=view.area.name,
+                tables=[
+                    FloorTable(
+                        id=cell.table.id,
+                        code=cell.table.code,
+                        seats=cell.table.seats,
+                        status=cell.table.status,
+                        orders=[
+                            FloorOrder.model_validate(
+                                {name: getattr(order, name) for name in _FLOOR_ORDER_FIELDS}
+                            )
+                            for order in cell.orders
+                        ],
+                    )
+                    for cell in view.tables
+                ],
+            )
+            for view in areas
+        ]
+    )

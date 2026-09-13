@@ -33,6 +33,7 @@ from app.core.enums import (
     OrderType,
     PaymentMethod,
     PaymentStatus,
+    TableStatus,
     TaxRegime,
 )
 
@@ -441,3 +442,39 @@ class CreditNoteResponse(_Schema):
     grand_total: Decimal
     lines: list[CreditNoteLineResponse]
     refunds: list[PaymentResponse]
+
+
+# --------------------------------------------------------------------------- the floor
+
+
+class FloorOrder(_Schema):
+    """What a table cell shows about the order sitting there: enough to tap into it, no more."""
+
+    id: uuid.UUID
+    order_number: str
+    status: OrderStatus
+    grand_total: Decimal
+    first_sent_at: datetime | None
+    bill_requested_at: datetime | None
+    version: int
+
+
+class FloorTable(_Schema):
+    id: uuid.UUID
+    code: str
+    seats: int
+    status: TableStatus
+    orders: list[FloorOrder]
+
+
+class FloorArea(_Schema):
+    id: uuid.UUID
+    name: str
+    tables: list[FloorTable]
+
+
+class FloorResponse(_Schema):
+    """The table map. Behind `order.view`, because a waiter needs it and does not hold
+    `restaurant.configure`, which guards the setup table list."""
+
+    areas: list[FloorArea]

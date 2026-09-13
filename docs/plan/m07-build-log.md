@@ -23,9 +23,9 @@ Spec: `docs/modules/M07-orders-spec.md` (`a40ea95`). **Resume from the State tab
 | 2 | G | Settlement: invoice numbering, payments, consumption, cost freeze | ☑ done | `f567ee0` |
 | 2 | H | Credit notes, invoice cancellation, refunds | ☑ done | `229fedf` |
 | 2 | I | Cash sessions, counts, payouts, adjustments | ☑ done | `706e3e1` |
-| 2 | — | **PR 2 gate: full `make check`** | ☑ green | this commit |
-| 3 | J | Table map, order taking, bill, split, payment | ☐ next | — |
-| 3 | K | Void / credit note, cash-up screens, waiter patterns | ☐ | — |
+| 2 | — | **PR 2 gate: full `make check`** | ☑ green | `9762194` |
+| 3 | J | Table map, order taking, bill, split, payment | ☑ done | this commit |
+| 3 | K | Void / credit note, cash-up screens, waiter patterns | ☐ next | — |
 | 3 | L | Seed, review, second reader, manual script, compliance-rules.md | ☐ | — |
 
 **Resequenced from the spec:** chunk A was planned as "log-context fix · table status transitions".
@@ -403,6 +403,36 @@ ruff, format and mypy over 150 files; `tsc` and eslint; both audits.
 ## PR 2 gate — the money chunks, F to I
 
 Full `make check` over the tree at `706e3e1`. Exit code 0. Backend: 972 passed in 20 min, coverage 97.10% against the 95% floor. Frontend: 219 tests in 26 files passed. `tsc`, eslint (zero warnings), ruff and mypy were clean, and `audit_docs` and `audit_guardrails` reported 0 issues. The only yellow output is the market-rate validator flagging stale prices in `library/`; it predates M07 and is not a gate failure.
+
+---
+
+## Chunk J — the waiter's three screens
+
+`GET /floor` (`order.view`) returns areas, tables, and each table's live orders in one call, and its
+query count does not grow with the number of tables. The three screens render on the waiter surface.
+`WaiterSurface` sets 48 px targets while one is mounted and restores the previous surface when it
+leaves.
+
+- **Table map.** Every status is a word, not only a colour. A free table opens a dine-in order in one
+  tap and goes straight to order taking; an occupied one links to its order.
+- **Order taking.**
+  - A dish with nothing to choose is one tap. A dish with choices opens a bottom sheet, and its Add
+    button stays disabled until every required question is answered.
+  - An unsent line changes count with the quantity stepper, or comes off in one tap. A sent line asks
+    why first.
+  - Send is bottom-right, and no request carries a price.
+- **Bill.**
+  - It is provisional until settled, and says so.
+  - One payment sends the bill's own total. A split payment sends the amounts as typed and never adds
+    them up: the server's exact-cover check answers.
+  - Split by dishes moves the ticked lines to a new order before settlement.
+  - Settle carries one idempotency key per bill.
+
+Every write puts the server's returned order straight into the cache, and a stale version re-reads
+the order rather than overwriting it. That falls short of the fully optimistic screen the
+conventions ask for; the backlog row is in chunk L.
+
+Green before commit: backend 76 passed (floor, orders endpoints, generic suites, query counts); frontend 26 tests in 7 files, including AppShell and HomeScreen; ruff, format and mypy over 151 files; `tsc`, eslint over the whole app with zero warnings, and prettier; both audits.
 
 ---
 

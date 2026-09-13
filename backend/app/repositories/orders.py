@@ -58,7 +58,7 @@ from app.models.orders import (
     OrderTable,
     Payment,
 )
-from app.models.setup import TaxGroup, TaxRate
+from app.models.setup import DiningArea, RestaurantTable, TaxGroup, TaxRate
 from app.repositories.base import RestaurantScopedRepository, ScopedRepository, page_size
 
 # A namespace for the two-int advisory lock, distinct from M06's 60_001, so an order-number lock can
@@ -162,6 +162,33 @@ class OrderRepository(RestaurantScopedRepository[Order]):
             )
             .values(order_id=to_order_id)
         )
+
+    async def floor_tables(self) -> Sequence[tuple[DiningArea, RestaurantTable]]:
+        """Every active table with its area, in floor order. One statement, unpaged on purpose:
+        a floor plan cut off at a page boundary is a table nobody can seat."""
+        rows = await self.session.execute(
+            select(DiningArea, RestaurantTable)
+            .join(RestaurantTable, RestaurantTable.dining_area_id == DiningArea.id)
+            .where(
+                DiningArea.restaurant_id == self.scope.restaurant_id,
+                RestaurantTable.restaurant_id == self.scope.restaurant_id,
+                DiningArea.is_active.is_(True),
+                RestaurantTable.is_active.is_(True),
+            )
+            .order_by(DiningArea.seq, DiningArea.id, RestaurantTable.code)
+        )
+        return rows.tuples().all()
+
+    async def live_at_tables(self) -> Sequence[tuple[Order, uuid.UUID]]:
+        """Every live order with each table it sits at. One statement for the whole floor."""
+        rows = await self.session.execute(
+            self.scoped()
+            .add_columns(OrderTable.restaurant_table_id)
+            .join(OrderTable, OrderTable.order_id == Order.id)
+            .where(Order.status.in_(LIVE_ORDER_STATUSES))
+            .order_by(Order.placed_at)
+        )
+        return rows.tuples().all()
 
     async def live_order_on_table(
         self, table_id: uuid.UUID, *, excluding: uuid.UUID | None = None

@@ -29,6 +29,7 @@ import logging
 import uuid
 from collections import defaultdict
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
@@ -69,7 +70,7 @@ from app.models.orders import (
     OrderLineModifier,
     OrderTable,
 )
-from app.models.setup import RestaurantTable
+from app.models.setup import DiningArea, RestaurantTable
 from app.models.tenancy import Restaurant
 from app.repositories.orders import LIVE_ORDER_STATUSES, OrderRepository, PricingRepository
 from app.repositories.setup import RestaurantRepository, RestaurantTableRepository
@@ -91,6 +92,18 @@ def _dec(value: object) -> Decimal:
 
 def _optional_dec(value: object) -> Decimal | None:
     return None if value is None else _dec(value)
+
+
+@dataclass(frozen=True, slots=True)
+class FloorTableView:
+    table: RestaurantTable
+    orders: tuple[Order, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class FloorAreaView:
+    area: DiningArea
+    tables: tuple[FloorTableView, ...]
 
 
 class OrderService:
@@ -120,6 +133,21 @@ class OrderService:
         return await self._orders.list_page(
             statuses=statuses, business_date=business_date, limit=limit, after=after
         )
+
+    async def floor(self) -> list[FloorAreaView]:
+        """The table map: every active table, grouped by area, with the live orders at each.
+
+        Two statements whatever the size of the floor or the evening, because the map is the screen
+        a waiter reopens every few minutes.
+        """
+        live: dict[uuid.UUID, list[Order]] = defaultdict(list)
+        for order, table_id in await self._orders.live_at_tables():
+            live[table_id].append(order)
+        grouped: dict[uuid.UUID, tuple[DiningArea, list[FloorTableView]]] = {}
+        for area, table in await self._orders.floor_tables():
+            entry = grouped.setdefault(area.id, (area, []))
+            entry[1].append(FloorTableView(table=table, orders=tuple(live.get(table.id, ()))))
+        return [FloorAreaView(area=area, tables=tuple(tables)) for area, tables in grouped.values()]
 
     # ------------------------------------------------------------------ opening
 

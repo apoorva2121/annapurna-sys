@@ -15,7 +15,10 @@ import StockCountScreen from '@staff/screens/StockCountScreen';
 import StockOnHandScreen from '@staff/screens/StockOnHandScreen';
 import StockProduceScreen from '@staff/screens/StockProduceScreen';
 import StockReceiveScreen from '@staff/screens/StockReceiveScreen';
+import BillScreen from '@staff/screens/BillScreen';
 import FloorPlanScreen from '@staff/screens/FloorPlanScreen';
+import OrderScreen from '@staff/screens/OrderScreen';
+import TableMapScreen from '@staff/screens/TableMapScreen';
 import MenuItemScreen from '@staff/screens/MenuItemScreen';
 import MenuScreen from '@staff/screens/MenuScreen';
 import ModifierGroupsScreen from '@staff/screens/ModifierGroupsScreen';
@@ -234,6 +237,33 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.STOCK_RECEIVE}>
               <GoodsReceiptScreen />
+            </RequirePermission>
+          }
+        />
+        {/* M07. The waiter's three screens: the floor behind order.view, taking an order behind
+            order.modify, and the bill behind order.settle — each the permission its first write
+            needs, so a role that cannot act never lands on a screen full of refusals. */}
+        <Route
+          path="floor"
+          element={
+            <RequirePermission permission={Permission.ORDER_VIEW}>
+              <TableMapScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="orders/:orderId"
+          element={
+            <RequirePermission permission={Permission.ORDER_MODIFY}>
+              <OrderScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="orders/:orderId/bill"
+          element={
+            <RequirePermission permission={Permission.ORDER_SETTLE}>
+              <BillScreen />
             </RequirePermission>
           }
         />
