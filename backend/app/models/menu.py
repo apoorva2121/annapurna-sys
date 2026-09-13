@@ -136,6 +136,8 @@ class MenuItemVariant(TimestampedUUIDMixin, Base):
     __tablename__ = "menu_item_variant"
     __table_args__ = (
         UniqueConstraint("menu_item_id", "code", name="uq_menu_item_variant_code"),
+        # M07: the target of order_line's tenant-safe composite foreign key.
+        UniqueConstraint("id", "restaurant_id", name="uq_menu_item_variant_id_restaurant"),
         CheckConstraint("price >= 0", name="ck_menu_item_variant_price_not_negative"),
         CheckConstraint("prep_minutes > 0", name="ck_menu_item_variant_prep_minutes"),
         Index("ix_menu_item_variant_item", "menu_item_id", "is_active"),
@@ -210,6 +212,8 @@ class Modifier(TimestampedUUIDMixin, Base):
     __tablename__ = "modifier"
     __table_args__ = (
         UniqueConstraint("modifier_group_id", "code", name="uq_modifier_group_code"),
+        # M07: the target of order_line_modifier's tenant-safe composite foreign key.
+        UniqueConstraint("id", "restaurant_id", name="uq_modifier_id_restaurant"),
         Index("ix_modifier_group", "modifier_group_id", "is_active"),
     )
 

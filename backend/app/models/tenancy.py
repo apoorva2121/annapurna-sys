@@ -16,6 +16,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     Time,
@@ -70,6 +71,29 @@ class Restaurant(TimestampedUUIDMixin, Base):
     # legal requirement for a food business in India — that is not configuration. M01's seed put it
     # in `settings` only because no column existed yet; migration 0004 moves it.
     fssai_licence: Mapped[str | None] = mapped_column(Text)
+    # M07. Decides the document, not merely the rate: `regular` issues a tax invoice and collects
+    # CGST + SGST; `composition` may NOT collect tax and issues a bill of supply (CGST Act s.10).
+    # Both are called "5%", which is the trap. Configuration the restaurant declares; M18 is where
+    # the product checks it against evidence.
+    gst_scheme: Mapped[str] = mapped_column(
+        Text,
+        CheckConstraint(
+            "gst_scheme IN ('regular', 'composition', 'unregistered')",
+            name="ck_restaurant_gst_scheme",
+        ),
+        nullable=False,
+        default="regular",
+        server_default="regular",
+    )
+    # NULL means service charge is disabled, which is the default. Never default-applied to an
+    # order (CCPA guidelines, 4 Jul 2022, upheld 28 Mar 2025).
+    service_charge_rate: Mapped[object | None] = mapped_column(
+        Numeric(6, 4),
+        CheckConstraint(
+            "service_charge_rate IS NULL OR (service_charge_rate > 0 AND service_charge_rate <= 1)",
+            name="ck_restaurant_service_charge_rate",
+        ),
+    )
     address: Mapped[dict[str, object] | None] = mapped_column(JSONB)
     settings: Mapped[dict[str, object]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}"

@@ -167,3 +167,129 @@ export const PurchaseOrderStatus = {
   CANCELLED: 'cancelled',
 } as const;
 export type PurchaseOrderStatus = (typeof PurchaseOrderStatus)[keyof typeof PurchaseOrderStatus];
+
+export const OrderType = {
+  DINE_IN: 'dine_in',
+  TAKEAWAY: 'takeaway',
+  DELIVERY: 'delivery',
+} as const;
+export type OrderType = (typeof OrderType)[keyof typeof OrderType];
+
+/** Where an order came from. `aggregator` is recorded, not integrated. */
+export const OrderChannel = {
+  POS: 'pos',
+  QR: 'qr',
+  AGGREGATOR: 'aggregator',
+} as const;
+export type OrderChannel = (typeof OrderChannel)[keyof typeof OrderChannel];
+
+/**
+ * An order's life. `settled`, `cancelled` and `voided` are final. A cancelled order never
+ * settled, so it never consumed an invoice number; a voided one had its invoice cancelled on its day
+ * of issue.
+ */
+export const OrderStatus = {
+  OPEN: 'open',
+  SENT: 'sent',
+  SERVED: 'served',
+  SETTLED: 'settled',
+  CANCELLED: 'cancelled',
+  VOIDED: 'voided',
+} as const;
+export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];
+
+/** `preparing` and `ready` belong to M08's kitchen display; `sent` is M07's own. */
+export const OrderLineStatus = {
+  PENDING: 'pending',
+  SENT: 'sent',
+  PREPARING: 'preparing',
+  READY: 'ready',
+  SERVED: 'served',
+  CANCELLED: 'cancelled',
+  RETURNED: 'returned',
+} as const;
+export type OrderLineStatus = (typeof OrderLineStatus)[keyof typeof OrderLineStatus];
+
+export const DiscountType = {
+  PERCENTAGE: 'percentage',
+  FLAT: 'flat',
+  COMP: 'comp',
+} as const;
+export type DiscountType = (typeof DiscountType)[keyof typeof DiscountType];
+
+/** A service charge is only ever optional (CCPA guidelines, upheld 28 Mar 2025). */
+export const ChargeType = {
+  PACKAGING: 'packaging',
+  SERVICE_CHARGE: 'service_charge',
+  DELIVERY: 'delivery',
+} as const;
+export type ChargeType = (typeof ChargeType)[keyof typeof ChargeType];
+
+export const PaymentMethod = {
+  CASH: 'cash',
+  CARD: 'card',
+  UPI: 'upi',
+  WALLET: 'wallet',
+  ONLINE: 'online',
+  DUE: 'due',
+} as const;
+export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod];
+
+/** No `refunded`: a refund is a new negative payment, never a status on the original. */
+export const PaymentStatus = {
+  SUCCESS: 'success',
+  FAILED: 'failed',
+} as const;
+export type PaymentStatus = (typeof PaymentStatus)[keyof typeof PaymentStatus];
+
+/**
+ * Which GST scheme a restaurant is under; it decides the document. `regular` collects CGST +
+ * SGST on a tax invoice; `composition` may not collect tax and issues a bill of supply. Both are
+ * called "5%", which is the trap.
+ */
+export const GstScheme = {
+  REGULAR: 'regular',
+  COMPOSITION: 'composition',
+  UNREGISTERED: 'unregistered',
+} as const;
+export type GstScheme = (typeof GstScheme)[keyof typeof GstScheme];
+
+/** `non_gst` is liquor: outside GST, taxed by the state, never split into CGST and SGST. */
+export const TaxRegime = {
+  GST: 'gst',
+  NON_GST: 'non_gst',
+} as const;
+export type TaxRegime = (typeof TaxRegime)[keyof typeof TaxRegime];
+
+export const DocumentType = {
+  TAX_INVOICE: 'tax_invoice',
+  BILL_OF_SUPPLY: 'bill_of_supply',
+} as const;
+export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
+
+/** A cancelled invoice keeps its number. */
+export const InvoiceStatus = {
+  ISSUED: 'issued',
+  CANCELLED: 'cancelled',
+} as const;
+export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
+
+export const IdempotencyState = {
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+} as const;
+export type IdempotencyState = (typeof IdempotencyState)[keyof typeof IdempotencyState];
+
+export const CashSessionStatus = {
+  OPEN: 'open',
+  CLOSED: 'closed',
+} as const;
+export type CashSessionStatus = (typeof CashSessionStatus)[keyof typeof CashSessionStatus];
+
+/** Cash out of the till that is not a refund: a payout, or a post-close correction. */
+export const CashMovementType = {
+  PAYOUT: 'payout',
+  ADJUSTMENT: 'adjustment',
+} as const;
+export type CashMovementType = (typeof CashMovementType)[keyof typeof CashMovementType];

@@ -84,6 +84,8 @@ class RestaurantTable(TimestampedUUIDMixin, Base):
         # "T4" is what staff say out loud and what prints on a KOT. Unique per restaurant, because
         # two branches both having a T4 is normal.
         UniqueConstraint("restaurant_id", "code", name="uq_restaurant_table_code"),
+        # M07: the target of order_table's tenant-safe composite foreign key.
+        UniqueConstraint("id", "restaurant_id", name="uq_restaurant_table_id_restaurant"),
         CheckConstraint(f"status IN ({_TABLE_STATUSES})", name="ck_restaurant_table_status"),
         CheckConstraint("seats > 0", name="ck_restaurant_table_seats_positive"),
         # The hot path in M07: "what is free right now?", asked every time a waiter opens the map.
@@ -156,6 +158,15 @@ class TaxGroup(TimestampedUUIDMixin, Base):
     code: Mapped[str] = mapped_column(Text, nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # M07. `non_gst` is liquor: outside GST under Article 366(12A), taxed by the state, and never
+    # split into CGST and SGST. The column exists; no state's VAT rate is seeded or guessed.
+    regime: Mapped[str] = mapped_column(
+        Text,
+        CheckConstraint("regime IN ('gst', 'non_gst')", name="ck_tax_group_regime"),
+        nullable=False,
+        default="gst",
+        server_default="gst",
+    )
 
     rates: Mapped[list[TaxRate]] = relationship(
         back_populates="group", order_by="TaxRate.effective_from.desc()", lazy="raise"

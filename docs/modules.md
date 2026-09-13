@@ -135,10 +135,10 @@ The heart of the product. Everything commercially interesting depends on this be
 Largest module. Split the PR.
 
 - **Depends on** — M03, M05
-- **Tables** — order, order_line, order_line_modifier, order_discount, payment, idempotency_key,
-  **cash_session, cash_count** (the till cash-up — see *Cash reconciliation* below; these two are
-  not yet in `docs/schema.md`, pending M07's spec, for the same reason M18's are not: a table
-  listed there is a designed table)
+- **Tables** — order, order_table, order_line, order_line_modifier, order_discount, order_charge,
+  invoice, credit_note, credit_note_line, payment, idempotency_key, **cash_session, cash_count,
+  cash_movement** (the till cash-up — see *Cash reconciliation* below). Designed in
+  `docs/modules/M07-orders-spec.md`, built by migration 0019
 - **Endpoints** — order create/get/list; line add/update/remove; `POST /orders/{id}/send`,
   `/settle`, `/void`, `/cancel`; `POST /orders/{id}/payments`; `POST /orders/{id}/discounts`
 - **Screens** — table map, order taking (waiter PWA, thumb-reachable), bill view, split bill,
@@ -154,10 +154,10 @@ Largest module. Split the PR.
   is ignored; settle writes stock movements and an audit row atomically or not at all
 - **Cash reconciliation** — `cash_session` opens with a declared float and closes with a counted
   amount; `cash_count` holds the denomination breakdown. **Expected cash is derived, never stored**:
-  it is the sum of `payment` rows with method `cash` on orders settled inside the session, plus the
-  opening float, minus recorded payouts. The **variance is recorded, never corrected away** — this
+  it is the sum of `payment` rows with method `cash` posted to the session (a refund is negative, and
+  posts to the session in which it happens), plus the opening float, minus `cash_movement` payouts. The **variance is recorded, never corrected away** — this
   is invariant 7 pointed at the till rather than the stockroom, and the variance is the whole point.
-  A closed session is immutable; a correction is a new adjustment row with a reason and an
+  A closed session is immutable; a correction is a new `cash_movement` of type `adjustment`, with a reason and an
   `audit_log` entry. `shift_id` is nullable so M07 does not wait on M12.
 
   *Why this is here and not in Shifts:* expected cash comes from `payment` rows, so it belongs with

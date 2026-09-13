@@ -177,3 +177,135 @@ class PurchaseOrderStatus(StrEnum):
     PARTIAL = "partial"
     RECEIVED = "received"
     CANCELLED = "cancelled"
+
+
+class OrderType(StrEnum):
+    DINE_IN = "dine_in"
+    TAKEAWAY = "takeaway"
+    DELIVERY = "delivery"
+
+
+class OrderChannel(StrEnum):
+    """Where an order came from (G-13 checklist item 2, finding S4).
+
+    `aggregator` is recorded, not integrated: an order a waiter keys in from a Swiggy tablet is
+    still an aggregator order, and M13 must split it from dine-in without an importer existing.
+    """
+
+    POS = "pos"
+    QR = "qr"
+    AGGREGATOR = "aggregator"
+
+
+class OrderStatus(StrEnum):
+    """An order's life. `settled`, `cancelled` and `voided` are final.
+
+    `cancelled` is an order that never settled, so it never consumed an invoice number and cannot
+    make a gap. `voided` is a settled order whose invoice was cancelled on its day of issue.
+    Anything after that day is a credit note, and the order stays `settled`.
+    """
+
+    OPEN = "open"
+    SENT = "sent"
+    SERVED = "served"
+    SETTLED = "settled"
+    CANCELLED = "cancelled"
+    VOIDED = "voided"
+
+
+class OrderLineStatus(StrEnum):
+    """`preparing` and `ready` belong to M08's kitchen display and are allowed now so M08 needs no
+    migration. `sent` is M07's own: without it, a line the kitchen has seen and a line nobody has
+    sent would both read `pending`."""
+
+    PENDING = "pending"
+    SENT = "sent"
+    PREPARING = "preparing"
+    READY = "ready"
+    SERVED = "served"
+    CANCELLED = "cancelled"
+    RETURNED = "returned"
+
+
+class DiscountType(StrEnum):
+    PERCENTAGE = "percentage"
+    FLAT = "flat"
+    COMP = "comp"
+
+
+class ChargeType(StrEnum):
+    """A service charge is only ever optional (CCPA guidelines, 4 Jul 2022, upheld 28 Mar 2025)."""
+
+    PACKAGING = "packaging"
+    SERVICE_CHARGE = "service_charge"
+    DELIVERY = "delivery"
+
+
+class PaymentMethod(StrEnum):
+    CASH = "cash"
+    CARD = "card"
+    UPI = "upi"
+    WALLET = "wallet"
+    ONLINE = "online"
+    DUE = "due"
+
+
+class PaymentStatus(StrEnum):
+    """No `refunded`. A refund is a new negative payment, never a status on the original row:
+    `docs/schema.md` eliminated a refund table for that reason, and payments are append-only."""
+
+    SUCCESS = "success"
+    FAILED = "failed"
+
+
+class GstScheme(StrEnum):
+    """Which GST scheme a restaurant is under. It decides the document, not merely the rate.
+
+    `regular` issues a tax invoice and collects CGST + SGST. `composition` pays tax on turnover,
+    may NOT collect it from customers, and issues a bill of supply (CGST Act s.10; Rule 5(1)(f)).
+    Both are commonly called "5%", which is the trap. `unregistered` collects nothing and issues a
+    plain bill.
+    """
+
+    REGULAR = "regular"
+    COMPOSITION = "composition"
+    UNREGISTERED = "unregistered"
+
+
+class TaxRegime(StrEnum):
+    """`non_gst` is alcoholic liquor for human consumption: outside GST under Article 366(12A),
+    taxed by the state. Such a line is never split into CGST and SGST."""
+
+    GST = "gst"
+    NON_GST = "non_gst"
+
+
+class DocumentType(StrEnum):
+    TAX_INVOICE = "tax_invoice"
+    BILL_OF_SUPPLY = "bill_of_supply"
+
+
+class InvoiceStatus(StrEnum):
+    """A cancelled invoice keeps its number: GSTR-1 Table 13 reports cancelled documents."""
+
+    ISSUED = "issued"
+    CANCELLED = "cancelled"
+
+
+class IdempotencyState(StrEnum):
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class CashSessionStatus(StrEnum):
+    OPEN = "open"
+    CLOSED = "closed"
+
+
+class CashMovementType(StrEnum):
+    """Cash out of the till that is not a refund. One table for both, because a payout and a
+    post-close correction have identical shape, and two tables would be two places to sum."""
+
+    PAYOUT = "payout"
+    ADJUSTMENT = "adjustment"
