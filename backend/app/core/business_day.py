@@ -19,6 +19,12 @@ Two functions, deliberately paired:
 They are inverses and are tested as inverses. If they ever disagreed, a report would count an order
 that the order itself does not believe belongs to that day, and the discrepancy would be invisible
 from either side alone.
+
+**Two more, for the things that follow the calendar instead** (M07): an invoice's date of issue,
+and the financial year its number belongs to. The financial-year boundary is midnight and the
+business-day boundary is 05:00, so a bill settled at 01:30 on 1 April belongs to business day
+31 March and to the *new* year's invoice series. `calendar_date_of` and `financial_year_of` live
+here, beside the rule they differ from, so nobody reaches for `business_date_of` by mistake.
 """
 
 from __future__ import annotations
@@ -66,6 +72,26 @@ def business_date_of(moment: datetime, timezone: str, day_starts_at: time) -> da
     if local.time() >= day_starts_at:
         return local.date()
     return local.date() - timedelta(days=1)
+
+
+def calendar_date_of(moment: datetime, timezone: str) -> date:
+    """The restaurant's local calendar date of an instant, midnight to midnight.
+
+    Not the business date. An invoice is dated on the day it is issued (CGST Rules, Rule 46), and a
+    GST rate change takes effect at midnight, so both follow this rather than `business_date_of`.
+    """
+    return _require_aware(moment).astimezone(_zone(timezone)).date()
+
+
+def financial_year_of(day: date) -> str:
+    """The Indian financial year a calendar date falls in, written `2026-27`.
+
+    The year begins on 1 April (General Clauses Act 1897, s.3(21)). Pass a `calendar_date_of`,
+    never a business date: the night of 31 March is exactly where the two disagree, and a business
+    date there puts a 1 April bill into the year that has already closed.
+    """
+    start = day.year if day.month >= 4 else day.year - 1
+    return f"{start}-{(start + 1) % 100:02d}"
 
 
 def day_bounds_utc(

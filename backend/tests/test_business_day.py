@@ -32,7 +32,12 @@ import pytest
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
-from app.core.business_day import business_date_of, day_bounds_utc
+from app.core.business_day import (
+    business_date_of,
+    calendar_date_of,
+    day_bounds_utc,
+    financial_year_of,
+)
 
 KOLKATA = "Asia/Kolkata"
 # A zone that actually observes daylight saving, so a fixed-offset implementation fails here.
@@ -313,3 +318,48 @@ class TestTheDatabaseItself:
             assert zoneinfo.ZoneInfo.no_cache("Europe/London").key == "Europe/London"
         finally:
             zoneinfo.reset_tzpath(to=list(original))
+
+
+class TestTheFinancialYear:
+    """M07. An invoice series follows the calendar, and the calendar and the working day disagree
+    for four and a half hours every night."""
+
+    def test_a_bill_at_0130_on_1_april_splits_the_two_boundaries(self) -> None:
+        """Acceptance criterion 4. 20:00 UTC on 31 March is 01:30 IST on 1 April: business day
+        31 March, invoice dated 1 April, and the new year's series."""
+        moment = _utc(2027, 3, 31, 20, 0)
+
+        assert business_date_of(moment, KOLKATA, FIVE_AM) == date(2027, 3, 31)
+        assert calendar_date_of(moment, KOLKATA) == date(2027, 4, 1)
+        assert financial_year_of(calendar_date_of(moment, KOLKATA)) == "2027-28"
+
+    def test_the_business_date_would_file_that_bill_in_the_closed_year(self) -> None:
+        """The mistake this helper exists to prevent, shown rather than described."""
+        moment = _utc(2027, 3, 31, 20, 0)
+
+        assert financial_year_of(business_date_of(moment, KOLKATA, FIVE_AM)) == "2026-27"
+
+    @pytest.mark.parametrize(
+        ("day", "year"),
+        [
+            (date(2026, 3, 31), "2025-26"),
+            (date(2026, 4, 1), "2026-27"),
+            (date(2026, 12, 31), "2026-27"),
+            (date(2027, 1, 1), "2026-27"),
+            (date(1999, 4, 1), "1999-00"),
+        ],
+    )
+    def test_the_year_begins_on_1_april(self, day: date, year: str) -> None:
+        assert financial_year_of(day) == year
+
+    @given(st.dates(min_value=date(2000, 1, 1), max_value=date(2098, 12, 31)))
+    def test_every_date_belongs_to_the_year_its_label_names(self, day: date) -> None:
+        label = financial_year_of(day)
+        start = int(label[:4])
+
+        assert date(start, 4, 1) <= day < date(start + 1, 4, 1)
+        assert label[5:] == f"{(start + 1) % 100:02d}"
+
+    def test_a_naive_datetime_is_refused(self) -> None:
+        with pytest.raises(ValueError):
+            calendar_date_of(datetime(2027, 3, 31, 20, 0), KOLKATA)

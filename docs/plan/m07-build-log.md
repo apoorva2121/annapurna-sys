@@ -14,8 +14,8 @@ Spec: `docs/modules/M07-orders-spec.md` (`a40ea95`). **Resume from the State tab
 | — | — | Research + spec | ☑ done | `a40ea95` |
 | 1 | A | Log-context fix · UUID redaction fix | ☑ done | `6dfec22` |
 | 1 | B | Migration 0019 + models + schema doc + enums | ☑ done | `142105f` |
-| 1 | C | Permissions 0020 + `cash.manage` design amendment | ☑ done | this commit |
-| 1 | D | Tax core: FY, line split, median rate date, apportionment | ☐ | — |
+| 1 | C | Permissions 0020 + `cash.manage` design amendment | ☑ done | `5281f5b` |
+| 1 | D | Tax core: FY, line split, median rate date, apportionment | ☑ done | this commit |
 | 1 | E | Orders, lines, modifiers, charges, discounts, split | ☐ | — |
 | 2 | F | Idempotency mechanism + retrofit M06 receiving | ☐ | — |
 | 2 | G | Settlement: invoice numbering, payments, consumption, cost freeze | ☐ | — |
@@ -161,6 +161,32 @@ five grants, and the comment records what M07 withheld.
 
 **Nothing enforces these yet.** Chunk E's routes are the first to declare them; until then the
 permission-matrix suite has nothing new to walk.
+
+---
+
+## Chunk D — the arithmetic, with no database
+
+`app/core/tax.py`, and `calendar_date_of` / `financial_year_of` in `app/core/business_day.py` beside
+the rule they differ from. 74 tests, most property-based; every one passed on its first run, which
+is recorded rather than celebrated — the properties were written from 0019's CHECKs, so a failure
+would have meant the schema and the arithmetic disagreed.
+
+**Decisions made while writing it:**
+
+- **CGST and SGST are each rounded on the line.** ₹101 at 5% carries ₹5.06, a paisa over the exact
+  ₹5.05, and both halves agree. Halving a total leaves an odd paisa and fails 0019's CHECK.
+- **Half-up to the paisa**, the invoice convention. **Rounding the payable to the rupee is off by
+  default**: R12 says it is practice, not law, and the Jaipur bill did not round.
+- **Apportionment works in whole paise**, integer arithmetic, so no share drifts through decimal
+  precision; ties go to the earlier line, so a bill always divides the same way.
+- **A flat discount larger than its base is refused, not clamped.**
+- **Credit notes are `CN/2026-27/00001`**: sixteen characters exactly. The spec left the format
+  open. The 100,000th in a year is refused rather than issued a number the law does not allow.
+- **An unregistered restaurant's bill is a `bill_of_supply` row**, carrying no tax and needing no
+  GSTIN, printed without the composition heading.
+- The spec named `tax.split_line()`; it is `tax_line()`, returning every figure `order_line` stores.
+
+**Not yet exercised:** `price_bill` has no caller until chunk E's reprice.
 
 ---
 
