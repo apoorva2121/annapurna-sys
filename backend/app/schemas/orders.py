@@ -23,6 +23,8 @@ from typing import Annotated, Any, Self
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.enums import (
+    ChargeType,
+    DiscountType,
     OrderChannel,
     OrderLineStatus,
     OrderStatus,
@@ -47,6 +49,8 @@ def _strip(value: Any) -> Any:
 
 Version = Annotated[int, Field(ge=1)]
 Reason = Annotated[str, Field(min_length=3, max_length=280)]
+Money = Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=2)]
+Rate = Annotated[Decimal, Field(gt=0, le=1, max_digits=6, decimal_places=4)]
 
 
 # --------------------------------------------------------------------------- requests
@@ -94,8 +98,12 @@ class OrderLineUpdateRequest(_Schema):
     _clean = field_validator("special_instructions", mode="before")(_strip)
 
 
-class OrderLineRemoveRequest(_Schema):
-    """An unsent line is deleted and needs no reason. A sent one is cancelled and must say why."""
+class OrderRemoveRequest(_Schema):
+    """Taking something off an order: a line, a discount or a charge.
+
+    Only a line the kitchen has seen must say why, and the service is what knows that; a reason
+    given anywhere else is recorded in the audit row rather than refused.
+    """
 
     version: Version
     reason: Reason | None = None
@@ -112,6 +120,61 @@ class OrderCancelRequest(_Schema):
     reason: Reason
 
     _clean = field_validator("reason", mode="before")(_strip)
+
+
+class OrderDiscountRequest(_Schema):
+    """A discount or a comp. **There is no `authorised_by` field**: the person holding
+    `order.discount` who sends this is its authoriser, because "the manager said it was fine" is the
+    sentence the row exists to replace."""
+
+    version: Version
+    type: DiscountType
+    rate: Rate | None = None
+    flat_amount: Money | None = None
+    order_line_id: uuid.UUID | None = None
+    reason: Reason
+
+    _clean = field_validator("reason", mode="before")(_strip)
+
+    @model_validator(mode="after")
+    def _shape(self) -> Self:
+        if self.type == DiscountType.FLAT:
+            if self.flat_amount is None or self.rate is not None:
+                raise ValueError("A flat discount has an amount and no rate.")
+        elif self.rate is None or self.flat_amount is not None:
+            raise ValueError("A percentage discount or a comp has a rate and no amount.")
+        return self
+
+
+class OrderChargeRequest(_Schema):
+    """Packaging or delivery carries the amount the restaurant charges. A service charge carries
+    none: it is computed from the bill at the restaurant's own rate, never typed in."""
+
+    version: Version
+    type: ChargeType
+    amount: Money | None = None
+    tax_group_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def _shape(self) -> Self:
+        if self.type == ChargeType.SERVICE_CHARGE and self.amount is not None:
+            raise ValueError("A service charge is computed from the bill, never typed in.")
+        if self.type != ChargeType.SERVICE_CHARGE and self.amount is None:
+            raise ValueError("A packaging or delivery charge needs its amount.")
+        return self
+
+
+class OrderSplitRequest(_Schema):
+    """The dishes to move to a new order at the same tables."""
+
+    version: Version
+    line_ids: list[uuid.UUID] = Field(min_length=1, max_length=50)
+
+    @model_validator(mode="after")
+    def _each_once(self) -> Self:
+        if len(set(self.line_ids)) != len(self.line_ids):
+            raise ValueError("Each line can be named once.")
+        return self
 
 
 # --------------------------------------------------------------------------- responses
@@ -144,6 +207,28 @@ class OrderLineResponse(_ReadSchema):
     cancel_reason: str | None
     seq: int
     modifiers: list[OrderLineModifierResponse]
+
+
+class OrderDiscountResponse(_ReadSchema):
+    id: uuid.UUID
+    order_line_id: uuid.UUID | None
+    type: DiscountType
+    rate: Decimal | None
+    flat_amount: Decimal | None
+    amount: Decimal
+    reason: str
+    authorised_by: uuid.UUID
+
+
+class OrderChargeResponse(_ReadSchema):
+    id: uuid.UUID
+    type: ChargeType
+    amount: Decimal
+    tax_rate: Decimal | None
+    cgst_amount: Decimal
+    sgst_amount: Decimal
+    tax_amount: Decimal
+    is_optional: bool
 
 
 class OrderSummaryResponse(_Schema):
@@ -180,6 +265,8 @@ class OrderResponse(OrderSummaryResponse):
     """The whole order: before settlement, this *is* the provisional bill."""
 
     lines: list[OrderLineResponse]
+    discounts: list[OrderDiscountResponse]
+    charges: list[OrderChargeResponse]
 
 
 class OrderListResponse(_Schema):

@@ -43,7 +43,7 @@ from app.models.menu import (
     Modifier,
     ModifierGroup,
 )
-from app.models.orders import Order, OrderLine
+from app.models.orders import Order, OrderCharge, OrderDiscount, OrderLine
 from app.models.procurement import (
     GoodsReceipt,
     GoodsReceiptLine,
@@ -262,6 +262,12 @@ def _sample_body(route: RouteInfo) -> dict[str, Any]:
         return {"version": 1, "menu_item_variant_id": str(_PROBE_UUID), "quantity": 1}
     if "/orders/" in route.path and route.path.endswith("/cancel"):
         return {"version": 1, "reason": "Probe cancellation"}
+    if route.path.endswith("/discounts"):
+        return {"version": 1, "type": "percentage", "rate": "0.1000", "reason": "Probe discount"}
+    if route.path.endswith("/charges"):
+        return {"version": 1, "type": "packaging", "amount": "20.00"}
+    if route.path.endswith("/split"):
+        return {"version": 1, "line_ids": [str(_PROBE_UUID)]}
     if route.path.endswith("/remove"):
         return {"version": 1, "reason": "Probe removal"}
     if "/orders/" in route.path and route.method == "PATCH":
@@ -355,6 +361,8 @@ _VICTIM_PARAMETERS = frozenset(
         # to read, and the one a cross-tenant write would most damage.
         "order_id",
         "line_id",
+        "discount_id",
+        "charge_id",
     }
 )
 
@@ -633,10 +641,29 @@ async def _victim_resources(
     )
     session.add(victim_line)
     await session.flush()
+    victim_discount = OrderDiscount(
+        restaurant_id=restaurant_id,
+        order_id=victim_order.id,
+        type="comp",
+        rate=Decimal("1.0000"),
+        amount=Decimal("470.00"),
+        reason="Victim comp",
+        authorised_by=employee,
+    )
+    victim_charge = OrderCharge(
+        restaurant_id=restaurant_id,
+        order_id=victim_order.id,
+        type="packaging",
+        amount=Decimal("20.00"),
+    )
+    session.add_all([victim_discount, victim_charge])
+    await session.flush()
 
     return {
         "order_id": str(victim_order.id),
         "line_id": str(victim_line.id),
+        "discount_id": str(victim_discount.id),
+        "charge_id": str(victim_charge.id),
         "count_id": str(count.id),
         "supplier_id": str(supplier.id),
         "po_id": str(order.id),

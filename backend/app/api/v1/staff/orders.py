@@ -1,16 +1,17 @@
 """Orders at the table. Every handler is authorise-call-shape.
 
-Three permissions, from `seed/organization.yaml`'s P1 design:
+Four permissions, from `seed/organization.yaml`'s P1 design:
 
 - `order.view` — read orders and their provisional bills. The accountant holds this and nothing else
   on this path.
 - `order.create` — open an order.
 - `order.modify` — everything that changes a live order: its lines, sending, serving, asking for the
-  bill, and cancelling an order that never settled.
+  bill, cancelling an order that never settled, charges, and splitting a bill by items.
+- `order.discount` — apply or remove a discount or a comp. Not held by a waiter, and the person who
+  sends it is recorded as its authoriser.
 
-Discounts, charges and splitting arrive with the second half of chunk E; settlement
-(`order.settle`) and voids (`order.void`) are later chunks. None is registered yet, so no route can
-exist without its permission.
+Settlement (`order.settle`) and voids (`order.void`) are later chunks and are not registered yet, so
+no route can exist without its permission.
 
 **Every write returns the whole order, re-read after the commit.** The waiter's screen replaces its
 copy with what the server now believes, version included, so the next change is made against the
@@ -38,13 +39,18 @@ from app.models.orders import Order
 from app.repositories.base import DEFAULT_PAGE_SIZE
 from app.schemas.orders import (
     OrderCancelRequest,
+    OrderChargeRequest,
+    OrderChargeResponse,
     OrderCreateRequest,
+    OrderDiscountRequest,
+    OrderDiscountResponse,
     OrderLineAddRequest,
-    OrderLineRemoveRequest,
     OrderLineResponse,
     OrderLineUpdateRequest,
     OrderListResponse,
+    OrderRemoveRequest,
     OrderResponse,
+    OrderSplitRequest,
     OrderSummaryResponse,
     OrderVersionRequest,
 )
@@ -55,6 +61,7 @@ router = APIRouter(tags=["orders"])
 _ViewDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_VIEW))]
 _CreateDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_CREATE))]
 _ModifyDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_MODIFY))]
+_DiscountDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_DISCOUNT))]
 _LimitDep = Annotated[int | None, Query(ge=1, le=100)]
 _CursorDep = Annotated[uuid.UUID | None, Query()]
 
@@ -83,6 +90,14 @@ def _detail(order: Order) -> OrderResponse:
         | {
             "table_ids": _table_ids(order),
             "lines": [OrderLineResponse.model_validate(line) for line in order.lines],
+            "discounts": [
+                OrderDiscountResponse.model_validate(row)
+                for row in sorted(order.discounts, key=lambda row: row.id)
+            ],
+            "charges": [
+                OrderChargeResponse.model_validate(row)
+                for row in sorted(order.charges, key=lambda row: row.id)
+            ],
         }
     )
 
@@ -187,7 +202,7 @@ async def remove_line(
     session: SessionDep,
     order_id: uuid.UUID,
     line_id: uuid.UUID,
-    request: OrderLineRemoveRequest,
+    request: OrderRemoveRequest,
 ) -> OrderResponse:
     service = _service(session, actor)
     await service.remove_line(
@@ -238,3 +253,95 @@ async def cancel_order(
     await service.cancel(actor, order_id, version=request.version, reason=request.reason)
     await session.commit()
     return _detail(await service.get(order_id))
+
+
+# --------------------------------------------------------------------------- discounts and charges
+
+
+@router.post(
+    "/orders/{order_id}/discounts",
+    response_model=OrderResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_discount(
+    actor: _DiscountDep, session: SessionDep, order_id: uuid.UUID, request: OrderDiscountRequest
+) -> OrderResponse:
+    service = _service(session, actor)
+    await service.add_discount(
+        actor,
+        order_id,
+        version=request.version,
+        kind=request.type,
+        rate=request.rate,
+        flat_amount=request.flat_amount,
+        line_id=request.order_line_id,
+        reason=request.reason,
+    )
+    await session.commit()
+    return _detail(await service.get(order_id))
+
+
+@router.post("/orders/{order_id}/discounts/{discount_id}/remove", response_model=OrderResponse)
+async def remove_discount(
+    actor: _DiscountDep,
+    session: SessionDep,
+    order_id: uuid.UUID,
+    discount_id: uuid.UUID,
+    request: OrderRemoveRequest,
+) -> OrderResponse:
+    service = _service(session, actor)
+    await service.remove_discount(
+        actor, order_id, discount_id, version=request.version, reason=request.reason
+    )
+    await session.commit()
+    return _detail(await service.get(order_id))
+
+
+@router.post(
+    "/orders/{order_id}/charges", response_model=OrderResponse, status_code=status.HTTP_201_CREATED
+)
+async def add_charge(
+    actor: _ModifyDep, session: SessionDep, order_id: uuid.UUID, request: OrderChargeRequest
+) -> OrderResponse:
+    service = _service(session, actor)
+    await service.add_charge(
+        order_id,
+        version=request.version,
+        kind=request.type,
+        amount=request.amount,
+        tax_group_id=request.tax_group_id,
+    )
+    await session.commit()
+    return _detail(await service.get(order_id))
+
+
+@router.post("/orders/{order_id}/charges/{charge_id}/remove", response_model=OrderResponse)
+async def remove_charge(
+    actor: _ModifyDep,
+    session: SessionDep,
+    order_id: uuid.UUID,
+    charge_id: uuid.UUID,
+    request: OrderRemoveRequest,
+) -> OrderResponse:
+    service = _service(session, actor)
+    await service.remove_charge(order_id, charge_id, version=request.version)
+    await session.commit()
+    return _detail(await service.get(order_id))
+
+
+# --------------------------------------------------------------------------- splitting
+
+
+@router.post(
+    "/orders/{order_id}/split", response_model=OrderResponse, status_code=status.HTTP_201_CREATED
+)
+async def split_order(
+    actor: _ModifyDep, session: SessionDep, order_id: uuid.UUID, request: OrderSplitRequest
+) -> OrderResponse:
+    """Returns the new order. The original's version has moved, so the screen re-reads it."""
+    service = _service(session, actor)
+    new_order_id = await service.split(
+        actor, order_id, version=request.version, line_ids=request.line_ids
+    )
+    await session.commit()
+    return _detail(await service.get(new_order_id))

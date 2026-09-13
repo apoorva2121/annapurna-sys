@@ -27,6 +27,7 @@ from httpx import AsyncClient, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import decode_access_token
 from app.models.audit import AuditLog
 from app.models.menu import (
     MenuCategory,
@@ -55,6 +56,7 @@ class Menu:
     hot: uuid.UUID
     # +₹40.
     cheese: uuid.UUID
+    tax_group: uuid.UUID
 
 
 async def _menu(
@@ -200,6 +202,7 @@ async def _menu(
         mild=mild.id,
         hot=hot.id,
         cheese=cheese.id,
+        tax_group=tax.id,
     )
     await session.commit()
     return menu
@@ -208,7 +211,7 @@ async def _menu(
 async def _setup(
     session: AsyncSession, client: AsyncClient, **menu_options: Any
 ) -> tuple[World, Menu, str]:
-    world = await _world(session, "owner", "waiter", "accountant")
+    world = await _world(session, "owner", "waiter", "accountant", "manager")
     menu = await _menu(session, world, **menu_options)
     return world, menu, await _token(client, "waiter")
 
@@ -764,3 +767,398 @@ class TestTheOrderList:
 
         assert [item["id"] for item in open_orders.json()["items"]] == [live["id"]]
         assert [item["id"] for item in cancelled.json()["items"]] == [gone["id"]]
+
+
+# --------------------------------------------------------------------------- discounts
+
+
+async def _discount(
+    client: AsyncClient, token: str, order: dict[str, Any], **body: Any
+) -> Response:
+    return await client.post(
+        f"{ORDERS}/{order['id']}/discounts",
+        json={"version": order["version"]} | body,
+        headers=_auth(token),
+    )
+
+
+async def _discounted(
+    client: AsyncClient, token: str, order: dict[str, Any], **body: Any
+) -> dict[str, Any]:
+    response = await _discount(client, token, order, **body)
+    assert response.status_code == 201, response.text
+    return dict(response.json())
+
+
+def _line_of(order: dict[str, Any], variant: uuid.UUID) -> dict[str, Any]:
+    return next(line for line in order["lines"] if line["menu_item_variant_id"] == str(variant))
+
+
+class TestDiscounts:
+    """Decision 6 and acceptance criterion 12: before tax, to the paisa, and with a name on it."""
+
+    async def test_a_waiter_cannot_discount(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The P1 design calls discounts one of the classic leakage vectors."""
+        _, menu, token = await _setup(db_session, api_client)
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+
+        response = await _discount(
+            api_client, token, order, type="percentage", rate="0.1000", reason="regular guest"
+        )
+
+        assert response.status_code == 403
+
+    async def test_a_percentage_comes_off_before_tax_and_names_its_authoriser(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """₹940 less 10% is ₹846 taxable; 5% of that is ₹42.30, split ₹21.15 + ₹21.15."""
+        world, menu, token = await _setup(db_session, api_client)
+        manager = await _token(api_client, "manager")
+        order = await _added(
+            api_client, token, await _open(api_client, token, menu), menu.dal, quantity=2
+        )
+
+        discounted = await _discounted(
+            api_client, manager, order, type="percentage", rate="0.1000", reason="regular guest"
+        )
+
+        (line,) = discounted["lines"]
+        assert line["line_discount"] == "94.00"
+        assert line["taxable_value"] == "846.00"
+        assert (line["cgst_amount"], line["sgst_amount"]) == ("21.15", "21.15")
+        assert discounted["discount_total"] == "94.00"
+        assert discounted["grand_total"] == "888.30"
+        (discount,) = discounted["discounts"]
+        assert discount["authorised_by"] == decode_access_token(manager).employee_id
+        audit = await db_session.scalar(
+            select(AuditLog).where(
+                AuditLog.restaurant_id == world.restaurant.id, AuditLog.action == "order.discount"
+            )
+        )
+        assert audit is not None
+
+    async def test_an_order_discount_reaches_the_lines_to_the_paisa(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """₹100 off ₹470 + ₹350. Pro rata is ₹57.317… and ₹42.682…; rounding both down loses a
+        paisa, which goes to the share rounding cut most — the dal's — so ₹57.32 and ₹42.68."""
+        _, menu, token = await _setup(db_session, api_client)
+        manager = await _token(api_client, "manager")
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+        order = await _added(api_client, token, order, menu.paneer, modifiers=(menu.mild,))
+
+        discounted = await _discounted(
+            api_client, manager, order, type="flat", flat_amount="100.00", reason="birthday"
+        )
+
+        assert _line_of(discounted, menu.dal)["line_discount"] == "57.32"
+        assert _line_of(discounted, menu.paneer)["line_discount"] == "42.68"
+        assert discounted["discount_total"] == "100.00"
+
+    async def test_a_comp_on_one_dish_takes_the_dish_and_its_tax_off_the_bill(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        _, menu, token = await _setup(db_session, api_client)
+        manager = await _token(api_client, "manager")
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+        order = await _added(api_client, token, order, menu.paneer, modifiers=(menu.mild,))
+
+        discounted = await _discounted(
+            api_client,
+            manager,
+            order,
+            type="comp",
+            rate="1.0000",
+            order_line_id=_line_of(order, menu.dal)["id"],
+            reason="dish was late",
+        )
+
+        dal = _line_of(discounted, menu.dal)
+        assert (dal["taxable_value"], dal["tax_amount"]) == ("0.00", "0.00")
+        # The paneer alone: ₹350 + ₹8.75 + ₹8.75.
+        assert discounted["grand_total"] == "367.50"
+
+    async def test_a_discount_larger_than_what_it_comes_off_is_refused(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        _, menu, token = await _setup(db_session, api_client)
+        manager = await _token(api_client, "manager")
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+
+        response = await _discount(
+            api_client, manager, order, type="flat", flat_amount="1000.00", reason="mistake"
+        )
+
+        assert response.status_code == 422
+        assert response.json()["code"] == "order_discount.exceeds_base"
+
+    async def test_a_discount_without_a_reason_is_refused(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        _, menu, token = await _setup(db_session, api_client)
+        manager = await _token(api_client, "manager")
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+
+        response = await _discount(api_client, manager, order, type="percentage", rate="0.1000")
+
+        assert response.status_code == 422
+
+    async def test_removing_a_discount_restores_the_bill_and_is_audited(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        world, menu, token = await _setup(db_session, api_client)
+        manager = await _token(api_client, "manager")
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+        discounted = await _discounted(
+            api_client, manager, order, type="percentage", rate="0.1000", reason="regular guest"
+        )
+
+        removed = await _stepped(
+            api_client, manager, discounted, f"discounts/{discounted['discounts'][0]['id']}/remove"
+        )
+
+        assert removed["discounts"] == []
+        assert removed["grand_total"] == "493.50"
+        audit = await db_session.scalar(
+            select(AuditLog).where(
+                AuditLog.restaurant_id == world.restaurant.id,
+                AuditLog.action == "order.discount_removed",
+            )
+        )
+        assert audit is not None
+
+    async def test_a_dish_taken_off_takes_its_discount_with_it(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        _, menu, token = await _setup(db_session, api_client)
+        manager = await _token(api_client, "manager")
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+        order = await _added(api_client, token, order, menu.paneer, modifiers=(menu.mild,))
+        order = await _stepped(api_client, token, order, "send")
+        order = await _discounted(
+            api_client,
+            manager,
+            order,
+            type="comp",
+            rate="1.0000",
+            order_line_id=_line_of(order, menu.dal)["id"],
+            reason="dish was late",
+        )
+
+        removed = await _stepped(
+            api_client,
+            token,
+            order,
+            f"lines/{_line_of(order, menu.dal)['id']}/remove",
+            reason="guest left it",
+        )
+
+        assert removed["discounts"][0]["amount"] == "0.00"
+        assert removed["grand_total"] == "367.50"
+
+    async def test_a_dish_cannot_come_off_under_a_discount_it_would_no_longer_cover(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """₹400 off a ₹820 bill is fine; the same ₹400 off the ₹350 left after the dal goes is not,
+        and the whole change is refused rather than half made."""
+        _, menu, token = await _setup(db_session, api_client)
+        manager = await _token(api_client, "manager")
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+        order = await _added(api_client, token, order, menu.paneer, modifiers=(menu.mild,))
+        order = await _stepped(api_client, token, order, "send")
+        order = await _discounted(
+            api_client, manager, order, type="flat", flat_amount="400.00", reason="event booking"
+        )
+
+        response = await _step(
+            api_client,
+            token,
+            order,
+            f"lines/{_line_of(order, menu.dal)['id']}/remove",
+            reason="guest left it",
+        )
+        after = await api_client.get(f"{ORDERS}/{order['id']}", headers=_auth(token))
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "order.discount_exceeds_bill"
+        assert _line_of(after.json(), menu.dal)["status"] == "sent"
+
+
+# --------------------------------------------------------------------------- charges
+
+
+async def _charge(client: AsyncClient, token: str, order: dict[str, Any], **body: Any) -> Response:
+    return await client.post(
+        f"{ORDERS}/{order['id']}/charges",
+        json={"version": order["version"]} | body,
+        headers=_auth(token),
+    )
+
+
+class TestCharges:
+    """Decision 7: packaging taxed with the meal, a service charge only ever on purpose."""
+
+    async def test_packaging_is_taxed_at_the_meals_rate(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        _, menu, token = await _setup(db_session, api_client)
+        order = await _open(api_client, token, menu, type="takeaway", table_ids=[])
+        order = await _added(api_client, token, order, menu.dal)
+
+        response = await _charge(
+            api_client,
+            token,
+            order,
+            type="packaging",
+            amount="20.00",
+            tax_group_id=str(menu.tax_group),
+        )
+
+        assert response.status_code == 201, response.text
+        charged = response.json()
+        (charge,) = charged["charges"]
+        assert (charge["amount"], charge["tax_amount"]) == ("20.00", "1.00")
+        assert charge["is_optional"] is False
+        assert charged["charge_total"] == "20.00"
+        # ₹470 + ₹23.50 of dal, ₹20 + ₹1.00 of packaging.
+        assert charged["grand_total"] == "514.50"
+
+    async def test_no_order_carries_a_service_charge_it_was_not_given(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """Acceptance criterion 15: never default-applied, even where one is enabled."""
+        world, menu, token = await _setup(db_session, api_client)
+        world.restaurant.service_charge_rate = Decimal("0.1000")
+        await db_session.commit()
+
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+
+        assert order["charges"] == []
+        assert order["charge_total"] == "0.00"
+
+    async def test_a_service_charge_is_refused_where_the_restaurant_has_none(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        _, menu, token = await _setup(db_session, api_client)
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+
+        response = await _charge(api_client, token, order, type="service_charge")
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "service_charge.disabled"
+
+    async def test_an_enabled_service_charge_is_computed_optional_and_removable(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        world, menu, token = await _setup(db_session, api_client)
+        world.restaurant.service_charge_rate = Decimal("0.1000")
+        await db_session.commit()
+        order = await _added(
+            api_client, token, await _open(api_client, token, menu), menu.dal, quantity=2
+        )
+
+        response = await _charge(api_client, token, order, type="service_charge")
+        assert response.status_code == 201, response.text
+        charged = response.json()
+        removed = await _stepped(
+            api_client, token, charged, f"charges/{charged['charges'][0]['id']}/remove"
+        )
+
+        (charge,) = charged["charges"]
+        assert charge["amount"] == "94.00"
+        assert charge["is_optional"] is True
+        assert charge["tax_amount"] == "0.00"
+        assert charged["grand_total"] == "1081.00"
+        assert removed["charges"] == []
+        assert removed["grand_total"] == "987.00"
+
+    async def test_a_service_charge_typed_in_by_hand_is_refused(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        _, menu, token = await _setup(db_session, api_client)
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+
+        response = await _charge(api_client, token, order, type="service_charge", amount="50.00")
+
+        assert response.status_code == 422
+
+
+# --------------------------------------------------------------------------- splitting
+
+
+class TestSplittingByItems:
+    """Decision 9: split before settlement, so one order still settles to one invoice."""
+
+    async def test_the_chosen_dishes_move_to_a_new_order_at_the_same_table(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        _, menu, token = await _setup(db_session, api_client)
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+        order = await _added(api_client, token, order, menu.paneer, modifiers=(menu.mild,))
+        order = await _stepped(api_client, token, order, "send")
+
+        response = await api_client.post(
+            f"{ORDERS}/{order['id']}/split",
+            json={"version": order["version"], "line_ids": [_line_of(order, menu.paneer)["id"]]},
+            headers=_auth(token),
+        )
+        original = await api_client.get(f"{ORDERS}/{order['id']}", headers=_auth(token))
+
+        assert response.status_code == 201, response.text
+        child = response.json()
+        assert child["parent_order_id"] == order["id"]
+        assert child["table_ids"] == [str(menu.table)]
+        assert child["status"] == "sent"
+        assert [line["menu_item_variant_id"] for line in child["lines"]] == [str(menu.paneer)]
+        assert child["grand_total"] == "367.50"
+        remaining = original.json()
+        assert [line["menu_item_variant_id"] for line in remaining["lines"]] == [str(menu.dal)]
+        assert remaining["grand_total"] == "493.50"
+        assert remaining["version"] > order["version"]
+
+    async def test_a_discount_on_a_moved_dish_moves_with_it(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        _, menu, token = await _setup(db_session, api_client)
+        manager = await _token(api_client, "manager")
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+        order = await _added(api_client, token, order, menu.paneer, modifiers=(menu.mild,))
+        order = await _discounted(
+            api_client,
+            manager,
+            order,
+            type="comp",
+            rate="1.0000",
+            order_line_id=_line_of(order, menu.paneer)["id"],
+            reason="birthday dish",
+        )
+
+        response = await api_client.post(
+            f"{ORDERS}/{order['id']}/split",
+            json={"version": order["version"], "line_ids": [_line_of(order, menu.paneer)["id"]]},
+            headers=_auth(token),
+        )
+        original = await api_client.get(f"{ORDERS}/{order['id']}", headers=_auth(token))
+
+        assert response.status_code == 201, response.text
+        assert len(response.json()["discounts"]) == 1
+        assert response.json()["grand_total"] == "0.00"
+        assert original.json()["discounts"] == []
+        assert original.json()["grand_total"] == "493.50"
+
+    async def test_splitting_off_every_dish_is_refused(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        _, menu, token = await _setup(db_session, api_client)
+        order = await _added(api_client, token, await _open(api_client, token, menu), menu.dal)
+
+        response = await api_client.post(
+            f"{ORDERS}/{order['id']}/split",
+            json={"version": order["version"], "line_ids": [order["lines"][0]["id"]]},
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "order.split_everything"

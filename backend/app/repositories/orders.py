@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import Integer, Select, cast, func, literal, or_, select
+from sqlalchemy import Integer, Select, cast, func, literal, or_, select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import OrderStatus
@@ -39,7 +39,7 @@ from app.models.menu import (
     Modifier,
     ModifierGroup,
 )
-from app.models.orders import Order, OrderLine, OrderTable
+from app.models.orders import Order, OrderDiscount, OrderLine, OrderTable
 from app.models.setup import TaxGroup, TaxRate
 from app.repositories.base import RestaurantScopedRepository, ScopedRepository, page_size
 
@@ -122,6 +122,28 @@ class OrderRepository(RestaurantScopedRepository[Order]):
             .where(Order.business_date == business_date)
         )
         return str((highest or 0) + 1)
+
+    async def move_lines(self, line_ids: Sequence[uuid.UUID], to_order_id: uuid.UUID) -> None:
+        """Move lines, and the discounts aimed at them, to another order of this restaurant.
+
+        Both statements are scoped, and migration 0019 refuses the move if either order is final.
+        """
+        await self.session.execute(
+            update(OrderLine)
+            .where(
+                OrderLine.id.in_(line_ids),
+                OrderLine.restaurant_id == self.scope.restaurant_id,
+            )
+            .values(order_id=to_order_id)
+        )
+        await self.session.execute(
+            update(OrderDiscount)
+            .where(
+                OrderDiscount.order_line_id.in_(line_ids),
+                OrderDiscount.restaurant_id == self.scope.restaurant_id,
+            )
+            .values(order_id=to_order_id)
+        )
 
     async def live_order_on_table(
         self, table_id: uuid.UUID, *, excluding: uuid.UUID | None = None

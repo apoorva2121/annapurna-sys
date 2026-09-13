@@ -39,11 +39,13 @@ from app.core.actor import Actor
 from app.core.business_day import business_date_of, calendar_date_of
 from app.core.enums import (
     ChargeType,
+    DiscountType,
     OrderChannel,
     OrderLineStatus,
     OrderStatus,
     OrderType,
     TableStatus,
+    TaxRegime,
 )
 from app.core.errors import AppError, ConflictError, NotFoundError
 from app.core.tax import (
@@ -59,7 +61,14 @@ from app.core.tax import (
 from app.core.tenancy import TenantScope
 from app.models.audit import AuditLog
 from app.models.menu import Modifier, ModifierGroup
-from app.models.orders import Order, OrderDiscount, OrderLine, OrderLineModifier, OrderTable
+from app.models.orders import (
+    Order,
+    OrderCharge,
+    OrderDiscount,
+    OrderLine,
+    OrderLineModifier,
+    OrderTable,
+)
 from app.models.setup import RestaurantTable
 from app.models.tenancy import Restaurant
 from app.repositories.orders import LIVE_ORDER_STATUSES, OrderRepository, PricingRepository
@@ -464,6 +473,282 @@ class OrderService:
             if table is not None and table.status == TableStatus.OCCUPIED:
                 table.status = TableStatus.FREE
         await self.session.flush()
+
+    # ------------------------------------------------------------------ discounts
+
+    async def add_discount(
+        self,
+        actor: Actor,
+        order_id: uuid.UUID,
+        *,
+        version: int,
+        kind: DiscountType,
+        rate: Decimal | None,
+        flat_amount: Decimal | None,
+        line_id: uuid.UUID | None,
+        reason: str,
+    ) -> None:
+        """A discount or a comp: before tax (CGST Act s.15(3)(a)), with its authoriser's name.
+
+        The actor is the authoriser. A discount on one dish takes from that dish; a discount on the
+        order is shared across its dishes by largest remainder when the order is repriced. A
+        discount that would exceed what it comes off is refused here rather than clamped.
+        """
+        order = await self._locked(order_id, version)
+        billed = [line for line in order.lines if line.status not in _NOT_BILLED]
+        if line_id is not None:
+            line = self._line(order, line_id)
+            if line.status in _NOT_BILLED:
+                raise ConflictError(
+                    "order_line.already_removed", "That dish is already off the bill."
+                )
+            already = sum(
+                (
+                    _dec(existing.amount)
+                    for existing in order.discounts
+                    if existing.order_line_id == line.id
+                ),
+                ZERO,
+            )
+            base = _dec(line.line_subtotal) - already
+        else:
+            if not billed:
+                raise ConflictError("order.empty", f"Order {order.order_number} has nothing on it.")
+            already = sum((_dec(existing.amount) for existing in order.discounts), ZERO)
+            base = sum((_dec(line.line_subtotal) for line in billed), ZERO) - already
+        try:
+            amount = discount_amount(kind, base, rate=rate, flat_amount=flat_amount)
+        except ValueError as error:
+            raise AppError("order_discount.exceeds_base", str(error), status_code=422) from error
+
+        discount = OrderDiscount(
+            restaurant_id=self.scope.restaurant_id,
+            order_id=order.id,
+            order_line_id=line_id,
+            type=kind,
+            rate=rate,
+            flat_amount=flat_amount,
+            amount=amount,
+            reason=reason,
+            authorised_by=actor.employee_id,
+        )
+        self.session.add(discount)
+        await self.session.flush()
+        self._audit(
+            actor,
+            "order.discount",
+            "order_discount",
+            discount.id,
+            new={
+                "order_id": str(order.id),
+                "order_number": order.order_number,
+                "type": str(kind),
+                "rate": None if rate is None else str(rate),
+                "flat_amount": None if flat_amount is None else str(flat_amount),
+                "amount": str(amount),
+                "order_line_id": None if line_id is None else str(line_id),
+                "reason": reason,
+            },
+        )
+        await self._reprice(order.id)
+        logger.info(
+            "order.discounted",
+            extra={"order_id": str(order.id), "discount_type": str(kind), "amount": str(amount)},
+        )
+
+    async def remove_discount(
+        self,
+        actor: Actor,
+        order_id: uuid.UUID,
+        discount_id: uuid.UUID,
+        *,
+        version: int,
+        reason: str | None,
+    ) -> None:
+        """Audited as well: a comp added and quietly removed after the bill was shown is the other
+        half of the story the discount row tells."""
+        order = await self._locked(order_id, version)
+        discount = next((row for row in order.discounts if row.id == discount_id), None)
+        if discount is None:
+            raise NotFoundError("order_discount.not_found", "That discount is not on this order.")
+        self._audit(
+            actor,
+            "order.discount_removed",
+            "order_discount",
+            discount.id,
+            new={
+                "order_id": str(order.id),
+                "order_number": order.order_number,
+                "type": str(discount.type),
+                "amount": str(discount.amount),
+                "authorised_by": str(discount.authorised_by),
+                "reason": reason,
+            },
+        )
+        await self.session.delete(discount)
+        await self._reprice(order.id)
+
+    # ------------------------------------------------------------------ charges
+
+    async def add_charge(
+        self,
+        order_id: uuid.UUID,
+        *,
+        version: int,
+        kind: ChargeType,
+        amount: Decimal | None,
+        tax_group_id: uuid.UUID | None,
+    ) -> None:
+        """Packaging, delivery, or a service charge — and a service charge only ever on purpose.
+
+        A service charge is refused while the restaurant has not enabled one, is never added by
+        anything but this request, is computed from the bill rather than typed in, appears once, and
+        is removable (CCPA guidelines, upheld 28 Mar 2025). Whether GST applies to it is unsettled
+        (R17), so its tax group is whatever the restaurant names, including none.
+        """
+        order = await self._locked(order_id, version)
+        restaurant = await self._restaurant()
+        if kind == ChargeType.SERVICE_CHARGE:
+            if restaurant.service_charge_rate is None:
+                raise ConflictError(
+                    "service_charge.disabled",
+                    "This restaurant does not charge a service charge. The owner can enable one.",
+                )
+            if any(charge.type == ChargeType.SERVICE_CHARGE for charge in order.charges):
+                raise ConflictError(
+                    "service_charge.already_added", "This order already carries a service charge."
+                )
+
+        rate: Decimal | None = None
+        if tax_group_id is not None:
+            today = calendar_date_of(datetime.now(UTC), restaurant.timezone)
+            found = await self._pricing.rate_on(tax_group_id, today)
+            if found is None:
+                raise NotFoundError(
+                    "tax_group.not_found", "That tax group does not exist or has no rate today."
+                )
+            if found.regime != TaxRegime.GST:
+                raise AppError(
+                    "order_charge.not_gst",
+                    "A charge is part of the meal and is taxed under GST, not a state tax.",
+                    status_code=422,
+                )
+            rate = found.rate if collects_tax(restaurant.gst_scheme) else ZERO
+
+        initial = amount if amount is not None else ZERO
+        figures = tax_line(initial, rate if rate is not None else ZERO)
+        self.session.add(
+            OrderCharge(
+                restaurant_id=self.scope.restaurant_id,
+                order_id=order.id,
+                type=kind,
+                amount=initial,
+                tax_group_id=tax_group_id,
+                tax_rate=rate,
+                cgst_amount=figures.cgst,
+                sgst_amount=figures.sgst,
+                tax_amount=figures.tax,
+                is_optional=kind == ChargeType.SERVICE_CHARGE,
+            )
+        )
+        await self._reprice(order.id)
+
+    async def remove_charge(
+        self, order_id: uuid.UUID, charge_id: uuid.UUID, *, version: int
+    ) -> None:
+        order = await self._locked(order_id, version)
+        charge = next((row for row in order.charges if row.id == charge_id), None)
+        if charge is None:
+            raise NotFoundError("order_charge.not_found", "That charge is not on this order.")
+        await self.session.delete(charge)
+        await self._reprice(order.id)
+
+    # ------------------------------------------------------------------ splitting
+
+    async def split(
+        self,
+        actor: Actor,
+        order_id: uuid.UUID,
+        *,
+        version: int,
+        line_ids: Sequence[uuid.UUID],
+    ) -> uuid.UUID:
+        """Split by items: the chosen dishes move to a new order at the same tables (decision 9).
+
+        Done before settlement, so every order still settles to exactly one invoice and "which
+        invoice covers this dish" stays a single join. A discount aimed at a moved dish moves with
+        it; discounts on the whole order, and its charges, stay where they were. Splitting by
+        *payments* needs no endpoint — it is several payments against one order, chunk G's.
+        """
+        order = await self._locked(order_id, version)
+        chosen = [self._line(order, line_id) for line_id in line_ids]
+        if any(line.status in _NOT_BILLED for line in chosen):
+            raise ConflictError(
+                "order_line.already_removed", "A dish already off the bill cannot move to another."
+            )
+        billed = [line for line in order.lines if line.status not in _NOT_BILLED]
+        if len(chosen) == len(billed):
+            raise ConflictError(
+                "order.split_everything",
+                "That moves every dish, which would leave nothing on this order.",
+            )
+
+        if any(line.status in _IN_THE_KITCHEN for line in chosen):
+            status = OrderStatus.SENT
+        elif any(line.status == OrderLineStatus.SERVED for line in chosen):
+            status = OrderStatus.SERVED
+        else:
+            status = OrderStatus.OPEN
+
+        restaurant = await self._restaurant()
+        now = datetime.now(UTC)
+        business_date = business_date_of(now, restaurant.timezone, restaurant.business_day_start)
+        child = Order(
+            restaurant_id=self.scope.restaurant_id,
+            order_number=await self._orders.next_order_number(business_date),
+            type=order.type,
+            channel=order.channel,
+            status=status,
+            waiter_employee_id=order.waiter_employee_id,
+            parent_order_id=order.id,
+            placed_at=now,
+            first_sent_at=order.first_sent_at if status != OrderStatus.OPEN else None,
+            served_at=order.served_at if status == OrderStatus.SERVED else None,
+            business_date=business_date,
+        )
+        self.session.add(child)
+        await self.session.flush()
+        for link in order.tables:
+            self.session.add(
+                OrderTable(
+                    restaurant_id=self.scope.restaurant_id,
+                    order_id=child.id,
+                    restaurant_table_id=link.restaurant_table_id,
+                    is_primary=link.is_primary,
+                )
+            )
+        moved = [line.id for line in chosen]
+        await self.session.flush()
+        await self._orders.move_lines(moved, child.id)
+        self._audit(
+            actor,
+            "order.split",
+            "order",
+            order.id,
+            new={
+                "order_number": order.order_number,
+                "new_order_id": str(child.id),
+                "new_order_number": child.order_number,
+                "line_ids": [str(line_id) for line_id in moved],
+            },
+        )
+        await self._reprice(order.id)
+        await self._reprice(child.id)
+        logger.info(
+            "order.split",
+            extra={"order_id": str(order.id), "new_order_id": str(child.id), "lines": len(moved)},
+        )
+        return child.id
 
     # ------------------------------------------------------------------ the one place totals change
 

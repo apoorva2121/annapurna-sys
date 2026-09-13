@@ -16,8 +16,9 @@ Spec: `docs/modules/M07-orders-spec.md` (`a40ea95`). **Resume from the State tab
 | 1 | B | Migration 0019 + models + schema doc + enums | ☑ done | `142105f` |
 | 1 | C | Permissions 0020 + `cash.manage` design amendment | ☑ done | `5281f5b` |
 | 1 | D | Tax core: FY, line split, median rate date, apportionment | ☑ done | `5151e2a` |
-| 1 | E1 | Orders, lines, modifiers, send/serve/bill/cancel · table status | ☑ done | this commit |
-| 1 | E2 | Discounts, charges, split | ☐ next | — |
+| 1 | E1 | Orders, lines, modifiers, send/serve/bill/cancel · table status | ☑ done | `437a9e6` |
+| 1 | E2 | Discounts, charges, split | ☑ done | this commit |
+| 1 | — | **PR 1 gate: full `make check`** | ☐ next | — |
 | 2 | F | Idempotency mechanism + retrofit M06 receiving | ☐ | — |
 | 2 | G | Settlement: invoice numbering, payments, consumption, cost freeze | ☐ | — |
 | 2 | H | Credit notes, invoice cancellation, refunds | ☐ | — |
@@ -228,6 +229,36 @@ order and line.
 - **Table status:** `status` left `TableUpdateRequest`, so a PATCH carrying it is a 422, and
   `POST /setup/tables/{table_id}/status` refuses `free` or `out_of_service` under a live order,
   naming the order. M02's manual step A8 still reads correctly — the control on screen is the same.
+
+---
+
+## Chunk E2 — discounts, charges, and splitting a bill by items
+
+18 more endpoint tests (47 in the file); the generic suites probe the new routes with a victim
+discount and charge. Every test passed on its first run. That is recorded rather than celebrated: a
+first-run green on money code deserves suspicion, which is why every expected figure in these tests
+was worked by hand before the run rather than copied from its output.
+
+**Decisions:**
+
+- **The authoriser is the actor.** `OrderDiscountRequest` has no `authorised_by` field to fill in
+  with somebody else's name. Adding and removing a discount both write an audit row: a comp added
+  and quietly removed after the bill was shown is the other half of the story.
+- **A percentage or comp is recomputed on every reprice while the order is live; a flat discount
+  keeps its amount.** 10% of a bill that grows by a dessert is 10% of the new bill.
+- **Refused, not clamped, in two places.** Adding a discount larger than what it comes off is a 422.
+  A later change that would leave an existing discount larger than the bill — taking the dal off
+  under a ₹400 discount on a ₹350 remainder — is a 409, and the whole change rolls back.
+- **A discount on a dish taken off the bill takes nothing off** (amount ₹0), and stays as a record.
+- **Service charge:** refused while the restaurant has no rate (409), once per order, computed from
+  the bill after discounts at the restaurant's rate, untaxed unless a tax group is named, optional
+  and removable. Typing an amount for one is a 422. A charge may not use a `non_gst` tax group.
+- **Split returns the new order (201)**; the original's version moves, so the screen re-reads it.
+  The new order's status follows its dishes (sent if any is in the kitchen, served if any was
+  served), line-level discounts move with their dishes, order-level discounts and charges stay, and
+  splitting off every dish is a 409. Audited as `order.split`.
+- **Discounts and charges come off by `POST .../remove`**, for the reason lines do: the request
+  carries the version. The spec's table had DELETE for charges.
 
 ---
 
