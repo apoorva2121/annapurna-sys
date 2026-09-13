@@ -23,6 +23,7 @@ from app.seed.identity import MissingSystemRoleError, seed_identity
 from app.seed.inventory import seed_inventory
 from app.seed.loader import SeedDataNotFoundError
 from app.seed.menu import seed_menu
+from app.seed.orders import seed_orders
 from app.seed.procurement import seed_procurement
 from app.seed.setup import seed_setup
 from app.seed.stock import seed_stock
@@ -57,6 +58,9 @@ async def seed() -> None:
             # After the inventory seeder and not before: both write the stock ledger, and that one
             # refuses to run at all if any movement already exists.
             procurement = await seed_procurement(session)
+            # An open order, a sent one, a settled bill with a credit note, and a till closed ₹50
+            # short. After procurement: settlement writes the stock ledger too.
+            orders = await seed_orders(session)
             # The single commit. Everything above it is provisional until this line.
             await session.commit()
     finally:
@@ -70,6 +74,7 @@ async def seed() -> None:
         and stock.created_nothing
         and inventory.created_nothing
         and procurement.created_nothing
+        and orders.created_nothing
     ):
         logger.info("Seed data already present; nothing to do.")
         return
@@ -113,6 +118,13 @@ async def seed() -> None:
         procurement.orders_created,
         procurement.receipts_created,
         procurement.short_deliveries_planted,
+    )
+    logger.info(
+        "Seeded %d orders, %d invoices, %d credit notes and %d deliberately short tills.",
+        orders.orders_created,
+        orders.invoices_issued,
+        orders.credit_notes_issued,
+        orders.short_tills_planted,
     )
 
 

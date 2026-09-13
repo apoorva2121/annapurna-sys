@@ -88,6 +88,32 @@ A restaurant on the 5% scheme **bears input GST and cannot reclaim it**, so land
 `gst_rate` and `gst_hsn` per ingredient for this reason; `library/gst_build.py` holds the
 derivation and the citations.
 
+### A7 · The bill, the invoice, and what may change after it (M07)
+
+Checked 2026-09-13 for `docs/modules/M07-orders-spec.md`. Its research table (R1–R19) carries every
+source. The statuses below are copied from that table, not re-derived.
+
+| Rule | Instrument | Status | Enforced by |
+|---|---|---|---|
+| A composition restaurant may not collect tax, and issues a bill of supply | CGST Act s.10; Rule 49 | in force | `test_a_composition_restaurant_puts_no_tax_on_the_bill`, `test_a_composition_restaurant_issues_a_bill_of_supply_with_no_tax`, and migration 0019's check |
+| A tax invoice carries the supplier's GSTIN | CGST Rules, Rule 46 | in force | `test_a_regular_restaurant_without_its_gstin_cannot_issue_a_tax_invoice` |
+| The invoice serial is consecutive, at most 16 characters, and unique per financial year | Rule 46(b) | in force | `test_every_invoice_number_a_year_can_reach_fits_the_rule`, `test_five_bills_settling_at_once_take_five_consecutive_numbers` |
+| The financial year starts on 1 April | General Clauses Act 1897, s.3(21) | in force | `test_an_invoice_number_carries_its_year` |
+| A cancelled invoice keeps its number | GSTR-1 Table 13 (documents issued) | in force (return practice) | `test_an_invoice_issued_in_error_is_cancelled_keeps_its_number_and_voids_its_order` |
+| A reduction after issue is a credit note in its own series, against the invoice | CGST Act s.34; Rule 53 | in force | `test_a_credit_note_has_its_own_series_and_fills_sixteen_characters`, `test_crediting_every_portion_one_at_a_time_adds_up_to_the_bill_exactly` |
+| A discount recorded on the invoice at supply comes off the taxable value | CGST Act s.15(3)(a) | in force | `test_an_order_discount_reaches_the_lines_to_the_paisa`, `test_a_comp_on_one_dish_takes_the_dish_and_its_tax_off_the_bill` |
+| On a rate change, the rate follows two of three: supply, invoice, payment | CGST Act s.14 | in force; primary text not fetched, and four secondary sources agree | `test_the_median_is_before_exactly_when_two_of_three_are`, `test_a_bill_served_and_paid_before_a_rate_change_takes_the_old_rate` |
+| No service charge by default, or under another name | CCPA guidelines, 4 Jul 2022; Delhi HC single judge, 28 Mar 2025 | in force at first instance; **unsettled** at appellate level, with an appeal pending | `test_no_order_carries_a_service_charge_it_was_not_given`, `test_a_service_charge_is_refused_where_the_restaurant_has_none` |
+
+What the code must do:
+
+- **The client never sends a price, a tax or a total.** The server prices every line
+  (`test_a_price_sent_by_the_client_is_refused_and_changes_nothing`).
+- **A settled bill is never edited**, and migration 0019 makes the database refuse it. Money going
+  back is a credit note with a refund. It is never an edit, and never a cancellation.
+- **Not decided here, and blocking nobody:** whether GST applies to a service charge (R17,
+  **unsettled**), and whether packaging is taxed at the food rate (R18, **unverified**).
+
 ---
 
 ## B · Conditional — model the condition, not the outcome
@@ -141,6 +167,8 @@ mid-module additions:
 | No allergen fields on `menu_item` | M03 revisit | §A2 is in force; this is the largest open gap |
 | No calorie / serving-size fields | M03 revisit | §B1; needs the derived applicability flag too |
 | No FSSAI expiry date or status | M02 revisit | The licence prints on every bill; nothing stops an expired one printing |
+| No rendered invoice document | M07 follow-up | Rule 46's particulars and the restaurant's identity are stored on `invoice` at settlement, but nothing lays them out for a customer: no print, no PDF, and no Rule 5(1)(f) heading on a composition bill of supply. Printing is out of scope for month 1 (CLAUDE.md) |
+| Documents-issued counts are not reported | M07 follow-up | A cancelled invoice keeps its number, which GSTR-1 Table 13 needs, but no report produces the counts or the serial ranges |
 | `food_type` not in `app/core/enums.py` | M03 revisit | Violates CLAUDE.md's enum convention — currently a CheckConstraint plus two regexes plus a separate frontend type |
 
 ---

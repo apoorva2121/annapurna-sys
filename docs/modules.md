@@ -139,8 +139,10 @@ Largest module. Split the PR.
   invoice, credit_note, credit_note_line, payment, idempotency_key, **cash_session, cash_count,
   cash_movement** (the till cash-up — see *Cash reconciliation* below). Designed in
   `docs/modules/M07-orders-spec.md`, built by migration 0019
-- **Endpoints** — order create/get/list; line add/update/remove; `POST /orders/{id}/send`,
-  `/settle`, `/void`, `/cancel`; `POST /orders/{id}/payments`; `POST /orders/{id}/discounts`
+- **Endpoints** — order create/get/list and `GET /floor`; line add/update/remove;
+  `POST /orders/{id}/send`, `/served`, `/bill`, `/cancel`, `/split`, `/discounts`, `/charges`,
+  `/settle` (payments travel inside it); `POST /invoices/{id}/cancel` and `/credit-notes`;
+  `/cash/sessions` with close, payouts and adjustments
 - **Screens** — table map, order taking (waiter PWA, thumb-reachable), bill view, split bill,
   payment, void/refund
 - **Rules** — **the server recomputes every price, tax and total; the client sends only what was
@@ -162,8 +164,8 @@ Largest module. Split the PR.
 
   *Why this is here and not in Shifts:* expected cash comes from `payment` rows, so it belongs with
   the module that owns payment. Rationale in `docs/plan/analytics-harvest.md`.
-- **Manual** — heavy. Full script including split bills, comps, refunds, a deliberate short till,
-  and rupee figures to check.
+- **Manual** — `docs/manual-tests/M07-orders.md`: split bills, a comp, a credit note with a refund,
+  a deliberate short till, and rupee figures to check by hand
 - **Est.** 7 days *(6 + 1 for the cash-up)*
 
 ## M08 · Kitchen / KOT

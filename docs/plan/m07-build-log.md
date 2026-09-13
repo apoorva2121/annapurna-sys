@@ -25,8 +25,10 @@ Spec: `docs/modules/M07-orders-spec.md` (`a40ea95`). **Resume from the State tab
 | 2 | I | Cash sessions, counts, payouts, adjustments | ☑ done | `706e3e1` |
 | 2 | — | **PR 2 gate: full `make check`** | ☑ green | `9762194` |
 | 3 | J | Table map, order taking, bill, split, payment | ☑ done | `17992c4` |
-| 3 | K | Void / credit note, cash-up screens, waiter patterns | ☑ done | this commit |
-| 3 | L | Seed, review, second reader, manual script, compliance-rules.md | ☐ next | — |
+| 3 | K | Void / credit note, cash-up screens, waiter patterns | ☑ done | `700efc6` |
+| 3 | L | Seed, review, second reader, manual script, compliance-rules.md | ☑ done | this commit |
+| 3 | — | **PR 3 gate: full `make check`** | ☐ next | — |
+| — | — | **Your manual pass** — `docs/manual-tests/M07-orders.md` | ☐ | — |
 
 **Resequenced from the spec:** chunk A was planned as "log-context fix · table status transitions".
 The table-status guard refuses `free` while an order is open, which needs the `order` table — so it
@@ -464,6 +466,31 @@ The waiter patterns M07 owed `docs/ui/design-system.md` are now written into §4
 order line row, money display and quantity stepper.
 
 Green before commit: backend 90 passed (settlement, orders endpoints, generic suites, query counts); frontend 35 passed in 6 files, re-run after splitting the invoice test's fetch mock into a route table for eslint's complexity limit; ruff, format and mypy over 151 files; `tsc`; eslint over the whole app with zero warnings; prettier; both audits.
+
+---
+
+## Chunk L — the seed, the rules, and the script
+
+- **Seed.** `app/seed/orders.py` builds its demo state through the real services, so the seeded bill
+  is priced, taxed, numbered and consumed exactly as a real one would be. It creates:
+  - an open order and a sent order;
+  - a settled bill paid in cash with the paise by UPI;
+  - a naan credited back with a UPI refund;
+  - a till closed **₹50 short**.
+
+  `tests/test_seed_orders.py` asserts each of these, and that seeding twice creates nothing new.
+- **Compliance.** `docs/compliance-rules.md` §A7 adds nine rules, each with its instrument, its
+  status and the test that enforces it. §D gains two gaps: no rendered invoice, and no report of
+  documents issued.
+- **Manual script.** `docs/manual-tests/M07-orders.md`. The rupee figures are for checking by hand.
+- **Backlog.** Six rows. Among them: no screen for discounts or comps, the blind count as a decision
+  for the owner, and INFO business events missing from M03–M06.
+- **`docs/modules.md`.** The M07 endpoint list now matches what was built: there is no `/void` and
+  no `/payments`, because payments travel inside settle.
+
+**Review.** An independent second reader went through the whole M07 diff, and the uncommitted seeder, and reported six findings. It found nothing in tenant isolation, immutability, idempotency, permissions or the frontend. The six findings: cash posting into a till that closed mid-settle; cash taken with no till open; a cancelled invoice's cash double-counted in the till; a comp growing past what was authorised; credit-note rounding drift on many one-portion notes; and a refund larger than money received. Each fix gets its regression test written first, in the commit after this one, and cash with no till open goes to the owner as a backlog row. My own review before it found and fixed the closed-till list stopping silently at one page, and a screen test asserting an ambiguous word.
+
+Green before commit: seed tests 33 passed (4 new for the orders seeder, plus seed, seed CLI and procurement seed), re-run 4 passed after reading model money through `Decimal(str(...))` for mypy; ruff, format and mypy over 153 files; both audits.
 
 ---
 
