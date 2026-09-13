@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.actor import Actor
 from app.core.db import get_session
 from app.core.errors import AppError, PermissionDeniedError
+from app.core.logging import actor_id_var, restaurant_id_var
 from app.core.permissions import PermissionCode
 from app.core.security import ExpiredTokenError, InvalidTokenError, decode_access_token
 from app.core.tenancy import TenantScope
@@ -83,6 +84,15 @@ async def current_actor(
 
     resolved = await AccessRepository(session).resolve(employee.id, restaurant_id)
     request.state.actor_employee_id = str(employee.id)
+    request.state.restaurant_id = str(restaurant_id)
+    # **Set here, and never anywhere before 2026-09-13.** `app/core/logging.py` declared these two
+    # variables and its formatter reads them, but nothing ever set them — so every business event
+    # and security warning was written with no tenant, while `docs/observability.md` said every line
+    # carried one "automatically". This is the one place both facts become known, so it is the one
+    # place they are set. They live in this request's task context and die with it; the middleware
+    # copies them onto the access line from `request.state`, which is what survives the handler.
+    restaurant_id_var.set(str(restaurant_id))
+    actor_id_var.set(str(employee.id))
     return Actor(
         employee_id=employee.id,
         organization_id=organization_id,

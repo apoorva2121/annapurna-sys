@@ -21,7 +21,13 @@ from app.api.v1.guest import router as guest_router
 from app.api.v1.staff import router as staff_router
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
-from app.core.logging import REQUEST_ID_HEADER, configure_logging, request_id_var
+from app.core.logging import (
+    REQUEST_ID_HEADER,
+    actor_id_var,
+    configure_logging,
+    request_id_var,
+    restaurant_id_var,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,14 +71,25 @@ async def request_context_middleware(
         response = await call_next(request)
     finally:
         duration_ms = round((time.perf_counter() - started) * 1000, 2)
-        logger.info(
-            "http.request",
-            extra={
-                "route": f"{request.method} {route_template(request)}",
-                "duration_ms": duration_ms,
-            },
-        )
-        request_id_var.reset(token)
+        # **The handler's context does not reach this line.** `call_next` runs the application in a
+        # child task, so the tenant `current_actor` set is gone by the time the access line is
+        # written. `request.state` lives in the ASGI scope and survives, so it is read back here and
+        # set for this one call only. Through the context variables rather than `extra`, so the ids
+        # go through the formatter's own fields instead of the PII pattern scan.
+        tenant = restaurant_id_var.set(getattr(request.state, "restaurant_id", None))
+        actor = actor_id_var.set(getattr(request.state, "actor_employee_id", None))
+        try:
+            logger.info(
+                "http.request",
+                extra={
+                    "route": f"{request.method} {route_template(request)}",
+                    "duration_ms": duration_ms,
+                },
+            )
+        finally:
+            actor_id_var.reset(actor)
+            restaurant_id_var.reset(tenant)
+            request_id_var.reset(token)
     response.headers[REQUEST_ID_HEADER] = request_id
     return response
 

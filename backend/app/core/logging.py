@@ -82,11 +82,44 @@ _RESERVED = frozenset(
 )
 
 
-def redact_text(text: str) -> str:
-    """Scrub PII patterns out of free text."""
+# A canonical UUID, bounded by hex characters so the match is a whole identifier and never a slice
+# of a longer hex token. Every primary key in this product is one (ADR 0008).
+_UUID = re.compile(
+    r"(?<![0-9a-fA-F])[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+    r"(?![0-9a-fA-F])"
+)
+
+
+def _redact_span(text: str) -> str:
     text = _EMAIL.sub(REDACTED, text)
     text = _GSTIN.sub(REDACTED, text)
     return _PHONE.sub(REDACTED, text)
+
+
+def redact_text(text: str) -> str:
+    """Scrub PII patterns out of free text, leaving identifiers intact.
+
+    **UUIDs are carved out before the scan, and the carve-out is exactly one UUID wide.** The phone
+    pattern's boundaries exclude digits and nothing else, so a UUID whose last group held a bounded
+    ten-digit run starting 6-9 — `...-b137-9876543210ab` — was logged as `...-b137-[redacted]ab`.
+    Roughly one identifier in two hundred, and `auth.account_locked` passes `account_id` through
+    exactly this path, so some locked-account ids in the security log were already corrupted.
+
+    Relaxing the phone boundaries to exclude hex letters would have fixed that too, and been wrong:
+    it would stop redacting a phone number glued to a word. A missed phone number is a PII leak; a
+    mangled id is only a nuisance. So the fix protects identifiers and leaves the PII pattern alone.
+
+    Splitting at a UUID can only *add* redaction at a span's edge (a digit run that touched the UUID
+    now looks bounded), never remove it — the safe direction for a PII control.
+    """
+    parts: list[str] = []
+    last = 0
+    for match in _UUID.finditer(text):
+        parts.append(_redact_span(text[last : match.start()]))
+        parts.append(match.group(0))
+        last = match.end()
+    parts.append(_redact_span(text[last:]))
+    return "".join(parts)
 
 
 def redact_value(key: str, value: Any, depth: int = 0) -> Any:

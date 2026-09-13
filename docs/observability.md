@@ -8,7 +8,17 @@ display goes blank mid-service.
 **Structured JSON, one event per line.** Never `print`, never bare f-string logs — a log you cannot
 filter is a log you will not read.
 
-Every log line carries, automatically, via middleware:
+Every log line carries `request_id` automatically, via middleware. **`restaurant_id` and
+`actor_id` arrive once a request is authenticated:** `current_actor` sets them for every line
+written while the request is handled, and the middleware copies them onto the access line from
+`request.state`, because the handler's context does not reach it. Unauthenticated lines — login,
+health — carry neither.
+
+*Until 2026-09-13 this paragraph said all three were attached automatically. The last two were
+never set anywhere, so every line had been written with no tenant. `tests/test_logging_context.py`
+now holds the paragraph to what it says.*
+
+A line from an authenticated request looks like:
 
 ```json
 { "ts": "...", "level": "INFO", "msg": "order.settled",
