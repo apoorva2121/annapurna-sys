@@ -733,7 +733,12 @@ class TestTenantIsolationAcrossEveryStaffRoute:
                 route.method,
                 url,
                 json=_sample_body(route),
-                headers={"Authorization": f"Bearer {token}"},
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    # Fresh per probe, so an idempotent route reaches the check under test
+                    # instead of refusing for a missing key (M07 chunk F).
+                    "Idempotency-Key": str(uuid.uuid4()),
+                },
             )
             # 422 is acceptable only because a body may fail validation before authorisation;
             # 200 or 201 would mean one tenant reached another's row.
@@ -912,7 +917,12 @@ class TestThePermissionMatrix:
                 route.method,
                 url,
                 json=_sample_body(route),
-                headers={"Authorization": f"Bearer {token}"},
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    # Fresh per probe, so an idempotent route reaches the check under test
+                    # instead of refusing for a missing key (M07 chunk F).
+                    "Idempotency-Key": str(uuid.uuid4()),
+                },
             )
             should_be_allowed = set(route.permissions) <= granted
             was_denied = response.status_code == 403

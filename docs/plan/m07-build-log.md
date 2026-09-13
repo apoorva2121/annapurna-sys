@@ -19,8 +19,8 @@ Spec: `docs/modules/M07-orders-spec.md` (`a40ea95`). **Resume from the State tab
 | 1 | E1 | Orders, lines, modifiers, send/serve/bill/cancel · table status | ☑ done | `437a9e6` |
 | 1 | E2 | Discounts, charges, split | ☑ done | `1851657` |
 | 1 | — | **PR 1 gate: full `make check`** | ☑ green on the second run | fix `65e0418` |
-| 2 | F | Idempotency mechanism + retrofit M06 receiving | ☐ | — |
-| 2 | G | Settlement: invoice numbering, payments, consumption, cost freeze | ☐ | — |
+| 2 | F | Idempotency mechanism + retrofit M06 receiving | ☑ done | this commit |
+| 2 | G | Settlement: invoice numbering, payments, consumption, cost freeze | ☐ next | — |
 | 2 | H | Credit notes, invoice cancellation, refunds | ☐ | — |
 | 2 | I | Cash sessions, counts, payouts, adjustments | ☐ | — |
 | 3 | J | Table map, order taking, bill, split, payment | ☐ | — |
@@ -278,6 +278,41 @@ exact to the second.
 
 **Second run: `make check` exit 0.** Backend 920 passed, coverage 97.12%; vitest 213 passed;
 `audit_docs` and `audit_guardrails` 0 issues; `pip-audit` no known vulnerabilities.
+
+---
+
+## Chunk F — a duplicate is money, so the database decides what counts as one
+
+**The claim is one statement in the effect's own transaction:** `INSERT … ON CONFLICT DO NOTHING` on
+`(restaurant_id, key)`. A second request with the same key waits on the unique index until the first
+transaction ends, then finds a finished request and replays its stored response. A first attempt that
+fails rolls its claim back with everything else, so the honest retry runs again — **an error is never
+stored.** The same key with a different request is a 409. A request is identified by method, path and
+exact body bytes; a replayed response carries `Idempotent-Replayed: true`.
+
+**The key check runs inside the handler, after authorisation, never as a dependency.** A dependency
+would resolve beside `require_permission` rather than after it, and a missing key could then answer
+before a missing permission.
+
+**On the client the key is made once per submission and renewed on success** — not per tap (two taps
+on a stalled connection are one delivery) and not per request (a retry would carry a new key). The
+wrapper refuses to send a listed endpoint without one. `newKey` falls back to `getRandomValues`
+because `crypto.randomUUID` does not exist in an insecure context, which a tablet reaching a
+development server by LAN address is.
+
+**Retrofitted onto M06 receiving**, closing the backlog row M06's own review opened. The existing
+suites adapted rather than being weakened: 19 delivery posts in the procurement tests and the
+query-count test now send a key, and the generic suites send a fresh key with every probe so an
+idempotent route still reaches the check under test. The race is tested on real transactions
+(`fresh_database`): two taps with one key book one delivery and replay once.
+
+**Recorded, not built:** ADR 0010 says expired keys are swept nightly. Expiry is honoured — an expired
+key can be claimed again — but no job deletes old rows; a backlog row carries the trigger. ADR 0010
+gains a refinement note: the wrapper refuses a keyless request rather than inventing a key.
+
+Green before commit: backend 65 passed (idempotency, procurement endpoints, query counts, generic
+suites); frontend 23 passed (wrapper, key hook, goods receipt); ruff, format and mypy over 142 files;
+`tsc` and eslint; both audits.
 
 ---
 

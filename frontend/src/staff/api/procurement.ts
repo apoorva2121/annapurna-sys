@@ -285,20 +285,25 @@ export type ReceiveInput = {
   tax_amount?: string | null;
 };
 
+/** `idempotencyKey` comes from `useIdempotencyKey` in the screen, made once per delivery. */
 export function useReceiveAgainstOrder(): UseMutationResult<
   PostedReceipt,
   Error,
-  { orderId: string; body: ReceiveInput }
+  { orderId: string; body: ReceiveInput; idempotencyKey: string }
 > {
-  return useProcurementMutation(({ orderId, body }) =>
-    apiPost<PostedReceipt>(`/staff/purchase-orders/${orderId}/receive`, body),
+  return useProcurementMutation(({ orderId, body, idempotencyKey }) =>
+    apiPost<PostedReceipt>(`/staff/purchase-orders/${orderId}/receive`, body, {
+      idempotencyKey,
+    }),
   );
 }
 
 export function useReceiveAdHoc(): UseMutationResult<
   PostedReceipt,
   Error,
-  ReceiveInput & { supplier_id: string }
+  { body: ReceiveInput & { supplier_id: string }; idempotencyKey: string }
 > {
-  return useProcurementMutation((input) => apiPost<PostedReceipt>('/staff/goods-receipts', input));
+  return useProcurementMutation(({ body, idempotencyKey }) =>
+    apiPost<PostedReceipt>('/staff/goods-receipts', body, { idempotencyKey }),
+  );
 }

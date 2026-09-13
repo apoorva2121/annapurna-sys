@@ -162,6 +162,42 @@ describe('booking in a delivery', () => {
     expect(screen.queryByText(/₹/)).not.toBeInTheDocument();
   });
 
+  it('retries a failed booking with the same Idempotency-Key it first sent', async () => {
+    // ADR 0010. A second tap after a dropped connection is the same delivery. If the first request
+    // had in fact landed, a fresh key would book the stock twice.
+    const fetchMock = renderScreen();
+    let posts = 0;
+    fetchMock.mockImplementation((input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      if (init?.method === 'POST') {
+        posts += 1;
+        return posts === 1
+          ? Promise.reject(new TypeError('offline'))
+          : Promise.resolve(json(POSTED, 201));
+      }
+      if (url.includes('purchase-orders/po1')) return Promise.resolve(json(ORDER));
+      if (url.includes('stock-items')) return Promise.resolve(json(ITEMS));
+      return Promise.resolve(json({}));
+    });
+
+    await weighIn('1000', '1000');
+    await vi.waitFor(() => {
+      expect(posts).toBe(1);
+      expect(screen.getByRole('button', { name: 'Book it in' })).toBeEnabled();
+    });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Book it in' }));
+    await vi.waitFor(() => {
+      expect(posts).toBe(2);
+    });
+
+    const keys = fetchMock.mock.calls
+      .filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST')
+      .map(([, init]) => ((init as RequestInit).headers as Record<string, string>)['Idempotency-Key']);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(keys[1]).toBe(keys[0]);
+  });
+
   it('sends the three quantities as the exact strings that were typed', async () => {
     const fetchMock = renderScreen();
 

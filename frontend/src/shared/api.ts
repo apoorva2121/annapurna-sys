@@ -13,6 +13,21 @@ const REFRESH_PATH = '/auth/refresh';
 // construction.
 const NEVER_REFRESH: ReadonlySet<string> = new Set(['/auth/login', REFRESH_PATH, '/auth/logout']);
 
+// The writes whose effect is money or stock (ADR 0010). A request to one of these without an
+// Idempotency-Key is refused here, before it leaves the browser. The key has to be made when the
+// person tapped (`useIdempotencyKey`): a wrapper that invented one per request would give every
+// retry a new key, which is exactly the double booking the key exists to stop.
+const IDEMPOTENT_ENDPOINTS: readonly RegExp[] = [
+  /^\/staff\/goods-receipts$/,
+  /^\/staff\/purchase-orders\/[^/]+\/receive$/,
+];
+
+export type RequestOptions = { idempotencyKey?: string };
+
+export function requiresIdempotencyKey(method: string, path: string): boolean {
+  return method === 'POST' && IDEMPOTENT_ENDPOINTS.some((pattern) => pattern.test(path));
+}
+
 /** The failure envelope every backend error uses (docs/engineering-standards.md section 4). */
 export type ApiError = {
   code: string;
@@ -127,8 +142,16 @@ async function errorFrom(response: Response): Promise<ApiClientError> {
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT';
 
-async function send(method: Method, path: string, body?: unknown): Promise<Response> {
+async function send(
+  method: Method,
+  path: string,
+  body?: unknown,
+  idempotencyKey?: string,
+): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json' };
+  if (idempotencyKey !== undefined) {
+    headers['Idempotency-Key'] = idempotencyKey;
+  }
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json';
   }
@@ -205,13 +228,25 @@ async function negotiate(): Promise<string | null> {
  * only path that re-sends is the single `if` below, so a dead session costs two requests and then
  * an error, however many components are mounted.
  */
-async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
-  let response = await send(method, path, body);
+async function request<T>(
+  method: Method,
+  path: string,
+  body?: unknown,
+  options: RequestOptions = {},
+): Promise<T> {
+  const { idempotencyKey } = options;
+  if (idempotencyKey === undefined && requiresIdempotencyKey(method, path)) {
+    throw new ApiClientError({
+      code: 'idempotency.key_missing',
+      message: 'This action was sent without its idempotency key, which is a bug in this screen.',
+    });
+  }
+  let response = await send(method, path, body, idempotencyKey);
 
   if (response.status === 401 && !NEVER_REFRESH.has(path)) {
     const token = await refreshOnce();
     if (token !== null) {
-      response = await send(method, path, body);
+      response = await send(method, path, body, idempotencyKey);
     }
     // If the refresh failed we deliberately fall through holding the ORIGINAL 401, so the caller
     // sees why the request failed rather than a second-hand message about the refresh.
@@ -242,8 +277,16 @@ export function apiGet<T>(path: string): Promise<T> {
   return request<T>('GET', path);
 }
 
-export function apiPost<T = void>(path: string, body?: unknown): Promise<T> {
-  return request<T>('POST', path, body);
+/**
+ * POST. For an endpoint in `IDEMPOTENT_ENDPOINTS`, `options.idempotencyKey` is required and the
+ * request is refused without it rather than sent. The replay after a refresh carries the same key.
+ */
+export function apiPost<T = void>(
+  path: string,
+  body?: unknown,
+  options?: RequestOptions,
+): Promise<T> {
+  return request<T>('POST', path, body, options);
 }
 
 export function apiPatch<T>(path: string, body: unknown): Promise<T> {

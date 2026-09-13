@@ -29,9 +29,11 @@ import uuid
 from datetime import date, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi.responses import JSONResponse
 
 from app.api.deps import SessionDep, require_permission
+from app.api.idempotency import begin_idempotent
 from app.core.actor import Actor
 from app.core.enums import PurchaseOrderStatus
 from app.core.permissions import PermissionCode
@@ -114,8 +116,8 @@ def _posted(result: ReceiptResult, receipt: GoodsReceipt) -> PostedReceiptRespon
     nothing is recomputed here, so the API and the ledger cannot disagree about a variance.
 
     The receipt is passed in, re-read with its lines eagerly loaded: the service returns an id
-    rather than an instance, because `GoodsReceipt.lines` is `lazy="raise"` and the commit in
-    between expires anything it did hand out.
+    rather than an instance, because `GoodsReceipt.lines` is `lazy="raise"`. It is built before the
+    commit, so the idempotency ledger records exactly the response that is returned.
     """
     return PostedReceiptResponse(
         receipt=ReceiptResponse.model_validate(receipt),
@@ -310,10 +312,18 @@ async def cancel_order(
 async def receive_against_order(
     po_id: uuid.UUID,
     payload: ReceiveAgainstOrderRequest,
+    request: Request,
     session: SessionDep,
     actor: _ReceiveDep,
-) -> PostedReceiptResponse:
-    """The money screen's endpoint. A partial delivery leaves the order partially open."""
+) -> PostedReceiptResponse | JSONResponse:
+    """The money screen's endpoint. A partial delivery leaves the order partially open.
+
+    Idempotent (ADR 0010): a second tap on a stalled connection replays the first receipt rather
+    than booking the delivery twice.
+    """
+    call = await begin_idempotent(request, session, actor)
+    if call.replay is not None:
+        return call.replay
     service = _service(session, actor)
     result = await service.receive(
         actor,
@@ -324,22 +334,30 @@ async def receive_against_order(
         tax_amount=payload.tax_amount,
         received_at=payload.received_at,
     )
+    response = _posted(result, await service.get_receipt(result.receipt_id))
+    await call.complete(status.HTTP_201_CREATED, response)
     await session.commit()
-    return _posted(result, await service.get_receipt(result.receipt_id))
+    return response
 
 
 @router.post(
     "/goods-receipts", response_model=PostedReceiptResponse, status_code=status.HTTP_201_CREATED
 )
 async def receive_ad_hoc(
-    payload: AdHocReceiptRequest, session: SessionDep, actor: _ReceiveDep
-) -> PostedReceiptResponse:
+    payload: AdHocReceiptRequest, request: Request, session: SessionDep, actor: _ReceiveDep
+) -> PostedReceiptResponse | JSONResponse:
     """A market purchase with no order behind it, which is how a real vegetable run arrives.
 
     `docs/modules.md` M06 asks for this explicitly. The receipt's null `purchase_order_id` is the
     channel marker: bought at market prices rather than contracted ones, which is a different cost
     story and one M13 will want to split.
+
+    **Idempotent, and this is the route that needed it most** (backlog, M06's own review): a market
+    purchase has no invoice number, so nothing else could tell a second tap from a second sack.
     """
+    call = await begin_idempotent(request, session, actor)
+    if call.replay is not None:
+        return call.replay
     service = _service(session, actor)
     result = await service.receive(
         actor,
@@ -350,8 +368,10 @@ async def receive_ad_hoc(
         tax_amount=payload.tax_amount,
         received_at=payload.received_at,
     )
+    response = _posted(result, await service.get_receipt(result.receipt_id))
+    await call.complete(status.HTTP_201_CREATED, response)
     await session.commit()
-    return _posted(result, await service.get_receipt(result.receipt_id))
+    return response
 
 
 @router.get("/goods-receipts", response_model=ReceiptListResponse)

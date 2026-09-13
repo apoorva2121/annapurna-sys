@@ -15,6 +15,7 @@ Quantities are in base units throughout (invariant 5), so 50 kg of paneer is `50
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from httpx import AsyncClient
@@ -28,6 +29,15 @@ STAFF = "/api/v1/staff"
 FIFTY_KG = "50000.0000"
 # ₹42.00 per kg, per gram.
 PER_GRAM = "0.042000"
+
+
+def _keyed(token: str) -> dict[str, str]:
+    """Auth plus a fresh idempotency key, which every delivery post needs since M07 chunk F.
+
+    Fresh per call on purpose: these tests post *different* deliveries, and one shared key would
+    turn every second post into a 409 for reusing it.
+    """
+    return _auth(token) | {"Idempotency-Key": str(uuid.uuid4())}
 
 
 async def _ingredient(client: AsyncClient, token: str, code: str = "PANEER") -> str:
@@ -126,7 +136,7 @@ class TestTheThreeWayVariance:
                     }
                 ],
             },
-            headers=_auth(token),
+            headers=_keyed(token),
         )
 
         assert response.status_code == 201, response.text
@@ -168,7 +178,7 @@ class TestTheThreeWayVariance:
                     }
                 ]
             },
-            headers=_auth(token),
+            headers=_keyed(token),
         )
 
         on_hand = await api_client.get(f"{STAFF}/stock/on-hand", headers=_auth(token))
@@ -201,7 +211,7 @@ class TestTheThreeWayVariance:
                     }
                 ]
             },
-            headers=_auth(token),
+            headers=_keyed(token),
         )
 
         assert response.status_code == 201, response.text
@@ -257,7 +267,7 @@ class TestLandedCost:
                     },
                 ],
             },
-            headers=_auth(token),
+            headers=_keyed(token),
         )
 
         assert response.status_code == 201, response.text
@@ -292,7 +302,7 @@ class TestLandedCost:
                     }
                 ],
             },
-            headers=_auth(token),
+            headers=_keyed(token),
         )
 
         assert response.json()["lines"][0]["landed_unit_cost"] == PER_GRAM
@@ -325,7 +335,7 @@ class TestLandedCost:
                     }
                 ],
             },
-            headers=_auth(token),
+            headers=_keyed(token),
         )
 
         item = await api_client.get(f"{STAFF}/stock-items/{item_id}", headers=_auth(token))
@@ -415,7 +425,7 @@ class TestThePurchaseOrderLifecycle:
                     }
                 ]
             },
-            headers=_auth(token),
+            headers=_keyed(token),
         )
 
         assert response.status_code == 409, response.text
@@ -450,7 +460,7 @@ class TestThePurchaseOrderLifecycle:
                     }
                 ]
             },
-            headers=_auth(token),
+            headers=_keyed(token),
         )
         assert response.status_code == 409, response.text
         assert response.json()["code"] == "purchase_order.closed"
@@ -477,7 +487,7 @@ class TestThePurchaseOrderLifecycle:
                         }
                     ]
                 },
-                headers=_auth(token),
+                headers=_keyed(token),
             )
             assert response.status_code == 201, response.text
             current = await api_client.get(
@@ -505,7 +515,7 @@ class TestThePurchaseOrderLifecycle:
                     }
                 ]
             },
-            headers=_auth(token),
+            headers=_keyed(token),
         )
 
         response = await api_client.post(
@@ -541,10 +551,10 @@ class TestReceivingRules:
                 }
             ],
         }
-        first = await api_client.post(f"{STAFF}/goods-receipts", json=body, headers=_auth(token))
+        first = await api_client.post(f"{STAFF}/goods-receipts", json=body, headers=_keyed(token))
         assert first.status_code == 201, first.text
 
-        again = await api_client.post(f"{STAFF}/goods-receipts", json=body, headers=_auth(token))
+        again = await api_client.post(f"{STAFF}/goods-receipts", json=body, headers=_keyed(token))
 
         assert again.status_code == 409, again.text
         assert again.json()["code"] == "goods_receipt.invoice_already_booked"
@@ -576,7 +586,7 @@ class TestReceivingRules:
                     }
                 ],
             },
-            headers=_auth(token),
+            headers=_keyed(token),
         )
 
         assert response.status_code == 201, response.text
@@ -608,7 +618,7 @@ class TestReceivingRules:
                     }
                 ],
             },
-            headers=_auth(token),
+            headers=_keyed(token),
         )
 
         assert response.status_code == 400, response.text
@@ -636,7 +646,7 @@ class TestReceivingRules:
                     }
                 ]
             },
-            headers=_auth(token),
+            headers=_keyed(token),
         )
 
         assert response.json()["lines"][0]["unit_price"] == PER_GRAM
@@ -666,7 +676,7 @@ class TestReceivingRules:
                     }
                 ],
             },
-            headers=_auth(token),
+            headers=_keyed(token),
         )
         receipt_id = posted.json()["receipt"]["id"]
 
@@ -708,7 +718,7 @@ class TestTheSupplierVarianceReport:
                         }
                     ],
                 },
-                headers=_auth(token),
+                headers=_keyed(token),
             )
             assert response.status_code == 201, response.text
 
@@ -891,7 +901,7 @@ class TestSeparationOfDuties:
                     }
                 ],
             },
-            headers=_auth(token),
+            headers=_keyed(token),
         )
 
         assert response.status_code == 403, response.text
@@ -989,7 +999,7 @@ class TestTheRemainingRoutes:
                     }
                 ],
             },
-            headers=_auth(token),
+            headers=_keyed(token),
         )
         receipt_id = posted.json()["receipt"]["id"]
 

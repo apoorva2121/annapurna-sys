@@ -11,6 +11,7 @@ formulation an N+1 cannot satisfy.
 
 from __future__ import annotations
 
+import uuid
 from datetime import date
 
 from httpx import AsyncClient
@@ -202,7 +203,7 @@ async def test_the_supplier_variance_report_is_one_query_over_any_number_of_deli
                     }
                 ],
             },
-            headers=headers,
+            headers=headers | {"Idempotency-Key": str(uuid.uuid4())},
         )
         assert response.status_code == 201, response.text
 

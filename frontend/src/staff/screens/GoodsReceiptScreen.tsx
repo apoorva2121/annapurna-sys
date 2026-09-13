@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { formatINR, parseAmount } from '@shared/money';
 import { Button } from '@shared/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@shared/ui/table';
+import { useIdempotencyKey } from '@shared/useIdempotencyKey';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
@@ -67,6 +68,8 @@ export default function GoodsReceiptScreen(): ReactElement {
   const order = usePurchaseOrder(poId);
   const items = useStockItems('ingredient');
   const receive = useReceiveAgainstOrder();
+  // One key for this delivery: kept across a second tap, renewed once the delivery is booked.
+  const submission = useIdempotencyKey();
 
   const [weights, setWeights] = useState<Record<string, Weighed>>({});
   const [invoice, setInvoice] = useState<Invoice>({ number: '', amount: '', tax: '' });
@@ -90,8 +93,17 @@ export default function GoodsReceiptScreen(): ReactElement {
     }
     setProblem(null);
     receive.mutate(
-      { orderId: poId ?? '', body: { lines: validated, ...invoiceBody(invoice) } },
-      { onSuccess: setPosted },
+      {
+        orderId: poId ?? '',
+        body: { lines: validated, ...invoiceBody(invoice) },
+        idempotencyKey: submission.key,
+      },
+      {
+        onSuccess: (result) => {
+          submission.renew();
+          setPosted(result);
+        },
+      },
     );
   }
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiClientError, apiGet } from '@shared/api';
+import { ApiClientError, apiGet, apiPost } from '@shared/api';
 
 // api.ts is the only module allowed to call fetch, so it is the only one that has to be tested
 // against a faked fetch rather than a faked api client.
@@ -98,5 +98,38 @@ describe('apiGet', () => {
     const error = (await apiGet('/version').catch((caught: unknown) => caught)) as ApiClientError;
 
     expect(error.requestId).toBeUndefined();
+  });
+});
+
+describe('apiPost to an endpoint whose effect is money or stock', () => {
+  it('refuses to send without an idempotency key, and never reaches the network', async () => {
+    const fetchSpy = mockFetch(jsonResponse({}));
+
+    await expect(apiPost('/staff/goods-receipts', { lines: [] })).rejects.toMatchObject({
+      code: 'idempotency.key_missing',
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('sends the key it was given as the Idempotency-Key header', async () => {
+    const fetchSpy = mockFetch(jsonResponse({ id: 'r1' }, { status: 201 }));
+
+    await apiPost(
+      '/staff/purchase-orders/po1/receive',
+      { lines: [] },
+      { idempotencyKey: 'tap-0001-aaaa-bbbb' },
+    );
+
+    const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
+    expect((init.headers as Record<string, string>)['Idempotency-Key']).toBe('tap-0001-aaaa-bbbb');
+  });
+
+  it('leaves every other endpoint alone', async () => {
+    const fetchSpy = mockFetch(jsonResponse({ id: 's1' }, { status: 201 }));
+
+    await apiPost('/staff/suppliers', { name: 'Sharma Traders' });
+
+    const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
+    expect(init.headers).not.toHaveProperty('Idempotency-Key');
   });
 });

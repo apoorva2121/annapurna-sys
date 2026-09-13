@@ -64,5 +64,9 @@ own transactions; repositories never commit.
 - One extra table (`idempotency_key`) and one extra column (`order.version`).
 - The API client wrapper attaches the header automatically for the listed endpoints, so this cannot
   be forgotten per call site.
+  *Refined by M07 spec decision 8 (2026-09-13):* the wrapper **refuses** a listed endpoint sent
+  without a key rather than inventing one, because the key must be made when the person taps. A key
+  made inside the request would differ on every retry — which is the double effect this ADR exists
+  to prevent. The key is made once per submission and renewed on success.
 - Tests must include a concurrent-settlement case and a double-submit case. Both are in the module
   Definition of Done for Orders and Inventory.
