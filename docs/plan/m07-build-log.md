@@ -17,8 +17,8 @@ Spec: `docs/modules/M07-orders-spec.md` (`a40ea95`). **Resume from the State tab
 | 1 | C | Permissions 0020 + `cash.manage` design amendment | ☑ done | `5281f5b` |
 | 1 | D | Tax core: FY, line split, median rate date, apportionment | ☑ done | `5151e2a` |
 | 1 | E1 | Orders, lines, modifiers, send/serve/bill/cancel · table status | ☑ done | `437a9e6` |
-| 1 | E2 | Discounts, charges, split | ☑ done | this commit |
-| 1 | — | **PR 1 gate: full `make check`** | ☐ next | — |
+| 1 | E2 | Discounts, charges, split | ☑ done | `1851657` |
+| 1 | — | **PR 1 gate: full `make check`** | ☑ green on the second run | fix `65e0418` |
 | 2 | F | Idempotency mechanism + retrofit M06 receiving | ☐ | — |
 | 2 | G | Settlement: invoice numbering, payments, consumption, cost freeze | ☐ | — |
 | 2 | H | Credit notes, invoice cancellation, refunds | ☐ | — |
@@ -259,6 +259,25 @@ was worked by hand before the run rather than copied from its output.
   splitting off every dish is a 409. Audited as `order.split`.
 - **Discounts and charges come off by `POST .../remove`**, for the reason lines do: the request
   carries the version. The spec's table had DELETE for charges.
+
+---
+
+## PR 1 gate — green on the second run, and the first run found a real defect
+
+**First run: 918 passed, 1 failed.** `test_setup_endpoints.py::TestThemeSettings::
+test_a_window_that_ends_before_it_starts_is_refused` got a 401 on the request immediately after a
+successful login. The two log lines ran backwards in time — login at 02:39:48.515, the refused
+request at 02:39:47.096 — so the machine's clock was stepped back about 1.4 s mid-run. Access tokens
+carry `iat: now`, and PyJWT refuses a future `iat` with no leeway. Re-run alone, the test passed.
+
+It was not a flaky test to retry. The same step happens in production whenever NTP adjusts a clock
+or two instances disagree by a second, and it signs a person out immediately after signing in. Fixed
+under the bug rule — regression test first, red output in the commit body — by turning off the `iat`
+check only (`65e0418`). A leeway was rejected because PyJWT applies it to `exp` too, and expiry stays
+exact to the second.
+
+**Second run: `make check` exit 0.** Backend 920 passed, coverage 97.12%; vitest 213 passed;
+`audit_docs` and `audit_guardrails` 0 issues; `pip-audit` no known vulnerabilities.
 
 ---
 
