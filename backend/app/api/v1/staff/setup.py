@@ -22,6 +22,7 @@ from app.core.permissions import PermissionCode
 from app.models.tenancy import Restaurant
 from app.repositories.base import DEFAULT_PAGE_SIZE
 from app.schemas.setup import (
+    BusyWindowSettings,
     DiningAreaCreateRequest,
     DiningAreaListResponse,
     DiningAreaResponse,
@@ -35,6 +36,7 @@ from app.schemas.setup import (
     TableCreateRequest,
     TableListResponse,
     TableResponse,
+    TableSettingsBlock,
     TableStatusRequest,
     TableUpdateRequest,
     TaxGroupCreateRequest,
@@ -44,6 +46,7 @@ from app.schemas.setup import (
     TaxRateCreateRequest,
     ThemeSettings,
 )
+from app.services.floor_rules import read_table_settings
 from app.services.setup import SetupService, read_theme
 
 router = APIRouter(tags=["setup"])
@@ -78,6 +81,16 @@ def _restaurant_response(restaurant: Restaurant) -> RestaurantResponse:
     """
     body = RestaurantResponse.model_validate(restaurant)
     body.theme = ThemeSettings.model_validate(read_theme(restaurant.settings))
+    # Read through the same rules the floor and settlement use, so the screen shows what actually
+    # applies — including the five-minute default for a restaurant that never saved one.
+    rules = read_table_settings(restaurant.settings)
+    body.tables = TableSettingsBlock(
+        cleaning_minutes=rules.cleaning_minutes,
+        busy_windows=[
+            BusyWindowSettings(starts=window.starts, ends=window.ends)
+            for window in rules.busy_windows
+        ],
+    )
     return body
 
 

@@ -247,3 +247,43 @@ describe('OrderScreen', () => {
     expect(await screen.findByRole('button', { name: 'Send to kitchen' })).toBeDisabled();
   });
 });
+
+// Backlog-issues B2: the two steps the M07 second reader found had no button.
+describe('asking for the bill and cancelling', () => {
+  it('asks for the bill, carrying only the version', async () => {
+    const fetchMock = renderScreen(order([PENDING_LINE]));
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Ask for bill' }));
+
+    expect(posted(fetchMock, '/staff/orders/o1/bill')).toEqual({ version: 3 });
+  });
+
+  it('cancels only after it is confirmed and a reason is given', async () => {
+    const fetchMock = renderScreen();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Cancel order' }));
+    expect(await screen.findByText('Nothing has gone to the kitchen yet.')).toBeInTheDocument();
+    const confirm = screen.getByRole('button', { name: 'Yes, cancel it' });
+    expect(confirm).toBeDisabled();
+
+    await user.type(screen.getByLabelText(/Why is it being cancelled/), 'opened by mistake');
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+
+    expect(posted(fetchMock, '/staff/orders/o1/cancel')).toEqual({
+      version: 3,
+      reason: 'opened by mistake',
+    });
+  });
+
+  it('says how many dishes already went to the kitchen before anyone confirms', async () => {
+    renderScreen(order([{ ...PENDING_LINE, status: 'sent', sent_at: '2026-09-13T12:05:00Z' }]));
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Cancel order' }));
+
+    expect(await screen.findByText(/1 dish has already gone to the kitchen/)).toBeInTheDocument();
+  });
+});

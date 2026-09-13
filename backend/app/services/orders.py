@@ -79,6 +79,13 @@ from app.repositories.orders import (
     PricingRepository,
 )
 from app.repositories.setup import RestaurantRepository, RestaurantTableRepository
+from app.services.floor_rules import (
+    TableSettings,
+    floor_status,
+    is_busy,
+    read_table_settings,
+    ready_at,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +102,19 @@ def _dec(value: object) -> Decimal:
     return value if isinstance(value, Decimal) else Decimal(str(value))
 
 
+def _cell(
+    table: RestaurantTable, orders: Sequence[Order], settings: TableSettings, now: datetime
+) -> FloorTableView:
+    ready = ready_at(settings, table.cleaning_since)
+    status = floor_status(table.status, ready, now)
+    return FloorTableView(
+        table=table,
+        orders=tuple(orders),
+        status=status,
+        ready_at=ready if status == TableStatus.CLEANING else None,
+    )
+
+
 def _optional_dec(value: object) -> Decimal | None:
     return None if value is None else _dec(value)
 
@@ -103,12 +123,23 @@ def _optional_dec(value: object) -> Decimal | None:
 class FloorTableView:
     table: RestaurantTable
     orders: tuple[Order, ...]
+    # What the floor shows: `free` once a table's cleaning time has passed (backlog-issues B2).
+    status: str
+    # While still being cleared, when it counts as free by itself; otherwise None.
+    ready_at: datetime | None
 
 
 @dataclass(frozen=True, slots=True)
 class FloorAreaView:
     area: DiningArea
     tables: tuple[FloorTableView, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class FloorView:
+    areas: tuple[FloorAreaView, ...]
+    # A settled table skips cleaning right now.
+    busy: bool
 
 
 class OrderService:
@@ -150,20 +181,85 @@ class OrderService:
             statuses=statuses, business_date=business_date, limit=limit, after=after
         )
 
-    async def floor(self) -> list[FloorAreaView]:
+    async def floor(self) -> FloorView:
         """The table map: every active table, grouped by area, with the live orders at each.
 
-        Two statements whatever the size of the floor or the evening, because the map is the screen
-        a waiter reopens every few minutes.
+        Three statements whatever the size of the floor or the evening — the restaurant's table
+        settings, the live orders and the tables — because the map is the screen a waiter reopens
+        every few minutes. A table whose cleaning time has passed is shown free, derived here from
+        `cleaning_since` rather than by a job that could stop running unnoticed (backlog-issues B2).
         """
+        restaurant = await self._restaurant()
+        settings = read_table_settings(restaurant.settings)
+        now = datetime.now(UTC)
         live: dict[uuid.UUID, list[Order]] = defaultdict(list)
         for order, table_id in await self._orders.live_at_tables():
             live[table_id].append(order)
         grouped: dict[uuid.UUID, tuple[DiningArea, list[FloorTableView]]] = {}
         for area, table in await self._orders.floor_tables():
             entry = grouped.setdefault(area.id, (area, []))
-            entry[1].append(FloorTableView(table=table, orders=tuple(live.get(table.id, ()))))
-        return [FloorAreaView(area=area, tables=tuple(tables)) for area, tables in grouped.values()]
+            entry[1].append(_cell(table, live.get(table.id, ()), settings, now))
+        return FloorView(
+            areas=tuple(
+                FloorAreaView(area=area, tables=tuple(tables)) for area, tables in grouped.values()
+            ),
+            busy=is_busy(
+                settings,
+                now=now,
+                timezone=restaurant.timezone,
+                business_day_start=restaurant.business_day_start,
+            ),
+        )
+
+    async def mark_ready(self, table_id: uuid.UUID) -> RestaurantTable:
+        """A table being cleared, declared ready by whoever is at it (backlog-issues B2).
+
+        Refused while an order sits there, with the setup route's own code and words, and for a
+        table that is reserved or out of service — a person set those on purpose, and a tap meant
+        for a dirty table must not undo them.
+        """
+        table = await self._tables.get_for_update(table_id)
+        if table is None:
+            raise NotFoundError("table.not_found", "That table does not exist.")
+        live = await self._orders.live_order_on_table(table_id)
+        if live is not None:
+            raise ConflictError(
+                "table.order_open",
+                f"Table {table.code} still has order {live.order_number} open. "
+                "Settle or cancel it first.",
+                details={"order_id": str(live.id)},
+            )
+        if table.status in (TableStatus.RESERVED, TableStatus.OUT_OF_SERVICE):
+            raise ConflictError(
+                "table.not_being_cleared",
+                f"Table {table.code} is {table.status.replace('_', ' ')}, not being cleared.",
+            )
+        table.status = TableStatus.FREE
+        table.cleaning_since = None
+        await self.session.flush()
+        logger.info("table.marked_ready", extra={"table_id": str(table.id)})
+        return table
+
+    async def set_busy(self, on: bool) -> bool:
+        """Busy mode from the floor, recorded as the business day it was switched on, so it counts
+        only until the next one begins (`floor_rules.is_busy`)."""
+        restaurant = await RestaurantRepository(self.session, self.scope).get_for_update()
+        if restaurant is None:
+            raise NotFoundError("restaurant.not_found", "This restaurant no longer exists.")
+        stored = restaurant.settings.get("tables")
+        tables: dict[str, Any] = dict(stored) if isinstance(stored, dict) else {}
+        if on:
+            today = business_date_of(
+                datetime.now(UTC), restaurant.timezone, restaurant.business_day_start
+            )
+            tables["busy_mode_on"] = today.isoformat()
+        else:
+            tables.pop("busy_mode_on", None)
+        # Reassigned, not mutated: SQLAlchemy does not track a change inside a JSONB dict.
+        restaurant.settings = {**restaurant.settings, "tables": tables}
+        await self.session.flush()
+        logger.info("floor.busy_mode", extra={"busy": on})
+        return on
 
     # ------------------------------------------------------------------ opening
 
@@ -206,6 +302,8 @@ class OrderService:
                 )
             )
             table.status = TableStatus.OCCUPIED
+            # A table seated before its cleaning time ran out is no longer being cleared (0022).
+            table.cleaning_since = None
         await self.session.flush()
         logger.info(
             "order.opened",
@@ -520,6 +618,8 @@ class OrderService:
             table = await self._tables.get(link.restaurant_table_id)
             if table is not None and table.status == TableStatus.OCCUPIED:
                 table.status = to
+                # Set exactly while being cleared (migration 0022): the clock starts at the bill.
+                table.cleaning_since = datetime.now(UTC) if to == TableStatus.CLEANING else None
         await self.session.flush()
 
     # ------------------------------------------------------------------ discounts

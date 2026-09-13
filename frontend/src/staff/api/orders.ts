@@ -138,13 +138,17 @@ export type FloorTable = {
   id: string;
   code: string;
   seats: number;
+  /** What the floor shows: `free` once a table's cleaning time has passed (backlog-issues B2). */
   status: RestaurantTable['status'];
+  /** While a table is being cleared, when it counts as free by itself; null otherwise. */
+  ready_at: string | null;
   orders: FloorOrder[];
 };
 
 export type FloorArea = { id: string; name: string; tables: FloorTable[] };
 
-export type Floor = { areas: FloorArea[] };
+/** `busy`: a settled table skips cleaning right now — a busy window, or busy mode switched on. */
+export type Floor = { areas: FloorArea[]; busy: boolean };
 
 /** A dish as order taking needs it: every variant with its price, every question with its answers. */
 export type OrderingItem = {
@@ -375,6 +379,28 @@ export function useCancelOrder(): UseMutationResult<
   return useOrderMutation(({ order, reason }) =>
     apiPost<Order>(`/staff/orders/${order.id}/cancel`, { version: order.version, reason }),
   );
+}
+
+/** Mark ready (backlog-issues B2): a table being cleared is free for the next party. */
+export function useMarkReady(): UseMutationResult<FloorTable, Error, { tableId: string }> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tableId }) => apiPost<FloorTable>(`/staff/floor/tables/${tableId}/ready`, {}),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: FLOOR_KEY });
+    },
+  });
+}
+
+/** Busy mode from the floor: settled tables skip cleaning until the next business day. */
+export function useSetBusy(): UseMutationResult<{ busy: boolean }, Error, { on: boolean }> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => apiPost<{ busy: boolean }>('/staff/floor/busy', body),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: FLOOR_KEY });
+    },
+  });
 }
 
 export function useSplit(): UseMutationResult<Order, Error, { order: Order; lineIds: string[] }> {

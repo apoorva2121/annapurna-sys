@@ -11,7 +11,12 @@ import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
 import { errorProps, fieldErrors } from '@staff/components/errorProps';
 import { strings } from '@staff/strings';
-import { type Restaurant, useRestaurant, useUpdateRestaurant } from '@staff/api/setup';
+import {
+  type BusyWindow,
+  type Restaurant,
+  useRestaurant,
+  useUpdateRestaurant,
+} from '@staff/api/setup';
 
 /**
  * The restaurant's own settings — owner and admin only.
@@ -40,6 +45,7 @@ export default function RestaurantSettingsScreen(): ReactElement {
         {restaurant.data === undefined ? null : (
           <>
             <SettingsForm restaurant={restaurant.data} />
+            <TablesSection restaurant={restaurant.data} />
             <ThemeSection restaurant={restaurant.data} />
           </>
         )}
@@ -145,6 +151,129 @@ function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement 
         {save.isPending ? strings.setup.restaurant.saving : strings.setup.restaurant.save}
       </Button>
     </form>
+  );
+}
+
+/**
+ * How long a table is cleared for after a bill, and when the floor is too busy to clear tables at
+ * all (backlog-issues B2).
+ *
+ * Saved on its own, like the theme. A blank cleaning time means only a person clears a table, with
+ * Mark ready; the server's five minutes applies to a restaurant that never saved one. A busy window
+ * may run past midnight — 22:00 to 01:00 is an ordinary late rush — and busy mode switched on from
+ * the floor is not touched by saving here.
+ */
+function TablesSection({ restaurant }: { restaurant: Restaurant }): ReactElement {
+  const save = useUpdateRestaurant();
+  const problems = fieldErrors(save.error);
+  const saved = restaurant.tables ?? { cleaning_minutes: 5, busy_windows: [] };
+  const [minutes, setMinutes] = useState(
+    saved.cleaning_minutes === null ? '' : String(saved.cleaning_minutes),
+  );
+  // The API speaks `HH:MM:SS`; a time input speaks `HH:MM`.
+  const [windows, setWindows] = useState<BusyWindow[]>(
+    saved.busy_windows.map((window) => ({
+      starts: window.starts.slice(0, 5),
+      ends: window.ends.slice(0, 5),
+    })),
+  );
+
+  function editWindow(index: number, changes: Partial<BusyWindow>): void {
+    setWindows((current) =>
+      current.map((window, at) => (at === index ? { ...window, ...changes } : window)),
+    );
+  }
+
+  return (
+    <section className="space-y-3 rounded-md border p-page">
+      <div>
+        <h2 className="text-lg font-semibold">{strings.setup.tables.title}</h2>
+        <p className="text-sm text-muted-foreground">{strings.setup.tables.hint}</p>
+      </div>
+
+      <Field
+        label={strings.setup.tables.cleaningMinutes}
+        hint={strings.setup.tables.cleaningMinutesHint}
+        inputMode="numeric"
+        value={minutes}
+        onChange={(event) => {
+          setMinutes(event.target.value.replace(/\D/g, ''));
+        }}
+        error={problems['tables.cleaning_minutes']}
+        className="max-w-24"
+      />
+
+      <div className="space-y-2">
+        <h3 className="font-medium">{strings.setup.tables.busyTitle}</h3>
+        <p className="text-sm text-muted-foreground">{strings.setup.tables.busyHint}</p>
+        {windows.length === 0 ? (
+          <p className="text-muted-foreground">{strings.setup.tables.busyEmpty}</p>
+        ) : (
+          <ul className="space-y-2">
+            {windows.map((window, index) => (
+              <li key={index} className="flex flex-wrap items-end gap-2">
+                <Field
+                  label={strings.setup.tables.from}
+                  type="time"
+                  value={window.starts}
+                  onChange={(event) => {
+                    editWindow(index, { starts: event.target.value });
+                  }}
+                />
+                <Field
+                  label={strings.setup.tables.to}
+                  type="time"
+                  value={window.ends}
+                  onChange={(event) => {
+                    editWindow(index, { ends: event.target.value });
+                  }}
+                />
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setWindows((current) => current.filter((_, at) => at !== index));
+                  }}
+                >
+                  {strings.setup.tables.remove}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setWindows((current) => [...current, { starts: '12:00', ends: '15:00' }]);
+          }}
+        >
+          {strings.setup.tables.addWindow}
+        </Button>
+      </div>
+
+      {save.isError && (
+        <Notice
+          tone="critical"
+          {...errorProps(save.error, {
+            'tables.cleaning_minutes': strings.setup.tables.cleaningMinutes,
+          })}
+        />
+      )}
+      {save.isSuccess && <Notice tone="success" title={strings.setup.tables.saved} />}
+
+      <Button
+        disabled={save.isPending}
+        onClick={() => {
+          save.mutate({
+            tables: {
+              cleaning_minutes: minutes === '' ? null : Number(minutes),
+              busy_windows: windows,
+            },
+          });
+        }}
+      >
+        {save.isPending ? strings.setup.restaurant.saving : strings.setup.tables.save}
+      </Button>
+    </section>
   );
 }
 

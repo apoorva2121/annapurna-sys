@@ -96,6 +96,12 @@ class PermissionCode(StrEnum):
     ORDER_DISCOUNT = "order.discount"
     CASH_MANAGE = "cash.manage"
 
+    # Backlog-issues B2 (2026-09-13). Busy mode on the floor: a settled table is free at once
+    # instead of being cleared first. Owner and manager, added to the design first — it changes how
+    # every table behaves, so it is not a waiter's switch. Mark ready needs no new permission: it
+    # sits behind `order.create`, because whoever seats a table is whoever clears it.
+    FLOOR_MANAGE = "floor.manage"
+
 
 class PermissionSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

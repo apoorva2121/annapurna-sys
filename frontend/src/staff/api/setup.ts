@@ -16,6 +16,13 @@ import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query';
 import { apiGet, apiPatch, apiPost } from '@shared/api';
 import type { RestaurantTheme } from '@shared/theme/theme';
 
+/** A stretch of the day, restaurant local time, when a paid table skips cleaning. `ends` may be
+ *  earlier than `starts`: a window can run past midnight (backlog-issues B2). */
+export type BusyWindow = { starts: string; ends: string };
+
+/** `cleaning_minutes: null` means only a person clears a table, with Mark ready. */
+export type TableSettings = { cleaning_minutes: number | null; busy_windows: BusyWindow[] };
+
 export type Restaurant = {
   id: string;
   name: string;
@@ -31,6 +38,8 @@ export type Restaurant = {
    *
    *  Optional on the wire: a restaurant saved before this setting existed has no theme block. */
   theme?: RestaurantTheme;
+  /** Also `settings` JSONB; the server fills in the five-minute default when none was saved. */
+  tables?: TableSettings;
 };
 
 export type RestaurantChanges = {
@@ -43,6 +52,8 @@ export type RestaurantChanges = {
   /** Sent whole, never merged: the client owns the complete theme settings, so a removed festive
    *  window is expressible. A merge on the server would make deletion impossible. */
   theme?: RestaurantTheme;
+  /** Sent whole, like the theme. Busy mode switched on from the floor is kept by the server. */
+  tables?: TableSettings;
 };
 
 export type DiningArea = {

@@ -468,7 +468,12 @@ class FloorTable(_Schema):
     id: uuid.UUID
     code: str
     seats: int
+    # What the floor shows, not merely the column: a table whose cleaning time has passed is `free`
+    # (backlog-issues B2, `app/services/floor_rules.py`).
     status: TableStatus
+    # While a table is being cleared, when it counts as free by itself; `null` otherwise, and when
+    # only a person clears tables at this restaurant.
+    ready_at: datetime | None = None
     orders: list[FloorOrder]
 
 
@@ -483,3 +488,16 @@ class FloorResponse(_Schema):
     `restaurant.configure`, which guards the setup table list."""
 
     areas: list[FloorArea]
+    # A settled table skips cleaning right now: a busy window covers this moment, or a manager
+    # switched busy mode on today.
+    busy: bool = False
+
+
+class FloorBusyRequest(_Schema):
+    """Busy mode on or off, from the floor. It switches itself off at the next business day."""
+
+    on: bool
+
+
+class FloorBusyResponse(_Schema):
+    busy: bool

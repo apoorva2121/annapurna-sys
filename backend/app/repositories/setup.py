@@ -192,6 +192,14 @@ class RestaurantTableRepository(RestaurantScopedRepository[RestaurantTable]):
         query = query.order_by(RestaurantTable.code, RestaurantTable.id).limit(page_size(limit))
         return (await self.session.scalars(query)).all()
 
+    async def get_for_update(self, table_id: uuid.UUID) -> RestaurantTable | None:
+        """Locked, so Mark ready and an order being opened on the same table cannot interleave
+        and leave a seated party on a table the floor calls free (backlog-issues B2)."""
+        result = await self.session.scalars(
+            self.scoped().where(RestaurantTable.id == table_id).with_for_update()
+        )
+        return result.first()
+
     async def code_exists(self, code: str, *, excluding: uuid.UUID | None = None) -> bool:
         query = self.scoped().where(RestaurantTable.code == code.strip())
         if excluding is not None:

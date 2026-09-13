@@ -209,6 +209,12 @@
       "resource": "cash",
       "action": "manage",
       "description": "Open and close the till, count the cash, and record payouts and post-close adjustments. Added to the P1 design by the M07 spec: a waiter takes cash and never closes the till that cash went into."
+    },
+    {
+      "code": "floor.manage",
+      "resource": "floor",
+      "action": "manage",
+      "description": "Switch busy mode on or off for the floor, so a settled table is free at once instead of being cleared first. It switches itself off at the next business day. Held by owner and manager: it changes how the whole floor behaves, not one table."
     }
   ],
   "roles": [
@@ -246,7 +252,8 @@
         "stock.receive",
         "stock.view",
         "supplier.manage",
-        "supplier.view"
+        "supplier.view",
+        "floor.manage"
       ]
     },
     {
@@ -302,7 +309,8 @@
         "stock.receive",
         "stock.view",
         "supplier.manage",
-        "supplier.view"
+        "supplier.view",
+        "floor.manage"
       ]
     },
     {

@@ -1,5 +1,5 @@
 import { type ReactElement, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { formatDelta, formatINR } from '@shared/money';
 import { Button } from '@shared/ui/button';
@@ -10,7 +10,7 @@ import { Notice } from '@staff/components/Notice';
 import { QuantityStepper } from '@staff/components/QuantityStepper';
 import { QueryState } from '@staff/components/QueryState';
 import { WaiterSurface } from '@staff/components/WaiterSurface';
-import { errorProps } from '@staff/components/errorProps';
+import { errorProps, fieldErrors } from '@staff/components/errorProps';
 import { strings } from '@staff/strings';
 import type { MenuVariant, ModifierGroup } from '@staff/api/menu';
 import {
@@ -21,6 +21,7 @@ import {
   type OrderingMenu,
   dishNames,
   useAddLine,
+  useCancelOrder,
   useChangeQuantity,
   useOrder,
   useOrderStep,
@@ -547,26 +548,123 @@ function GroupChoice({
 // ---------------------------------------------------------------- actions
 
 function ActionBar({ order, send }: { order: Order; send: SendMutation }): ReactElement {
+  const askForBill = useOrderStep('bill');
   const unsent = order.lines.some((line) => line.status === 'pending');
   const billable = order.lines.some((line) => !OFF_THE_BILL.has(line.status));
   return (
-    <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-border bg-background py-3">
-      {billable ? (
-        <Button asChild variant="secondary" size="lg">
-          <Link to={`/orders/${order.id}/bill`}>{strings.orders.bill}</Link>
+    <div className="sticky bottom-0 flex flex-col gap-2 border-t border-border bg-background py-3">
+      {askForBill.isError && <Notice tone="critical" {...errorProps(askForBill.error)} />}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          <CancelOrder order={order} />
+          {billable && order.bill_requested_at === null && (
+            <Button
+              variant="secondary"
+              size="lg"
+              disabled={askForBill.isPending}
+              onClick={() => {
+                askForBill.mutate({ order });
+              }}
+            >
+              {strings.orders.askForBill}
+            </Button>
+          )}
+          {billable && (
+            <Button asChild variant="secondary" size="lg">
+              <Link to={`/orders/${order.id}/bill`}>{strings.orders.bill}</Link>
+            </Button>
+          )}
+        </div>
+        <Button
+          size="lg"
+          disabled={!unsent || send.isPending}
+          onClick={() => {
+            send.mutate({ order });
+          }}
+        >
+          {send.isPending ? strings.orders.sending : strings.orders.sendToKitchen}
         </Button>
-      ) : (
-        <span />
-      )}
+      </div>
+    </div>
+  );
+}
+
+// The server's `Reason` (`schemas/orders.py`): three characters at least, so Confirm waits for them.
+const CANCEL_REASON_MIN = 3;
+
+/**
+ * Cancelling an order that was never settled (backlog-issues B2), behind a confirmation.
+ *
+ * A sheet from the bottom, like every other question on this screen, because a centred dialog on a
+ * phone covers the order it is asking about. It says how many dishes already went to the kitchen
+ * before anyone confirms — a count, never a rupee figure added up here (CLAUDE.md invariant 3) —
+ * and asks why, which the server keeps with the order.
+ */
+function CancelOrder({ order }: { order: Order }): ReactElement {
+  const cancel = useCancelOrder();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const sent = order.lines.filter(
+    (line) => line.status !== 'pending' && !OFF_THE_BILL.has(line.status),
+  ).length;
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
       <Button
+        variant="secondary"
         size="lg"
-        disabled={!unsent || send.isPending}
         onClick={() => {
-          send.mutate({ order });
+          setOpen(true);
         }}
       >
-        {send.isPending ? strings.orders.sending : strings.orders.sendToKitchen}
+        {strings.orders.cancelOrder}
       </Button>
-    </div>
+      <SheetContent side="bottom">
+        <SheetHeader>
+          <SheetTitle>{strings.orders.cancelTitle(order.order_number)}</SheetTitle>
+        </SheetHeader>
+        <div className="flex flex-col gap-3 py-3">
+          <p>{sent === 0 ? strings.orders.cancelNothingSent : strings.orders.cancelSent(sent)}</p>
+          {cancel.isError && <Notice tone="critical" {...errorProps(cancel.error)} />}
+          <Field
+            label={strings.orders.cancelReason}
+            hint={strings.orders.cancelReasonHint}
+            value={reason}
+            onChange={(event) => {
+              setReason(event.target.value);
+            }}
+            error={fieldErrors(cancel.error).reason}
+          />
+        </div>
+        <SheetFooter className="gap-2">
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={() => {
+              setOpen(false);
+            }}
+          >
+            {strings.orders.keepOrder}
+          </Button>
+          <Button
+            size="lg"
+            disabled={reason.trim().length < CANCEL_REASON_MIN || cancel.isPending}
+            onClick={() => {
+              cancel.mutate(
+                { order, reason: reason.trim() },
+                {
+                  onSuccess: () => {
+                    setOpen(false);
+                    void navigate('/floor');
+                  },
+                },
+              );
+            }}
+          >
+            {cancel.isPending ? strings.orders.cancelling : strings.orders.confirmCancel}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

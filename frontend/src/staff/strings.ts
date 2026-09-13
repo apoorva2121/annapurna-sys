@@ -146,6 +146,25 @@ export const strings = {
       saved: 'Appearance saved.',
     },
 
+    // Backlog-issues B2.
+    tables: {
+      title: 'Tables after the bill',
+      hint: 'How long a table is cleared for once its bill is paid, and when the floor is too busy to clear tables at all.',
+      cleaningMinutes: 'Cleaning time (minutes)',
+      cleaningMinutesHint:
+        'A table counts as free this long after its bill. Leave it blank if only a person should clear a table, with Mark ready.',
+      busyTitle: 'Busy hours',
+      busyHint:
+        'During these hours a paid table is free at once, with no cleaning step. A window can run past midnight, such as 22:00 to 01:00.',
+      busyEmpty: 'No busy hours set.',
+      addWindow: 'Add busy hours',
+      from: 'From',
+      to: 'To',
+      remove: 'Remove',
+      save: 'Save table settings',
+      saved: 'Table settings saved.',
+    },
+
     restaurant: {
       title: 'Restaurant settings',
       loading: 'Loading settings…',
@@ -617,6 +636,24 @@ export const strings = {
     } as Record<string, string>,
     orderLabel: (number: string) => `Order ${number}`,
     billAsked: 'Bill asked for',
+    // Backlog-issues B2: a table after the bill, and an order that should never have been opened.
+    markReady: (code: string) => `Mark ${code} ready`,
+    readyIn: (minutes: number) => `Ready in ${String(minutes)} min`,
+    busyOn: 'Busy mode on',
+    busyOff: 'Busy mode off',
+    askForBill: 'Ask for bill',
+    cancelOrder: 'Cancel order',
+    cancelTitle: (number: string) => `Cancel order ${number}?`,
+    cancelNothingSent: 'Nothing has gone to the kitchen yet.',
+    cancelSent: (count: number) =>
+      `${String(count)} ${count === 1 ? 'dish has' : 'dishes have'} already gone to the kitchen. Cancelling keeps a record of that, with your reason.`,
+    cancelReason: 'Why is it being cancelled?',
+    cancelReasonHint: 'A few words, such as "opened by mistake". The reason stays with the order.',
+    keepOrder: 'Keep the order',
+    // Not "Cancel order" again: the button that opens the sheet already says that, and two buttons
+    // with one name are ambiguous to a reader and indistinguishable to a screen reader.
+    confirmCancel: 'Yes, cancel it',
+    cancelling: 'Cancelling…',
     loadingOrder: 'Loading the order',
     loadingMenu: 'Loading the menu',
     backToTables: 'Tables',

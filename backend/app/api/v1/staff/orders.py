@@ -48,6 +48,8 @@ from app.schemas.orders import (
     CreditNoteRequest,
     CreditNoteResponse,
     FloorArea,
+    FloorBusyRequest,
+    FloorBusyResponse,
     FloorOrder,
     FloorResponse,
     FloorTable,
@@ -83,6 +85,7 @@ _ModifyDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_MO
 _DiscountDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_DISCOUNT))]
 _SettleDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_SETTLE))]
 _VoidDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_VOID))]
+_FloorDep = Annotated[Actor, Depends(require_permission(PermissionCode.FLOOR_MANAGE))]
 _LimitDep = Annotated[int | None, Query(ge=1, le=100)]
 _CursorDep = Annotated[uuid.UUID | None, Query()]
 
@@ -532,7 +535,7 @@ _FLOOR_ORDER_FIELDS = tuple(FloorOrder.model_fields)
 @router.get("/floor", response_model=FloorResponse)
 async def get_floor(actor: _ViewDep, session: SessionDep) -> FloorResponse:
     """`/floor`, not `/orders/floor`: under `/orders` the word would be read as an order id."""
-    areas = await _service(session, actor).floor()
+    floor = await _service(session, actor).floor()
     return FloorResponse(
         areas=[
             FloorArea(
@@ -543,7 +546,8 @@ async def get_floor(actor: _ViewDep, session: SessionDep) -> FloorResponse:
                         id=cell.table.id,
                         code=cell.table.code,
                         seats=cell.table.seats,
-                        status=cell.table.status,
+                        status=cell.status,
+                        ready_at=cell.ready_at,
                         orders=[
                             FloorOrder.model_validate(
                                 {name: getattr(order, name) for name in _FLOOR_ORDER_FIELDS}
@@ -554,6 +558,34 @@ async def get_floor(actor: _ViewDep, session: SessionDep) -> FloorResponse:
                     for cell in view.tables
                 ],
             )
-            for view in areas
-        ]
+            for view in floor.areas
+        ],
+        busy=floor.busy,
     )
+
+
+@router.post("/floor/tables/{table_id}/ready", response_model=FloorTable)
+async def mark_table_ready(
+    actor: _CreateDep, session: SessionDep, table_id: uuid.UUID
+) -> FloorTable:
+    """Mark ready: a table being cleared is free for the next party (backlog-issues B2).
+
+    Behind `order.create`, because whoever seats a table is whoever clears it. Refused while an
+    order sits there, with the same code and words as the setup route.
+    """
+    table = await _service(session, actor).mark_ready(table_id)
+    await session.commit()
+    return FloorTable(
+        id=table.id, code=table.code, seats=table.seats, status=table.status, orders=[]
+    )
+
+
+@router.post("/floor/busy", response_model=FloorBusyResponse)
+async def set_busy_mode(
+    actor: _FloorDep, session: SessionDep, request: FloorBusyRequest
+) -> FloorBusyResponse:
+    """Busy mode from the floor: a settled table is free at once instead of being cleared first.
+    Owner and manager only; it switches itself off at the next business day."""
+    busy = await _service(session, actor).set_busy(request.on)
+    await session.commit()
+    return FloorBusyResponse(busy=busy)

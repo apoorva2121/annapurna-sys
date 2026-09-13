@@ -128,6 +128,7 @@ class SetupService:
         # here so the loop below only ever sets real columns — assigning `restaurant.theme` would
         # silently do nothing, which is the quietest possible way to lose a setting.
         theme = changes.pop("theme", None)
+        tables = changes.pop("tables", None)
 
         # Refused before anything is assigned. The two guards below used to skip validation when the
         # value was None and then the loop assigned it anyway, which is the worst of both: no
@@ -159,6 +160,11 @@ class SetupService:
             # JSONB dict — `settings["theme"] = ...` would flush nothing and the save would appear
             # to succeed while changing nothing at all.
             restaurant.settings = {**restaurant.settings, "theme": _jsonable_theme(theme)}
+        if tables is not None:
+            restaurant.settings = {
+                **restaurant.settings,
+                "tables": _stored_tables(tables, restaurant.settings),
+            }
         await self.session.flush()
 
         audited = {field for field in changes if field in _AUDITED_SETTINGS}
@@ -324,6 +330,13 @@ class SetupService:
                     "Settle or cancel it first.",
                     details={"order_id": str(live.id)},
                 )
+        # `cleaning_since` is set exactly while a table is being cleared (migration 0022's CHECK).
+        # Setting `cleaning` again keeps the original moment, so re-saving does not restart the
+        # clock.
+        if status != TableStatus.CLEANING:
+            table.cleaning_since = None
+        elif table.status != TableStatus.CLEANING or table.cleaning_since is None:
+            table.cleaning_since = datetime.now(UTC)
         table.status = status
         await self.session.flush()
         return table
@@ -623,6 +636,26 @@ def _jsonable_theme(theme: dict[str, Any]) -> dict[str, Any]:
             for window in theme.get("schedule", [])
         ],
     }
+
+
+def _stored_tables(tables: dict[str, Any], settings: dict[str, Any]) -> dict[str, Any]:
+    """The table settings as `settings["tables"]` holds them (backlog-issues B2).
+
+    Replaced whole, like the theme, so a removed busy window is expressible — except busy mode,
+    which a manager switches on from the floor and which saving the settings screen must not switch
+    off behind their back. An omitted cleaning time is the default, never "only a person clears it".
+    """
+    stored: dict[str, Any] = {
+        "cleaning_minutes": tables.get("cleaning_minutes", 5),
+        "busy_windows": [
+            {"starts": window["starts"].isoformat(), "ends": window["ends"].isoformat()}
+            for window in tables.get("busy_windows", [])
+        ],
+    }
+    previous = settings.get("tables")
+    if isinstance(previous, dict) and "busy_mode_on" in previous:
+        stored["busy_mode_on"] = previous["busy_mode_on"]
+    return stored
 
 
 def read_theme(settings: dict[str, Any]) -> dict[str, Any]:

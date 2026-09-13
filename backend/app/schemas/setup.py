@@ -110,6 +110,39 @@ class ThemeSettings(_Schema):
         return self
 
 
+# --------------------------------------------------------------------------- tables
+
+
+class BusyWindowSettings(_Schema):
+    """A stretch of the day, in restaurant local time, when a settled table skips cleaning.
+
+    `ends` may be earlier than `starts`: 22:00 to 01:00 is the late rush of a place that closes at
+    two.
+    Only `starts == ends` is refused, because it names no time at all.
+    """
+
+    starts: time
+    ends: time
+
+    @model_validator(mode="after")
+    def _names_some_time(self) -> BusyWindowSettings:
+        if self.starts == self.ends:
+            raise ValueError("A busy window must start and end at different times.")
+        return self
+
+
+class TableSettingsBlock(_Schema):
+    """How long a table is cleared for after a bill, and when the floor is too busy to clear tables
+    at all (backlog-issues B2). Validated strictly here and read tolerantly by
+    `app/services/floor_rules.py`, which is what the floor and settlement actually use.
+
+    `cleaning_minutes: null` means only a person clears a table, with Mark ready.
+    """
+
+    cleaning_minutes: int | None = Field(default=5, ge=1, le=240)
+    busy_windows: list[BusyWindowSettings] = Field(default_factory=list, max_length=12)
+
+
 # --------------------------------------------------------------------------- the restaurant
 
 
@@ -157,6 +190,9 @@ class RestaurantResponse(_ReadSchema):
     # Lives in the `settings` JSONB rather than in columns: it is genuinely configuration, unlike
     # the FSSAI licence that finding S13 moved *out* of settings because it prints on every bill.
     theme: ThemeSettings = ThemeSettings()
+    # Also `settings` JSONB. Busy mode switched on from the floor is not echoed here: it is live
+    # state and the floor reports it.
+    tables: TableSettingsBlock = TableSettingsBlock()
 
 
 class RestaurantUpdateRequest(_Schema):
@@ -186,6 +222,7 @@ class RestaurantUpdateRequest(_Schema):
     # Cleared with an explicit null: a cloud kitchen with no shopfront is a real thing.
     address: PostalAddress | None = None
     theme: ThemeSettings | None = None
+    tables: TableSettingsBlock | None = None
 
     _gstin = field_validator("gstin", mode="before")(capitalise_gstin)
 

@@ -25,12 +25,13 @@ must still resolve when that order is read.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Date,
+    DateTime,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
@@ -88,6 +89,13 @@ class RestaurantTable(TimestampedUUIDMixin, Base):
         UniqueConstraint("id", "restaurant_id", name="uq_restaurant_table_id_restaurant"),
         CheckConstraint(f"status IN ({_TABLE_STATUSES})", name="ck_restaurant_table_status"),
         CheckConstraint("seats > 0", name="ck_restaurant_table_seats_positive"),
+        # Set exactly while the table is being cleared (migration 0022). A path that changes the
+        # status and forgets the timestamp fails here instead of leaving a table that is never
+        # ready, or ready for ever.
+        CheckConstraint(
+            "(status = 'cleaning') = (cleaning_since IS NOT NULL)",
+            name="ck_restaurant_table_cleaning_since",
+        ),
         # The hot path in M07: "what is free right now?", asked every time a waiter opens the map.
         Index("ix_restaurant_table_restaurant_status", "restaurant_id", "status"),
     )
@@ -104,6 +112,9 @@ class RestaurantTable(TimestampedUUIDMixin, Base):
     # taking a walk-in booking (M02 spec decision 3); there is no reservation system behind it and
     # it does not pretend to be one.
     status: Mapped[str] = mapped_column(Text, nullable=False, default=TableStatus.FREE)
+    # When the table started being cleared (backlog-issues B2); NULL in every other state. The floor
+    # shows it free once the restaurant's cleaning time has passed — derived when read, no job.
+    cleaning_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 

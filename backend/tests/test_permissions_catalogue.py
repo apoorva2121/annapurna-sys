@@ -274,8 +274,15 @@ class TestTheBillAndTheTill:
             "order.void",
             "order.discount",
             "cash.manage",
+            "floor.manage",
         }
         assert on_the_floor <= permissions_for_role("manager")
+
+    def test_a_waiter_cannot_switch_busy_mode_for_the_whole_floor(self) -> None:
+        """Busy mode skips cleaning for every table in the room (backlog-issues B2). A waiter can
+        clear the table in front of them — Mark ready, behind `order.create` — and no more."""
+        assert "floor.manage" not in permissions_for_role("waiter")
+        assert "order.create" in permissions_for_role("waiter")
 
     @pytest.mark.parametrize(
         "role_code", ["admin", "chef", "kitchen_staff", "store_manager", "cleaner"]

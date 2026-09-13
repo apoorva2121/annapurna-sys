@@ -459,6 +459,18 @@ append-only; all carry `restaurant_id`.
 16. **Expected cash is derived** and the variance survives a later refund in another session.
 17. **A log line from an authenticated request carries `restaurant_id`** (the logging fix).
 18. **Table status**: `free` refused while an order is open; status gone from the general PATCH.
+    *Extended by backlog-issues B2 (2026-09-13), from the manual pass:* a settled table is being
+    cleared until someone taps **Mark ready** (`order.create`) or the restaurant's cleaning time
+    passes (default five minutes, derived when the floor is read from
+    `restaurant_table.cleaning_since`); in a busy window, or with busy mode switched on from the floor
+    (`floor.manage`, owner and manager, off again at the next business day), a settled table is free
+    at once; tapping a table being cleared opens no order; an unsettled order is cancelled from the
+    order screen behind a confirmation that asks why.
+    **G-13 for `cleaning_since`:** (1) the metric it serves is table turn time, and it is the moment
+    that metric needs; (2) it comes from settlement or a person setting `cleaning`; (3) not a legal
+    document; (4) no consumption; (5) nothing is counted; (6) not a ledger; (7) master-data tier, on a
+    row that already carries `restaurant_id`; (8) an insider could mark a dirty table ready — which
+    is what the button is for, and the floor, not the audit log, is where that shows.
 19. **Receiving is idempotent**: a double-tapped market purchase books stock once.
 20. Tenant isolation and the permission matrix over every new route; `make check` clean; 100%
     coverage on the money, stock and permission paths.

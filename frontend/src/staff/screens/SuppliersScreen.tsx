@@ -150,9 +150,7 @@ function SupplierRow({
               }}
               className="text-sm underline underline-offset-4 disabled:opacity-60"
             >
-              {supplier.is_active
-                ? strings.procurement.deactivate
-                : strings.procurement.reactivate}
+              {supplier.is_active ? strings.procurement.deactivate : strings.procurement.reactivate}
             </button>
           </>
         )}
@@ -233,7 +231,11 @@ function SupplierForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex max-w-md flex-col gap-4 rounded border p-4" noValidate>
+    <form
+      onSubmit={onSubmit}
+      className="flex max-w-md flex-col gap-4 rounded border p-4"
+      noValidate
+    >
       {failure !== null && (
         <Notice
           tone="critical"

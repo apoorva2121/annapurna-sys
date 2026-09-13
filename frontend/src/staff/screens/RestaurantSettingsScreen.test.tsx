@@ -225,3 +225,28 @@ describe('saving', () => {
     expect(await screen.findByText(/is not a known timezone/i)).toBeInTheDocument();
   });
 });
+
+// Backlog-issues B2: the cleaning time and busy hours, saved on their own.
+describe('tables after the bill', () => {
+  it('saves a blank cleaning time as null and a new busy window as HH:MM', async () => {
+    const fetchMock = vi.fn<(...call: FetchCall) => Promise<Response>>(() =>
+      Promise.resolve(json({ ...SETTINGS, tables: { cleaning_minutes: 5, busy_windows: [] } })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderScreen();
+
+    const minutes = await screen.findByLabelText(/Cleaning time/);
+    expect(minutes).toHaveValue('5');
+    await user.clear(minutes);
+    await user.click(screen.getByRole('button', { name: 'Add busy hours' }));
+    await user.click(screen.getByRole('button', { name: 'Save table settings' }));
+
+    await waitFor(() => {
+      const patch = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH');
+      expect(sentJson(patch)).toEqual({
+        tables: { cleaning_minutes: null, busy_windows: [{ starts: '12:00', ends: '15:00' }] },
+      });
+    });
+  });
+});

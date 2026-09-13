@@ -75,6 +75,22 @@ Do this as **waiter1** on **a phone**, held in one hand.
 **B6 is the lock working.** Two waiters on one table is ordinary. Without it, B's tap would silently
 undo A's dish, and the kitchen would cook something that is no longer on the bill.
 
+**After the bill** (backlog-issues B2, 2026-09-13):
+
+| # | Step | Expect |
+|---|---|---|
+| B7 | Settle a bill on a table, then open **Tables** | That table says **Being cleared** and **Ready in 5 min** (or less). **Tapping the table does not open an order** |
+| B8 | Tap **Mark ready** on it | It says **Free** at once. Tap it now and an order opens, as for any free table |
+| B9 | Settle another bill and leave the table alone for the cleaning time (set it to 1 minute in **Settings → Tables** first, as the owner) | After the cleaning time the table says **Free** by itself, with nobody tapping anything |
+| B10 | As **manager1**, switch **Busy mode** on at the top of **Tables**, then settle a bill | The table goes straight to **Free**, with no cleaning step. As **waiter1**, the switch is **not there**; the words **Busy mode on** are |
+| B11 | Open an order, add nothing, and tap **Cancel order** | It asks you to confirm and why; **Yes, cancel it** stays disabled until there are a few characters. Confirm: back on **Tables**, and that table is **Free** |
+| B12 | Send a dish, then tap **Cancel order** | Before you confirm, it says **1 dish has already gone to the kitchen** |
+| B13 | Tap **Ask for bill** on an order | **Bill asked for** appears on that table in **Tables** |
+
+**B7 and B8 are the bug from your first pass.** T2 and T4 stayed Occupied because tapping a table
+being cleared opened an empty order on it, and nothing on the floor could clear it. B11 is how you
+undo that mistake if it ever happens again.
+
 ---
 
 ## C · Split bills

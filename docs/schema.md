@@ -142,6 +142,9 @@ restaurant_table
   code                text NN                    -- UQ (restaurant_id, code). "T4", not the PK.
   seats               smallint NN
   status              text NN check(free|occupied|reserved|cleaning|out_of_service)
+  cleaning_since      timestamptz                -- set exactly while status = cleaning (CHECK, 0022).
+                                                 -- The floor shows the table free once the
+                                                 -- restaurant's cleaning time has passed.
   is_active
   IX (restaurant_id, status)
   UQ (id, restaurant_id)                         -- target of order_table's composite FK (M07)

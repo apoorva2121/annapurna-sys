@@ -71,6 +71,9 @@ permissions:
   # till - AMENDED by docs/modules/M07-orders-spec.md. The P1 design had no cash permission, and
   # a waiter holding order.settle takes cash but must not close the till it went into.
   - {code: cash.manage,             resource: cash,        action: manage}
+  # floor - ADDED by the backlog-issues run (B2, 2026-09-13). Busy mode: a settled table is free
+  # at once instead of being cleared first. It changes every table, so it is not a waiter's switch.
+  - {code: floor.manage,            resource: floor,       action: manage}
   # kitchen
   - {code: kot.view,                resource: kot,         action: view}
   - {code: kot.update,              resource: kot,         action: update}
@@ -160,6 +163,7 @@ roles:
     permissions:
       - order.view, order.create, order.modify, order.settle, order.void, order.discount
       - cash.manage                    # M07 amendment
+      - floor.manage                   # busy mode on the floor (backlog-issues B2)
       - kot.view, kot.update
       - menu.view, menu.manage
       - recipe.view, cost.view

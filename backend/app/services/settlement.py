@@ -17,7 +17,8 @@ decision 10), and in this order, because the order matters:
 5. **The payments must cover the bill exactly** — the figure after the re-freeze, not before.
 6. **Number the invoice** under a lock, snapshot the restaurant's identity onto it, and write the
    payments against it.
-7. **Settle the order last**, then send its tables to cleaning, and audit.
+7. **Settle the order last**, then send its tables to cleaning — or straight to free in busy hours
+   (backlog-issues B2) — and audit.
 
 `SettlementService` extends `OrderService` rather than calling into it, because settling is the last
 thing that happens to an order and needs the same lock and the same reprice — reached as its own
@@ -54,10 +55,23 @@ from app.models.tenancy import Restaurant
 from app.repositories.orders import CashSessionRepository, InvoiceRepository, PaymentRepository
 from app.repositories.stock import CostingRepository, RecipeRepository
 from app.services.costing import CostEngine, Line
+from app.services.floor_rules import is_busy, read_table_settings
 from app.services.inventory import InventoryService
 from app.services.orders import OrderService
 
 logger = logging.getLogger(__name__)
+
+
+def _table_after_the_bill(restaurant: Restaurant, now: datetime) -> TableStatus:
+    """Free at once in busy hours, otherwise cleared first (backlog-issues B2)."""
+    busy = is_busy(
+        read_table_settings(restaurant.settings),
+        now=now,
+        timezone=restaurant.timezone,
+        business_day_start=restaurant.business_day_start,
+    )
+    return TableStatus.FREE if busy else TableStatus.CLEANING
+
 
 _NOT_BILLED = frozenset({OrderLineStatus.CANCELLED, OrderLineStatus.RETURNED})
 _UNIT_COST = Decimal("0.000001")
@@ -180,7 +194,7 @@ class SettlementService(OrderService):
         order.settled_at = now
         order.updated_at = now
         await self.session.flush()
-        await self._release_tables(order, to=TableStatus.CLEANING)
+        await self._release_tables(order, to=_table_after_the_bill(restaurant, now))
 
         self._audit(
             actor,

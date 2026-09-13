@@ -60,6 +60,10 @@ export const Permission = {
   ORDER_VOID: 'order.void',
   ORDER_DISCOUNT: 'order.discount',
   CASH_MANAGE: 'cash.manage',
+  // Backlog-issues B2. Busy mode on the floor: settled tables skip cleaning. Owner and manager —
+  // it changes every table, so the floor renders the switch only for this permission. Mark ready
+  // needs none of its own: whoever holds ORDER_CREATE seats a table and clears it.
+  FLOOR_MANAGE: 'floor.manage',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
