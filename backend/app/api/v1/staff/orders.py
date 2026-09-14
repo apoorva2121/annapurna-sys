@@ -71,7 +71,11 @@ from app.schemas.orders import (
     OrderSplitRequest,
     OrderSummaryResponse,
     OrderVersionRequest,
+    OrderWaiterRequest,
     PaymentResponse,
+    WaiterListResponse,
+    WaiterOption,
+    WaiterRef,
 )
 from app.services.orders import OrderService
 from app.services.reversals import CreditLineInput, RefundInput, ReversalService
@@ -86,10 +90,13 @@ _DiscountDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_
 _SettleDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_SETTLE))]
 _VoidDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_VOID))]
 _FloorDep = Annotated[Actor, Depends(require_permission(PermissionCode.FLOOR_MANAGE))]
+_AssignDep = Annotated[Actor, Depends(require_permission(PermissionCode.ORDER_ASSIGN))]
 _LimitDep = Annotated[int | None, Query(ge=1, le=100)]
 _CursorDep = Annotated[uuid.UUID | None, Query()]
 
-_SUMMARY_FIELDS = tuple(name for name in OrderSummaryResponse.model_fields if name != "table_ids")
+_SUMMARY_FIELDS = tuple(
+    name for name in OrderSummaryResponse.model_fields if name not in ("table_ids", "waiter")
+)
 
 
 def _service(session: SessionDep, actor: Actor) -> OrderService:
@@ -102,9 +109,19 @@ def _table_ids(order: Order) -> list[uuid.UUID]:
     return [link.restaurant_table_id for link in primary_first]
 
 
+def _waiter(order: Order) -> WaiterRef | None:
+    return (
+        None
+        if order.waiter is None
+        else WaiterRef(id=order.waiter.id, full_name=order.waiter.full_name)
+    )
+
+
 def _summary(order: Order) -> OrderSummaryResponse:
     fields = {name: getattr(order, name) for name in _SUMMARY_FIELDS}
-    return OrderSummaryResponse.model_validate(fields | {"table_ids": _table_ids(order)})
+    return OrderSummaryResponse.model_validate(
+        fields | {"table_ids": _table_ids(order), "waiter": _waiter(order)}
+    )
 
 
 def _detail(order: Order, *, invoice_id: uuid.UUID | None = None) -> OrderResponse:
@@ -113,6 +130,7 @@ def _detail(order: Order, *, invoice_id: uuid.UUID | None = None) -> OrderRespon
         fields
         | {
             "table_ids": _table_ids(order),
+            "waiter": _waiter(order),
             "lines": [OrderLineResponse.model_validate(line) for line in order.lines],
             "discounts": [
                 OrderDiscountResponse.model_validate(row)
@@ -177,6 +195,7 @@ async def create_order(
         covers=request.covers,
         channel=request.channel,
         external_order_id=request.external_order_id,
+        waiter_employee_id=request.waiter_employee_id,
     )
     await session.commit()
     return _detail(await service.get(order_id))
@@ -268,6 +287,35 @@ async def request_bill(
 ) -> OrderResponse:
     service = _service(session, actor)
     await service.request_bill(order_id, version=request.version)
+    await session.commit()
+    return _detail(await service.get(order_id))
+
+
+@router.post("/orders/{order_id}/waiter/claim", response_model=OrderResponse)
+async def claim_order(
+    actor: _ModifyDep, session: SessionDep, order_id: uuid.UUID, request: OrderVersionRequest
+) -> OrderResponse:
+    """Assign to me: a dine-in order nobody is serving (waiter assignment, 2026-09-14)."""
+    service = _service(session, actor)
+    await service.claim(actor, order_id, version=request.version)
+    await session.commit()
+    return _detail(await service.get(order_id))
+
+
+@router.post("/orders/{order_id}/waiter", response_model=OrderResponse)
+async def assign_waiter(
+    actor: _AssignDep, session: SessionDep, order_id: uuid.UUID, request: OrderWaiterRequest
+) -> OrderResponse:
+    """Move an order to another waiter, with a reason. Owner and manager only: taking a table
+    somebody is serving takes its credit."""
+    service = _service(session, actor)
+    await service.assign_waiter(
+        actor,
+        order_id,
+        version=request.version,
+        employee_id=request.employee_id,
+        reason=request.reason,
+    )
     await session.commit()
     return _detail(await service.get(order_id))
 
@@ -529,7 +577,22 @@ async def issue_credit_note(
 
 # --------------------------------------------------------------------------- the floor
 
-_FLOOR_ORDER_FIELDS = tuple(FloorOrder.model_fields)
+_FLOOR_ORDER_FIELDS = tuple(name for name in FloorOrder.model_fields if name != "waiter_name")
+
+
+@router.get("/waiters", response_model=WaiterListResponse)
+async def list_waiters(actor: _AssignDep, session: SessionDep) -> WaiterListResponse:
+    """Who can serve a table here, for choosing one. `/waiters`, not `/orders/waiters`, for the
+    reason `/floor` gives."""
+    people = await _service(session, actor).waiters()
+    return WaiterListResponse(
+        items=[
+            WaiterOption(
+                id=person.id, full_name=person.full_name, employee_code=person.employee_code
+            )
+            for person in people
+        ]
+    )
 
 
 @router.get("/floor", response_model=FloorResponse)
@@ -551,6 +614,11 @@ async def get_floor(actor: _ViewDep, session: SessionDep) -> FloorResponse:
                         orders=[
                             FloorOrder.model_validate(
                                 {name: getattr(order, name) for name in _FLOOR_ORDER_FIELDS}
+                                | {
+                                    "waiter_name": None
+                                    if order.waiter is None
+                                    else order.waiter.full_name
+                                }
                             )
                             for order in cell.orders
                         ],

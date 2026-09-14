@@ -240,6 +240,9 @@ First module with a guest surface — ADR 0009 applies in full.
 - **Screens** — shift roster, clock in/out
 - **Rules** — deliberately minimal; leave, overtime and swaps are Phase 2. Exists mainly so waste and
   performance can attribute to a shift.
+- **Planned here** *(owner decision 2026-09-14)* — auto-assigning an incoming order to the waiter
+  whose section its table is in this shift. Waiting on this module because only a roster knows who
+  is on the floor; claiming and moving orders already exist (M07 acceptance criterion 20).
 - **Est.** 2 days
 
 ## M13 · Dashboards & Reports

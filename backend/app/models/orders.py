@@ -65,6 +65,7 @@ from app.core.enums import (
     TaxRegime,
 )
 from app.models.base import Base, TimestampedUUIDMixin
+from app.models.identity import Employee
 
 
 def _in(column: str, values: type[Any]) -> str:
@@ -209,6 +210,9 @@ class Order(TimestampedUUIDMixin, Base):
     discounts: Mapped[list[OrderDiscount]] = relationship(lazy="raise")
     charges: Mapped[list[OrderCharge]] = relationship(lazy="raise")
     tables: Mapped[list[OrderTable]] = relationship(lazy="raise")
+    # Who is serving the table, loaded wherever an order is shown (waiter assignment, 2026-09-14).
+    # `foreign_keys` because `voided_by` points at `employee` too.
+    waiter: Mapped[Employee | None] = relationship(foreign_keys=[waiter_employee_id], lazy="raise")
 
     # ADR 0010, enforced by the ORM: every UPDATE is `... WHERE version = :loaded` and bumps it, so
     # a stale write fails instead of silently winning. `DeclarativeBase` already types this

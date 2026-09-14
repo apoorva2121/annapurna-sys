@@ -74,6 +74,10 @@ permissions:
   # floor - ADDED by the backlog-issues run (B2, 2026-09-13). Busy mode: a settled table is free
   # at once instead of being cleared first. It changes every table, so it is not a waiter's switch.
   - {code: floor.manage,            resource: floor,       action: manage}
+  # orders - ADDED 2026-09-14 (waiter assignment). Who serves a table: chosen when someone else
+  # opens the order, and moved from one waiter to another with a reason. A waiter claims only an
+  # order nobody is serving - taking a busy table would take its credit (ADR 0011).
+  - {code: order.assign,            resource: order,       action: assign}
   # kitchen
   - {code: kot.view,                resource: kot,         action: view}
   - {code: kot.update,              resource: kot,         action: update}
@@ -164,6 +168,7 @@ roles:
       - order.view, order.create, order.modify, order.settle, order.void, order.discount
       - cash.manage                    # M07 amendment
       - floor.manage                   # busy mode on the floor (backlog-issues B2)
+      - order.assign                   # who serves a table (waiter assignment, 2026-09-14)
       - kot.view, kot.update
       - menu.view, menu.manage
       - recipe.view, cost.view

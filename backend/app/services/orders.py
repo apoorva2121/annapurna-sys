@@ -48,7 +48,8 @@ from app.core.enums import (
     TableStatus,
     TaxRegime,
 )
-from app.core.errors import AppError, ConflictError, NotFoundError
+from app.core.errors import AppError, ConflictError, NotFoundError, PermissionDeniedError
+from app.core.permissions import PermissionCode
 from app.core.tax import (
     ZERO,
     ChargeInput,
@@ -61,6 +62,7 @@ from app.core.tax import (
 )
 from app.core.tenancy import TenantScope
 from app.models.audit import AuditLog
+from app.models.identity import Employee
 from app.models.menu import Modifier, ModifierGroup
 from app.models.orders import (
     Order,
@@ -72,6 +74,7 @@ from app.models.orders import (
 )
 from app.models.setup import DiningArea, RestaurantTable
 from app.models.tenancy import Restaurant
+from app.repositories.access import AccessRepository
 from app.repositories.orders import (
     LIVE_ORDER_STATUSES,
     InvoiceRepository,
@@ -272,12 +275,14 @@ class OrderService:
         covers: int | None,
         channel: OrderChannel,
         external_order_id: str | None,
+        waiter_employee_id: uuid.UUID | None = None,
     ) -> uuid.UUID:
         restaurant = await self._restaurant()
         now = datetime.now(UTC)
         business_date = business_date_of(now, restaurant.timezone, restaurant.business_day_start)
 
         tables = [await self._usable_table(table_id) for table_id in table_ids]
+        waiter = await self._opening_waiter(actor, order_type, waiter_employee_id)
         order = Order(
             restaurant_id=self.scope.restaurant_id,
             order_number=await self._orders.next_order_number(business_date),
@@ -285,13 +290,15 @@ class OrderService:
             channel=channel,
             external_order_id=external_order_id,
             status=OrderStatus.OPEN,
-            waiter_employee_id=actor.employee_id,
+            waiter_employee_id=waiter,
             covers=covers,
             placed_at=now,
             business_date=business_date,
         )
         self.session.add(order)
         await self.session.flush()
+        if waiter is not None and waiter != actor.employee_id:
+            self._waiter_audit(actor, order.id, previous=None, current=waiter, reason=None)
         for index, table in enumerate(tables):
             self.session.add(
                 OrderTable(
@@ -568,6 +575,127 @@ class OrderService:
             order.bill_requested_at = now
         order.updated_at = now
         await self.session.flush()
+
+    # ------------------------------------------------------------------ who is serving
+
+    async def waiters(self) -> Sequence[Employee]:
+        """Who can serve a table here, for the screens that choose one."""
+        return await AccessRepository(self.session).order_takers(self.scope.restaurant_id)
+
+    async def claim(self, actor: Actor, order_id: uuid.UUID, *, version: int) -> None:
+        """Assign to me: a dine-in order nobody is serving becomes this person's table.
+
+        Only an order nobody is serving. Taking a table somebody is serving would take its credit,
+        and that is a manager's decision (`assign_waiter`), made with a reason.
+        """
+        order = await self._locked(order_id, version)
+        self._require_a_table(order)
+        if order.waiter is not None:
+            raise ConflictError(
+                "order.waiter_taken",
+                f"{order.waiter.full_name} is already serving order {order.order_number}. "
+                "A manager can move it to you.",
+            )
+        await self._require_order_taker(actor.employee_id)
+        self._waiter_audit(actor, order.id, previous=None, current=actor.employee_id, reason=None)
+        order.waiter_employee_id = actor.employee_id
+        order.updated_at = datetime.now(UTC)
+        await self.session.flush()
+
+    async def assign_waiter(
+        self,
+        actor: Actor,
+        order_id: uuid.UUID,
+        *,
+        version: int,
+        employee_id: uuid.UUID | None,
+        reason: str,
+    ) -> None:
+        """Move an order to another waiter, or to nobody, with a reason (`order.assign`).
+
+        A settled or cancelled order keeps its waiter: `_locked` refuses it before anything else,
+        because who served a paid bill is part of what was paid for.
+        """
+        order = await self._locked(order_id, version)
+        self._require_a_table(order)
+        if employee_id == order.waiter_employee_id:
+            raise ConflictError(
+                "order.waiter_unchanged", "That person is already serving this order."
+            )
+        if employee_id is not None:
+            await self._require_order_taker(employee_id)
+        self._waiter_audit(
+            actor, order.id, previous=order.waiter_employee_id, current=employee_id, reason=reason
+        )
+        order.waiter_employee_id = employee_id
+        order.updated_at = datetime.now(UTC)
+        await self.session.flush()
+
+    async def _opening_waiter(
+        self, actor: Actor, order_type: OrderType, chosen: uuid.UUID | None
+    ) -> uuid.UUID | None:
+        """Who serves a table from the moment it is opened.
+
+        A counter order has nobody. A waiter opening a table serves it, and may not open one in
+        somebody else's name. Someone holding `order.assign` — a manager seating a party — names
+        the waiter or leaves it for a waiter to claim, and is never credited by default: that
+        default was the defect.
+        """
+        if order_type != OrderType.DINE_IN:
+            return None
+        if not actor.holds(PermissionCode.ORDER_ASSIGN):
+            if chosen is not None and chosen != actor.employee_id:
+                raise PermissionDeniedError("permission.denied", "You do not have access to this.")
+            return actor.employee_id
+        if chosen is not None:
+            await self._require_order_taker(chosen)
+        return chosen
+
+    @staticmethod
+    def _require_a_table(order: Order) -> None:
+        if order.type != OrderType.DINE_IN:
+            raise ConflictError(
+                "order.counter",
+                f"Order {order.order_number} is a counter order; nobody serves it at a table.",
+            )
+
+    async def _require_order_taker(self, employee_id: uuid.UUID) -> None:
+        """Active, working here, and able to take orders. One refusal for every way of failing, so
+        the answer never says whether an id belongs to someone at another branch."""
+        found = await AccessRepository(self.session).order_takers(
+            self.scope.restaurant_id, employee_id=employee_id
+        )
+        if not found:
+            raise AppError(
+                "order.waiter_not_eligible",
+                "That person cannot serve tables here. Choose someone who takes orders at this "
+                "restaurant.",
+                status_code=422,
+            )
+
+    def _waiter_audit(
+        self,
+        actor: Actor,
+        order_id: uuid.UUID,
+        *,
+        previous: uuid.UUID | None,
+        current: uuid.UUID | None,
+        reason: str | None,
+    ) -> None:
+        """The history of who served a table: a handover at ten o'clock keeps the first two
+        hours."""
+        self.session.add(
+            AuditLog(
+                restaurant_id=actor.restaurant_id,
+                actor_employee_id=actor.employee_id,
+                action="order.waiter_assigned",
+                entity_type="order",
+                entity_id=order_id,
+                old_value={"waiter_employee_id": None if previous is None else str(previous)},
+                new_value={"waiter_employee_id": None if current is None else str(current)},
+                audit_metadata=None if reason is None else {"reason": reason},
+            )
+        )
 
     async def cancel(self, actor: Actor, order_id: uuid.UUID, *, version: int, reason: str) -> None:
         """An order that never settled. It never took an invoice number, so it leaves no gap.

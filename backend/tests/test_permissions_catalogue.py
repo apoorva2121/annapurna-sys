@@ -284,6 +284,13 @@ class TestTheBillAndTheTill:
         assert "floor.manage" not in permissions_for_role("waiter")
         assert "order.create" in permissions_for_role("waiter")
 
+    def test_moving_an_order_between_waiters_is_a_managers_call(self) -> None:
+        """A waiter may claim a table nobody is serving; taking one somebody is serving would take
+        its credit (waiter assignment, 2026-09-14)."""
+        assert "order.assign" in permissions_for_role("manager")
+        assert "order.assign" in permissions_for_role("owner")
+        assert "order.assign" not in permissions_for_role("waiter")
+
     @pytest.mark.parametrize(
         "role_code", ["admin", "chef", "kitchen_staff", "store_manager", "cleaner"]
     )

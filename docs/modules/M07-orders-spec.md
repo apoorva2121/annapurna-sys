@@ -350,6 +350,9 @@ Repositories → services → API, per layer rules. New helpers: `financial_year
 | POST/DELETE | `/orders/{order_id}/charges[/{charge_id}]` | `order.modify` |
 | POST | `/orders/{order_id}/settle` · `/payments` | `order.settle` |
 | POST | `/orders/{order_id}/cancel` | `order.modify` (unsettled only) |
+| POST | `/orders/{order_id}/waiter/claim` | `order.modify` — Assign to me, an unserved dine-in order only *(2026-09-14)* |
+| POST | `/orders/{order_id}/waiter` | `order.assign` — move to another waiter, with a reason *(2026-09-14)* |
+| GET | `/waiters` | `order.assign` — active staff holding `order.create` here *(2026-09-14)* |
 | POST | `/invoices/{invoice_id}/cancel` | `order.void` |
 | POST | `/invoices/{invoice_id}/credit-notes` | `order.void` |
 | GET | `/invoices/{invoice_id}` | `order.view` |
@@ -472,7 +475,9 @@ append-only; all carry `restaurant_id`.
     row that already carries `restaurant_id`; (8) an insider could mark a dirty table ready — which
     is what the button is for, and the floor, not the audit log, is where that shows.
 19. **Receiving is idempotent**: a double-tapped market purchase books stock once.
-20. Tenant isolation and the permission matrix over every new route; `make check` clean; 100%
+20. **Who is serving a table** *(added 2026-09-14, owner decisions D7–D10 in `docs/plan/backlog-issues-build-log.md`)*: every order, the table map and the bills list name the waiter; a waiter who opens a dine-in order serves it; whoever holds `order.assign` (owner, manager) names the waiter when opening or leaves it unassigned, and is never credited by default; takeaway and delivery are counter orders with no waiter; Assign to me claims only an unserved dine-in order; moving an order needs `order.assign` and a reason, is refused on a settled or cancelled order, and accepts only active staff holding `order.create` at this restaurant (a login is not required); every change is an `audit_log` row (`order.waiter_assigned`: from, to, by whom, why). **Auto-assignment is planned with M12**, which is what knows who is on the floor.
+    **G-13:** no new table or column — `order.waiter_employee_id` and its index exist since this module shipped; (1) the metric is covers and sales per waiter per shift (M17), and the history is the audit row's `occurred_at`; (2) who set it is the audit row's actor; (3) not a legal document; (4) no consumption; (5) nothing is counted; (6) not a ledger; (7) transactional tier, on a row that carries `restaurant_id`; (8) an insider could move busy tables to themselves — which is why only `order.assign` moves one, always with a reason on the record.
+21. Tenant isolation and the permission matrix over every new route; `make check` clean; 100%
     coverage on the money, stock and permission paths.
 
 ---

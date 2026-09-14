@@ -68,6 +68,9 @@ class OrderCreateRequest(_Schema):
     covers: int | None = Field(default=None, ge=1, le=200)
     channel: OrderChannel = OrderChannel.POS
     external_order_id: str | None = Field(default=None, min_length=1, max_length=64)
+    # Who is serving the table, when someone holding `order.assign` opens it for them. A waiter
+    # opening a table serves it and sends nothing here; leaving it out is "nobody yet".
+    waiter_employee_id: uuid.UUID | None = None
 
     _clean = field_validator("external_order_id", mode="before")(_strip)
 
@@ -81,6 +84,10 @@ class OrderCreateRequest(_Schema):
             raise ValueError("Each table can be named once.")
         if self.external_order_id is not None and self.channel != OrderChannel.AGGREGATOR:
             raise ValueError("Only an aggregator order carries an external order id.")
+        if self.waiter_employee_id is not None and self.type != OrderType.DINE_IN:
+            raise ValueError(
+                "Takeaway and delivery are counter orders; nobody serves them at a table."
+            )
         return self
 
 
@@ -123,6 +130,17 @@ class OrderVersionRequest(_Schema):
 
 class OrderCancelRequest(_Schema):
     version: Version
+    reason: Reason
+
+    _clean = field_validator("reason", mode="before")(_strip)
+
+
+class OrderWaiterRequest(_Schema):
+    """Move an order to another waiter, or to nobody. Always with a reason — "shift ended",
+    "section change" — because the move changes whose table it was."""
+
+    version: Version
+    employee_id: uuid.UUID | None
     reason: Reason
 
     _clean = field_validator("reason", mode="before")(_strip)
@@ -237,6 +255,13 @@ class OrderChargeResponse(_ReadSchema):
     is_optional: bool
 
 
+class WaiterRef(_Schema):
+    """The person serving a table, by name: what every screen showing an order prints."""
+
+    id: uuid.UUID
+    full_name: str
+
+
 class OrderSummaryResponse(_Schema):
     """What a list row needs. The primary table comes first in `table_ids`."""
 
@@ -247,6 +272,8 @@ class OrderSummaryResponse(_Schema):
     external_order_id: str | None
     status: OrderStatus
     waiter_employee_id: uuid.UUID | None
+    # Null for a counter order, or a table nobody has claimed yet.
+    waiter: WaiterRef | None = None
     covers: int | None
     parent_order_id: uuid.UUID | None
     table_ids: list[uuid.UUID]
@@ -462,6 +489,7 @@ class FloorOrder(_Schema):
     first_sent_at: datetime | None
     bill_requested_at: datetime | None
     version: int
+    waiter_name: str | None = None
 
 
 class FloorTable(_Schema):
@@ -481,6 +509,18 @@ class FloorArea(_Schema):
     id: uuid.UUID
     name: str
     tables: list[FloorTable]
+
+
+class WaiterOption(_Schema):
+    id: uuid.UUID
+    full_name: str
+    employee_code: str
+
+
+class WaiterListResponse(_Schema):
+    """Who can serve a table here: active staff holding `order.create`, by name."""
+
+    items: list[WaiterOption]
 
 
 class FloorResponse(_Schema):

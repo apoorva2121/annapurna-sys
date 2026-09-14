@@ -29,7 +29,7 @@ from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import Integer, Select, and_, cast, func, literal, or_, select, update
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.core.enums import (
     CashMovementType,
@@ -78,6 +78,7 @@ class OrderRepository(RestaurantScopedRepository[Order]):
             selectinload(Order.discounts),
             selectinload(Order.charges),
             selectinload(Order.tables),
+            selectinload(Order.waiter),
         )
 
     async def get_detail(self, order_id: uuid.UUID, *, refresh: bool = False) -> Order | None:
@@ -111,7 +112,7 @@ class OrderRepository(RestaurantScopedRepository[Order]):
 
         Tables are loaded in one extra statement for the page, never one per order.
         """
-        query = self.scoped().options(selectinload(Order.tables))
+        query = self.scoped().options(selectinload(Order.tables), selectinload(Order.waiter))
         if statuses:
             query = query.where(Order.status.in_(statuses))
         if business_date is not None:
@@ -184,6 +185,9 @@ class OrderRepository(RestaurantScopedRepository[Order]):
         """Every live order with each table it sits at. One statement for the whole floor."""
         rows = await self.session.execute(
             self.scoped()
+            # Joined, not select-in: the waiter's name rides on the same statement, so the map costs
+            # the same with no orders open as with forty (tests/test_floor.py).
+            .options(joinedload(Order.waiter))
             .add_columns(OrderTable.restaurant_table_id)
             .join(OrderTable, OrderTable.order_id == Order.id)
             .where(Order.status.in_(LIVE_ORDER_STATUSES))

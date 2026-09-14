@@ -99,6 +99,8 @@ export type Order = {
   external_order_id: string | null;
   status: OrderStatus;
   waiter_employee_id: string | null;
+  /** Who is serving the table, by name. Null for a counter order or one nobody has claimed. */
+  waiter: { id: string; full_name: string } | null;
   covers: number | null;
   parent_order_id: string | null;
   table_ids: string[];
@@ -132,6 +134,7 @@ export type FloorOrder = {
   first_sent_at: string | null;
   bill_requested_at: string | null;
   version: number;
+  waiter_name: string | null;
 };
 
 export type FloorTable = {
@@ -308,10 +311,51 @@ export function dishNames(menu: OrderingMenu | undefined): DishNames {
   return { dishes, options };
 }
 
-export type OpenOrderInput = { type: OrderType; table_ids: string[]; covers?: number };
+export type OpenOrderInput = {
+  type: OrderType;
+  table_ids: string[];
+  covers?: number;
+  /** Sent only by whoever holds order.assign, naming who serves the table. */
+  waiter_employee_id?: string;
+};
 
 export function useOpenOrder(): UseMutationResult<Order, Error, OpenOrderInput> {
   return useOrderMutation((body) => apiPost<Order>('/staff/orders', body));
+}
+
+// ---------------------------------------------------------------- who is serving (2026-09-14)
+
+export type WaiterOption = { id: string; full_name: string; employee_code: string };
+
+/** Who can serve a table here, for choosing one. Only read by whoever holds order.assign. */
+export function useWaiters(enabled: boolean): UseQueryResult<{ items: WaiterOption[] }> {
+  return useQuery({
+    queryKey: [...ORDERS_KEY, 'waiters'],
+    queryFn: () => apiGet<{ items: WaiterOption[] }>('/staff/waiters'),
+    enabled,
+  });
+}
+
+/** Assign to me: a dine-in order nobody is serving. */
+export function useClaimOrder(): UseMutationResult<Order, Error, { order: Order }> {
+  return useOrderMutation(({ order }) =>
+    apiPost<Order>(`/staff/orders/${order.id}/waiter/claim`, { version: order.version }),
+  );
+}
+
+/** Move an order to another waiter, with a reason (order.assign). */
+export function useMoveOrder(): UseMutationResult<
+  Order,
+  Error,
+  { order: Order; employeeId: string | null; reason: string }
+> {
+  return useOrderMutation(({ order, employeeId, reason }) =>
+    apiPost<Order>(`/staff/orders/${order.id}/waiter`, {
+      version: order.version,
+      employee_id: employeeId,
+      reason,
+    }),
+  );
 }
 
 export type AddLineInput = {

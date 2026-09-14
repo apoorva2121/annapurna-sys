@@ -12,6 +12,9 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { AuthContext, type AuthState } from '@staff/auth/AuthContext';
+import type { RestaurantSummary, Session } from '@staff/auth/session';
+
 import OrderScreen from './OrderScreen';
 
 const MENU = {
@@ -102,7 +105,10 @@ const PENDING_LINE = {
   modifiers: [],
 };
 
-function order(lines: unknown[] = []): Record<string, unknown> {
+function order(
+  lines: unknown[] = [],
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
   return {
     id: 'o1',
     order_number: '7',
@@ -111,6 +117,7 @@ function order(lines: unknown[] = []): Record<string, unknown> {
     external_order_id: null,
     status: 'open',
     waiter_employee_id: 'e1',
+    waiter: { id: 'e1', full_name: 'Suresh Patil' },
     covers: 2,
     parent_order_id: null,
     table_ids: ['t6'],
@@ -132,6 +139,45 @@ function order(lines: unknown[] = []): Record<string, unknown> {
     lines,
     discounts: [],
     charges: [],
+    ...overrides,
+  };
+}
+
+// Who the server says can take orders here (`GET /staff/waiters`), sorted by name.
+const WAITERS = {
+  items: [
+    { id: 'e2', full_name: 'Kavita Rane', employee_code: 'EMP012' },
+    { id: 'e1', full_name: 'Suresh Patil', employee_code: 'EMP009' },
+  ],
+};
+
+const RESTAURANT: RestaurantSummary = {
+  id: 'r1',
+  name: 'Spice Garden',
+  code: 'SG',
+  timezone: 'Asia/Kolkata',
+  currency: 'INR',
+  business_day_start: '05:00:00',
+  theme: { default: null, schedule: [] },
+};
+
+function authFor(permissions: string[]): AuthState {
+  const held = new Set(permissions);
+  return {
+    session: {
+      employeeId: 'e1',
+      passwordChangeRequired: false,
+      fullName: 'Suresh Patil',
+      employeeCode: 'EMP009',
+      restaurant: RESTAURANT,
+      restaurants: [RESTAURANT],
+      hasMoreRestaurants: false,
+      roles: [],
+      permissions: held,
+    } satisfies Session,
+    signIn: () => Promise.resolve(),
+    signOut: () => Promise.resolve(),
+    can: (permission: string) => held.has(permission),
   };
 }
 
@@ -144,12 +190,16 @@ function json(body: unknown, status = 200): Response {
   } as unknown as Response;
 }
 
-function renderScreen(current = order()): ReturnType<typeof vi.fn> {
+function renderScreen(
+  current = order(),
+  permissions: string[] = ['order.modify'],
+): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
     const url = String(input);
     if (init?.method === 'POST' || init?.method === 'PATCH') {
       return Promise.resolve(json(order([PENDING_LINE]), 201));
     }
+    if (url.endsWith('/staff/waiters')) return Promise.resolve(json(WAITERS));
     if (url.endsWith('/staff/menu')) return Promise.resolve(json(MENU));
     if (url.endsWith('/staff/orders/o1')) return Promise.resolve(json(current));
     return Promise.resolve(json({}));
@@ -158,11 +208,13 @@ function renderScreen(current = order()): ReturnType<typeof vi.fn> {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/orders/o1']}>
-        <Routes>
-          <Route path="/orders/:orderId" element={<OrderScreen />} />
-        </Routes>
-      </MemoryRouter>
+      <AuthContext.Provider value={authFor(permissions)}>
+        <MemoryRouter initialEntries={['/orders/o1']}>
+          <Routes>
+            <Route path="/orders/:orderId" element={<OrderScreen />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>
     </QueryClientProvider>,
   );
   return fetchMock;
@@ -285,5 +337,56 @@ describe('asking for the bill and cancelling', () => {
     await user.click(await screen.findByRole('button', { name: 'Cancel order' }));
 
     expect(await screen.findByText(/1 dish has already gone to the kitchen/)).toBeInTheDocument();
+  });
+});
+
+// Who is serving the table (2026-09-14). The waiter was stored on every order and shown nowhere, and
+// it was whoever opened the order. A waiter claims an order nobody is serving; moving an order from
+// one waiter to another is a manager's call, with a reason, because taking a busy table takes its
+// credit.
+describe('who is serving the table', () => {
+  it('names the waiter, and gives a waiter nothing to move the order with', async () => {
+    renderScreen();
+
+    expect(await screen.findByText('Waiter: Suresh Patil')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Assign to me' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Change waiter' })).not.toBeInTheDocument();
+  });
+
+  it('lets a waiter claim an order nobody is serving, sending only its version', async () => {
+    const fetchMock = renderScreen(order([], { waiter: null, waiter_employee_id: null }));
+    const user = userEvent.setup();
+
+    expect(await screen.findByText('No waiter yet')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Assign to me' }));
+
+    expect(posted(fetchMock, '/staff/orders/o1/waiter/claim')).toEqual({ version: 3 });
+  });
+
+  it('shows a takeaway as a counter order, with no waiter to claim', async () => {
+    renderScreen(
+      order([], { type: 'takeaway', table_ids: [], waiter: null, waiter_employee_id: null }),
+    );
+
+    expect(await screen.findByText('Counter order')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Assign to me' })).not.toBeInTheDocument();
+  });
+
+  it('moves the order only for order.assign, and only once a reason is given', async () => {
+    const fetchMock = renderScreen(order(), ['order.modify', 'order.assign']);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Change waiter' }));
+    await user.click(await screen.findByRole('radio', { name: 'Kavita Rane' }));
+    const move = screen.getByRole('button', { name: 'Move to Kavita Rane' });
+    expect(move).toBeDisabled();
+    await user.type(screen.getByLabelText('Why is it moving?'), 'Shift ended');
+    await user.click(move);
+
+    expect(posted(fetchMock, '/staff/orders/o1/waiter')).toEqual({
+      version: 3,
+      employee_id: 'e2',
+      reason: 'Shift ended',
+    });
   });
 });

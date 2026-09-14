@@ -57,6 +57,8 @@ function bill(
     business_date: '2026-09-13',
     grand_total: total,
     version: 7,
+    type: 'dine_in',
+    waiter: { id: 'e1', full_name: 'Suresh Patil' },
   };
 }
 
@@ -114,6 +116,8 @@ describe('BillsScreen', () => {
     expect(screen.getByText('Settled')).toBeInTheDocument();
     expect(screen.getByText('Cancelled')).toBeInTheDocument();
     expect(screen.getByText('₹987.00')).toBeInTheDocument();
+    // Every bill names who served it (2026-09-14).
+    expect(screen.getAllByText('Suresh Patil')).toHaveLength(2);
     expect(requested(fetchMock).getAll('status')).toEqual(['settled', 'voided']);
   });
 

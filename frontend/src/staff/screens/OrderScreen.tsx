@@ -2,9 +2,11 @@ import { type ReactElement, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { formatDelta, formatINR } from '@shared/money';
+import { Permission } from '@shared/permissions';
 import { Button } from '@shared/ui/button';
 import { FoodTypeMark } from '@shared/ui/foodTypeMark';
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@shared/ui/sheet';
+import { useAuth } from '@staff/auth/AuthContext';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { QuantityStepper } from '@staff/components/QuantityStepper';
@@ -23,10 +25,13 @@ import {
   useAddLine,
   useCancelOrder,
   useChangeQuantity,
+  useClaimOrder,
+  useMoveOrder,
   useOrder,
   useOrderStep,
   useOrderingMenu,
   useRemoveLine,
+  useWaiters,
 } from '@staff/api/orders';
 
 /**
@@ -141,15 +146,163 @@ function OrderTaking({
 
 function OrderHeader({ order }: { order: Order }): ReactElement {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <Link to="/floor" className="min-h-target underline">
-        {strings.orders.backToTables}
-      </Link>
-      <div className="text-right">
-        <p className="font-semibold">{strings.orders.orderLabel(order.order_number)}</p>
-        <p className="font-mono tabular-nums">{formatINR(order.grand_total)}</p>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <Link to="/floor" className="min-h-target underline">
+          {strings.orders.backToTables}
+        </Link>
+        <div className="text-right">
+          <p className="font-semibold">{strings.orders.orderLabel(order.order_number)}</p>
+          <p className="font-mono tabular-nums">{formatINR(order.grand_total)}</p>
+        </div>
       </div>
+      <WaiterLine order={order} />
     </div>
+  );
+}
+
+const LIVE = new Set(['open', 'sent', 'served']);
+
+/**
+ * Who is serving this table (2026-09-14). The waiter was stored on every order and shown nowhere,
+ * and it was whoever opened the order.
+ *
+ * **Assign to me** appears only on a dine-in order nobody is serving. Moving an order somebody is
+ * serving is **Change waiter**, only for order.assign, because taking a busy table takes its credit.
+ * A takeaway or delivery is a counter order: nobody serves it at a table.
+ */
+function WaiterLine({ order }: { order: Order }): ReactElement {
+  const { can } = useAuth();
+  const claim = useClaimOrder();
+  if (order.type !== 'dine_in') {
+    return <p className="text-sm text-muted-foreground">{strings.orders.counterOrder}</p>;
+  }
+  const live = LIVE.has(order.status);
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p>
+          {order.waiter === null
+            ? strings.orders.noWaiter
+            : strings.orders.waiterLabel(order.waiter.full_name)}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {live && order.waiter === null && can(Permission.ORDER_MODIFY) && (
+            <Button
+              variant="secondary"
+              disabled={claim.isPending}
+              onClick={() => {
+                claim.mutate({ order });
+              }}
+            >
+              {claim.isPending ? strings.orders.assigning : strings.orders.assignToMe}
+            </Button>
+          )}
+          {live && can(Permission.ORDER_ASSIGN) && <MoveOrder order={order} />}
+        </div>
+      </div>
+      {claim.isError && <Notice tone="critical" {...errorProps(claim.error)} />}
+    </div>
+  );
+}
+
+// The server's `Reason`: three characters at least, so the move waits for them.
+const MOVE_REASON_MIN = 3;
+
+/** Change waiter: choose who serves the table now, and say why. A sheet from the bottom, like every
+ *  other question on this screen. The person already serving is not offered. */
+function MoveOrder({ order }: { order: Order }): ReactElement {
+  const [open, setOpen] = useState(false);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [reason, setReason] = useState('');
+  const waiters = useWaiters(open);
+  const move = useMoveOrder();
+  const choices = (waiters.data?.items ?? []).filter((person) => person.id !== order.waiter?.id);
+  const picked = choices.find((person) => person.id === chosen);
+  const ready = picked !== undefined && reason.trim().length >= MOVE_REASON_MIN;
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <Button
+        variant="secondary"
+        onClick={() => {
+          setOpen(true);
+        }}
+      >
+        {strings.orders.changeWaiter}
+      </Button>
+      <SheetContent side="bottom">
+        <SheetHeader>
+          <SheetTitle>{strings.orders.moveTitle(order.order_number)}</SheetTitle>
+        </SheetHeader>
+        <div className="flex flex-col gap-3 py-3">
+          {move.isError && <Notice tone="critical" {...errorProps(move.error)} />}
+          <QueryState
+            isPending={waiters.isPending}
+            error={waiters.error}
+            pendingLabel={strings.orders.loadingWaiters}
+          >
+            <fieldset className="flex flex-col gap-1">
+              <legend className="sr-only">{strings.orders.moveChoose}</legend>
+              {choices.map((person) => (
+                <label key={person.id} className="flex min-h-target items-center gap-3">
+                  <input
+                    type="radio"
+                    name="waiter"
+                    value={person.id}
+                    checked={chosen === person.id}
+                    onChange={() => {
+                      setChosen(person.id);
+                    }}
+                  />
+                  {person.full_name}
+                </label>
+              ))}
+            </fieldset>
+          </QueryState>
+          <Field
+            label={strings.orders.moveReason}
+            hint={strings.orders.moveReasonHint}
+            value={reason}
+            onChange={(event) => {
+              setReason(event.target.value);
+            }}
+            error={fieldErrors(move.error).reason}
+          />
+        </div>
+        <SheetFooter className="gap-2">
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={() => {
+              setOpen(false);
+            }}
+          >
+            {strings.orders.keepWaiter}
+          </Button>
+          <Button
+            size="lg"
+            disabled={!ready || move.isPending}
+            onClick={() => {
+              if (picked === undefined) return;
+              move.mutate(
+                { order, employeeId: picked.id, reason: reason.trim() },
+                {
+                  onSuccess: () => {
+                    setOpen(false);
+                    setChosen(null);
+                    setReason('');
+                  },
+                },
+              );
+            }}
+          >
+            {picked === undefined
+              ? strings.orders.moveChoose
+              : strings.orders.moveTo(picked.full_name)}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 

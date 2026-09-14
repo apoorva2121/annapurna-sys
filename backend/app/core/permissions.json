@@ -215,6 +215,12 @@
       "resource": "floor",
       "action": "manage",
       "description": "Switch busy mode on or off for the floor, so a settled table is free at once instead of being cleared first. It switches itself off at the next business day. Held by owner and manager: it changes how the whole floor behaves, not one table."
+    },
+    {
+      "code": "order.assign",
+      "resource": "order",
+      "action": "assign",
+      "description": "Choose who serves a table when opening an order for someone else, and move an order from one waiter to another with a reason. Held by owner and manager: a waiter may claim an order nobody is serving, but taking a table somebody is serving would take its credit, which M17 turns into a performance score."
     }
   ],
   "roles": [
@@ -253,7 +259,8 @@
         "stock.view",
         "supplier.manage",
         "supplier.view",
-        "floor.manage"
+        "floor.manage",
+        "order.assign"
       ]
     },
     {
@@ -310,7 +317,8 @@
         "stock.view",
         "supplier.manage",
         "supplier.view",
-        "floor.manage"
+        "floor.manage",
+        "order.assign"
       ]
     },
     {

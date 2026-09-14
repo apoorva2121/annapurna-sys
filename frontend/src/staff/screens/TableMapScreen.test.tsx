@@ -54,6 +54,7 @@ function floor(busy = false): Record<string, unknown> {
                 first_sent_at: '2026-09-13T12:05:00Z',
                 bill_requested_at: '2026-09-13T12:50:00Z',
                 version: 5,
+                waiter_name: 'Suresh Patil',
               },
             ],
           },
@@ -72,6 +73,14 @@ function floor(busy = false): Record<string, unknown> {
     ],
   };
 }
+
+// Who the server says can take orders here (`GET /staff/waiters`), sorted by name.
+const WAITERS = {
+  items: [
+    { id: 'e2', full_name: 'Kavita Rane', employee_code: 'EMP012' },
+    { id: 'e1', full_name: 'Suresh Patil', employee_code: 'EMP009' },
+  ],
+};
 
 function json(body: unknown, status = 200): Response {
   return {
@@ -120,6 +129,7 @@ function renderScreen({
       const answer = POST_ANSWERS.find(([suffix]) => url.endsWith(suffix));
       return Promise.resolve(json(answer?.[1] ?? {}, answer?.[2] ?? 200));
     }
+    if (url.endsWith('/staff/waiters')) return Promise.resolve(json(WAITERS));
     return Promise.resolve(json(url.endsWith('/staff/floor') ? floor(busy) : {}));
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -161,6 +171,7 @@ describe('TableMapScreen', () => {
 
     expect(await screen.findByText('Occupied')).toBeInTheDocument();
     expect(screen.getByText('Order 7')).toBeInTheDocument();
+    expect(screen.getByText('Suresh Patil')).toBeInTheDocument();
     expect(screen.getByText('₹987.00')).toBeInTheDocument();
     expect(screen.getByText('Bill asked for')).toBeInTheDocument();
     expect(screen.getByText('Free')).toBeInTheDocument();
@@ -220,5 +231,35 @@ describe('busy mode', () => {
         [expect.stringMatching(/\/staff\/floor\/busy$/) as unknown as string, { on: true }],
       ]);
     });
+  });
+});
+
+// Who is serving a table (2026-09-14). A waiter who opens a table serves it — still one tap. Anyone
+// who holds order.assign is asked who is serving it first, because the person seating a table is
+// often not the person who will serve it, and was being credited with it.
+describe('who is serving a table', () => {
+  it('asks a manager who is serving a free table, and opens it in that name', async () => {
+    const fetchMock = renderScreen({ permissions: ['order.create', 'order.assign'] });
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /T7/ }));
+    expect(await screen.findByText('Who is serving T7?')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Kavita Rane' }));
+
+    expect(await screen.findByText('order taking')).toBeInTheDocument();
+    const [, body] = posts(fetchMock)[0] ?? ['', {}];
+    expect(body).toEqual({ type: 'dine_in', table_ids: ['t7'], waiter_employee_id: 'e2' });
+  });
+
+  it('lets a manager open a table that nobody is serving yet', async () => {
+    const fetchMock = renderScreen({ permissions: ['order.create', 'order.assign'] });
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /T7/ }));
+    await user.click(await screen.findByRole('button', { name: 'Leave unassigned' }));
+
+    expect(await screen.findByText('order taking')).toBeInTheDocument();
+    const [, body] = posts(fetchMock)[0] ?? ['', {}];
+    expect(body).toEqual({ type: 'dine_in', table_ids: ['t7'] });
   });
 });

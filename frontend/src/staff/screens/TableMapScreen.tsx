@@ -1,9 +1,10 @@
-import type { ReactElement } from 'react';
+import { type ReactElement, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { formatINR } from '@shared/money';
 import { Permission } from '@shared/permissions';
 import { Button } from '@shared/ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@shared/ui/sheet';
 import { useAuth } from '@staff/auth/AuthContext';
 import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
@@ -17,6 +18,7 @@ import {
   useMarkReady,
   useOpenOrder,
   useSetBusy,
+  useWaiters,
 } from '@staff/api/orders';
 
 /**
@@ -39,10 +41,25 @@ export default function TableMapScreen(): ReactElement {
   const open = useOpenOrder();
   const ready = useMarkReady();
   const navigate = useNavigate();
+  const { can } = useAuth();
+  // Someone holding order.assign is asked who serves a table first: the person seating a party is
+  // often not the person who will serve it, and used to be credited with it (2026-09-14). A waiter
+  // opening a table serves it, still in one tap.
+  const [choosing, setChoosing] = useState<FloorTable | null>(null);
 
-  function openTable(table: FloorTable): void {
+  function tapTable(table: FloorTable): void {
+    if (can(Permission.ORDER_ASSIGN)) {
+      setChoosing(table);
+      return;
+    }
+    openTable(table);
+  }
+
+  function openTable(table: FloorTable, waiterId?: string): void {
     open.mutate(
-      { type: 'dine_in', table_ids: [table.id] },
+      waiterId === undefined
+        ? { type: 'dine_in', table_ids: [table.id] }
+        : { type: 'dine_in', table_ids: [table.id], waiter_employee_id: waiterId },
       {
         onSuccess: (order) => {
           void navigate(`/orders/${order.id}`);
@@ -78,14 +95,81 @@ export default function TableMapScreen(): ReactElement {
                 key={area.id}
                 area={area}
                 busy={open.isPending || ready.isPending}
-                onOpen={openTable}
+                onOpen={tapTable}
                 onReady={markReady}
               />
             ))
           )}
         </QueryState>
+        <WhoIsServing
+          table={choosing}
+          onClose={() => {
+            setChoosing(null);
+          }}
+          onPick={(waiterId) => {
+            if (choosing !== null) openTable(choosing, waiterId);
+            setChoosing(null);
+          }}
+        />
       </div>
     </WaiterSurface>
+  );
+}
+
+/** Who is serving a table, asked of whoever holds order.assign before the table is opened. Leaving
+ *  it unassigned lets a waiter claim it from the order screen. */
+function WhoIsServing({
+  table,
+  onPick,
+  onClose,
+}: {
+  table: FloorTable | null;
+  onPick: (waiterId?: string) => void;
+  onClose: () => void;
+}): ReactElement {
+  const waiters = useWaiters(table !== null);
+  return (
+    <Sheet
+      open={table !== null}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
+      <SheetContent side="bottom">
+        <SheetHeader>
+          <SheetTitle>{table === null ? '' : strings.orders.whoIsServing(table.code)}</SheetTitle>
+        </SheetHeader>
+        <div className="flex flex-col gap-2 py-3">
+          <QueryState
+            isPending={waiters.isPending}
+            error={waiters.error}
+            pendingLabel={strings.orders.loadingWaiters}
+          >
+            {(waiters.data?.items ?? []).map((person) => (
+              <Button
+                key={person.id}
+                variant="secondary"
+                size="lg"
+                onClick={() => {
+                  onPick(person.id);
+                }}
+              >
+                {person.full_name}
+              </Button>
+            ))}
+          </QueryState>
+          <Button
+            variant="ghost"
+            size="lg"
+            onClick={() => {
+              onPick();
+            }}
+          >
+            {strings.orders.leaveUnassigned}
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -158,6 +242,9 @@ function TableCell({
         <span className="text-lg font-semibold">{table.code}</span>
         <span>{status}</span>
         <span className="text-sm">{strings.orders.orderLabel(live.order_number)}</span>
+        {typeof live.waiter_name === 'string' && (
+          <span className="text-sm">{live.waiter_name}</span>
+        )}
         <span className="font-mono tabular-nums">{formatINR(live.grand_total)}</span>
         {live.bill_requested_at !== null && (
           <span className="font-semibold">{strings.orders.billAsked}</span>

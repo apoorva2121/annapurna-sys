@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import MOST_JUNIOR_RANK
 from app.models.access import EmployeeRoleAssignment, Permission, Role, RolePermission
+from app.models.identity import Employee
 from app.models.tenancy import Restaurant
 
 
@@ -192,3 +193,31 @@ class AccessRepository:
 
     async def all_permissions(self) -> Sequence[Permission]:
         return (await self.session.scalars(select(Permission).order_by(Permission.code))).all()
+
+    async def order_takers(
+        self, restaurant_id: uuid.UUID, *, employee_id: uuid.UUID | None = None
+    ) -> Sequence[Employee]:
+        """Active staff who may take orders at this restaurant, by name (waiter assignment).
+
+        Judged by permission, never by role name (ADR 0007): whoever holds `order.create` here can
+        serve a table, which includes a manager covering the floor and excludes the accountant who
+        only reads orders. A login is not required — a waiter without a phone still serves the
+        table. Bounded at 200: a restaurant with more order takers than that is not a restaurant.
+        """
+        query = (
+            select(Employee)
+            .join(EmployeeRoleAssignment, EmployeeRoleAssignment.employee_id == Employee.id)
+            .join(RolePermission, RolePermission.role_id == EmployeeRoleAssignment.role_id)
+            .join(Permission, Permission.id == RolePermission.permission_id)
+            .where(
+                EmployeeRoleAssignment.restaurant_id == restaurant_id,
+                Permission.code == "order.create",
+                Employee.is_active.is_(True),
+            )
+            .distinct()
+            .order_by(Employee.full_name, Employee.id)
+            .limit(200)
+        )
+        if employee_id is not None:
+            query = query.where(Employee.id == employee_id)
+        return (await self.session.scalars(query)).all()

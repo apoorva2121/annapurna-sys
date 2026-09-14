@@ -49,6 +49,7 @@ export default function BillsScreen(): ReactElement {
               <TableRow>
                 <TableHead>{strings.bills.orderColumn}</TableHead>
                 <TableHead>{strings.bills.statusColumn}</TableHead>
+                <TableHead>{strings.bills.waiterColumn}</TableHead>
                 <TableHead className="text-right">{strings.bills.totalColumn}</TableHead>
               </TableRow>
             </TableHeader>
@@ -61,6 +62,11 @@ export default function BillsScreen(): ReactElement {
                     </Link>
                   </TableCell>
                   <TableCell>{strings.bills.statuses[bill.status] ?? bill.status}</TableCell>
+                  <TableCell>
+                    {bill.type !== 'dine_in'
+                      ? strings.orders.counterOrder
+                      : (bill.waiter?.full_name ?? strings.orders.noWaiter)}
+                  </TableCell>
                   <TableCell className="text-right font-mono tabular-nums">
                     {formatINR(bill.grand_total)}
                   </TableCell>

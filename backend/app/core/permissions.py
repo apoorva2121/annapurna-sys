@@ -102,6 +102,11 @@ class PermissionCode(StrEnum):
     # sits behind `order.create`, because whoever seats a table is whoever clears it.
     FLOOR_MANAGE = "floor.manage"
 
+    # Waiter assignment (2026-09-14). Choosing who serves a table when opening it for someone else,
+    # and moving an order between waiters with a reason. Owner and manager: a waiter claims only an
+    # order nobody is serving (`order.modify`), because taking a busy table takes its credit.
+    ORDER_ASSIGN = "order.assign"
+
 
 class PermissionSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

@@ -636,6 +636,22 @@ export const strings = {
     } as Record<string, string>,
     orderLabel: (number: string) => `Order ${number}`,
     billAsked: 'Bill asked for',
+    // Who is serving a table (2026-09-14). The waiter was stored on every order and shown nowhere.
+    waiterLabel: (name: string) => `Waiter: ${name}`,
+    noWaiter: 'No waiter yet',
+    counterOrder: 'Counter order',
+    assignToMe: 'Assign to me',
+    assigning: 'Assigning…',
+    changeWaiter: 'Change waiter',
+    moveTitle: (number: string) => `Who should serve order ${number}?`,
+    moveChoose: 'Choose a waiter',
+    moveReason: 'Why is it moving?',
+    moveReasonHint: 'A few words, such as "shift ended". The reason stays with the order.',
+    moveTo: (name: string) => `Move to ${name}`,
+    keepWaiter: 'Keep the waiter',
+    whoIsServing: (code: string) => `Who is serving ${code}?`,
+    leaveUnassigned: 'Leave unassigned',
+    loadingWaiters: 'Loading the waiters',
     // Backlog-issues B2: a table after the bill, and an order that should never have been opened.
     markReady: (code: string) => `Mark ${code} ready`,
     readyIn: (minutes: number) => `Ready in ${String(minutes)} min`,
@@ -712,6 +728,7 @@ export const strings = {
   // edited, so every action here is named for the new document it creates.
   bills: {
     nav: 'Bills',
+    waiterColumn: 'Waiter',
     title: "Today's bills",
     intro:
       'A settled bill is never edited. Money going back is a credit note; a bill raised in error is cancelled on the day it was issued.',

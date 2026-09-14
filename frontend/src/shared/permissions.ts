@@ -64,6 +64,9 @@ export const Permission = {
   // it changes every table, so the floor renders the switch only for this permission. Mark ready
   // needs none of its own: whoever holds ORDER_CREATE seats a table and clears it.
   FLOOR_MANAGE: 'floor.manage',
+  // Waiter assignment (2026-09-14). Choosing who serves a table when opening it for someone else,
+  // and moving an order between waiters. Owner and manager; a waiter claims only an unserved order.
+  ORDER_ASSIGN: 'order.assign',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

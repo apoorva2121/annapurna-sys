@@ -87,6 +87,17 @@ undo A's dish, and the kitchen would cook something that is no longer on the bil
 | B12 | Send a dish, then tap **Cancel order** | Before you confirm, it says **1 dish has already gone to the kitchen** |
 | B13 | Tap **Ask for bill** on an order | **Bill asked for** appears on that table in **Tables** |
 
+**Who is serving a table** (2026-09-14):
+
+| # | Step | Expect |
+|---|---|---|
+| W1 | As **waiter1**, open a free table | One tap, as before. The order says **Waiter: Suresh Patil**, and so does the table on **Tables** |
+| W2 | As **manager1**, tap a free table | It asks **Who is serving T…?** Pick **Ravi Sharma**: the order says **Waiter: Ravi Sharma**, not the manager |
+| W3 | As **manager1**, open a table and choose **Leave unassigned**; then as **waiter1**, open that order | It says **No waiter yet** with **Assign to me**. Tap it: **Waiter: Suresh Patil** |
+| W4 | As **waiter2**, open the order from W1 | No **Assign to me** and no **Change waiter**: somebody is serving it |
+| W5 | As **manager1**, open that order and tap **Change waiter** | Pick **Ravi Sharma**; **Move to Ravi Sharma** stays disabled until there is a reason. Confirm: the order and the table now say Ravi |
+| W6 | Open **Bills** after settling a dine-in and a takeaway | The dine-in bill names its waiter; the takeaway says **Counter order** |
+
 **B7 and B8 are the bug from your first pass.** T2 and T4 stayed Occupied because tapping a table
 being cleared opened an empty order on it, and nothing on the floor could clear it. B11 is how you
 undo that mistake if it ever happens again.
