@@ -36,6 +36,7 @@ is not done. Stop at any row marked **DECIDE** that has no recorded answer.
 | B9 | Seed `PALAK_PANEER` has no spinach · menu seeder query per dish · receiving reads each stock item twice | ☐ | — |
 | B10 | vitest 3 → 5 · ruff `DTZ` · `date_trunc` audit · `audit_docs.py` eliminated tables · shared business-day vectors · new-screen reachability test · migration 0005 reads the live catalogue · expired idempotency keys never swept | ☐ | — |
 | B11 | Waiter screens not fully optimistic · `/design` gallery (**DECIDE D4**) | ☐ | — |
+| B12 | The owner's defect sheet (`issues .xlsx`, 2026-09-14): error codes on screen (issue catalogue) · address cannot be saved · tables cannot be deactivated · add-employee form · stock expiry and ungated pages · options screen editable by a waiter · receiver not shown · permission codes on the profile · till closer and adjuster. Sheet questions 3 and 8–20 are open with the owner | ☐ | — |
 | — | **Next module may start** | ☐ | — |
 
 ---
@@ -149,3 +150,10 @@ must be written down.
 | D8 | Who may take over an order somebody is serving | **A manager (`order.assign`), with a reason.** A waiter claims only an unserved order: grabbing a busy table would take its credit | 2026-09-14 |
 | D9 | Who is the waiter when someone other than a waiter opens an order | **Chosen at opening.** A waiter opening a table serves it; `order.assign` holders name the waiter or leave it unassigned; takeaway and delivery are counter orders | 2026-09-14 |
 | D10 | When to build it | **Next, before B4.** It fixes a real defect and depends on nothing unbuilt | 2026-09-14 |
+| D11 | Error codes on screen | **Never in the UI.** Each issue gets a number and a plain-language text; the list is a checked-in catalogue copied to a database table by migration, and a test fails the build when a raised code has none | 2026-09-14 |
+| D12 | What a person sees on an error | **The text and the issue number** ("… (Issue 1042)"). A form mistake shows only its sentence under the field | 2026-09-14 |
+| D13 | A till adjustment | **Both people recorded and shown** — who closed the till and who adjusted it, by name, employee code and role — for later audit | 2026-09-14 |
+| D14 | Adding an employee | **A Finish button after roles** returns to the staff list with "Ravi Sharma added as Waiter"; editing someone later shows Back to staff | 2026-09-14 |
+| D15 | An employee's name | **At least two letters**; digits and dots allowed | 2026-09-14 |
+| D16 | May the person who closed a till adjust it | **The owner may**, marked "adjusted by the same person" on the till and in reports; everyone else needs a second person | 2026-09-14 |
+| D17 | Staff without a login seeing their tasks | **Handled with the M11/M17 backlog row** "Staff without a login cannot see their own performance score" | 2026-09-14 |
