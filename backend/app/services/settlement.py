@@ -52,7 +52,12 @@ from app.core.errors import AppError, ConflictError, NotFoundError
 from app.core.tax import ZERO, collects_tax, document_type_for, invoice_number, rate_date, to_paisa
 from app.models.orders import Invoice, Order, OrderLine, Payment
 from app.models.tenancy import Restaurant
-from app.repositories.orders import CashSessionRepository, InvoiceRepository, PaymentRepository
+from app.repositories.orders import (
+    CashSessionRepository,
+    CreditNoteRepository,
+    InvoiceRepository,
+    PaymentRepository,
+)
 from app.repositories.stock import CostingRepository, RecipeRepository
 from app.services.costing import CostEngine, Line
 from app.services.floor_rules import is_busy, read_table_settings
@@ -225,12 +230,22 @@ class SettlementService(OrderService):
         )
         return invoice.id
 
-    async def get_invoice(self, invoice_id: uuid.UUID) -> tuple[Invoice, Sequence[Payment]]:
+    async def get_invoice(
+        self, invoice_id: uuid.UUID
+    ) -> tuple[Invoice, Sequence[Payment], dict[uuid.UUID, tuple[int, Decimal]]]:
+        """The invoice, its payments, and per dish what credit notes have already taken off — as a
+        quantity and an amount including tax (backlog-issues B6). One more statement, whatever the
+        number of notes."""
         invoice = await InvoiceRepository(self.session, self.scope).get(invoice_id)
         if invoice is None:
             raise NotFoundError("invoice.not_found", "That invoice does not exist.")
         payments = await PaymentRepository(self.session, self.scope).for_order(invoice.order_id)
-        return invoice, payments
+        so_far = await CreditNoteRepository(self.session, self.scope).credited_so_far(invoice.id)
+        credited = {
+            line_id: (entry.quantity, entry.taxable + entry.tax)
+            for line_id, entry in so_far.items()
+        }
+        return invoice, payments, credited
 
     # ------------------------------------------------------------------ steps
 

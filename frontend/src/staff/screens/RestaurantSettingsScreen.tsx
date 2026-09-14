@@ -76,6 +76,20 @@ function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement 
       gstin: gstin.trim() === '' ? null : gstin.trim(),
       fssai_licence: fssai.trim() === '' ? null : fssai.trim(),
       address: address.trim() === '' ? null : address.trim(),
+      // The version this page was read at (backlog-issues B6): a change saved elsewhere since is
+      // refused with a sentence, never silently overwritten.
+      settings_version: restaurant.settings_version,
+    }, {
+      // Re-seeded from what the server saved, not left as typed: "inr" is stored as "INR", and a
+      // form still holding "inr" under a green "Saved" is showing a value the database does not hold.
+      onSuccess: (saved) => {
+        setTimezone(saved.timezone);
+        setCurrency(saved.currency);
+        setDayStart(saved.business_day_start.slice(0, 5));
+        setGstin(saved.gstin ?? '');
+        setFssai(saved.fssai_licence ?? '');
+        setAddress(saved.address ?? '');
+      },
     });
   }
 
@@ -264,6 +278,7 @@ function TablesSection({ restaurant }: { restaurant: Restaurant }): ReactElement
         disabled={save.isPending}
         onClick={() => {
           save.mutate({
+            settings_version: restaurant.settings_version,
             tables: {
               cleaning_minutes: minutes === '' ? null : Number(minutes),
               busy_windows: windows,
@@ -416,7 +431,7 @@ function ThemeSection({ restaurant }: { restaurant: Restaurant }): ReactElement 
       <Button
         disabled={save.isPending}
         onClick={() => {
-          save.mutate({ theme });
+          save.mutate({ theme, settings_version: restaurant.settings_version });
         }}
       >
         {save.isPending ? strings.setup.restaurant.saving : strings.setup.theme.save}

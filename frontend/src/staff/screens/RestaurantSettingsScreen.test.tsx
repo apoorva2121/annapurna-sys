@@ -39,6 +39,7 @@ const SETTINGS = {
   gstin: null,
   fssai_licence: null,
   address: null,
+  settings_version: 3,
 };
 
 function json(body: unknown, status = 200): Response {
@@ -246,8 +247,56 @@ describe('tables after the bill', () => {
     await waitFor(() => {
       const patch = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH');
       expect(sentJson(patch)).toEqual({
+        // The version the page was read at (backlog-issues B6).
+        settings_version: 3,
         tables: { cleaning_minutes: null, busy_windows: [{ starts: '12:00', ends: '15:00' }] },
       });
+    });
+  });
+});
+
+// Backlog-issues B6. The form copied the server's values once: type "inr", save, and it kept showing
+// "inr" over a database that held "INR". And a save carried no version, so another tab's change was
+// overwritten without a word.
+describe('what was saved', () => {
+  it('sends the version it was read at', async () => {
+    const fetchMock = vi.fn<(...call: FetchCall) => Promise<Response>>(() =>
+      Promise.resolve(json(SETTINGS)),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderScreen();
+    await screen.findByLabelText(/business day starts at/i);
+
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
+
+    await waitFor(() => {
+      const patch = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH');
+      expect(sentJson(patch).settings_version).toBe(3);
+    });
+  });
+
+  it('shows what the server saved, not what was typed', async () => {
+    const fetchMock = vi.fn<(...call: FetchCall) => Promise<Response>>((_url, init) =>
+      Promise.resolve(
+        json(
+          init?.method === 'PATCH'
+            ? { ...SETTINGS, currency: 'INR', settings_version: 4 }
+            : SETTINGS,
+        ),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderScreen();
+    const currency = await screen.findByLabelText(/currency/i);
+
+    await user.clear(currency);
+    await user.type(currency, 'inr');
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
+
+    await waitFor(() => {
+      expect(currency).toHaveValue('INR');
     });
   });
 });

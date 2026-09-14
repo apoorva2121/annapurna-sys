@@ -364,6 +364,14 @@ class PaymentResponse(_ReadSchema):
     credit_note_id: uuid.UUID | None
 
 
+class CreditedLineResponse(_Schema):
+    """What earlier credit notes took off one dish: portions, and the amount including tax."""
+
+    order_line_id: uuid.UUID
+    quantity: int
+    amount: Decimal
+
+
 class InvoiceResponse(_Schema):
     """The legal document as issued, with the payments made against it."""
 
@@ -395,6 +403,9 @@ class InvoiceResponse(_Schema):
     cancelled_at: datetime | None
     cancel_reason: str | None
     payments: list[PaymentResponse]
+    # Per dish, what credit notes have already taken off (backlog-issues B6), so a second note is
+    # written knowing what the first one did.
+    credited: list[CreditedLineResponse] = Field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- reversals

@@ -50,6 +50,7 @@ restaurant
   service_charge_rate numeric(6,4)               -- NULL = disabled, the default (CCPA)
   address             jsonb
   settings            jsonb NN default '{}'      -- notification channels, feature toggles
+  settings_version    integer NN default 1       -- B6: a stale settings save is a 409, not an overwrite
   is_active           bool NN default true
   IX (organization_id)
 

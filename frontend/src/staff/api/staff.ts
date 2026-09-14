@@ -154,3 +154,18 @@ export function useSetActive(employeeId: string): UseMutationResult<Employee, Er
     onSuccess: invalidate,
   });
 }
+
+/**
+ * Set a new password for someone else (`employee.password.reset`, backlog-issues B6). The server
+ * refuses anyone more senior (G-4, G-5), signs them out everywhere, and asks them to choose their own
+ * the next time they sign in.
+ */
+export function useResetPassword(employeeId: string): UseMutationResult<void, Error, string> {
+  return useMutation({
+    mutationFn: async (newPassword: string) => {
+      await apiPost<undefined>(`/staff/employees/${employeeId}/password`, {
+        new_password: newPassword,
+      });
+    },
+  });
+}

@@ -101,6 +101,14 @@ export const strings = {
     rolesSave: 'Save roles',
     rolesSaving: 'Saving roles…',
     rolesSaved: 'Roles updated.',
+    // Backlog-issues B6: a new password set by someone else.
+    resetTitle: 'Set a new password',
+    resetHint: (name: string) =>
+      `For when ${name} has forgotten theirs. They are signed out everywhere and choose their own the next time they sign in.`,
+    newPassword: 'New password',
+    reset: 'Set new password',
+    resetting: 'Setting…',
+    resetDone: (name: string) => `New password set. Tell ${name} in person, not by message.`,
   },
 
   profile: {
@@ -768,6 +776,8 @@ export const strings = {
     creditIntro:
       'Choose the dishes coming off the bill and how many of each. The tax on them is worked out for you.',
     billedCount: (count: number, total: string) => `${String(count)} billed · ${total}`,
+    alreadyCredited: (count: number, amount: string) =>
+      `${String(count)} already credited · ${amount}`,
     reason: 'Why is it being credited?',
     refundLegend: 'Money given back',
     refundMethods: { none: 'None', cash: 'Cash', upi: 'UPI', card: 'Card' } as Record<

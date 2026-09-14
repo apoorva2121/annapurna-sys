@@ -5,6 +5,7 @@ import { Permission } from '@shared/permissions';
 import {
   type Employee,
   useEmployee,
+  useResetPassword,
   useRoles,
   useSetActive,
   useSetRoles,
@@ -14,7 +15,7 @@ import { useAuth } from '@staff/auth/AuthContext';
 import { Button } from '@shared/ui/button';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
-import { errorProps } from '@staff/components/errorProps';
+import { errorProps, fieldErrors } from '@staff/components/errorProps';
 import { QueryState } from '@staff/components/QueryState';
 import { strings } from '@staff/strings';
 
@@ -49,6 +50,9 @@ function Loaded({ employee }: { employee: Employee }): ReactElement {
 
       {can(Permission.EMPLOYEE_EDIT) && <Details employee={employee} />}
       {can(Permission.EMPLOYEE_ROLE_ASSIGN) && <Roles employee={employee} />}
+      {can(Permission.EMPLOYEE_PASSWORD_RESET) && employee.has_login && (
+        <PasswordReset employee={employee} />
+      )}
       {can(Permission.EMPLOYEE_DEACTIVATE) && <Activation employee={employee} />}
     </div>
   );
@@ -196,4 +200,58 @@ function activationLabel(isActive: boolean, isPending: boolean): string {
     return isPending ? strings.employee.deactivating : strings.employee.deactivate;
   }
   return isPending ? strings.employee.reactivating : strings.employee.reactivate;
+}
+
+// The server's `PasswordResetRequest`: ten characters at least, so the button waits for them.
+const PASSWORD_MIN = 10;
+
+/** Set a new password for someone who has forgotten theirs (backlog-issues B6). Shown only to whoever
+ *  holds `employee.password.reset`; the server still refuses anyone more senior. */
+function PasswordReset({ employee }: { employee: Employee }): ReactElement {
+  const reset = useResetPassword(employee.id);
+  const [password, setPassword] = useState('');
+
+  function onSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    if (password.length < PASSWORD_MIN) {
+      return;
+    }
+    reset.mutate(password, {
+      onSuccess: () => {
+        setPassword('');
+      },
+    });
+  }
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-lg font-semibold">{strings.employee.resetTitle}</h2>
+      <p className="text-sm text-muted-foreground">{strings.employee.resetHint(employee.full_name)}</p>
+      <form onSubmit={onSubmit} className="flex flex-col gap-3">
+        <Field
+          label={strings.employee.newPassword}
+          hint={strings.employee.passwordHint}
+          type="password"
+          autoComplete="new-password"
+          value={password}
+          onChange={(event) => {
+            setPassword(event.target.value);
+          }}
+          error={fieldErrors(reset.error).new_password}
+        />
+        {reset.isError && <Notice tone="critical" {...errorProps(reset.error)} />}
+        {reset.isSuccess && (
+          <Notice tone="success" title={strings.employee.resetDone(employee.full_name)} />
+        )}
+        <Button
+          type="submit"
+          variant="secondary"
+          disabled={reset.isPending || password.length < PASSWORD_MIN}
+          className="self-start"
+        >
+          {reset.isPending ? strings.employee.resetting : strings.employee.reset}
+        </Button>
+      </form>
+    </section>
+  );
 }

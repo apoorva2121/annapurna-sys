@@ -40,6 +40,8 @@ export type Restaurant = {
   theme?: RestaurantTheme;
   /** Also `settings` JSONB; the server fills in the five-minute default when none was saved. */
   tables?: TableSettings;
+  /** What a save sends back (backlog-issues B6): a page read at an older version is refused. */
+  settings_version: number;
 };
 
 export type RestaurantChanges = {
@@ -54,6 +56,7 @@ export type RestaurantChanges = {
   theme?: RestaurantTheme;
   /** Sent whole, like the theme. Busy mode switched on from the floor is kept by the server. */
   tables?: TableSettings;
+  settings_version?: number;
 };
 
 export type DiningArea = {

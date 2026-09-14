@@ -9,7 +9,8 @@
 // On a restaurant's connection the window is long enough to tap through.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -126,5 +127,35 @@ describe('saving roles', () => {
 
     expect(await screen.findByRole('checkbox', { name: /manager/i })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: /owner/i })).not.toBeChecked();
+  });
+});
+
+// Backlog-issues B6: an owner or manager sets a new password for someone from their page. The server
+// already refused anyone more senior (G-4, G-5); there was simply no button.
+describe('setting a new password for someone', () => {
+  it('waits for ten characters, then sends only the new password', async () => {
+    everythingLoaded();
+    renderScreen();
+    const user = userEvent.setup();
+
+    const box = await screen.findByLabelText('New password');
+    const set = screen.getByRole('button', { name: 'Set new password' });
+    await user.type(box, 'short');
+    expect(set).toBeDisabled();
+    await user.type(box, '-enough-now');
+    await user.click(set);
+
+    await waitFor(() => {
+      const call = vi
+        .mocked(globalThis.fetch)
+        .mock.calls.find(
+          (args) =>
+            ((args as unknown[])[0] as string).endsWith('/staff/employees/e1/password') &&
+            (args as unknown[])[1] !== undefined,
+        );
+      expect(call).toBeDefined();
+      const init = (call as unknown[])[1] as RequestInit;
+      expect(JSON.parse(init.body as string)).toEqual({ new_password: 'short-enough-now' });
+    });
   });
 });

@@ -394,3 +394,27 @@ class TestARefundNeedsMoneyReceived:
         assert refused.status_code == 422, refused.text
         assert refused.json()["code"] == "credit_note.refund_exceeds_received"
         assert (await _credit(api_client, manager, invoice)).status_code == 201
+
+
+class TestTheInvoiceSaysWhatWasCredited:
+    """Backlog row "The invoice screen does not show what has already been credited". A manager
+    crediting a second dish could not see what an earlier note already took off."""
+
+    async def test_each_dish_carries_what_earlier_credit_notes_took_off(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        _, _, token, _, invoice = await _settled(db_session, api_client)
+        manager = await _token(api_client, "manager")
+        before = (await api_client.get(f"{INVOICES}/{invoice['id']}", headers=_auth(token))).json()
+
+        credited = await _credit(api_client, manager, invoice)
+
+        assert credited.status_code == 201, credited.text
+        order = (
+            await api_client.get(f"{ORDERS}/{invoice['order_id']}", headers=_auth(token))
+        ).json()
+        after = (await api_client.get(f"{INVOICES}/{invoice['id']}", headers=_auth(token))).json()
+        assert before["credited"] == []
+        assert after["credited"] == [
+            {"order_line_id": order["lines"][0]["id"], "quantity": 1, "amount": "493.50"}
+        ]

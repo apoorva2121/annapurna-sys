@@ -160,12 +160,15 @@ function json(body: unknown, status = 200): Response {
   } as unknown as Response;
 }
 
-function renderScreen(invoiceId: string | null = 'inv1'): ReturnType<typeof vi.fn> {
+function renderScreen(
+  invoiceId: string | null = 'inv1',
+  credited: unknown[] = [],
+): ReturnType<typeof vi.fn> {
   let cancelled = false;
   const invoice = (): Record<string, unknown> =>
     cancelled
       ? { ...INVOICE, status: 'cancelled', cancel_reason: 'Billed to the wrong table' }
-      : INVOICE;
+      : { ...INVOICE, credited };
   // The server as a route table: the first path suffix that matches answers. Only the credit-note
   // and cancel routes are ever posted to, so no responder needs to look at the method.
   const routes: [string, () => unknown][] = [
@@ -290,5 +293,19 @@ describe('InvoiceScreen', () => {
     renderScreen(null);
 
     expect(await screen.findByText(/has not been settled/)).toBeInTheDocument();
+  });
+});
+
+// Backlog-issues B6: a second credit note is written knowing what the first already took off.
+describe('what has already been credited', () => {
+  it('says so beside each dish, and offers only what is left to credit', async () => {
+    renderScreen('inv1', [{ order_line_id: 'l1', quantity: 1, amount: '493.50' }]);
+    const user = userEvent.setup();
+
+    expect(await screen.findByText('1 already credited · ₹493.50')).toBeInTheDocument();
+    const more = screen.getByRole('button', { name: 'One more Dal Makhani' });
+    await user.click(more);
+
+    expect(more).toBeDisabled();
   });
 });

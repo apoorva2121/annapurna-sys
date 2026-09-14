@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactElement, useState } from 'react';
 
 import { businessToday } from '@shared/businessDay';
+import { percentToFraction } from '@shared/money';
 import { Button } from '@shared/ui/button';
 import { Label } from '@shared/ui/label';
 import { Switch } from '@shared/ui/switch';
@@ -176,13 +177,10 @@ function asPercent(rate: string): string {
  * only be superseded, never edited. Found by external review of M02.
  */
 function asFraction(percent: string): string | null {
-  const parsed = Number(percent);
-  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100 || percent.trim() === '') {
-    return null;
-  }
-  // Percent in the UI, fraction on the wire, four decimal places because that is the column.
-  // Built as a string: parsing to a float and back is how 5% becomes 0.05000000000000001.
-  return (parsed / 100).toFixed(4);
+  // Percent in the UI, fraction on the wire, four decimal places because that is the column — moved
+  // in the string, never through a float, and never with `Number`'s generosity ("1e1" is not ten
+  // percent; backlog-issues B6).
+  return percentToFraction(percent);
 }
 
 function AddTaxRate({
@@ -222,10 +220,9 @@ function AddTaxRate({
         <Field
           label={strings.setup.tax.ratePercent}
           hint={strings.setup.tax.rateHint}
-          type="number"
+          inputMode="decimal"
           min={0}
           max={100}
-          step="0.01"
           value={percent}
           onChange={(event) => {
             setPercent(event.target.value);
@@ -322,10 +319,9 @@ function AddTaxGroup({ today }: { today: string }): ReactElement {
         <Field
           label={strings.setup.tax.ratePercent}
           hint={strings.setup.tax.rateHint}
-          type="number"
+          inputMode="decimal"
           min={0}
           max={100}
-          step="0.01"
           value={percent}
           onChange={(event) => {
             setPercent(event.target.value);

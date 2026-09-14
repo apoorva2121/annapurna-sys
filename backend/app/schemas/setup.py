@@ -193,6 +193,8 @@ class RestaurantResponse(_ReadSchema):
     # Also `settings` JSONB. Busy mode switched on from the floor is not echoed here: it is live
     # state and the floor reports it.
     tables: TableSettingsBlock = TableSettingsBlock()
+    # What a save must send back (backlog-issues B6): a page read at an older version is refused.
+    settings_version: int = 1
 
 
 class RestaurantUpdateRequest(_Schema):
@@ -221,6 +223,9 @@ class RestaurantUpdateRequest(_Schema):
     fssai_licence: str | None = Field(default=None, pattern=r"^[12][0-9]{13}$")
     # Cleared with an explicit null: a cloud kitchen with no shopfront is a real thing.
     address: PostalAddress | None = None
+    # The version this page was read at (backlog-issues B6). Sent by the settings screen on every
+    # save; a mismatch is `409 restaurant.stale` and nothing is written.
+    settings_version: int | None = Field(default=None, ge=1)
     theme: ThemeSettings | None = None
     tables: TableSettingsBlock | None = None
 

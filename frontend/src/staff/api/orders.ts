@@ -215,6 +215,8 @@ export type Invoice = {
   cancelled_at: string | null;
   cancel_reason: string | null;
   payments: Payment[];
+  /** Per dish, what credit notes already took off (backlog-issues B6). Absent from an older API. */
+  credited?: { order_line_id: string; quantity: number; amount: string }[];
 };
 
 export type PaymentInput = { method: PaymentMethod; amount: string; reference?: string };

@@ -29,8 +29,9 @@ one many clients will not send.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
@@ -44,6 +45,7 @@ from app.core.permissions import PermissionCode
 from app.models.orders import CreditNote, Invoice, Order, Payment
 from app.repositories.base import DEFAULT_PAGE_SIZE
 from app.schemas.orders import (
+    CreditedLineResponse,
     CreditNoteLineResponse,
     CreditNoteRequest,
     CreditNoteResponse,
@@ -426,13 +428,28 @@ async def split_order(
 #
 # Appended to app/api/v1/staff/orders.py by chunk G's patch.
 
-_INVOICE_FIELDS = tuple(name for name in InvoiceResponse.model_fields if name != "payments")
+_INVOICE_FIELDS = tuple(
+    name for name in InvoiceResponse.model_fields if name not in {"payments", "credited"}
+)
 
 
-def _invoice_response(invoice: Invoice, payments: Sequence[Payment]) -> InvoiceResponse:
+def _invoice_response(
+    invoice: Invoice,
+    payments: Sequence[Payment],
+    credited: Mapping[uuid.UUID, tuple[int, Decimal]],
+) -> InvoiceResponse:
     fields = {name: getattr(invoice, name) for name in _INVOICE_FIELDS}
     return InvoiceResponse.model_validate(
-        fields | {"payments": [PaymentResponse.model_validate(row) for row in payments]}
+        fields
+        | {
+            "payments": [PaymentResponse.model_validate(row) for row in payments],
+            "credited": [
+                CreditedLineResponse(order_line_id=line_id, quantity=quantity, amount=amount)
+                for line_id, (quantity, amount) in sorted(
+                    credited.items(), key=lambda item: str(item[0])
+                )
+            ],
+        }
     )
 
 

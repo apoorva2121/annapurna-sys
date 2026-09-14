@@ -306,3 +306,41 @@ describe('creating a group', () => {
     });
   });
 });
+
+// Backlog-issues B6: the typed percentage never goes through a float, and `Number`'s generosity is
+// gone — "1e1" used to be sent as a 10% rate.
+describe('the rate as it is typed', () => {
+  it('sends 12.5% as 0.1250', async () => {
+    const fetchMock = listReturns(GST5);
+    const user = userEvent.setup();
+    renderScreen();
+    await screen.findByText('GST5');
+
+    await user.click(screen.getByRole('button', { name: /change the rate/i }));
+    const card = screen.getByText('GST5').closest('section');
+    const box = within(card as HTMLElement).getByLabelText(/percent/i);
+    await user.clear(box);
+    await user.type(box, '12.5');
+    await user.click(screen.getByRole('button', { name: /^change the rate$/i }));
+
+    await waitFor(() => {
+      expect(sentJson(post(fetchMock)).rate).toBe('0.1250');
+    });
+  });
+
+  it('sends nothing for a rate written as 1e1', async () => {
+    const fetchMock = listReturns(GST5);
+    const user = userEvent.setup();
+    renderScreen();
+    await screen.findByText('GST5');
+
+    await user.click(screen.getByRole('button', { name: /change the rate/i }));
+    const card = screen.getByText('GST5').closest('section');
+    const box = within(card as HTMLElement).getByLabelText(/percent/i);
+    await user.clear(box);
+    await user.type(box, '1e1');
+    await user.click(screen.getByRole('button', { name: /^change the rate$/i }));
+
+    expect(post(fetchMock)).toBeUndefined();
+  });
+});

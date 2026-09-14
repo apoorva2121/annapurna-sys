@@ -107,3 +107,9 @@ class Restaurant(TimestampedUUIDMixin, Base):
     menu_version: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1, server_default="1"
     )
+    # Bumped by every save of the restaurant's own settings (backlog-issues B6). A save carries the
+    # version its page was read at, so somebody else's change is refused rather than overwritten.
+    # Its own counter: a menu edit or busy mode switched on from the floor is not a settings change.
+    settings_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )

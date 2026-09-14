@@ -104,3 +104,28 @@ export function parseAmount(
   }
   return padded;
 }
+
+/** A percentage from 0 to 100, with at most two decimals. */
+const PERCENT = /^(\d{1,3})(?:\.(\d{1,2}))?$/;
+
+/**
+ * `"5"` → `"0.0500"`, `"12.5"` → `"0.1250"`: a typed percentage as the four-decimal fraction the API
+ * stores, made by moving the decimal point in the string — never through a float (backlog-issues B6).
+ *
+ * A tax rate is not money, but it is copied onto every order line and can only be superseded, never
+ * edited, so it deserves the same care. Returns `null` for anything that is not a percentage from 0
+ * to 100 with at most two decimals — including `"1e1"`, which `Number` reads as ten.
+ */
+export function percentToFraction(input: string): string | null {
+  const match = PERCENT.exec(input.trim());
+  if (match === null) {
+    return null;
+  }
+  // Hundredths of a percent, as a digit string: "12.5" → "1250".
+  const hundredths = `${match[1] ?? '0'}${(match[2] ?? '').padEnd(2, '0')}`.replace(/^0+(?=\d)/, '');
+  if (hundredths.length > 5 || (hundredths.length === 5 && hundredths !== '10000')) {
+    return null;
+  }
+  const padded = hundredths.padStart(5, '0');
+  return `${padded.slice(0, 1)}.${padded.slice(1)}`;
+}

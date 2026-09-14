@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { formatDelta, formatINR, parseAmount } from './money';
+import { formatDelta, formatINR, parseAmount, percentToFraction } from './money';
 
 describe('formatINR', () => {
   it('groups by the Indian system, not by thousands', () => {
@@ -95,5 +95,24 @@ describe('parseAmount', () => {
     // 0.1 + 0.2 is the reason this file forbids arithmetic. A parse that round-tripped through a
     // float would be free to return "1234567.89000001" here on some input; string surgery cannot.
     expect(parseAmount('1234567.89')).toBe('1234567.89');
+  });
+});
+
+// Backlog-issues B6. The tax screen turned a typed percentage into the stored fraction through a
+// float, and accepted anything `Number` does — "1e1" became a 10% tax rate. A rate is not money, but
+// it is copied onto every order line and can never be edited, only superseded.
+describe('percentToFraction', () => {
+  it('moves the decimal point in the string, never through a float', () => {
+    expect(percentToFraction('5')).toBe('0.0500');
+    expect(percentToFraction('12.5')).toBe('0.1250');
+    expect(percentToFraction('0.25')).toBe('0.0025');
+    expect(percentToFraction('100')).toBe('1.0000');
+    expect(percentToFraction(' 18 ')).toBe('0.1800');
+  });
+
+  it('refuses anything that is not a percentage from 0 to 100 with at most two decimals', () => {
+    for (const typed of ['', '1e1', '101', '100.5', '-5', '5%', '12.345', '0x10']) {
+      expect(percentToFraction(typed)).toBeNull();
+    }
   });
 });

@@ -204,6 +204,8 @@ function CreditNoteForm({
   const credit = useCreditNote();
   const submission = useIdempotencyKey();
   const billed = order.lines.filter((line) => !OFF_THE_BILL.has(line.status));
+  // What earlier credit notes took off each dish, so this one offers only what is left (B6).
+  const credited = new Map((invoice.credited ?? []).map((row) => [row.order_line_id, row]));
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [reason, setReason] = useState('');
   const [refundMethod, setRefundMethod] = useState<RefundChoice>('none');
@@ -271,11 +273,19 @@ function CreditNoteForm({
                 <span className="text-sm text-muted-foreground">
                   {strings.bills.billedCount(line.quantity, formatINR(line.line_total))}
                 </span>
+                {credited.has(line.id) && (
+                  <span className="block text-sm text-muted-foreground">
+                    {strings.bills.alreadyCredited(
+                      credited.get(line.id)?.quantity ?? 0,
+                      formatINR(credited.get(line.id)?.amount),
+                    )}
+                  </span>
+                )}
               </span>
               <QuantityStepper
                 value={counts[line.id] ?? 0}
                 min={0}
-                max={line.quantity}
+                max={line.quantity - (credited.get(line.id)?.quantity ?? 0)}
                 label={dish}
                 disabled={credit.isPending}
                 onChange={(next) => {

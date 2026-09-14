@@ -125,6 +125,17 @@ class SetupService:
             raise NotFoundError("restaurant.not_found", "This restaurant no longer exists.")
 
         changes = request.model_dump(exclude_unset=True)
+        # The version the page was read at (backlog-issues B6). The theme and the table rules are
+        # sent whole, so a save from a page opened before somebody else's change would undo it
+        # silently.
+        expected = changes.pop("settings_version", None)
+        if expected is not None and expected != restaurant.settings_version:
+            raise ConflictError(
+                "restaurant.stale",
+                "Somebody changed these settings after you opened them. Reload to see what they "
+                "saved, then make your change again.",
+                details={"current_version": restaurant.settings_version},
+            )
         # The theme is configuration and lives in `settings`, not in a column of its own. Pulled out
         # here so the loop below only ever sets real columns — assigning `restaurant.theme` would
         # silently do nothing, which is the quietest possible way to lose a setting.
@@ -166,6 +177,7 @@ class SetupService:
                 **restaurant.settings,
                 "tables": _stored_tables(tables, restaurant.settings),
             }
+        restaurant.settings_version += 1
         await self.session.flush()
 
         audited = {field for field in changes if field in _AUDITED_SETTINGS}
