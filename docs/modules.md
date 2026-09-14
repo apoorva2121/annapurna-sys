@@ -37,7 +37,8 @@ No features. Everything else stands on it, so it is worth a full day.
 
 - **Depends on** — M00
 - **Tables** — organization, restaurant, user_account, user_session, employee, role, permission,
-  role_permission, employee_role_assignment, sign_in_choice (added by backlog-issues B4)
+  role_permission, employee_role_assignment, sign_in_choice (added by backlog-issues B4),
+  login_attempt (B5)
 - **Endpoints** — `POST /auth/login`, `/auth/login/choose`, `/auth/refresh`, `/auth/logout`, `/auth/password`;
   CRUD `/employees`; `GET /roles`, `/permissions`; `POST /employees/{id}/roles`
 - **Screens** — login, staff list, employee create/edit, role assignment, own profile

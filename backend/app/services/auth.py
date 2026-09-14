@@ -26,6 +26,7 @@ from app.core.actor import Actor
 from app.core.config import get_settings
 from app.core.enums import UserAccountStatus
 from app.core.errors import AppError
+from app.core.identifiers import identifier_key
 from app.core.ids import uuid7
 from app.core.security import (
     hash_password,
@@ -38,6 +39,7 @@ from app.models.identity import Employee, SignInChoice, UserAccount, UserSession
 from app.models.tenancy import Organization, Restaurant
 from app.repositories.access import AccessRepository, ResolvedAccess
 from app.repositories.account import (
+    LoginAttemptRepository,
     SignInChoiceRepository,
     UserAccountRepository,
     UserSessionRepository,
@@ -57,6 +59,18 @@ EMBEDDED_BRANCHES = 20
 
 # How long the pass lasts when a password opens accounts in more than one organization (B4, D1a).
 CHOICE_SECONDS = 120
+
+# How sign-in waits out a delay. A module attribute so tests record the delay instead of waiting.
+_pause = asyncio.sleep
+
+
+def login_delay_seconds(failures: int) -> int:
+    """1s, 2s, 4s… from the configured failure onwards, never more than the cap (B5)."""
+    settings = get_settings()
+    if failures < settings.login_delay_after_failures:
+        return 0
+    exponent = failures - settings.login_delay_after_failures
+    return int(min(2**exponent, settings.login_delay_max_seconds))
 
 
 @lru_cache
@@ -152,11 +166,65 @@ class AuthService:
         self.accounts = UserAccountRepository(session)
         self.sessions = UserSessionRepository(session)
         self.choices = SignInChoiceRepository(session)
+        self.attempts = LoginAttemptRepository(session)
         self.access = AccessRepository(session)
 
     # ------------------------------------------------------------------ login
 
     async def login(
+        self,
+        identifier: str,
+        password: str,
+        *,
+        ip_address: str | None = None,
+        device_info: dict[str, object] | None = None,
+    ) -> LoginResult:
+        """Sign in, slowed down by recent wrong passwords and refused for a network that keeps
+        failing.
+
+        Backlog-issues B5 (guardrail G-15, owner decision D28). **Nothing here locks an account.**
+        The per-network refusal comes before any account is looked at and is the same for every
+        login; the delay is computed from a hash of the login as typed, so a login nobody holds
+        waits exactly as long as a real one. Neither tells a stranger whether a login exists.
+        """
+        settings = get_settings()
+        now = datetime.now(UTC)
+        if ip_address is not None:
+            recent = await self.attempts.failures_from(
+                ip_address, since=now - timedelta(minutes=settings.login_ip_window_minutes)
+            )
+            if recent >= settings.login_ip_budget:
+                logger.warning("auth.network_throttled", extra={"failures": recent})
+                raise AppError(
+                    "auth.too_many_attempts",
+                    "Too many sign-in attempts from this network. "
+                    "Wait a few minutes and try again.",
+                    {"retry_after_minutes": settings.login_ip_window_minutes},
+                    status_code=429,
+                )
+        key = identifier_key(identifier)
+        delay = login_delay_seconds(
+            await self.attempts.failures_for(
+                key, since=now - timedelta(minutes=settings.login_failure_window_minutes)
+            )
+        )
+        if delay:
+            await _pause(delay)
+        try:
+            result = await self._authenticate(
+                identifier, password, ip_address=ip_address, device_info=device_info
+            )
+        except InvalidCredentialsError:
+            await self._record_failure(key, ip_address)
+            raise
+        except OrganizationChoiceNeeded:
+            # The password was right; which organization is the only question left.
+            self.attempts.add(key, ip_address, succeeded=True)
+            raise
+        self.attempts.add(key, ip_address, succeeded=True)
+        return result
+
+    async def _authenticate(
         self,
         identifier: str,
         password: str,
@@ -181,16 +249,16 @@ class AuthService:
         ip_address: str | None,
         device_info: dict[str, object] | None,
     ) -> LoginResult:
-        self._reject_if_locked(account)
-
         if not verify_password(password, account.password_hash):
-            await self._record_failure(account)
             raise InvalidCredentialsError
 
         if account.status != UserAccountStatus.ACTIVE:
             # Checked after the password so a suspended account is not distinguishable from a
             # wrong password by anyone who does not already know the password.
             raise InvalidCredentialsError
+
+        # A lock set by a person, checked after the password for the same reason (B5).
+        self._reject_if_locked(account)
 
         return await self._open_session(account, ip_address, device_info)
 
@@ -289,57 +357,34 @@ class AuthService:
         raise _choice_expired()
 
     def _reject_if_locked(self, account: UserAccount) -> None:
+        """A lock only a person sets (backlog-issues B5). Reached only with the right password, so
+        it tells a stranger nothing, and it says who can lift it."""
         if account.locked_until is None or account.locked_until <= datetime.now(UTC):
             return
-        remaining = account.locked_until - datetime.now(UTC)
-        minutes = max(1, round(remaining.total_seconds() / 60))
-        # A distinct code here, because being locked out is something the person needs to
-        # understand and act on.
-        #
-        # It does cost something: this runs before the password is verified, so five wrong guesses
-        # against a real identifier return 429 while an identifier that does not exist returns 401
-        # — an enumeration oracle that the identical-failure work elsewhere in this file otherwise
-        # closes. Accepted for now because the alternative is refusing to tell a locked-out person
-        # why they cannot sign in, mid-service, which is worse for a restaurant. Recorded in
-        # docs/backlog.md rather than left as a comment nobody revisits.
         raise AppError(
             "auth.locked",
-            f"Too many failed attempts. Try again in about {minutes} minute"
-            f"{'s' if minutes != 1 else ''}, or ask an owner to unlock it.",
-            {"retry_after_minutes": minutes},
-            status_code=429,
+            "This account is locked. Ask an owner or admin to unlock it.",
+            status_code=403,
         )
 
-    async def _record_failure(self, account: UserAccount) -> None:
+    async def _record_failure(self, key: str, ip_address: str | None) -> None:
         """The one write in this service that commits itself, and it has to.
 
-        Everywhere else the API layer owns the transaction and commits on success. A failed login
-        has no success: the caller raises `InvalidCredentialsError`, FastAPI tears the request
-        down, and `get_session` closes the session without committing — taking this increment with
-        it. The counter then never reaches the threshold, no matter how many attempts are made, and
-        the lockout in `docs/security.md` silently does nothing. That is how this shipped, with a
-        green test: the test drove the service inside one transaction it never rolled back, so a
-        write that could not survive a request was still visible to the assertion that followed it.
+        Everywhere else the API layer owns the transaction and commits on success. A failed sign-in
+        has no success: the caller raises `InvalidCredentialsError`, FastAPI tears the request down,
+        and `get_session` closes the session without committing — taking this row with it. The delay
+        would then never grow, however many wrong passwords were tried. That is exactly how the
+        first lockout shipped, under a green test (P1-1, G-1).
 
-        Committing here is safe because nothing else is pending — login only reads until this
-        point — and because this record must outlive precisely the failure that produces it.
-
-        **That safety is a precondition, not a property.** It holds only while `/login` writes
-        nothing else before this line. G-11 plans an `audit_log` row for failed logins; when it
-        lands, this commit stops meaning "only my counter" and the ordering of the two writes
-        becomes load-bearing. Whoever adds it owns that decision.
+        Safe only while nothing else is pending when a sign-in fails — currently true, and a
+        precondition rather than a property.
         """
-        settings = get_settings()
-        account.failed_attempts += 1
-        if account.failed_attempts >= settings.lockout_threshold:
-            account.locked_until = datetime.now(UTC) + timedelta(minutes=settings.lockout_minutes)
-            logger.warning("auth.account_locked", extra={"account_id": str(account.id)})
+        self.attempts.add(key, ip_address, succeeded=False)
         await self.session.commit()
 
     async def _record_success(self, account: UserAccount) -> None:
-        # Cleared, so yesterday's four typos plus today's one do not lock someone out mid-service.
-        account.failed_attempts = 0
-        account.locked_until = None
+        # A success resets the delay through `login_attempt`, not here; a lock a person set is
+        # theirs to lift, not a successful sign-in's (B5).
         account.last_login_at = datetime.now(UTC)
         await self.session.flush()
 

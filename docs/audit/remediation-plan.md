@@ -55,7 +55,8 @@ Rules of engagement for the session (the human enforces these):
 | — | **M02 may start here** — gate cleared | — | ✅ | — |
 | R3 | Sentry and redaction | P1-4, M3 | ⏸ deferred → the deploy, or the day `SENTRY_DSN` is set. Interim: it stays unset | — |
 | R4 | One origin; production smoke; headers | P1-3, M8 | ⏸ deferred → merged into R7; the code cannot be verified without deploying it | — |
-| R5 | Lockout; plan and status enforcement; auth audit | P1-5, P1-10, M1, M5 | ⏸ deferred → a public URL exists. **Scope cut**: per-IP budget only, not the lockout redesign (external-review §5) | — |
+| R5a | Lockout redesign — delay per login, budget per network, a lock only by a person | P1-5 | ☑ **done** 2026-09-14 as backlog-issues B5 (owner decision D28). Trusting the proxy's forwarded address waits for R7 | backlog-issues B5 |
+| R5b | Plan and status enforcement; auth audit | P1-10, M1, M5 | ⏸ deferred → a public URL exists (external-review §5) | — |
 | R6 | Identifiers, rotation grace, session binding | P1-7, P1-8, M2, M10 | ☑ **done** 2026-09-14 as backlog-issues B4 — normalisation (G-18); logins unique per organization with a sign-in choice (owner decision D1, instead of the global index); `sid` on the access token; a cross-tab refresh lock. **The grace window was declined by the owner (D6)**; the concurrent cross-organization create test was dropped with the global index (D1) | backlog-issues B4a, B4b |
 | R7 | Bootstrap command; staging on GCP (now incl. R4) | M15, D6, P1-3, M8 | ⏸ deferred → its own session, human present for the console work | — |
 | R8b | Layering, catalogue, docs drift | D1–D9, M12, X4 | ☑ **done** — zero raw SQL in services, zero repositories in routes, catalogue subset test (which caught real drift), /ready head cached, docs corrected, root cleaned. **D8 file split still declined** | `ab509d4` |

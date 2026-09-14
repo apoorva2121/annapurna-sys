@@ -15,13 +15,13 @@ from __future__ import annotations
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
 from app.core.errors import AppError, PermissionDeniedError
 from app.models.access import EmployeeRoleAssignment
-from app.models.identity import Employee
+from app.models.identity import Employee, LoginAttempt
 from app.repositories.access import AccessRepository
 from app.services.auth import AuthService
 from app.services.employee import EmployeeService
@@ -263,9 +263,20 @@ class TestFailedRequestsPersistTheirBookkeeping:
     the shared session it replaced, both would pass against the broken code.
     """
 
-    async def test_five_wrong_passwords_over_http_lock_the_account(
-        self, db_session: AsyncSession, api_client: AsyncClient
+    async def test_five_wrong_passwords_over_http_are_remembered_and_lock_nobody_out(
+        self, db_session: AsyncSession, api_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """P1-1's lockout half, as backlog-issues B5 left it (G-15, decision D28).
+
+        Wrong passwords no longer lock anyone out, but each one must still outlive the request that
+        failed: the growing delay is computed from them. Counted here over HTTP, where the rollback
+        that first broke the lockout actually happens.
+        """
+
+        async def no_wait(_seconds: float) -> None:
+            return None
+
+        monkeypatch.setattr("app.services.auth._pause", no_wait)
         await _world(db_session, "owner")
 
         for _ in range(5):
@@ -275,14 +286,18 @@ class TestFailedRequestsPersistTheirBookkeeping:
             )
             assert refused.status_code == 401
 
-        locked = await api_client.post(
+        signed_in = await api_client.post(
             "/api/v1/auth/login",
             json={"identifier": "owner@spice-garden.test", "password": PASSWORD},
         )
 
-        assert locked.status_code == 429, (
-            "the correct password signed in after five failures — the failure counter was rolled "
-            "back with the request that failed, so the threshold is never reached"
+        assert signed_in.status_code == 200, signed_in.text
+        failures = await db_session.scalar(
+            select(func.count()).select_from(LoginAttempt).where(LoginAttempt.succeeded.is_(False))
+        )
+        assert failures == 5, (
+            "the failed attempts were rolled back with the requests that failed, so the delay "
+            "never grows"
         )
 
     async def test_a_replayed_refresh_token_kills_the_family_over_http(

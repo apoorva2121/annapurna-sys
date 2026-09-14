@@ -58,10 +58,16 @@ class Settings(BaseSettings):
     argon2_memory_cost_kib: int = 65536
     argon2_parallelism: int = 4
 
-    # docs/security.md: five failures, then a wait. Owner and admin can clear a lock instantly,
-    # because at 7pm on a Saturday "wait fifteen minutes" means one fewer person taking orders.
-    lockout_threshold: int = 5
-    lockout_minutes: int = 15
+    # docs/security.md A07, backlog-issues B5 (decision D28). No automatic lock: a stranger who knew
+    # a waiter's phone number could lock them out mid-service, and "locked" told the stranger the
+    # login was real. Instead each wrong password for one login waits longer than the last — 1s, 2s,
+    # 4s… from the third, never more than the cap — and one network that keeps failing is refused
+    # for a while. A lock is set only by a person.
+    login_delay_after_failures: int = 3
+    login_delay_max_seconds: int = 30
+    login_failure_window_minutes: int = 15
+    login_ip_budget: int = 30
+    login_ip_window_minutes: int = 10
 
     @property
     def cors_origin_list(self) -> list[str]:

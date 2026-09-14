@@ -17,7 +17,7 @@ from sqlalchemy import CursorResult, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.identifiers import normalise_identifier
-from app.models.identity import Employee, SignInChoice, UserAccount, UserSession
+from app.models.identity import Employee, LoginAttempt, SignInChoice, UserAccount, UserSession
 from app.models.tenancy import Organization
 
 
@@ -207,3 +207,53 @@ class SignInChoiceRepository:
             .returning(SignInChoice)
         )
         return result.first()
+
+
+class LoginAttemptRepository:
+    """Remembered sign-in attempts (backlog-issues B5). Unscoped: they happen before anyone is
+    known, and they are found only by a hash of a login or by a network address."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    def add(self, identifier_hash: str, ip_address: str | None, *, succeeded: bool) -> None:
+        self.session.add(
+            LoginAttempt(
+                identifier_hash=identifier_hash, ip_address=ip_address, succeeded=succeeded
+            )
+        )
+
+    async def failures_for(self, identifier_hash: str, *, since: datetime) -> int:
+        """Wrong passwords for one login inside the window, counted from its last success."""
+        last_success = (
+            select(func.max(LoginAttempt.created_at))
+            .where(
+                LoginAttempt.identifier_hash == identifier_hash,
+                LoginAttempt.succeeded.is_(True),
+            )
+            .scalar_subquery()
+        )
+        count = await self.session.scalar(
+            select(func.count())
+            .select_from(LoginAttempt)
+            .where(
+                LoginAttempt.identifier_hash == identifier_hash,
+                LoginAttempt.succeeded.is_(False),
+                LoginAttempt.created_at > since,
+                LoginAttempt.created_at > func.coalesce(last_success, since),
+            )
+        )
+        return int(count or 0)
+
+    async def failures_from(self, ip_address: str, *, since: datetime) -> int:
+        """Wrong passwords from one network inside the window, whatever login they named."""
+        count = await self.session.scalar(
+            select(func.count())
+            .select_from(LoginAttempt)
+            .where(
+                LoginAttempt.ip_address == ip_address,
+                LoginAttempt.succeeded.is_(False),
+                LoginAttempt.created_at > since,
+            )
+        )
+        return int(count or 0)

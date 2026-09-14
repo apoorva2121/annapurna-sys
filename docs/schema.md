@@ -4,7 +4,7 @@ The concrete table specification. Conceptual model: `docs/domain-model.md`. Conv
 ADR 0004 (money/time/units), ADR 0006 (preparations), ADR 0007 (identity), ADR 0008 (keys, deletion,
 enums, numerics), ADR 0010 (idempotency, locking), ADR 0011 (performance).
 
-**73 tables in 13 domains.** Everything here is Phase 1 unless marked `[1.5]`.
+**74 tables in 13 domains.** Everything here is Phase 1 unless marked `[1.5]`.
 
 ## Reading this document
 
@@ -27,7 +27,7 @@ index seek and makes Row-Level Security a one-line policy per table when we enab
 
 ---
 
-## 1 · Tenancy & identity — 10 tables
+## 1 · Tenancy & identity — 11 tables
 
 ```
 organization
@@ -61,8 +61,8 @@ user_account                                     -- authentication ONLY. ADR 000
   status              text NN check(invited|active|suspended|locked)
   mfa_secret          text
   last_login_at       timestamptz
-  failed_attempts     smallint NN default 0
-  locked_until        timestamptz
+  failed_attempts     smallint NN default 0     -- unused since B5: attempts live in login_attempt
+  locked_until        timestamptz                -- set only by a person since B5
   CHECK (email IS NOT NULL OR phone IS NOT NULL)
 
 user_session
@@ -82,6 +82,13 @@ sign_in_choice                                   -- B4: one password opens sever
   expires_at          timestamptz NN             -- two minutes after it is issued
   used_at             timestamptz                -- set by the one request that uses it
   IX (expires_at)
+
+login_attempt                                    -- B5: remembered so the next attempt can wait
+  identifier_hash     text NN                    -- sha256 of the normalised login; never the login
+  ip_address          inet                       -- for the per-network budget
+  succeeded           bool NN
+  IX (identifier_hash, created_at)
+  IX (ip_address, created_at)
 
 employee                                         -- business profile. Login is optional.
   organization_id     uuid NN FK→organization
@@ -1209,7 +1216,7 @@ that path, it is the wrong change.
 Dependencies force roughly this sequence:
 
 1. organization, restaurant
-2. permission, role, role_permission, user_account, user_session, sign_in_choice, employee,
+2. permission, role, role_permission, user_account, user_session, sign_in_choice, login_attempt, employee,
    employee_role_assignment
 3. dining_area, restaurant_table, station, tax_group, tax_rate
 4. supplier, stock_item, ingredient_profile, preparation_profile

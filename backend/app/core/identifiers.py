@@ -12,6 +12,7 @@ email is returned as typed: at sign-in it matches nobody, and creating a login w
 
 from __future__ import annotations
 
+import hashlib
 import re
 
 _SEPARATORS = re.compile(r"[\s\-().]")
@@ -48,3 +49,12 @@ def is_email(value: str) -> bool:
 def is_phone(value: str) -> bool:
     """A normalised phone number: `+` and 8 to 15 digits."""
     return value.startswith("+") and value[1:].isdigit() and 8 <= len(value) - 1 <= 15
+
+
+def identifier_key(raw: str) -> str:
+    """What sign-in throttling remembers a login by: a hash of its normal form, never the login.
+
+    The same for a login that exists and one nobody holds, which is what keeps the delay from saying
+    which is which (backlog-issues B5).
+    """
+    return hashlib.sha256(normalise_identifier(raw).encode("utf-8")).hexdigest()

@@ -222,76 +222,51 @@ class TestLoginFailuresAreIndistinguishable:
             await AuthService(db_session).login("manager@spicegarden.test", "")
 
 
-class TestLockout:
-    """Acceptance criterion 3 and the credential-stuffing row of the threat table."""
+async def _no_wait(seconds: float) -> None:
+    """Stands in for the sign-in delay, so a test never waits it out."""
 
-    async def test_five_failures_lock_the_account(self, db_session: AsyncSession) -> None:
+
+class TestNoAutomaticLock:
+    """Acceptance criterion 3 as amended by backlog-issues B5 (decision D28, guardrail G-15).
+
+    Wrong passwords slow a login down and never lock it; a lock is set only by a person. That the
+    failures are remembered across requests is proven in `tests/test_lockout_persistence.py`.
+    """
+
+    async def test_wrong_passwords_never_lock_out_the_right_one(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("app.services.auth._pause", _no_wait)
         fixture = await _setup(db_session)
         service = AuthService(db_session)
-
-        for _ in range(5):
+        for _ in range(6):
             with pytest.raises(AppError):
                 await service.login("manager@spicegarden.test", "wrong")
 
-        await db_session.refresh(fixture.account)
-        assert fixture.account.locked_until is not None
-
-    async def test_the_correct_password_still_fails_while_locked(
-        self, db_session: AsyncSession
-    ) -> None:
-        """The point of a lockout. If the right password worked during it, the lockout would only
-        slow down an attacker who was already going to fail."""
-        await _setup(db_session)
-        service = AuthService(db_session)
-        for _ in range(5):
-            with pytest.raises(AppError):
-                await service.login("manager@spicegarden.test", "wrong")
-
-        with pytest.raises(AppError) as locked:
-            await service.login("manager@spicegarden.test", PASSWORD)
-
-        assert locked.value.code == "auth.locked"
-
-    async def test_the_lockout_message_says_roughly_how_long(
-        self, db_session: AsyncSession
-    ) -> None:
-        # Told to a real person standing at a till, "try again later" is useless.
-        await _setup(db_session)
-        service = AuthService(db_session)
-        for _ in range(5):
-            with pytest.raises(AppError):
-                await service.login("manager@spicegarden.test", "wrong")
-
-        with pytest.raises(AppError) as locked:
-            await service.login("manager@spicegarden.test", PASSWORD)
-
-        assert "minute" in locked.value.message.lower()
-
-    async def test_a_successful_login_clears_the_failure_count(
-        self, db_session: AsyncSession
-    ) -> None:
-        # Otherwise yesterday's four typos plus today's one lock someone out mid-service.
-        fixture = await _setup(db_session)
-        service = AuthService(db_session)
-        for _ in range(4):
-            with pytest.raises(AppError):
-                await service.login("manager@spicegarden.test", "wrong")
-
-        await service.login("manager@spicegarden.test", PASSWORD)
-
-        await db_session.refresh(fixture.account)
-        assert fixture.account.failed_attempts == 0
-
-    async def test_the_lock_expires_on_its_own(self, db_session: AsyncSession) -> None:
-        # Auto-unlock after the window, so nobody has to phone the owner on a Saturday night.
-        fixture = await _setup(db_session)
-        fixture.account.locked_until = datetime.now(UTC) - timedelta(seconds=1)
-        fixture.account.failed_attempts = 5
-        await db_session.flush()
-
-        result = await AuthService(db_session).login("manager@spicegarden.test", PASSWORD)
+        result = await service.login("manager@spicegarden.test", PASSWORD)
 
         assert result.access_token
+        await db_session.refresh(fixture.account)
+        assert fixture.account.locked_until is None
+
+    async def test_a_lock_set_by_a_person_is_revealed_only_to_the_right_password(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Checked after the password, like a suspension: a stranger guessing gets the usual
+        refusal, and only someone who knows the password learns the account is locked."""
+        fixture = await _setup(db_session)
+        fixture.account.locked_until = datetime.now(UTC) + timedelta(hours=1)
+        await db_session.flush()
+        service = AuthService(db_session)
+
+        with pytest.raises(AppError) as guessed:
+            await service.login("manager@spicegarden.test", "wrong")
+        with pytest.raises(AppError) as known:
+            await service.login("manager@spicegarden.test", PASSWORD)
+
+        assert guessed.value.code == "auth.invalid_credentials"
+        assert known.value.code == "auth.locked"
+        assert "owner" in known.value.message.lower()
 
 
 class TestWhoMayLogIn:

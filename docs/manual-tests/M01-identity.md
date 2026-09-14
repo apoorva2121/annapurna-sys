@@ -85,8 +85,8 @@ make seed       # idempotent, safe to re-run
 |---|---|---|---|
 | B1 | Sign in with a correct email and a wrong password | "Invalid login or password." **Not** "wrong password" — it must not confirm the address exists. | ☐ |
 | B2 | Sign in with an email that does not exist | The **same** message as B1, word for word. | ☐ |
-| B3 | Get the password wrong **5 times** for `chef@spicegarden.test` | Locks, with a message saying roughly how long (about 15 minutes). | ☐ |
-| B4 | Still locked out, now type the **correct** password | Still refused, and still tells you how long. | ☐ |
+| B3 | Get the password wrong **6 times** for `waiter1@spicegarden.test` | The same "Invalid login or password." every time; from the fourth try each answer takes a little longer. **Never** "locked" (backlog-issues B5). | ☐ |
+| B4 | Now type the **correct** password | Signed in — after a short wait. Five guesses by a stranger cannot keep a waiter out. | ☐ |
 | B5 | As owner, add an employee with the name left blank | Refused before it is sent. Nothing saved. | ☐ |
 | B6 | Add an employee with phone `12345` | "not a valid phone number". Nothing saved. | ☐ |
 | B7 | Add an employee with employee code `EMP001` (already used) | Clear message that the code is in use. | ☐ |

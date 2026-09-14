@@ -167,3 +167,25 @@ class SignInChoice(TimestampedUUIDMixin, Base):
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class LoginAttempt(TimestampedUUIDMixin, Base):
+    """One sign-in attempt, remembered so the next one can be slowed down (backlog-issues B5).
+
+    Keyed by a hash of the login as typed and normalised, so a login nobody holds is remembered
+    exactly like a real one and the delay says nothing about which is which. The network is kept for
+    the per-network budget. Nothing else: no account, no password, no organization.
+
+    `created_at` is when it happened. Rows older than a day decide nothing and are swept with
+    expired idempotency keys (B10).
+    """
+
+    __tablename__ = "login_attempt"
+    __table_args__ = (
+        Index("ix_login_attempt_identifier", "identifier_hash", "created_at"),
+        Index("ix_login_attempt_ip", "ip_address", "created_at"),
+    )
+
+    identifier_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    ip_address: Mapped[str | None] = mapped_column(INET)
+    succeeded: Mapped[bool] = mapped_column(Boolean, nullable=False)

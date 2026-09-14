@@ -208,6 +208,11 @@ clear it. My recommendation: **auto-unlock after 15 minutes**, plus owner and ad
 instantly — because at 7pm on a Saturday, "wait fifteen minutes" means one fewer person taking
 orders.
 
+**Superseded 2026-09-14 (backlog-issues B5, owner decision D28).** There is no automatic lock any
+more: a stranger could lock a waiter out with five guesses, and "locked" told them the login was real.
+Wrong passwords make each next attempt for that login wait longer, a network that keeps failing is
+refused for a while, and a lock is set only by a person — lifted by a password reset.
+
 ## Risks
 
 | Risk | Mitigation |
