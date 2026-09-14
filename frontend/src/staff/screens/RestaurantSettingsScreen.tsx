@@ -62,35 +62,41 @@ function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement 
   const [dayStart, setDayStart] = useState(restaurant.business_day_start.slice(0, 5));
   const [gstin, setGstin] = useState(restaurant.gstin ?? '');
   const [fssai, setFssai] = useState(restaurant.fssai_licence ?? '');
+  const [licenceExpires, setLicenceExpires] = useState(restaurant.fssai_licence_expires_on ?? '');
   const [address, setAddress] = useState(restaurant.address ?? '');
 
   function onSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    save.mutate({
-      timezone,
-      currency,
-      // The control gives `HH:MM`; the API takes `HH:MM:SS`.
-      business_day_start: `${dayStart}:00`,
-      // Empty is null, not "". A blank GSTIN is the absence of one, and storing an empty string
-      // would make "has a GSTIN" true for a restaurant that does not have one.
-      gstin: gstin.trim() === '' ? null : gstin.trim(),
-      fssai_licence: fssai.trim() === '' ? null : fssai.trim(),
-      address: address.trim() === '' ? null : address.trim(),
-      // The version this page was read at (backlog-issues B6): a change saved elsewhere since is
-      // refused with a sentence, never silently overwritten.
-      settings_version: restaurant.settings_version,
-    }, {
-      // Re-seeded from what the server saved, not left as typed: "inr" is stored as "INR", and a
-      // form still holding "inr" under a green "Saved" is showing a value the database does not hold.
-      onSuccess: (saved) => {
-        setTimezone(saved.timezone);
-        setCurrency(saved.currency);
-        setDayStart(saved.business_day_start.slice(0, 5));
-        setGstin(saved.gstin ?? '');
-        setFssai(saved.fssai_licence ?? '');
-        setAddress(saved.address ?? '');
+    save.mutate(
+      {
+        timezone,
+        currency,
+        // The control gives `HH:MM`; the API takes `HH:MM:SS`.
+        business_day_start: `${dayStart}:00`,
+        // Empty is null, not "". A blank GSTIN is the absence of one, and storing an empty string
+        // would make "has a GSTIN" true for a restaurant that does not have one.
+        gstin: gstin.trim() === '' ? null : gstin.trim(),
+        fssai_licence: fssai.trim() === '' ? null : fssai.trim(),
+        fssai_licence_expires_on: licenceExpires === '' ? null : licenceExpires,
+        address: address.trim() === '' ? null : address.trim(),
+        // The version this page was read at (backlog-issues B6): a change saved elsewhere since is
+        // refused with a sentence, never silently overwritten.
+        settings_version: restaurant.settings_version,
       },
-    });
+      {
+        // Re-seeded from what the server saved, not left as typed: "inr" is stored as "INR", and a
+        // form still holding "inr" under a green "Saved" is showing a value the database does not hold.
+        onSuccess: (saved) => {
+          setTimezone(saved.timezone);
+          setCurrency(saved.currency);
+          setDayStart(saved.business_day_start.slice(0, 5));
+          setGstin(saved.gstin ?? '');
+          setFssai(saved.fssai_licence ?? '');
+          setLicenceExpires(saved.fssai_licence_expires_on ?? '');
+          setAddress(saved.address ?? '');
+        },
+      },
+    );
   }
 
   return (
@@ -136,6 +142,16 @@ function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement 
         }}
         maxLength={32}
         error={problems.fssai_licence}
+      />
+      <Field
+        label={strings.setup.restaurant.fssaiExpires}
+        hint={strings.setup.restaurant.fssaiExpiresHint}
+        type="date"
+        value={licenceExpires}
+        onChange={(event) => {
+          setLicenceExpires(event.target.value);
+        }}
+        error={problems.fssai_licence_expires_on}
       />
       <Field
         label={strings.setup.restaurant.address}

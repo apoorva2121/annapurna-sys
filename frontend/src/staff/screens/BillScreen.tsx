@@ -8,6 +8,7 @@ import { Button } from '@shared/ui/button';
 import { useIdempotencyKey } from '@shared/useIdempotencyKey';
 import { useAuth } from '@staff/auth/AuthContext';
 import { Field } from '@staff/components/Field';
+import { LicenceNotice } from '@staff/components/LicenceNotice';
 import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
 import { WaiterSurface } from '@staff/components/WaiterSurface';
@@ -134,6 +135,7 @@ function Bill({ order }: { order: Order }): ReactElement {
         <h1 className="text-2xl font-semibold">{strings.orders.billTitle}</h1>
       </div>
       <p className="text-sm text-muted-foreground">{strings.orders.provisional}</p>
+      <LicenceNotice />
       {problem !== null && <Notice tone="critical" title={problem} />}
       {settle.isError && <Notice tone="critical" {...errorProps(settle.error)} />}
       <Totals order={order} />

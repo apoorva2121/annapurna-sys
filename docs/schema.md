@@ -45,6 +45,8 @@ restaurant
   currency            char(3) NN default 'INR'
   business_day_start  time NN default '05:00'    -- ADR 0004; NOT midnight
   gstin               text
+  fssai_licence       text                       -- 0004 (S13): prints on every bill
+  fssai_licence_expires_on date                  -- B8: as declared; screens warn
   gst_scheme          text NN check(regular|composition|unregistered) default 'regular'
                                                  -- decides the DOCUMENT, not just the rate (M07)
   service_charge_rate numeric(6,4)               -- NULL = disabled, the default (CCPA)
@@ -210,6 +212,9 @@ menu_item
   name                text NN
   description         text
   food_type           text NN check(veg|non_veg|egg)   -- legally required in India
+  allergen_statement  text                       -- B8: compliance §A2; NULL = never asked
+  calories_kcal       smallint CHECK >= 0        -- B8: compliance §B1
+  serving_size        text                       -- B8: compliance §B1
   station_id          uuid NN FK→station         -- routing: which KOT printer/screen
   image_url           text
   seq                 smallint NN default 0      -- the order a category's dishes are listed in

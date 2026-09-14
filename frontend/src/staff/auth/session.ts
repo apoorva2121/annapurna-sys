@@ -16,6 +16,8 @@ export type RestaurantSummary = {
   /** `HH:MM:SS`. Travels with `timezone` because neither half of the business-day rule is any use
    *  alone — see `@shared/businessDay`. A restaurant's day starts here, not at midnight (ADR 0004). */
   business_day_start: string;
+  /** `YYYY-MM-DD`, as the restaurant declared it (backlog-issues B8). Absent from an older API. */
+  fssai_licence_expires_on?: string | null;
   /** The restaurant-wide look and its festive schedule. In the session rather than only on the
    *  settings endpoint, because that one is owner-and-admin-only and a theme has to render for the
    *  waiter too.

@@ -50,7 +50,10 @@ right one.
 
 ### A2 · Allergen declaration
 Allergen information must appear on the menu, in text or clear symbols, for every covered
-establishment. **Not yet modelled — see §D.**
+establishment. **Modelled as text** (backlog-issues B8): `menu_item.allergen_statement`, shown to
+guests; NULL means nobody has checked, and a dish with none says so in words. **No list of
+allergens is written into code**: the regulation's own list has not been read from the instrument,
+and it must be before any structured list or symbol set is built — see §D.
 
 ### A3 · The FSSAI licence number
 - Format: 14 digits. **First digit is the type — `1` licence, `2` basic registration.** Nothing
@@ -121,7 +124,8 @@ What the code must do:
 ### B1 · Calorie declaration
 Binds establishments holding a **Central Licence** *or* operating **ten or more outlets**. Most
 tenants of this product will not be covered; some will. The obligation is therefore a derived
-per-restaurant flag, never a global setting. **Not yet modelled — see §D.**
+per-restaurant flag, never a global setting. **The fields exist** (`calories_kcal`, `serving_size`,
+backlog-issues B8); the derived applicability flag and publication gate do not yet — see §D.
 
 ### B2 · DPDP Act 2023 — build now, enforceable 13 May 2027
 Rules notified 13 Nov 2025, commencing in three phases:
@@ -164,12 +168,11 @@ mid-module additions:
 
 | Gap | Owner | Note |
 |---|---|---|
-| No allergen fields on `menu_item` | M03 revisit | §A2 is in force; this is the largest open gap |
-| No calorie / serving-size fields | M03 revisit | §B1; needs the derived applicability flag too |
-| No FSSAI expiry date or status | M02 revisit | The licence prints on every bill; nothing stops an expired one printing |
+| Allergens are a text statement, not a verified list | before M10 (guest app) | §A2 is met in text. A structured list or symbols needs the regulation's own list, read from the instrument |
+| No calorie applicability flag | M18 | §B1; fields exist since B8. Needs `outlet_count` (or a count of the organization's restaurants) and the Central Licence test (§A3 digits 2–3 `00`) |
+| No FSSAI registry status | M18 | The declared expiry date exists since B8 and the home and bill screens warn; FoSCoS status and last-verified are not modelled |
 | No rendered invoice document | M07 follow-up | Rule 46's particulars and the restaurant's identity are stored on `invoice` at settlement, but nothing lays them out for a customer: no print, no PDF, and no Rule 5(1)(f) heading on a composition bill of supply. Printing is out of scope for month 1 (CLAUDE.md) |
 | Documents-issued counts are not reported | M07 follow-up | A cancelled invoice keeps its number, which GSTR-1 Table 13 needs, but no report produces the counts or the serial ranges |
-| `food_type` not in `app/core/enums.py` | M03 revisit | Violates CLAUDE.md's enum convention — currently a CheckConstraint plus two regexes plus a separate frontend type |
 
 ---
 

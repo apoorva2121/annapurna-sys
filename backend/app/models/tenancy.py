@@ -8,11 +8,12 @@ restaurant's orders, stock and staff invisible to another (ADR 0003).
 from __future__ import annotations
 
 import uuid
-from datetime import time
+from datetime import date, time
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     ForeignKey,
     Index,
     Integer,
@@ -71,6 +72,9 @@ class Restaurant(TimestampedUUIDMixin, Base):
     # legal requirement for a food business in India — that is not configuration. M01's seed put it
     # in `settings` only because no column existed yet; migration 0004 moves it.
     fssai_licence: Mapped[str | None] = mapped_column(Text)
+    # Backlog-issues B8. What the restaurant declares, not what FoSCoS says (compliance-rules §A3);
+    # the screens warn before and after it passes, because the number still prints on every bill.
+    fssai_licence_expires_on: Mapped[date | None] = mapped_column(Date)
     # M07. Decides the document, not merely the rate: `regular` issues a tax invoice and collects
     # CGST + SGST; `composition` may NOT collect tax and issues a bill of supply (CGST Act s.10).
     # Both are called "5%", which is the trap. Configuration the restaurant declares; M18 is where

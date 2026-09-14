@@ -68,6 +68,10 @@ export type MenuItem = {
   name: string;
   description: string | null;
   food_type: FoodType;
+  /** Compliance-rules §A2. Null is "never asked" (backlog-issues B8). */
+  allergen_statement?: string | null;
+  calories_kcal?: number | null;
+  serving_size?: string | null;
   station_id: string;
   image_url: string | null;
   seq: number;
@@ -216,7 +220,15 @@ export function useUpdateItem(): UseMutationResult<
     changes: Partial<
       Pick<
         MenuItem,
-        'name' | 'description' | 'food_type' | 'station_id' | 'menu_category_id' | 'is_active'
+        | 'name'
+        | 'description'
+        | 'food_type'
+        | 'allergen_statement'
+        | 'calories_kcal'
+        | 'serving_size'
+        | 'station_id'
+        | 'menu_category_id'
+        | 'is_active'
       >
     >;
   }

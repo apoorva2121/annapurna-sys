@@ -17,6 +17,15 @@ class OrganizationPlan(StrEnum):
     CANCELLED = "cancelled"
 
 
+class FoodType(StrEnum):
+    """The veg / non-veg / egg declaration (`docs/compliance-rules.md` §A1). The one enum here with
+    a statutory basis. No default anywhere: a dish whose type nobody chose must not publish."""
+
+    VEG = "veg"
+    NON_VEG = "non_veg"
+    EGG = "egg"
+
+
 class UserAccountStatus(StrEnum):
     """Authentication state. Distinct from employee.is_active, which is employment state — a
     person can be employed with no login, and a login can be suspended while employment continues.

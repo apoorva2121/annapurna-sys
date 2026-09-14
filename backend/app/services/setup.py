@@ -69,7 +69,14 @@ from app.services.reorder import renumber, require_whole_order
 # is not an event anybody will investigate, while the four below all move money or change what a
 # number means.
 _AUDITED_SETTINGS = frozenset(
-    {"timezone", "currency", "business_day_start", "gstin", "fssai_licence"}
+    {
+        "timezone",
+        "currency",
+        "business_day_start",
+        "gstin",
+        "fssai_licence",
+        "fssai_licence_expires_on",
+    }
 )
 
 # The settings with no "cleared" state. Their columns are NOT NULL, so an explicit `null` used to

@@ -1,5 +1,7 @@
 import type { ReactElement } from 'react';
 
+import type { FoodType } from '@shared/enums';
+
 /**
  * The veg / non-veg / egg mark that Indian menus are legally required to carry.
  *
@@ -28,7 +30,7 @@ import type { ReactElement } from 'react';
  * one distinction a vegetarian most needs carried by hue alone.
  */
 
-export type FoodType = 'veg' | 'non_veg' | 'egg';
+export type { FoodType };
 
 const MARKS: Record<FoodType, { label: string; border: string; fill: string; shape: string }> = {
   veg: {

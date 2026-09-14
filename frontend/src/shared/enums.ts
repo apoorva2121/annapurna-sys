@@ -16,6 +16,14 @@ export const OrganizationPlan = {
 } as const;
 export type OrganizationPlan = (typeof OrganizationPlan)[keyof typeof OrganizationPlan];
 
+/** The veg / non-veg / egg declaration (compliance-rules §A1). Statutory; no default anywhere. */
+export const FoodType = {
+  VEG: 'veg',
+  NON_VEG: 'non_veg',
+  EGG: 'egg',
+} as const;
+export type FoodType = (typeof FoodType)[keyof typeof FoodType];
+
 /**
  * Authentication state. Distinct from `employee.isActive`, which is employment state — a person can
  * be employed with no login, and a login can be suspended while employment continues.

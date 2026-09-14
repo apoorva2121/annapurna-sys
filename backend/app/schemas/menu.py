@@ -23,6 +23,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.enums import FoodType
+
 # The code format shared by every code in this module. Uppercase, digits and underscore, starting
 # with a letter — which is what `seed/menu.yaml` and `library/dishes.yaml` already use.
 _CODE_PATTERN = r"^[A-Z][A-Z0-9_]*$"
@@ -97,7 +99,12 @@ class MenuItemResponse(_ReadSchema):
     code: str
     name: str
     description: str | None
-    food_type: str
+    food_type: FoodType
+    # What a guest with an allergy reads (compliance-rules §A2): text, NULL when never asked.
+    allergen_statement: str | None = None
+    # §B1, for a restaurant the calorie rule covers.
+    calories_kcal: int | None = None
+    serving_size: str | None = None
     station_id: uuid.UUID
     image_url: str | None
     seq: int
@@ -173,7 +180,12 @@ class GuestItem(_Schema):
     id: uuid.UUID
     name: str
     description: str | None
-    food_type: str
+    food_type: FoodType
+    # What a guest with an allergy reads (compliance-rules §A2): text, NULL when never asked.
+    allergen_statement: str | None = None
+    # §B1, for a restaurant the calorie rule covers.
+    calories_kcal: int | None = None
+    serving_size: str | None = None
     image_url: str | None
     variants: list[GuestVariant]
     modifier_groups: list[ModifierGroupResponse]
@@ -192,7 +204,12 @@ class StaffItem(_Schema):
     code: str
     name: str
     description: str | None
-    food_type: str
+    food_type: FoodType
+    # What a guest with an allergy reads (compliance-rules §A2): text, NULL when never asked.
+    allergen_statement: str | None = None
+    # §B1, for a restaurant the calorie rule covers.
+    calories_kcal: int | None = None
+    serving_size: str | None = None
     station_id: uuid.UUID
     image_url: str | None
     is_active: bool
@@ -261,7 +278,12 @@ class MenuItemCreateRequest(_Schema):
     description: str | None = Field(default=None, max_length=500)
     # FSSAI requires the declaration. No default: a dish whose food type nobody chose is a dish
     # nobody may legally print on a menu.
-    food_type: str = Field(pattern=r"^(veg|non_veg|egg)$")
+    food_type: FoodType
+    # Compliance-rules §A2: a statement in text. No list of allergens is written into code until
+    # the regulation's own list is verified from the instrument. NULL is "never asked".
+    allergen_statement: str | None = Field(default=None, max_length=500)
+    calories_kcal: int | None = Field(default=None, ge=0, le=10000)
+    serving_size: str | None = Field(default=None, max_length=60)
     station_id: uuid.UUID
     image_url: str | None = Field(default=None, max_length=500)
     variants: list[MenuItemVariantCreateRequest] = Field(default_factory=list)
@@ -277,7 +299,12 @@ class MenuItemUpdateRequest(_Schema):
     menu_category_id: uuid.UUID | None = None
     name: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=500)
-    food_type: str | None = Field(default=None, pattern=r"^(veg|non_veg|egg)$")
+    food_type: FoodType | None = None
+    # Compliance-rules §A2: a statement in text. No list of allergens is written into code until
+    # the regulation's own list is verified from the instrument. NULL is "never asked".
+    allergen_statement: str | None = Field(default=None, max_length=500)
+    calories_kcal: int | None = Field(default=None, ge=0, le=10000)
+    serving_size: str | None = Field(default=None, max_length=60)
     station_id: uuid.UUID | None = None
     image_url: str | None = Field(default=None, max_length=500)
     seq: int | None = Field(default=None, ge=0)

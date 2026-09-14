@@ -32,6 +32,7 @@ export type Restaurant = {
   business_day_start: string;
   gstin: string | null;
   fssai_licence: string | null;
+  fssai_licence_expires_on?: string | null;
   address: string | null;
   /** Lives in the server's `settings` JSONB rather than in columns — it is genuinely configuration,
    *  unlike the FSSAI licence that finding S13 moved *out* of settings because it prints on bills.
@@ -50,6 +51,7 @@ export type RestaurantChanges = {
   business_day_start?: string;
   gstin?: string | null;
   fssai_licence?: string | null;
+  fssai_licence_expires_on?: string | null;
   address?: string | null;
   /** Sent whole, never merged: the client owns the complete theme settings, so a removed festive
    *  window is expressible. A merge on the server would make deletion impossible. */

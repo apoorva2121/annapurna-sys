@@ -82,6 +82,9 @@ class MenuItem(TimestampedUUIDMixin, Base):
     __table_args__ = (
         UniqueConstraint("restaurant_id", "code", name="uq_menu_item_restaurant_code"),
         CheckConstraint("food_type IN ('veg', 'non_veg', 'egg')", name="ck_menu_item_food_type"),
+        CheckConstraint(
+            "calories_kcal IS NULL OR calories_kcal >= 0", name="ck_menu_item_calories"
+        ),
         Index("ix_menu_item_restaurant_category", "restaurant_id", "menu_category_id", "is_active"),
         # The tree's `selectinload` emits `WHERE menu_category_id IN (…)` with no `restaurant_id`
         # predicate, and Postgres has no index skip-scan — so the index above was unusable on the
@@ -103,6 +106,11 @@ class MenuItem(TimestampedUUIDMixin, Base):
     description: Mapped[str | None] = mapped_column(Text)
     # FSSAI requires this declaration on menus. NOT NULL and checked, not an optional tag.
     food_type: Mapped[str] = mapped_column(Text, nullable=False)
+    # Backlog-issues B8. Compliance-rules §A2: allergen information in text; NULL is "never asked",
+    # which is not the same as a dish that contains none. §B1: calories and serving size.
+    allergen_statement: Mapped[str | None] = mapped_column(Text)
+    calories_kcal: Mapped[int | None] = mapped_column(SmallInteger)
+    serving_size: Mapped[str | None] = mapped_column(Text)
     # Where the KOT goes (M08). `seed/menu.yaml` already names stations by code, which is why
     # `station.code` is immutable.
     station_id: Mapped[uuid.UUID] = mapped_column(

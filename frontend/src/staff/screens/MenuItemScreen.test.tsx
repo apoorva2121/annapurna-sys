@@ -9,7 +9,8 @@
 // (`docs/ui/conventions.md`, restaurant-ui rule 5).
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -230,5 +231,32 @@ describe('someone who may only read the menu', () => {
 
     expect(await screen.findByText('Butter Chicken')).toBeInTheDocument();
     expect(screen.getByText('₹470.00')).toBeInTheDocument();
+  });
+});
+
+// Backlog-issues B8: what a guest with an allergy, or a covered restaurant's menu, needs to say.
+describe('what is in the dish', () => {
+  it('saves the allergen statement, calories and serving size', async () => {
+    renderScreen(['menu.view', 'menu.manage']);
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText('Allergens'), 'Milk, cashew');
+    await user.type(screen.getByLabelText('Calories (kcal)'), '480');
+    await user.type(screen.getByLabelText('Serving size'), '1 bowl (300 g)');
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => {
+      const call = vi
+        .mocked(globalThis.fetch)
+        .mock.calls.find(
+          (args) => ((args as unknown[])[1] as RequestInit | undefined)?.method === 'PATCH',
+        );
+      const init = (call as unknown[] | undefined)?.[1] as RequestInit | undefined;
+      expect(JSON.parse(init?.body as string)).toMatchObject({
+        allergen_statement: 'Milk, cashew',
+        calories_kcal: 480,
+        serving_size: '1 bowl (300 g)',
+      });
+    });
   });
 });

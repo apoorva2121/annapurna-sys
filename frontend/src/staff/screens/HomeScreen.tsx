@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { Permission } from '@shared/permissions';
 import { useAuth } from '@staff/auth/AuthContext';
+import { LicenceNotice } from '@staff/components/LicenceNotice';
 import { Notice } from '@staff/components/Notice';
 import { strings } from '@staff/strings';
 
@@ -53,6 +54,7 @@ export default function HomeScreen(): ReactElement {
         <h1 className="text-2xl font-semibold">{session.restaurant.name}</h1>
         <p className="text-muted-foreground">{strings.home.greeting(session.fullName)}</p>
       </div>
+      <LicenceNotice />
 
       {session.permissions.size === 0 ? (
         // Empty states explain what will appear and how (docs/ui/conventions.md). A waiter seeing

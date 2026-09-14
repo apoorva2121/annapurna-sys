@@ -94,12 +94,34 @@ function DishDetails({ dish, mayManage }: { dish: MenuItem; mayManage: boolean }
   const [name, setName] = useState(dish.name);
   const [description, setDescription] = useState(dish.description ?? '');
   const [foodType, setFoodType] = useState<FoodType>(dish.food_type);
+  const [allergens, setAllergens] = useState(dish.allergen_statement ?? '');
+  const [calories, setCalories] = useState(
+    dish.calories_kcal === null || dish.calories_kcal === undefined
+      ? ''
+      : String(dish.calories_kcal),
+  );
+  const [serving, setServing] = useState(dish.serving_size ?? '');
+  const [problem, setProblem] = useState<string | null>(null);
 
   function onSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    const kcal = calories.trim();
+    if (kcal !== '' && !/^\d{1,5}$/.test(kcal)) {
+      setProblem(strings.menu.caloriesProblem);
+      return;
+    }
+    setProblem(null);
     update.mutate({
       id: dish.id,
-      changes: { name: name.trim(), description: description.trim() || null, food_type: foodType },
+      changes: {
+        name: name.trim(),
+        description: description.trim() || null,
+        food_type: foodType,
+        // Blank is "never asked", sent as null; a dish with none says so in words (B8).
+        allergen_statement: allergens.trim() || null,
+        calories_kcal: kcal === '' ? null : Number.parseInt(kcal, 10),
+        serving_size: serving.trim() || null,
+      },
     });
   }
 
@@ -149,6 +171,34 @@ function DishDetails({ dish, mayManage }: { dish: MenuItem; mayManage: boolean }
         </Select>
       </div>
 
+      <Field
+        label={strings.menu.allergens}
+        hint={strings.menu.allergensHint}
+        value={allergens}
+        maxLength={500}
+        onChange={(event) => {
+          setAllergens(event.target.value);
+        }}
+      />
+      <Field
+        label={strings.menu.calories}
+        hint={strings.menu.caloriesHint}
+        inputMode="numeric"
+        value={calories}
+        onChange={(event) => {
+          setCalories(event.target.value);
+        }}
+      />
+      <Field
+        label={strings.menu.servingSize}
+        value={serving}
+        maxLength={60}
+        onChange={(event) => {
+          setServing(event.target.value);
+        }}
+      />
+
+      {problem !== null && <Notice tone="critical" title={problem} />}
       {update.isError && <Notice tone="critical" {...errorProps(update.error)} />}
       {mayManage && (
         <Button type="submit" disabled={update.isPending}>
@@ -343,7 +393,7 @@ function AttachedGroups({
             attach.mutate({ itemId: dish.id, modifierGroupIds: selected });
           }}
         >
-          {attach.isPending ? strings.menu.creating : strings.menu.save}
+          {attach.isPending ? strings.menu.creating : strings.menu.saveOptions}
         </Button>
       )}
     </section>

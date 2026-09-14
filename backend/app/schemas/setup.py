@@ -186,6 +186,7 @@ class RestaurantResponse(_ReadSchema):
     # A column since 0004 (finding S13): it prints on every bill and is a legal requirement for a
     # food business in India, so it is not a settings key.
     fssai_licence: str | None
+    fssai_licence_expires_on: date | None = None
     address: PostalAddress | None
     # Lives in the `settings` JSONB rather than in columns: it is genuinely configuration, unlike
     # the FSSAI licence that finding S13 moved *out* of settings because it prints on every bill.
@@ -221,6 +222,7 @@ class RestaurantUpdateRequest(_Schema):
     # anyone — only a FoSCoS lookup does that. The prefix check removes typos and lazy
     # fabrications; it is not verification, and nothing downstream should treat it as such.
     fssai_licence: str | None = Field(default=None, pattern=r"^[12][0-9]{13}$")
+    fssai_licence_expires_on: date | None = None
     # Cleared with an explicit null: a cloud kitchen with no shopfront is a real thing.
     address: PostalAddress | None = None
     # The version this page was read at (backlog-issues B6). Sent by the settings screen on every

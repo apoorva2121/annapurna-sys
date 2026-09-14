@@ -197,6 +197,8 @@ export const strings = {
       gstin: 'GSTIN',
       fssai: 'FSSAI licence number',
       fssaiHint: 'Prints on every bill. Required for a food business in India.',
+      fssaiExpires: 'FSSAI licence valid until',
+      fssaiExpiresHint: 'The date on the licence. The app warns 30 days before it runs out.',
       address: 'Address',
       save: 'Save settings',
       saving: 'Saving…',
@@ -287,6 +289,7 @@ export const strings = {
     addCategory: 'Add section',
     creating: 'Saving…',
     save: 'Save',
+    saveOptions: 'Save options',
     edit: 'Change',
     cancel: 'Cancel',
     moveUp: 'Move up',
@@ -302,6 +305,14 @@ export const strings = {
     veg: 'Vegetarian',
     nonVeg: 'Non-vegetarian',
     egg: 'Contains egg',
+    // Backlog-issues B8 (compliance-rules §A2, §B1).
+    allergens: 'Allergens',
+    allergensHint:
+      'What a guest with an allergy needs to know, like “milk, cashew”. Write “None” if it has none. Left blank, the menu says nobody has checked.',
+    calories: 'Calories (kcal)',
+    caloriesHint: 'Per serving. Required only for a Central Licence or ten or more outlets.',
+    caloriesProblem: 'Enter calories as a whole number, like 480.',
+    servingSize: 'Serving size',
     station: 'Kitchen station',
     stationHint: 'Where the ticket prints when this dish is ordered.',
     variantsTitle: 'Sold as',
@@ -889,6 +900,13 @@ export const strings = {
     outsideTill: (amount: string) => `${amount} taken in cash today outside any till`,
     outsideTillHint: (payments: number) =>
       `${payments === 1 ? 'One payment was' : `${String(payments)} payments were`} settled in cash while no till was open. No count expects it, so check it reached the drawer.`,
+  },
+  // Backlog-issues B8: the licence number printed on every bill.
+  licence: {
+    expired: (date: string) => `The FSSAI licence ran out on ${date}`,
+    expiredHint:
+      'Its number still prints on every bill. An owner renews it, then updates the date in Settings.',
+    expiring: (date: string) => `The FSSAI licence runs out on ${date}. Renew it before then.`,
   },
   errors: {
     title: 'Something went wrong',

@@ -98,6 +98,8 @@ class RestaurantSummary(_ReadSchema):
     # which is how "joined on" came to default to yesterday for five and a half hours a day in
     # India. ADR 0004.
     business_day_start: time
+    # So every screen can warn that the licence printed on its bills has lapsed (backlog B8).
+    fssai_licence_expires_on: date | None = None
     # The restaurant-wide look and its festive schedule. Here rather than only on the settings
     # endpoint, for the same reason `business_day_start` is: that one is owner-and-admin-only, and
     # a theme has to render for the waiter too. Nothing here is sensitive — it is paint.
