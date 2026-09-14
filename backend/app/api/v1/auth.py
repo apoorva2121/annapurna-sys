@@ -237,9 +237,12 @@ async def change_password(
 ) -> None:
     service = AuthService(session)
     profile = await service.profile(actor)
-    # The cookie identifies *this* session, which is the one the change must not revoke. A native
-    # client sending no cookie loses every session including its own — safe, not convenient.
-    session_id = await service.session_id_for_token(request.cookies.get(REFRESH_COOKIE))
+    # *This* session is the one the change must not revoke. The access token names it (`sid`,
+    # backlog-issues B4), which is what keeps a native client that sends no cookie signed in; the
+    # cookie is the fallback for a token minted before tokens carried it.
+    session_id = actor.session_id or await service.session_id_for_token(
+        request.cookies.get(REFRESH_COOKIE)
+    )
 
     await service.change_own_password(
         profile.employee, session_id, payload.current_password, payload.new_password

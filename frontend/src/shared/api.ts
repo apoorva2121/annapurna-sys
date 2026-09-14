@@ -192,10 +192,22 @@ async function send(
  * loading a page with three panels on it.
  */
 function refreshOnce(): Promise<string | null> {
-  refreshInFlight ??= negotiate().finally(() => {
+  refreshInFlight ??= acrossTabs(negotiate).finally(() => {
     refreshInFlight = null;
   });
   return refreshInFlight;
+}
+
+// The lock every tab of this browser takes before refreshing (backlog-issues B4, owner decision D6).
+// The server has no grace window: a rotated refresh token presented twice revokes the whole family.
+// The single-flight above only covers one tab, so two tabs waking together would each present the
+// same cookie. Under this lock the second tab refreshes after the first, with the cookie the first
+// rotated. A browser without Web Locks keeps the single-flight alone.
+const REFRESH_LOCK = 'restaurant-os-refresh';
+
+function acrossTabs(run: () => Promise<string | null>): Promise<string | null> {
+  const locks = (globalThis.navigator as { locks?: LockManager } | undefined)?.locks;
+  return locks === undefined ? run() : locks.request(REFRESH_LOCK, run);
 }
 
 async function negotiate(): Promise<string | null> {

@@ -134,7 +134,8 @@ def _choice_expired() -> AppError:
 class LoginResult:
     access_token: str
     refresh_token: str
-    session_id: uuid.UUID
+    # None only when a branch switch continues a token minted before tokens named their session.
+    session_id: uuid.UUID | None
     employee: Employee
     restaurant: Restaurant
     permissions: frozenset[str]
@@ -466,9 +467,12 @@ class AuthService:
                 organization_id=str(employee.organization_id),
                 restaurant_id=str(restaurant.id),
                 permissions=sorted(resolved.permissions),
+                session_id=None if actor.session_id is None else str(actor.session_id),
             ),
             refresh_token="",
-            session_id=actor.session_id or uuid7(),
+            # The session this switch continues, named by the token that asked (`sid`). It used to
+            # be a freshly minted id for a session that already existed (backlog row, closed in B4).
+            session_id=actor.session_id,
             employee=employee,
             restaurant=restaurant,
             permissions=resolved.permissions,
@@ -519,6 +523,7 @@ class AuthService:
             organization_id=str(employee.organization_id),
             restaurant_id=str(restaurant.id),
             permissions=sorted(permissions),
+            session_id=str(session_row.id),
         )
         return LoginResult(
             access_token=access_token,

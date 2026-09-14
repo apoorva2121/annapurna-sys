@@ -46,6 +46,16 @@ def _unauthenticated() -> AppError:
     return AppError("auth.required", "Please sign in.", status_code=401)
 
 
+def _session_id(value: str | None) -> uuid.UUID | None:
+    """The token's `sid`, or None for a token issued before tokens carried one (B4)."""
+    if value is None:
+        return None
+    try:
+        return uuid.UUID(value)
+    except ValueError:
+        return None
+
+
 async def current_actor(
     request: Request,
     session: SessionDep,
@@ -100,6 +110,7 @@ async def current_actor(
         full_name=employee.full_name,
         permissions=resolved.permissions,
         rank=resolved.rank,
+        session_id=_session_id(claims.session_id),
     )
 
 

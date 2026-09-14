@@ -225,3 +225,49 @@ describe('a 401', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });
+
+// Backlog-issues B4 (owner decision D6). The server has no grace window: a rotated refresh token
+// presented twice revokes the whole family. So tabs of one browser take turns — each refreshes
+// inside the same Web Lock — and a browser without Web Locks keeps this tab's single-flight.
+function refreshes(spy: ReturnType<typeof vi.fn>): number {
+  return spy.mock.calls.filter(
+    (call) => (call as unknown as [string])[0] === '/api/v1/auth/refresh',
+  ).length;
+}
+
+describe('refreshing across tabs', () => {
+  it('refreshes inside the lock every tab of this browser shares', async () => {
+    setAccessToken('expired-token');
+    const fetchSpy = mockFetchSequence(
+      unauthorised(),
+      jsonResponse({ access_token: 'fresh-token' }),
+      jsonResponse({ ok: true }),
+    );
+    const request = vi.fn(async (_name: string, run: () => Promise<unknown>) => {
+      expect(refreshes(fetchSpy)).toBe(0);
+      const result = await run();
+      expect(refreshes(fetchSpy)).toBe(1);
+      return result;
+    });
+    vi.stubGlobal('navigator', { locks: { request } });
+
+    await expect(apiGet('/a')).resolves.toEqual({ ok: true });
+
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0]?.[0]).toBe('restaurant-os-refresh');
+  });
+
+  it('still refreshes exactly once in a browser without the lock', async () => {
+    setAccessToken('expired-token');
+    vi.stubGlobal('navigator', {});
+    const fetchSpy = mockFetchSequence(
+      unauthorised(),
+      jsonResponse({ access_token: 'fresh-token' }),
+      jsonResponse({ ok: true }),
+    );
+
+    await expect(apiGet('/a')).resolves.toEqual({ ok: true });
+
+    expect(refreshes(fetchSpy)).toBe(1);
+  });
+});

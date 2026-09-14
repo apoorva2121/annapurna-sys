@@ -51,6 +51,9 @@ class AccessTokenClaims:
     organization_id: str
     restaurant_id: str
     permissions: frozenset[str]
+    # The session the token was issued for (`sid`, backlog-issues B4). None for a token minted
+    # before tokens carried it.
+    session_id: str | None = None
 
 
 def _hasher() -> PasswordHasher:
@@ -105,6 +108,7 @@ def issue_access_token(
     organization_id: str,
     restaurant_id: str,
     permissions: list[str],
+    session_id: str | None = None,
     expires_in: timedelta | None = None,
     token_type: str = _ACCESS,
 ) -> str:
@@ -131,6 +135,11 @@ def issue_access_token(
         # A unique id per token, so a specific one can be denied later without a scheme change.
         "jti": uuid.uuid4().hex,
     }
+    if session_id is not None:
+        # Which session this token belongs to (remediation R6, backlog-issues B4). A switch
+        # continues it rather than inventing one, and a password change spares it without needing
+        # the cookie a native client does not send. An id, not a secret: it grants nothing alone.
+        payload["sid"] = session_id
     return jwt.encode(payload, settings.jwt_secret.get_secret_value(), algorithm=_ALGORITHM)
 
 
@@ -173,5 +182,6 @@ def decode_access_token(token: str) -> AccessTokenClaims:
         employee_id=str(payload["sub"]),
         organization_id=str(payload.get("org", "")),
         restaurant_id=str(payload.get("rst", "")),
+        session_id=None if payload.get("sid") is None else str(payload["sid"]),
         permissions=frozenset(payload.get("prm", [])),
     )

@@ -15,7 +15,7 @@ Nothing is cancelled; each deferred chunk has a named trigger that un-defers it.
 **The gate now reads: M02 does not begin until R1 and R2 are ticked.** M02 must not be built on a
 test harness that cannot see a rollback, nor on a seniority check that a branch manager can walk
 around. R4 and R7 became one piece of work (an origin fix cannot be verified without deploying it),
-and R3, R5 and R6 wait for the conditions that make them matter. **R9 was done on 2026-09-13**, two modules after its trigger fired.
+and R3 and R5 wait for the conditions that make them matter; R6 was done as backlog-issues B4 on 2026-09-14. **R9 was done on 2026-09-13**, two modules after its trigger fired.
 
 ---
 
@@ -56,7 +56,7 @@ Rules of engagement for the session (the human enforces these):
 | R3 | Sentry and redaction | P1-4, M3 | ⏸ deferred → the deploy, or the day `SENTRY_DSN` is set. Interim: it stays unset | — |
 | R4 | One origin; production smoke; headers | P1-3, M8 | ⏸ deferred → merged into R7; the code cannot be verified without deploying it | — |
 | R5 | Lockout; plan and status enforcement; auth audit | P1-5, P1-10, M1, M5 | ⏸ deferred → a public URL exists. **Scope cut**: per-IP budget only, not the lockout redesign (external-review §5) | — |
-| R6 | Identifiers, rotation grace, session binding | P1-7, P1-8, M2, M10 | ⏸ deferred → real staff on real WiFi. Normalisation may ride along with M02 | — |
+| R6 | Identifiers, rotation grace, session binding | P1-7, P1-8, M2, M10 | ☑ **done** 2026-09-14 as backlog-issues B4 — normalisation (G-18); logins unique per organization with a sign-in choice (owner decision D1, instead of the global index); `sid` on the access token; a cross-tab refresh lock. **The grace window was declined by the owner (D6)**; the concurrent cross-organization create test was dropped with the global index (D1) | backlog-issues B4a, B4b |
 | R7 | Bootstrap command; staging on GCP (now incl. R4) | M15, D6, P1-3, M8 | ⏸ deferred → its own session, human present for the console work | — |
 | R8b | Layering, catalogue, docs drift | D1–D9, M12, X4 | ☑ **done** — zero raw SQL in services, zero repositories in routes, catalogue subset test (which caught real drift), /ready head cached, docs corrected, root cleaned. **D8 file split still declined** | `ab509d4` |
 | R9 | Guardrails become a gate | G-20 | ☑ **done** — `scripts/audit_guardrails.py` runs in `make check` and CI. Enforces G-1, G-8, G-16 and G-20; **ratchets** G-6 and G-7, whose underlying work is still deferred; checks the two deferrals whose triggers are mechanically detectable. Found six stale rows in the guardrails table on its first run | this commit |
@@ -385,6 +385,13 @@ now exists; `.env.example` documents the new knobs; `docs/backlog.md` lockout en
 **Done when:** tests pass; `docs/backlog.md` "two stale tabs" entry closed; the "one identifier,
 two organizations" entry updated to say the global index now enforces it.
 
+**Done 2026-09-14 as backlog-issues B4**, with two owner decisions changing the plan above: **D1**
+chose the per-organization login surface over the global index — a login is unique per organization
+and sign-in asks which organization only after the password opens more than one, so the concurrent
+cross-organization create test was dropped; **D6** declined the grace window — any replay still
+revokes the family, `replaced_by_session_id` was not added, and a browser-wide Web Lock stops tabs
+replaying each other.
+
 ---
 
 ## R7 · Bootstrap command; staging on GCP  `M15 D6`
@@ -517,7 +524,7 @@ pointed at the guardrails file. G-9 was found only after the id parser was taugh
 where a chunk had been split.
 
 **What is still not mechanised**, and is now stated in the table rather than implied: G-3, G-13 and
-the clean-tree half of G-16 are review-only; G-11, G-12, G-15, G-18 and G-19 wait on R3, R5 and R6.
+the clean-tree half of G-16 are review-only; G-11, G-12 and G-15 wait on R3 and R5; G-18 and G-19 were enforced by backlog-issues B4 (R6).
 Each carries a status naming its chunk, which is the second half of what G-20 asks for.
 
 ---
