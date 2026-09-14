@@ -13,6 +13,9 @@ of the 2026-09-11 audit repeated on purpose.
 Strategy and direction live in that document. Rules for anyone (or anything) changing the UI live
 in `.claude/skills/restaurant-ui/SKILL.md`. This is the reference for what is actually here.
 
+**The brand** — who the product is, the warm baseline, the guest-app rules, and the checklist every
+new page passes before it is finished — is `docs/ui/brand.md` (owner decision, 2026-09-14).
+
 ---
 
 ## 1. Principles
@@ -46,7 +49,7 @@ Two vocabularies for one set of values is also the "two catalogues" problem of f
 
 | Group | Tokens | Notes |
 |---|---|---|
-| Surfaces | `--background` `--card` `--popover` `--muted` (+ `-foreground`) | `--background` is steel-cool off-white; pure white is reserved for `--card`, so cards separate by tone |
+| Surfaces | `--background` `--card` `--popover` `--muted` (+ `-foreground`) | `--background` is near-white with a warm undertone (brand §3); pure white is reserved for `--card`, so cards separate by tone |
 | Actions | `--primary` `--secondary` (+ `-foreground`) | primary is ink |
 | Jamun | `--brand` `--accent` `--ring` (+ `-foreground`) | see below |
 | Lines | `--border` `--input` | `--input` is stronger — an input must look enterable |
@@ -91,7 +94,7 @@ laptop, a phone and a wall tablet.
 
 ### 2.4 Shape, elevation, motion
 
-`--radius` 0.5rem, with `md`/`sm` derived. Elevation is tonal. Motion: `--duration-fast` 120 ms,
+`--radius` 0.625rem (brand §5), with `md`/`sm` derived. Elevation is tonal. Motion: `--duration-fast` 120 ms,
 `--duration-base` 180 ms, `--duration-slow` 240 ms, one easing. `prefers-reduced-motion: reduce`
 disables all of it, globally, in `index.css`.
 
@@ -148,7 +151,7 @@ different and everything else stays as it was. A value you never give cannot be 
 | `density` | page rhythm. Multiplies `p-page`/`gap-page`. **Not** touch targets — those are physical |
 | `appearance` | drives `color-scheme`, so scrollbars and form controls follow |
 
-**Shipped: `light` (Steel), `dark`, `deepavali`, `monsoon`.** More than one exists deliberately —
+**Shipped: `light` (Warm), `dark`, `deepavali`, `monsoon`.** More than one exists deliberately —
 applying a second theme end to end is the only thing that proves the layer works, and a system
 with one theme that claims to be themeable is a claim, not an architecture.
 

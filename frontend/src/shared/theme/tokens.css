@@ -31,28 +31,30 @@
 @layer base {
   :root {
     /* ── Surfaces ──────────────────────────────────────────────────────────────────────────── */
-    /* Steel-cool off-white, not pure white: pure white is reserved for raised surfaces so cards
-       separate from the page by tone rather than by shadow. */
-    --background: 210 20% 98%;
-    --foreground: 222 47% 11%;
+    /* Near-white with a warm undertone, not cream and not pure white: pure white is reserved for
+       raised surfaces so cards separate from the page by tone rather than by shadow. The warmth is
+       the owner's brand decision (docs/ui/brand.md §2) and lives in the undertone, never in a cream
+       ground, which reads as a template and costs contrast at a dim table. */
+    --background: 30 20% 98%;
+    --foreground: 24 12% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 24 12% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 24 12% 10%;
 
     /* Row hover, active tabs, sticky bars — a tonal step, never a shadow. */
-    --muted: 210 24% 96%;
-    --muted-foreground: 215 16% 38%;
+    --muted: 30 18% 95%;
+    --muted-foreground: 24 8% 36%;
 
     /* ── Actions ───────────────────────────────────────────────────────────────────────────── */
     /* Primary is ink, not the brand colour. Hue is reserved for status, so a page's one primary
        button does not compete with a red that means someone must act now. */
-    --primary: 222 47% 11%;
-    --primary-foreground: 210 20% 98%;
+    --primary: 24 12% 10%;
+    --primary-foreground: 30 20% 98%;
 
-    --secondary: 210 24% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 30 18% 95%;
+    --secondary-foreground: 24 12% 10%;
 
     /* ── Jamun: the interaction colour ─────────────────────────────────────────────────────── */
     /* Deep plum. The one warm hue that is not already owned by an alert colour — red, amber,
@@ -68,15 +70,15 @@
     --ring: 322 48% 45%; /* focus ring — lighter, so it is visible */
 
     /* ── Lines ─────────────────────────────────────────────────────────────────────────────── */
-    --border: 214 32% 91%;
-    --input: 214 26% 84%; /* stronger than a hairline: an input must look enterable */
+    --border: 30 14% 89%;
+    --input: 30 12% 80%; /* stronger than a hairline: an input must look enterable */
 
     /* `destructive` is shadcn's name for what this product calls `critical`. Same value, so a
        shadcn component and one of ours cannot disagree about what red means. */
     --destructive: 0 72% 41%;
     --destructive-foreground: 0 0% 100%;
 
-    --radius: 0.5rem;
+    --radius: 0.625rem; /* one step softer than a dashboard (brand §5) */
 
     /* ── Type ──────────────────────────────────────────────────────────────────────────────── */
     /* Plex carries Devanagari as a designed companion rather than a fallback, which is the whole

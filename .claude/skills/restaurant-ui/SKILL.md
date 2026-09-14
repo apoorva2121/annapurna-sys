@@ -8,6 +8,11 @@ description: Use when creating or changing anything under frontend/src — scree
 Read `docs/ui/conventions.md` (the four surfaces) and `docs/ui/design-system.md` (what exists
 today) before touching the frontend.
 
+Read `docs/ui/brand.md` as well: the warm baseline, the staff and guest-app rules, and **§8 — the
+checklist every page must pass before it is finished**. The owner's rule (2026-09-14): every new page
+is built to the brand from its first commit, and an existing page is brought up to it whenever a change
+touches it.
+
 This file is instructions, not enforcement. What actually fails a build is eslint, `tsc`, and the
 theme parity test — named against each rule below, so you can tell a rule that bites from a rule
 that is a wish.

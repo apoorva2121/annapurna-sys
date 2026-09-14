@@ -81,8 +81,8 @@ export type ThemeConfig = {
 export const THEMES: readonly ThemeConfig[] = [
   {
     id: 'light',
-    name: 'Steel',
-    description: 'The default. Steel neutrals, ink actions, jamun for interaction.',
+    name: 'Warm',
+    description: 'The default. Warm neutrals, ink actions, jamun for interaction.',
     appearance: 'light',
   },
   {

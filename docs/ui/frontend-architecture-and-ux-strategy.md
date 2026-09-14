@@ -37,6 +37,10 @@ on things that need a human now.
 | Line | `hsl(214 32% 91%)` | already your `--border`; hairlines carry structure, shadows do not |
 | Accent, "jamun" | `hsl(322 40% 32%)` | the one warm note: selection, active nav, links, focus. A deep plum is the only warm hue that is *not* one of the six alert colours — red, amber, yellow, green, blue are all spoken for |
 
+*The values in this table were the first baseline. On 2026-09-14 the owner's brand decision moved the
+neutrals and ink to a warm undertone — `docs/ui/brand.md` §3 holds the values in force; the roles
+above, jamun, and the reasoning against cream are unchanged.*
+
 **Type:** IBM Plex Sans for everything read; IBM Plex Mono for codes, amounts in tables and ticket
 numbers; IBM Plex Sans Devanagari as the Hindi/Marathi companion. Self-hosted. Tabular figures on.
 
