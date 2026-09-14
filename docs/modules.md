@@ -37,8 +37,8 @@ No features. Everything else stands on it, so it is worth a full day.
 
 - **Depends on** — M00
 - **Tables** — organization, restaurant, user_account, user_session, employee, role, permission,
-  role_permission, employee_role_assignment
-- **Endpoints** — `POST /auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/password`;
+  role_permission, employee_role_assignment, sign_in_choice (added by backlog-issues B4)
+- **Endpoints** — `POST /auth/login`, `/auth/login/choose`, `/auth/refresh`, `/auth/logout`, `/auth/password`;
   CRUD `/employees`; `GET /roles`, `/permissions`; `POST /employees/{id}/roles`
 - **Screens** — login, staff list, employee create/edit, role assignment, own profile
 - **Rules** — argon2id; refresh tokens stored hashed; identical error for unknown-email and

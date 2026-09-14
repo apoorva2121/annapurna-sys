@@ -334,15 +334,22 @@ class TestAccountLookup:
 
         from app.repositories.account import UserAccountRepository
 
-        assert await UserAccountRepository(db_session).identifier_is_taken("owner@spicegarden.test")
+        accounts = UserAccountRepository(db_session)
+        # Taken inside its own organization; free in another (backlog-issues B4, D1).
+        assert await accounts.identifier_taken_in(spice.organization.id, "OWNER@spicegarden.test")
+        tandoor = await accounts.identifier_taken_in(
+            (await _tenant(db_session, "tandoor-two")).organization.id, "owner@spicegarden.test"
+        )
+        assert not tandoor
 
     async def test_an_unused_identifier_is_free(self, db_session: AsyncSession) -> None:
         await _tenant(db_session, "spice-garden")
 
         from app.repositories.account import UserAccountRepository
 
-        assert not await UserAccountRepository(db_session).identifier_is_taken(
-            "nobody@example.test"
+        spice = await _tenant(db_session, "spice-garden-two")
+        assert not await UserAccountRepository(db_session).identifier_taken_in(
+            spice.organization.id, "nobody@example.test"
         )
 
     async def test_a_phone_resolves_the_same_way_an_email_does(

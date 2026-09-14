@@ -24,8 +24,11 @@ from app.core.config import get_settings
 # Everything about whether a *valid* token is still good belongs to AuthService.
 from app.core.errors import AppError
 from app.schemas.identity import (
+    ChooseOrganizationRequest,
     LoginRequest,
     MeResponse,
+    OrganizationChoiceResponse,
+    OrganizationOption,
     PasswordChangeRequest,
     RefreshRequest,
     RestaurantPageResponse,
@@ -33,7 +36,7 @@ from app.schemas.identity import (
     SessionResponse,
     SwitchRestaurantRequest,
 )
-from app.services.auth import AuthService, LoginResult
+from app.services.auth import AuthService, LoginResult, OrganizationChoiceNeeded
 
 router = APIRouter(tags=["auth"])
 
@@ -44,6 +47,7 @@ REFRESH_COOKIE = "restaurant_os_refresh"
 PUBLIC_ROUTES = frozenset(
     {
         "POST /api/v1/auth/login",
+        "POST /api/v1/auth/login/choose",
         "POST /api/v1/auth/refresh",
         "POST /api/v1/auth/logout",
     }
@@ -83,15 +87,47 @@ def _session_response(result: LoginResult) -> SessionResponse:
     )
 
 
-@router.post("/login", response_model=SessionResponse)
+def _device(request: Request) -> dict[str, object]:
+    return {"user_agent": request.headers.get("user-agent", "")[:200]}
+
+
+@router.post("/login", response_model=SessionResponse | OrganizationChoiceResponse)
 async def login(
     payload: LoginRequest, request: Request, response: Response, session: SessionDep
+) -> SessionResponse | OrganizationChoiceResponse:
+    """Sign in. When the password opens accounts in more than one organization, the answer is a
+    single-use pass and the organizations to choose from — no token and no cookie (B4, D1a)."""
+    try:
+        result = await AuthService(session).login(
+            payload.identifier,
+            payload.password,
+            ip_address=_client_ip(request),
+            device_info=_device(request),
+        )
+    except OrganizationChoiceNeeded as choice:
+        await session.commit()
+        return OrganizationChoiceResponse(
+            ticket=choice.ticket,
+            expires_in_seconds=choice.expires_in_seconds,
+            organizations=[
+                OrganizationOption(id=each.id, name=each.name) for each in choice.organizations
+            ],
+        )
+    await session.commit()
+    _set_refresh_cookie(response, result.refresh_token)
+    return _session_response(result)
+
+
+@router.post("/login/choose", response_model=SessionResponse)
+async def choose_organization(
+    payload: ChooseOrganizationRequest, request: Request, response: Response, session: SessionDep
 ) -> SessionResponse:
-    result = await AuthService(session).login(
-        payload.identifier,
-        payload.password,
+    """The second step of signing in: the organization chosen, and the pass (B4, D1a)."""
+    result = await AuthService(session).choose_organization(
+        payload.ticket,
+        payload.organization_id,
         ip_address=_client_ip(request),
-        device_info={"user_agent": request.headers.get("user-agent", "")[:200]},
+        device_info=_device(request),
     )
     await session.commit()
     _set_refresh_cookie(response, result.refresh_token)

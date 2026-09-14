@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.actor import Actor
 from app.core.enums import EmploymentType, UserAccountStatus
 from app.core.errors import AppError, ConflictError, NotFoundError, PermissionDeniedError
+from app.core.identifiers import normalise_identifier
 from app.core.permissions import may_assign_rank, may_reset_password
 from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
@@ -153,20 +154,17 @@ class EmployeeService:
             )
 
     async def _create_login(self, actor: Actor, identifier: str, password: str | None) -> uuid.UUID:
-        identifier = identifier.strip()
+        identifier = normalise_identifier(identifier)
         is_email = "@" in identifier
-        email = identifier.lower() if is_email else None
+        email = identifier if is_email else None
         phone = None if is_email else identifier
 
-        # Checked across every organization, not just this one. Uniqueness in the database is per
-        # tenant, but *login resolution* is global — so two tenants holding one identifier is an
-        # ambiguity the login form cannot resolve, and it refuses both. An org-scoped check here
-        # let a tenant create that collision deliberately and lock another tenant's owner out of
-        # their account permanently, using nothing but their email address.
-        #
-        # The message never says which organization holds it; that would turn this form into an
-        # oracle for which addresses exist elsewhere in the product.
-        if await self.accounts.identifier_is_taken(identifier):
+        # Unique inside this organization (backlog-issues B4, decision D1). Another organization may
+        # hold the same login: sign-in matches the password first and asks which organization only
+        # when it opens more than one, so a second holder takes nothing from the first. The unique
+        # constraint is the guarantee; this check is the sentence a manager reads. The message
+        # never says who holds it.
+        if await self.accounts.identifier_taken_in(actor.organization_id, identifier):
             raise ConflictError(
                 "employee.login_taken", "That phone number or email is already in use."
             )

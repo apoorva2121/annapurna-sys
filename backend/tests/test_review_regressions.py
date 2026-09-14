@@ -3,10 +3,12 @@
 Each of these was a real hole, not a style preference, and each is written here before its fix so
 that the test is known to catch the thing it claims to catch.
 
-The one worth reading twice is `TestIdentifierSquatting`. Login resolves an identifier across the
-whole product, but the clash check when creating a login only looked inside the actor's own
-organization — so a trial tenant could permanently lock a real tenant's owner out of their account
-using nothing but that owner's email address.
+The one worth reading twice is `TestIdentifierSquatting`. Login resolved an identifier across the
+whole product and refused one that matched twice, so a trial tenant could lock a real tenant's
+owner out using nothing but that owner's email. M01 closed it with a global uniqueness check;
+backlog-issues B4 (decision D1) closed it for good by asking which organization only after the
+password matches, and the class now proves the attack no longer works rather than that it is
+refused.
 """
 
 from __future__ import annotations
@@ -27,14 +29,14 @@ from tests.test_employee_endpoints import PASSWORD, World, _auth, _role, _token,
 
 
 class TestIdentifierSquatting:
-    """One tenant must not be able to take an identifier that belongs to another.
+    """Another tenant holding the same identifier must take nothing from its owner.
 
-    `AuthService._find_account` searches every organization and refuses a match that appears
-    twice. That is safe by itself. It stops being safe the moment another tenant can *create* the
-    second match on purpose.
+    Since backlog-issues B4 a login is unique per organization (D1), so a second holder is allowed.
+    It is harmless because sign-in matches the *password* before it considers a second account: the
+    owner's password matches only the owner's account and goes straight in.
     """
 
-    async def test_a_tenant_cannot_claim_an_identifier_another_tenant_already_uses(
+    async def test_a_tenant_may_hold_an_identifier_another_tenant_uses(
         self, db_session: AsyncSession, api_client: AsyncClient
     ) -> None:
         """The attack, end to end.
@@ -61,10 +63,7 @@ class TestIdentifierSquatting:
             },
         )
 
-        assert response.status_code == 409, (
-            "a login identifier already in use by another tenant must be refused; "
-            f"the server answered {response.status_code}"
-        )
+        assert response.status_code == 201, response.text
         assert victim.employees["owner"] is not None
 
     async def test_the_victim_can_still_sign_in_afterwards(
@@ -91,14 +90,25 @@ class TestIdentifierSquatting:
         result = await AuthService(db_session).login("owner@spice-garden.test", PASSWORD)
         assert result.access_token
 
-    async def test_the_refusal_does_not_reveal_which_tenant_holds_it(
+    async def test_the_refusal_inside_one_organization_does_not_reveal_who_holds_it(
         self, db_session: AsyncSession, api_client: AsyncClient
     ) -> None:
-        """Closing the lockout must not open an enumeration oracle in its place: the message may
-        say the identifier is taken, never by whom."""
-        await _world(db_session, "owner", slug="spice-garden")
+        """Inside one organization a login is still unique. The refusal may say it is taken, never
+        by whom."""
         await _world(db_session, "manager", slug="tandoor-house")
         attacker_token = await _token(api_client, "manager", slug="tandoor-house")
+        first = await api_client.post(
+            "/api/v1/staff/employees",
+            headers=_auth(attacker_token),
+            json={
+                "full_name": "Sameer Joshi",
+                "employee_code": "TAKEN1",
+                "joined_on": "2026-01-01",
+                "login_identifier": "owner@spice-garden.test",
+                "initial_password": "squatted-password",
+            },
+        )
+        assert first.status_code == 201, first.text
 
         response = await api_client.post(
             "/api/v1/staff/employees",
@@ -112,8 +122,9 @@ class TestIdentifierSquatting:
             },
         )
 
+        assert response.status_code == 409, response.text
         body = response.text.lower()
-        for leak in ("spice", "garden", "organization", "another tenant", "restaurant"):
+        for leak in ("sameer", "joshi", "taken1", "organization", "restaurant"):
             assert leak not in body, f"the refusal named {leak!r}"
 
 
@@ -638,20 +649,17 @@ class TestAResetPasswordMustBeChanged:
 
 
 class TestSeedRespectsIdentifiersItDidNotCreate:
-    """The seed writes `UserAccount` rows directly, so it bypasses `_create_login`'s global check.
+    """Another organization holding a seeded identifier no longer blocks the seed (backlog-issues
+    B4, D1): a login is unique per organization, and sign-in asks which one only when the password
+    matches both. The seeded owner must still sign straight in."""
 
-    Bounded by `_refuse_outside_local`, so this is demo breakage rather than a security hole — but
-    the failure is the silent kind: `make seed` reports success and the owner it just "created"
-    can never sign in, because two accounts now match that identifier.
-    """
-
-    async def test_it_refuses_when_another_account_already_holds_a_seeded_identifier(
+    async def test_another_organization_holding_a_seeded_identifier_does_not_block_it(
         self, db_session: AsyncSession
     ) -> None:
         from app.core.enums import UserAccountStatus
         from app.models.identity import UserAccount
         from app.models.tenancy import Organization
-        from app.seed.identity import ConflictingSeedIdentifierError, seed_identity
+        from app.seed.identity import seed_identity
 
         squatter = Organization(name="Somebody Else", slug="somebody-else")
         db_session.add(squatter)
@@ -665,12 +673,10 @@ class TestSeedRespectsIdentifiersItDidNotCreate:
         )
         await db_session.flush()
 
-        with pytest.raises(ConflictingSeedIdentifierError) as caught:
-            await seed_identity(db_session)
+        await seed_identity(db_session)
 
-        # The message has to name the identifier, or the person running `make seed` has no way to
-        # find the row that is blocking it.
-        assert "owner@spicegarden.test" in str(caught.value)
+        result = await AuthService(db_session).login("owner@spicegarden.test", "Staging#2026")
+        assert result.access_token
 
 
 async def _actor_for(session: AsyncSession, world: World, role_code: str) -> Actor:

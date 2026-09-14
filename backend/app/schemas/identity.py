@@ -18,6 +18,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.enums import EmploymentType
+from app.core.identifiers import is_email, is_phone, normalise_identifier
 
 
 class _Schema(BaseModel):
@@ -41,8 +42,9 @@ class LoginRequest(_Schema):
 
     @field_validator("identifier")
     @classmethod
-    def _strip(cls, value: str) -> str:
-        return value.strip()
+    def _normalise(cls, value: str) -> str:
+        # One login, however it is typed (G-18): "98765 43210" signs in as "+919876543210".
+        return normalise_identifier(value)
 
 
 class PasswordChangeRequest(_Schema):
@@ -57,6 +59,30 @@ class RefreshRequest(_Schema):
     and relies on the httpOnly cookie instead."""
 
     refresh_token: str | None = None
+
+
+class ChooseOrganizationRequest(_Schema):
+    """The second step of signing in, when the password opened accounts in more than one
+    organization (backlog-issues B4). The pass stands in for the password, which is not sent
+    again."""
+
+    ticket: str = Field(min_length=1, max_length=200)
+    organization_id: uuid.UUID
+
+
+class OrganizationOption(_Schema):
+    id: uuid.UUID
+    name: str
+
+
+class OrganizationChoiceResponse(_Schema):
+    """What `POST /auth/login` answers instead of a session when the password opens accounts in more
+    than one organization. No token and no cookie: nobody is signed in until one is chosen."""
+
+    choose_organization: bool = True
+    ticket: str
+    expires_in_seconds: int
+    organizations: list[OrganizationOption]
 
 
 class RestaurantSummary(_ReadSchema):
@@ -190,6 +216,17 @@ class EmployeeCreateRequest(_Schema):
     # not a workaround.
     login_identifier: str | None = Field(default=None, max_length=320)
     initial_password: str | None = Field(default=None, min_length=10, max_length=1024)
+
+    @field_validator("login_identifier")
+    @classmethod
+    def _normalise_login(cls, value: str | None) -> str | None:
+        """Stored one way (G-18), and refused when it is neither a phone number nor an email."""
+        if value is None or not value.strip():
+            return None
+        normal = normalise_identifier(value)
+        if not (is_email(normal) or is_phone(normal)):
+            raise ValueError("not a phone number or an email address")
+        return normal
 
     @field_validator("phone")
     @classmethod

@@ -22,6 +22,11 @@ export const strings = {
     submit: 'Sign in',
     submitting: 'Signing in…',
     offline: 'You appear to be offline. Check the connection and try again.',
+    // Backlog-issues B4: one login at more than one hotel. Asked only after the password.
+    chooseTitle: 'Which hotel?',
+    chooseHint: 'Your login works at more than one hotel. Choose where to sign in.',
+    continue: 'Continue',
+    startOver: 'Use a different login',
   },
 
   nav: {

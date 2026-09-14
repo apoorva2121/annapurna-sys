@@ -10,7 +10,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
 from app.core.db import (
@@ -297,3 +297,89 @@ async def test_0008_collapses_rate_rows_into_one_group_and_back(postgres_url: st
             await conn.execute(text("DELETE FROM organization WHERE slug = 'tax-co'"))
     finally:
         await engine.dispose()
+
+
+# --------------------------------------------------------------------------- 0024
+
+
+async def _logins_at_0023(url: str, organizations: dict[str, list[str]]) -> None:
+    """Downgrade a fresh database to 0023 and write logins exactly as they were typed then."""
+    from app.core.enums import UserAccountStatus
+    from app.models.identity import UserAccount
+    from app.models.tenancy import Organization
+
+    config = _alembic_config(url)
+    await asyncio.to_thread(command.downgrade, config, "0023_waiter_assignment")
+    engine = create_async_engine(url)
+    try:
+        async with async_sessionmaker(engine)() as session:
+            for slug, logins in organizations.items():
+                organization = Organization(name=slug.title(), slug=slug)
+                session.add(organization)
+                await session.flush()
+                for login in logins:
+                    is_email = "@" in login
+                    session.add(
+                        UserAccount(
+                            organization_id=organization.id,
+                            email=login if is_email else None,
+                            phone=None if is_email else login,
+                            status=UserAccountStatus.ACTIVE,
+                        )
+                    )
+            await session.commit()
+    finally:
+        await engine.dispose()
+
+
+async def test_0024_stores_every_existing_login_one_way(fresh_database: str) -> None:
+    """Logins typed before B4 are normalised once, so the spelling a person uses at the counter
+    matches the row a manager created months ago (G-18)."""
+    await _logins_at_0023(
+        fresh_database,
+        {"spice-garden": ["98765 43210", "09876500000", "+91 98765 11111", " Chef@Spice.Test "]},
+    )
+
+    await asyncio.to_thread(command.upgrade, _alembic_config(fresh_database), "head")
+
+    engine = create_async_engine(fresh_database)
+    try:
+        async with engine.connect() as connection:
+            rows = await connection.execute(text("SELECT email, phone FROM user_account"))
+            stored = {value for row in rows for value in row if value is not None}
+    finally:
+        await engine.dispose()
+    assert stored == {"+919876543210", "+919876500000", "+919876511111", "chef@spice.test"}
+
+
+async def test_0024_stops_and_names_logins_that_become_one(fresh_database: str) -> None:
+    """Two rows in one organization that are one phone number cannot both survive, and choosing
+    which person keeps it is not a migration's call. It stops and says which."""
+    await _logins_at_0023(
+        fresh_database,
+        {
+            "spice-garden": ["98765 43210", "+91 98765 43210"],
+            # The same number in another organization is fine (D1).
+            "tandoor-house": ["9876543210"],
+        },
+    )
+
+    with pytest.raises(Exception, match=r"\+919876543210"):
+        await asyncio.to_thread(command.upgrade, _alembic_config(fresh_database), "head")
+
+    # A migration that fails must still close its connection. `alembic/env.py` disposed of its
+    # engine only on success, so this test left an asyncpg connection open, and pytest reported it
+    # as an unraisable warning inside whichever test ran next (the B4a gate failed in
+    # `test_idempotency.py`). Asked of the database directly, so the leak fails this test.
+    engine = create_async_engine(fresh_database)
+    try:
+        async with engine.connect() as connection:
+            others = await connection.scalar(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE datname = current_database() AND pid <> pg_backend_pid()"
+                )
+            )
+    finally:
+        await engine.dispose()
+    assert others == 0, f"a failed migration left {others} connection(s) open"

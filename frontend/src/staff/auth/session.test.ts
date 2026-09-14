@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { setAccessToken } from '@shared/api';
 
-import { login, restore } from './session';
+import { OrganizationChoiceNeeded, chooseOrganization, login, restore } from './session';
 import type { RestaurantSummary } from './session';
 
 // Typed, so that a field added to the API contract fails to compile here rather than leaving this
@@ -143,5 +143,47 @@ describe('a password somebody else set', () => {
     const session = await login('owner@spicegarden.test', 'Staging#2026');
 
     expect(session.passwordChangeRequired).toBe(false);
+  });
+});
+
+// Backlog-issues B4 (D1a). One login in two organizations: the right password for both asks which,
+// with a single-use pass, and the password is never sent a second time.
+describe('signing in with a login that belongs to two organizations', () => {
+  const CHOICE = {
+    choose_organization: true,
+    ticket: 'pass-1',
+    expires_in_seconds: 120,
+    organizations: [
+      { id: 'o1', name: 'Spice Garden' },
+      { id: 'o2', name: 'Tandoor House' },
+    ],
+  };
+
+  it('asks which organization instead of signing in, and holds no token', async () => {
+    mockApi({ '/auth/login': () => json(CHOICE) });
+
+    const attempt = login('9876543210', 'Staging#2026');
+
+    await expect(attempt).rejects.toBeInstanceOf(OrganizationChoiceNeeded);
+    await expect(attempt).rejects.toMatchObject({
+      ticket: 'pass-1',
+      organizations: CHOICE.organizations,
+    });
+  });
+
+  it('signs in to the chosen one with the pass alone', async () => {
+    mockApi({
+      '/auth/login/choose': () => json(LOGIN_RESPONSE),
+      '/auth/me': () => json(ME_RESPONSE),
+    });
+
+    const session = await chooseOrganization('pass-1', 'o2');
+
+    expect(session.fullName).toBe('Rajesh Mehta');
+    const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      ticket: 'pass-1',
+      organization_id: 'o2',
+    });
   });
 });

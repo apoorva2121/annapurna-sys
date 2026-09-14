@@ -20,7 +20,7 @@ from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
 from app.models.identity import Employee, UserAccount, UserSession
 from app.models.tenancy import Organization, Restaurant
-from app.services.auth import AuthService
+from app.services.auth import AuthService, OrganizationChoiceNeeded
 
 PASSWORD = "Staging#2026"  # noqa: S105
 
@@ -327,22 +327,23 @@ class TestWhoMayLogIn:
 class TestTheAwkwardEdges:
     """Paths that are hard to reach and expensive to get wrong."""
 
-    async def test_an_identifier_matching_two_organizations_is_refused_safely(
+    async def test_an_identifier_matching_two_organizations_asks_which_one(
         self, db_session: AsyncSession
     ) -> None:
-        """A consultant working for two restaurant groups can legitimately hold the same address
-        in both, because uniqueness is per tenant. Month 1 cannot tell which one they meant, so it
-        refuses with the standard message rather than guessing — guessing would sign someone into
-        the wrong company's data. Tracked in docs/backlog.md.
-        """
+        """A consultant working for two restaurant groups holds the same address in both. The
+        right password for both asks which organization — never guessing, which would sign someone
+        into the wrong company's data (backlog-issues B4, D1a). Tested over HTTP in
+        `tests/test_sign_in_choice.py`."""
         await _setup(db_session, slug="spice-garden")
         await _setup(db_session, slug="tandoor-house")  # same email, different organization
 
-        with pytest.raises(AppError) as refused:
+        with pytest.raises(OrganizationChoiceNeeded) as asked:
             await AuthService(db_session).login("manager@spicegarden.test", PASSWORD)
 
-        # Identical to every other failure: the ambiguity itself must not be observable.
-        assert refused.value.code == "auth.invalid_credentials"
+        assert sorted(each.slug for each in asked.value.organizations) == [
+            "spice-garden",
+            "tandoor-house",
+        ]
 
     async def test_a_deactivated_restaurant_refuses_login(self, db_session: AsyncSession) -> None:
         # An organization that stopped paying, or a branch that closed. The person is real and

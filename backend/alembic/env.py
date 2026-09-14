@@ -52,9 +52,14 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_migrations_online() -> None:
     engine = create_async_engine(_database_url(), poolclass=None)
-    async with engine.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-    await engine.dispose()
+    try:
+        async with engine.connect() as connection:
+            await connection.run_sync(do_run_migrations)
+    finally:
+        # Disposed however the migration ends. Disposing only on success left a failed migration's
+        # connection open until garbage collection closed it, somewhere unrelated (backlog-issues
+        # B4: migration 0024 stops on logins that collide, and the leak surfaced in a later test).
+        await engine.dispose()
 
 
 if context.is_offline_mode():

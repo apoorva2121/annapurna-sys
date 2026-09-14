@@ -65,6 +65,7 @@ almost a side effect.
 
 ```
 POST   /auth/login              identifier + password    -> access token + refresh
+POST   /auth/login/choose       second step when one password opens several organizations (B4)
 POST   /auth/refresh            rotates the refresh token, revokes the old one
 POST   /auth/logout             revokes the presented session
 POST   /auth/password           own password change; revokes every other session

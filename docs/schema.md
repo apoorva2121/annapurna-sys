@@ -4,7 +4,7 @@ The concrete table specification. Conceptual model: `docs/domain-model.md`. Conv
 ADR 0004 (money/time/units), ADR 0006 (preparations), ADR 0007 (identity), ADR 0008 (keys, deletion,
 enums, numerics), ADR 0010 (idempotency, locking), ADR 0011 (performance).
 
-**72 tables in 13 domains.** Everything here is Phase 1 unless marked `[1.5]`.
+**73 tables in 13 domains.** Everything here is Phase 1 unless marked `[1.5]`.
 
 ## Reading this document
 
@@ -27,7 +27,7 @@ index seek and makes Row-Level Security a one-line policy per table when we enab
 
 ---
 
-## 1 · Tenancy & identity — 9 tables
+## 1 · Tenancy & identity — 10 tables
 
 ```
 organization
@@ -55,8 +55,8 @@ restaurant
 
 user_account                                     -- authentication ONLY. ADR 0007.
   organization_id     uuid NN FK→organization
-  email               text                       -- UQ (organization_id, email)
-  phone               text                       -- UQ (organization_id, phone)
+  email               text                       -- UQ (organization_id, email); stored lowercase (G-18)
+  phone               text                       -- UQ (organization_id, phone); stored E.164, +91 default
   password_hash       text                       -- null for invited-but-not-activated
   status              text NN check(invited|active|suspended|locked)
   mfa_secret          text
@@ -75,6 +75,13 @@ user_session
   revoked_at          timestamptz
   IX (user_account_id, expires_at)
   IX (user_account_id) WHERE revoked_at IS NULL  -- the revocation sweep on deactivate
+
+sign_in_choice                                   -- B4: one password opens several organizations
+  token_hash          text NN UQ                 -- sha256 of the pass; the pass is never stored
+  account_ids         uuid[] NN                  -- the accounts the password opened, nothing else
+  expires_at          timestamptz NN             -- two minutes after it is issued
+  used_at             timestamptz                -- set by the one request that uses it
+  IX (expires_at)
 
 employee                                         -- business profile. Login is optional.
   organization_id     uuid NN FK→organization
@@ -1202,7 +1209,8 @@ that path, it is the wrong change.
 Dependencies force roughly this sequence:
 
 1. organization, restaurant
-2. permission, role, role_permission, user_account, user_session, employee, employee_role_assignment
+2. permission, role, role_permission, user_account, user_session, sign_in_choice, employee,
+   employee_role_assignment
 3. dining_area, restaurant_table, station, tax_group, tax_rate
 4. supplier, stock_item, ingredient_profile, preparation_profile
 5. menu_category, menu_item, menu_item_variant, modifier_group, modifier, menu_item_modifier_group

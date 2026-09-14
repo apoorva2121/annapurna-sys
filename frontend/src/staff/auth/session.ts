@@ -110,10 +110,52 @@ async function profile(passwordChangeRequired = false): Promise<Session> {
   };
 }
 
+export type OrganizationOption = { id: string; name: string };
+
+/** What POST /auth/login answers when the password opens accounts in more than one organization
+ *  (backlog-issues B4): a single-use pass and where it can be used. No token is held yet. */
+type OrganizationChoiceResponse = {
+  choose_organization: true;
+  ticket: string;
+  expires_in_seconds: number;
+  organizations: OrganizationOption[];
+};
+
+/** Thrown by `login` when the person has to say which organization. Not a failure: the screen asks,
+ *  and `chooseOrganization` finishes signing in with the pass. */
+export class OrganizationChoiceNeeded extends Error {
+  readonly ticket: string;
+  readonly organizations: OrganizationOption[];
+
+  constructor(ticket: string, organizations: OrganizationOption[]) {
+    super('Choose an organization');
+    this.name = 'OrganizationChoiceNeeded';
+    this.ticket = ticket;
+    this.organizations = organizations;
+  }
+}
+
 export async function login(identifier: string, password: string): Promise<Session> {
-  const response = await apiPost<SessionResponse>('/auth/login', { identifier, password });
+  const response = await apiPost<SessionResponse | OrganizationChoiceResponse>('/auth/login', {
+    identifier,
+    password,
+  });
+  if ('choose_organization' in response) {
+    throw new OrganizationChoiceNeeded(response.ticket, response.organizations);
+  }
   setAccessToken(response.access_token);
   // Carried from the login response: /auth/me describes the person, not the credential.
+  return await profile(response.password_change_required);
+}
+
+/** The second step: sign in to the organization chosen, with the pass alone — the password is not
+ *  sent again. A used or expired pass is refused and the screen starts over. */
+export async function chooseOrganization(ticket: string, organizationId: string): Promise<Session> {
+  const response = await apiPost<SessionResponse>('/auth/login/choose', {
+    ticket,
+    organization_id: organizationId,
+  });
+  setAccessToken(response.access_token);
   return await profile(response.password_change_required);
 }
 

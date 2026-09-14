@@ -11,7 +11,7 @@ import {
 import { onSessionExpired } from '@shared/api';
 
 import { AuthContext, type AuthState } from './AuthContext';
-import { login, logout, restore, type Session } from './session';
+import { chooseOrganization, login, logout, restore, type Session } from './session';
 
 /**
  * Holds the session for the whole staff app.
@@ -55,8 +55,15 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactElemen
   }, [queryClient]);
 
   const signIn = useCallback(
-    async (identifier: string, password: string): Promise<void> => {
-      const next = await login(identifier, password);
+    async (
+      identifier: string,
+      password: string,
+      choice?: { ticket: string; organizationId: string },
+    ): Promise<void> => {
+      const next =
+        choice === undefined
+          ? await login(identifier, password)
+          : await chooseOrganization(choice.ticket, choice.organizationId);
       queryClient.clear();
       setSession(next);
     },

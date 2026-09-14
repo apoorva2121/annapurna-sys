@@ -12,8 +12,10 @@ same status, and the same amount of time spent, whether the address exists or no
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
@@ -32,10 +34,14 @@ from app.core.security import (
     new_refresh_token,
     verify_password,
 )
-from app.models.identity import Employee, UserAccount, UserSession
-from app.models.tenancy import Restaurant
+from app.models.identity import Employee, SignInChoice, UserAccount, UserSession
+from app.models.tenancy import Organization, Restaurant
 from app.repositories.access import AccessRepository, ResolvedAccess
-from app.repositories.account import UserAccountRepository, UserSessionRepository
+from app.repositories.account import (
+    SignInChoiceRepository,
+    UserAccountRepository,
+    UserSessionRepository,
+)
 from app.repositories.employee import EmployeeRepository
 
 logger = logging.getLogger(__name__)
@@ -48,6 +54,9 @@ _REJECTED_MESSAGE = "Invalid login or password."
 # How many branches `/auth/me` embeds (backlog-issues B3). It runs on every app load; the rest page
 # from `GET /auth/restaurants`.
 EMBEDDED_BRANCHES = 20
+
+# How long the pass lasts when a password opens accounts in more than one organization (B4, D1a).
+CHOICE_SECONDS = 120
 
 
 @lru_cache
@@ -99,6 +108,28 @@ def _embedded(branches: list[Restaurant], current: Restaurant) -> list[Restauran
     return [*embedded[: EMBEDDED_BRANCHES - 1], current]
 
 
+class OrganizationChoiceNeeded(Exception):  # noqa: N818 - a signal, not a failure
+    """The password opened accounts in more than one organization: ask which (B4, decision D1a).
+
+    Raised rather than returned so `login` keeps one return type for its twenty callers; the route
+    commits the pass and answers 200 with it. Not an `AppError`, because nothing went wrong.
+    """
+
+    def __init__(self, ticket: str, organizations: Sequence[Organization]) -> None:
+        super().__init__("choose an organization")
+        self.ticket = ticket
+        self.organizations = list(organizations)
+        self.expires_in_seconds = CHOICE_SECONDS
+
+
+def _choice_expired() -> AppError:
+    # One answer for a used pass, an expired pass, and an organization the pass never offered: the
+    # screen's response to all three is the same — sign in again.
+    return AppError(
+        "auth.choice_expired", "That took too long. Please sign in again.", status_code=401
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class LoginResult:
     access_token: str
@@ -119,6 +150,7 @@ class AuthService:
         self.session = session
         self.accounts = UserAccountRepository(session)
         self.sessions = UserSessionRepository(session)
+        self.choices = SignInChoiceRepository(session)
         self.access = AccessRepository(session)
 
     # ------------------------------------------------------------------ login
@@ -131,14 +163,23 @@ class AuthService:
         ip_address: str | None = None,
         device_info: dict[str, object] | None = None,
     ) -> LoginResult:
-        account = await self._find_account(identifier)
-
-        if account is None:
+        matches = await self.accounts.find_all_by_identifier(identifier)
+        if not matches:
             # Spend the time anyway. A fast rejection here is a timing oracle that undoes the
             # identical error message entirely.
             verify_password(password, _decoy_hash())
             raise InvalidCredentialsError
+        if len(matches) == 1:
+            return await self._sign_in(matches[0], password, ip_address, device_info)
+        return await self._sign_in_one_of(matches, password, ip_address, device_info)
 
+    async def _sign_in(
+        self,
+        account: UserAccount,
+        password: str,
+        ip_address: str | None,
+        device_info: dict[str, object] | None,
+    ) -> LoginResult:
         self._reject_if_locked(account)
 
         if not verify_password(password, account.password_hash):
@@ -150,6 +191,14 @@ class AuthService:
             # wrong password by anyone who does not already know the password.
             raise InvalidCredentialsError
 
+        return await self._open_session(account, ip_address, device_info)
+
+    async def _open_session(
+        self,
+        account: UserAccount,
+        ip_address: str | None,
+        device_info: dict[str, object] | None,
+    ) -> LoginResult:
         await self._record_success(account)
         employee = await self._employee_for(account)
         restaurant = await self._home_restaurant(employee)
@@ -158,19 +207,85 @@ class AuthService:
             account, employee, restaurant, resolved, ip_address, device_info
         )
 
-    async def _find_account(self, identifier: str) -> UserAccount | None:
-        """Resolved across organizations, because the login form asks for an identifier and not a
-        tenant, and month 1 has no subdomain per restaurant.
+    async def _sign_in_one_of(
+        self,
+        matches: Sequence[UserAccount],
+        password: str,
+        ip_address: str | None,
+        device_info: dict[str, object] | None,
+    ) -> LoginResult:
+        """One login held in more than one organization (backlog-issues B4, decision D1a).
 
-        This does not leak: every failure below returns the same thing. An identifier that matches
-        in two organizations is refused the same way — safe, and rare enough that the fix is
-        backlogged rather than built (docs/backlog.md).
+        **The password decides first.** Only the accounts it opens — active, unlocked, and still
+        employed — are considered, so another organization holding the same email changes nothing
+        for its owner: the owner's password opens only the owner's account, and they go straight in.
+        Only when it opens more than one does sign-in ask which, with a single-use two-minute pass.
+
+        Two things accepted and recorded in the build log: every match costs a verification, so a
+        login held in two organizations answers a little slower than one; and a wrong password
+        against several accounts is not counted here — B5 counts attempts per login (decision D1d).
         """
-        matches = await self.accounts.find_all_by_identifier(identifier)
-        if len(matches) > 1:
-            logger.warning("auth.ambiguous_identifier", extra={"match_count": len(matches)})
-            return None
-        return matches[0] if matches else None
+        now = datetime.now(UTC)
+        opened: list[UserAccount] = []
+        for account in matches:
+            # On a worker thread (G-6): one argon2 verification per match must not hold the event
+            # loop, which every other request in the process is waiting on.
+            matched = await asyncio.to_thread(verify_password, password, account.password_hash)
+            usable_account = account.status == UserAccountStatus.ACTIVE and (
+                account.locked_until is None or account.locked_until <= now
+            )
+            if matched and usable_account:
+                opened.append(account)
+        usable: list[UserAccount] = []
+        for account in opened:
+            employee = await self.accounts.employee_for(account.id)
+            if employee is not None and employee.is_active:
+                usable.append(account)
+        if not usable:
+            raise InvalidCredentialsError
+        if len(usable) == 1:
+            return await self._open_session(usable[0], ip_address, device_info)
+
+        raw, token_hash = new_refresh_token()
+        self.session.add(
+            SignInChoice(
+                token_hash=token_hash,
+                account_ids=[account.id for account in usable],
+                expires_at=now + timedelta(seconds=CHOICE_SECONDS),
+            )
+        )
+        await self.session.flush()
+        organizations = await self.accounts.organizations(
+            [account.organization_id for account in usable]
+        )
+        raise OrganizationChoiceNeeded(raw, organizations)
+
+    async def choose_organization(
+        self,
+        ticket: str,
+        organization_id: uuid.UUID,
+        *,
+        ip_address: str | None = None,
+        device_info: dict[str, object] | None = None,
+    ) -> LoginResult:
+        """The second step: sign in where the person chose, with the pass (B4, decision D1a).
+
+        The pass is used in the statement that proves it unused and unexpired. An organization it
+        never offered is refused the same way as an expired pass, and the refusal rolls back, so the
+        pass stays usable for the right choice until it expires.
+        """
+        choice = await self.choices.claim(hash_refresh_token(ticket))
+        if choice is None:
+            raise _choice_expired()
+        for account_id in choice.account_ids:
+            account = await self.accounts.get(account_id)
+            if (
+                account is not None
+                and account.organization_id == organization_id
+                and account.status == UserAccountStatus.ACTIVE
+            ):
+                return await self._open_session(account, ip_address, device_info)
+        raise _choice_expired()
 
     def _reject_if_locked(self, account: UserAccount) -> None:
         if account.locked_until is None or account.locked_until <= datetime.now(UTC):

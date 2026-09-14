@@ -13,10 +13,12 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, or_, select, update
+from sqlalchemy import CursorResult, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.identity import Employee, UserAccount, UserSession
+from app.core.identifiers import normalise_identifier
+from app.models.identity import Employee, SignInChoice, UserAccount, UserSession
+from app.models.tenancy import Organization
 
 
 class UserAccountRepository:
@@ -36,16 +38,35 @@ class UserAccountRepository:
         org-scoped version of this method looked safer and was the reason a tenant could take an
         identifier belonging to another and lock its owner out permanently.
         """
-        normalised = identifier.strip().lower()
-        query = select(UserAccount).where(
-            or_(UserAccount.email == normalised, UserAccount.phone == identifier.strip())
-        )
+        normal = normalise_identifier(identifier)
+        column = UserAccount.email if "@" in normal else UserAccount.phone
+        query = select(UserAccount).where(column == normal).order_by(UserAccount.organization_id)
         return (await self.session.scalars(query)).all()
 
-    async def identifier_is_taken(self, identifier: str) -> bool:
-        """Whether anyone, anywhere, already signs in with this. Never says who — that would make
-        the staff form an oracle for which addresses exist in other tenants."""
-        return bool(await self.find_all_by_identifier(identifier))
+    async def identifier_taken_in(self, organization_id: uuid.UUID, identifier: str) -> bool:
+        """Whether someone in this organization already signs in with this.
+
+        Per organization since backlog-issues B4 (decision D1): another organization may hold the
+        same login, because sign-in matches the password first and asks which organization only when
+        it opens more than one. The unique constraints are the guarantee; this is the sentence.
+        """
+        normal = normalise_identifier(identifier)
+        column = UserAccount.email if "@" in normal else UserAccount.phone
+        found = await self.session.scalar(
+            select(UserAccount.id)
+            .where(UserAccount.organization_id == organization_id, column == normal)
+            .limit(1)
+        )
+        return found is not None
+
+    async def organizations(self, organization_ids: Sequence[uuid.UUID]) -> Sequence[Organization]:
+        """The organizations a sign-in choice offers, by name."""
+        query = (
+            select(Organization)
+            .where(Organization.id.in_(list(organization_ids)))
+            .order_by(Organization.name, Organization.id)
+        )
+        return (await self.session.scalars(query)).all()
 
     async def get(self, account_id: uuid.UUID) -> UserAccount | None:
         return await self.session.get(UserAccount, account_id)
@@ -163,3 +184,26 @@ class UserSessionRepository:
             await self.session.execute(query.values(revoked_at=datetime.now(UTC))),
         )
         return result.rowcount
+
+
+class SignInChoiceRepository:
+    """The two-minute pass (backlog-issues B4). Unscoped: it exists before any organization is
+    chosen, and it is found only by the hash of a value the server issued."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def claim(self, token_hash: str) -> SignInChoice | None:
+        """Use a pass, in the statement that proves it is unused and unexpired — so two requests
+        presenting one pass cannot both sign in."""
+        result = await self.session.scalars(
+            update(SignInChoice)
+            .where(
+                SignInChoice.token_hash == token_hash,
+                SignInChoice.used_at.is_(None),
+                SignInChoice.expires_at > func.now(),
+            )
+            .values(used_at=func.now())
+            .returning(SignInChoice)
+        )
+        return result.first()

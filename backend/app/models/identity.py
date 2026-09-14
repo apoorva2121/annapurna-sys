@@ -23,7 +23,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.dialects.postgresql import INET, JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, INET, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.enums import EmploymentType, UserAccountStatus
@@ -146,3 +146,24 @@ class Employee(TimestampedUUIDMixin, Base):
     # wastage events point at this row forever.
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SignInChoice(TimestampedUUIDMixin, Base):
+    """The two-minute pass when one password opens accounts in more than one organization.
+
+    Backlog-issues B4 (decision D1a). Sign-in asks which organization only after the password has
+    matched, and this row is what the second step presents instead of the password. Only the pass's
+    hash is kept, with the accounts it may open; it works once, and not after `expires_at`.
+
+    No `restaurant_id`: it exists before anyone has chosen an organization, which is its whole job.
+    """
+
+    __tablename__ = "sign_in_choice"
+    __table_args__ = (Index("ix_sign_in_choice_expires", "expires_at"),)
+
+    token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    account_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(postgresql.UUID(as_uuid=True)), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
