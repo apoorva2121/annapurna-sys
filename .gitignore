@@ -44,3 +44,13 @@ uploads/
 # CLAUDE.md tells you to run the gate as `make check > check.log 2>&1; echo $?`, because reading
 # the exit code is the only way to know it passed. That leaves this file behind every time.
 /check.log
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# graft (owner decision 2026-09-14): wired into this working copy only. Its hooks live in the
+# untracked local settings, so a clone without graft installed is not affected.
+/.claude/settings.local.json
+/.claude/helpers/graft-*.cjs
+/.claude/skills/graft/
+/.mcp.json
