@@ -116,3 +116,13 @@ export function useCloseTill(): UseMutationResult<
     apiPost<Till>(`/staff/cash/sessions/${tillId}/close`, { counts }),
   );
 }
+
+/** Cash taken today with no till open (decision D3). No count expects it, so the screen says so. */
+export type OutsideTill = { business_date: string; cash_taken: string; payments: number };
+
+export function useCashOutsideTill(): UseQueryResult<OutsideTill> {
+  return useQuery({
+    queryKey: [...CASH_KEY, 'outside-till'],
+    queryFn: () => apiGet<OutsideTill>('/staff/cash/outside-till'),
+  });
+}

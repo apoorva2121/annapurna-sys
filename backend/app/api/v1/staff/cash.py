@@ -28,6 +28,7 @@ from app.schemas.cash import (
     CashCountResponse,
     CashMovementResponse,
     CashOpenRequest,
+    CashOutsideTillResponse,
     CashPayoutRequest,
     CashSessionListResponse,
     CashSessionResponse,
@@ -89,6 +90,15 @@ async def list_sessions(
     return CashSessionListResponse(
         items=[CashSessionSummary.model_validate(_summary_fields(p)) for p in positions],
         next_cursor=positions[-1].till.id if full and positions else None,
+    )
+
+
+@router.get("/cash/outside-till", response_model=CashOutsideTillResponse)
+async def cash_outside_any_till(actor: _CashDep, session: SessionDep) -> CashOutsideTillResponse:
+    """Decision D3: cash taken today while no till was open, which no cash-up will ever expect."""
+    business_date, amount, payments = await CashService(session, actor.scope).outside_any_till()
+    return CashOutsideTillResponse(
+        business_date=business_date, cash_taken=amount, payments=payments
     )
 
 

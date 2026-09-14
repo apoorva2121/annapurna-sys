@@ -27,7 +27,7 @@ import logging
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy.exc import IntegrityError
@@ -41,7 +41,7 @@ from app.core.tenancy import TenantScope
 from app.models.audit import AuditLog
 from app.models.orders import CashCount, CashMovement, CashSession
 from app.models.tenancy import Restaurant
-from app.repositories.orders import CashSessionRepository, TillTotals
+from app.repositories.orders import CashSessionRepository, PaymentRepository, TillTotals
 from app.repositories.setup import RestaurantRepository
 
 logger = logging.getLogger(__name__)
@@ -97,6 +97,18 @@ class CashService:
         tills = await self._tills.list_page(limit=limit, after=after)
         totals = await self._tills.totals_for([till.id for till in tills])
         return [TillPosition(till=till, totals=totals[till.id]) for till in tills]
+
+    async def outside_any_till(self) -> tuple[date, Decimal, int]:
+        """Today's cash that went into no till, and how many payments (decision D3). Today is the
+        restaurant's business day, not the calendar's."""
+        restaurant = await self._restaurant()
+        today = business_date_of(
+            datetime.now(UTC), restaurant.timezone, restaurant.business_day_start
+        )
+        amount, payments = await PaymentRepository(self.session, self.scope).cash_outside_any_till(
+            today
+        )
+        return today, amount, payments
 
     # ------------------------------------------------------------------ the day
 

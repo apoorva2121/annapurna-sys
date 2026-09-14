@@ -109,3 +109,12 @@ class CashSessionResponse(CashSessionSummary):
 class CashSessionListResponse(_Schema):
     items: list[CashSessionSummary]
     next_cursor: uuid.UUID | None = None
+
+
+class CashOutsideTillResponse(_Schema):
+    """Cash taken today that went into no till (decision D3, backlog-issues B7). Allowed — most
+    restaurants will not use the till in month 1 — but no cash-up expects it, so it is said."""
+
+    business_date: date
+    cash_taken: Decimal
+    payments: int

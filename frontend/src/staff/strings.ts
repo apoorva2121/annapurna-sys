@@ -736,6 +736,38 @@ export const strings = {
     openMoved: (number: string) => `Open the bill for order ${number}`,
     fewer: (thing: string) => `One fewer ${thing}`,
     more: (thing: string) => `One more ${thing}`,
+    // Backlog-issues B7, decision D2: discounts, comps and the optional service charge.
+    discountsTitle: 'Discounts and comps',
+    discountKind: 'What kind',
+    discountKinds: {
+      percentage: 'Percentage off',
+      flat: 'Amount off',
+      comp: 'Comp (on the house)',
+    } satisfies Record<'percentage' | 'flat' | 'comp', string>,
+    percentOff: 'Percent off',
+    amountOff: 'Amount off (₹)',
+    comesOff: 'Comes off',
+    wholeBill: 'The whole bill',
+    discountReason: 'Why',
+    discountReasons: [
+      'Food came out wrong',
+      'Long wait',
+      'Regular guest',
+      "Owner's guest",
+      'Staff meal',
+      'Other',
+    ] as readonly string[],
+    discountNote: 'Note (optional)',
+    chooseReason: 'Choose why.',
+    otherNeedsNote: 'Say what happened in the note.',
+    percentProblem: 'Enter a percentage from 0 to 100, like 10 or 12.5.',
+    amountOffProblem: 'Enter the amount to take off, like 50 or 49.50.',
+    apply: 'Apply',
+    applying: 'Applying…',
+    removeDiscount: 'Remove',
+    serviceCharge: 'Service charge (optional)',
+    addServiceCharge: 'Add service charge',
+    removeServiceCharge: 'Remove service charge',
   },
   // M07 chunk K. What happens to a bill after it is settled, and the till. A settled bill is never
   // edited, so every action here is named for the new document it creates.
@@ -853,6 +885,10 @@ export const strings = {
     businessDay: (date: string) => `Business day ${date}`,
     adjust: 'Adjust this till',
     olderTills: 'Older tills are not shown here.',
+    // Backlog-issues B7, decision D3.
+    outsideTill: (amount: string) => `${amount} taken in cash today outside any till`,
+    outsideTillHint: (payments: number) =>
+      `${payments === 1 ? 'One payment was' : `${String(payments)} payments were`} settled in cash while no till was open. No count expects it, so check it reached the drawer.`,
   },
   errors: {
     title: 'Something went wrong',

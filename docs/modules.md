@@ -143,7 +143,7 @@ Largest module. Split the PR.
 - **Endpoints** — order create/get/list and `GET /floor`; line add/update/remove;
   `POST /orders/{id}/send`, `/served`, `/bill`, `/cancel`, `/split`, `/discounts`, `/charges`,
   `/settle` (payments travel inside it); `POST /invoices/{id}/cancel` and `/credit-notes`;
-  `/cash/sessions` with close, payouts and adjustments
+  `/cash/sessions` with close, payouts and adjustments; `/cash/outside-till` (decision D3)
 - **Screens** — table map, order taking (waiter PWA, thumb-reachable), bill view, split bill,
   payment, void/refund
 - **Rules** — **the server recomputes every price, tax and total; the client sends only what was

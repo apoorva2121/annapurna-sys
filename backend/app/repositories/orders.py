@@ -512,6 +512,33 @@ class PaymentRepository(RestaurantScopedRepository[Payment]):
         )
         return [till_id for till_id in rows.all() if till_id is not None]
 
+    async def cash_outside_any_till(self, business_date: date) -> tuple[Decimal, int]:
+        """Cash taken on one business date with no till open, refunds included as the negatives
+        they are, and how many payments that was (decision D3). Counted the way a till counts its
+        own cash — successful cash on a bill still issued — so the two figures never overlap.
+        Bounded by `ix_payment_restaurant_date` (G-13 item 6)."""
+        row = (
+            await self.session.execute(
+                select(func.coalesce(func.sum(Payment.amount), 0), func.count(Payment.id))
+                .join(
+                    Invoice,
+                    and_(
+                        Invoice.id == Payment.invoice_id,
+                        Invoice.restaurant_id == Payment.restaurant_id,
+                    ),
+                )
+                .where(
+                    Payment.restaurant_id == self.scope.restaurant_id,
+                    Payment.business_date == business_date,
+                    Payment.cash_session_id.is_(None),
+                    Payment.method == PaymentMethod.CASH,
+                    Payment.status == PaymentStatus.SUCCESS,
+                    Invoice.status == InvoiceStatus.ISSUED,
+                )
+            )
+        ).one()
+        return Decimal(str(row[0])).quantize(Decimal("0.01")), int(row[1])
+
     async def for_credit_note(self, credit_note_id: uuid.UUID) -> Sequence[Payment]:
         result = await self.session.scalars(
             self.scoped().where(Payment.credit_note_id == credit_note_id).order_by(Payment.id)

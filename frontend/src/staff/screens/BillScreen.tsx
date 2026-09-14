@@ -2,9 +2,11 @@ import { Fragment, type ReactElement, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import type { PaymentMethod } from '@shared/enums';
-import { formatDelta, formatINR, parseAmount } from '@shared/money';
+import { formatDelta, formatINR, parseAmount, percentToFraction } from '@shared/money';
+import { Permission } from '@shared/permissions';
 import { Button } from '@shared/ui/button';
 import { useIdempotencyKey } from '@shared/useIdempotencyKey';
+import { useAuth } from '@staff/auth/AuthContext';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
@@ -12,12 +14,17 @@ import { WaiterSurface } from '@staff/components/WaiterSurface';
 import { errorProps } from '@staff/components/errorProps';
 import { strings } from '@staff/strings';
 import {
+  type DiscountInput,
   type Invoice,
   type Order,
   type PaymentInput,
   dishNames,
+  useAddDiscount,
+  useAddServiceCharge,
   useOrder,
   useOrderingMenu,
+  useRemoveCharge,
+  useRemoveDiscount,
   useSettle,
   useSplit,
 } from '@staff/api/orders';
@@ -130,6 +137,8 @@ function Bill({ order }: { order: Order }): ReactElement {
       {problem !== null && <Notice tone="critical" title={problem} />}
       {settle.isError && <Notice tone="critical" {...errorProps(settle.error)} />}
       <Totals order={order} />
+      <ServiceCharge order={order} />
+      <Discounts order={order} />
       <PaymentRows
         rows={rows}
         onChange={(id, patch) => {
@@ -352,5 +361,285 @@ function Settled({ invoice }: { invoice: Invoice }): ReactElement {
         <Link to="/floor">{strings.orders.nextTable}</Link>
       </Button>
     </div>
+  );
+}
+
+/** The optional service charge (CCPA guidelines): added at the restaurant's own rate, never typed,
+ *  and always removable when the guest asks. */
+function ServiceCharge({ order }: { order: Order }): ReactElement | null {
+  const { can } = useAuth();
+  const add = useAddServiceCharge();
+  const remove = useRemoveCharge();
+  if (!can(Permission.ORDER_MODIFY)) {
+    return null;
+  }
+  const charge = order.charges.find((row) => row.type === 'service_charge');
+  const pending = add.isPending || remove.isPending;
+  return (
+    <div className="flex flex-col gap-2">
+      {add.isError && <Notice tone="critical" {...errorProps(add.error)} />}
+      {remove.isError && <Notice tone="critical" {...errorProps(remove.error)} />}
+      {charge === undefined ? (
+        <Button
+          variant="secondary"
+          disabled={pending}
+          onClick={() => {
+            add.mutate({ order });
+          }}
+        >
+          {strings.orders.addServiceCharge}
+        </Button>
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          <span>{strings.orders.serviceCharge}</span>
+          <span className="whitespace-nowrap font-mono tabular-nums">
+            {formatINR(charge.amount)}
+          </span>
+          <Button
+            variant="ghost"
+            disabled={pending}
+            onClick={() => {
+              remove.mutate({ order, chargeId: charge.id });
+            }}
+          >
+            {strings.orders.removeServiceCharge}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type DiscountKind = 'percentage' | 'flat' | 'comp';
+
+type DiscountDraft = {
+  kind: DiscountKind;
+  value: string;
+  lineId: string | null;
+  reason: string | null;
+  note: string;
+};
+
+const OTHER_REASON = 'Other';
+
+/** The reason as it is recorded: the chosen one, then the note after a colon when there is one. */
+function reasonOrProblem(draft: DiscountDraft): string | { problem: string } {
+  const note = draft.note.trim();
+  if (draft.reason === null) {
+    return { problem: strings.orders.chooseReason };
+  }
+  if (draft.reason === OTHER_REASON && note === '') {
+    return { problem: strings.orders.otherNeedsNote };
+  }
+  return note === '' ? draft.reason : `${draft.reason}: ${note}`;
+}
+
+/** What comes off, as the API takes it: a fraction, an amount, or a comp's whole. Never a float. */
+function sizeOrProblem(draft: DiscountDraft): Pick<DiscountInput, 'rate' | 'flat_amount'> | string {
+  if (draft.kind === 'comp') {
+    return { rate: '1.0000' };
+  }
+  if (draft.kind === 'flat') {
+    const amount = parseAmount(draft.value);
+    return amount === null ? strings.orders.amountOffProblem : { flat_amount: amount };
+  }
+  const rate = percentToFraction(draft.value);
+  return rate === null ? strings.orders.percentProblem : { rate };
+}
+
+function discountOrProblem(draft: DiscountDraft): DiscountInput | string {
+  const size = sizeOrProblem(draft);
+  if (typeof size === 'string') {
+    return size;
+  }
+  const reason = reasonOrProblem(draft);
+  if (typeof reason !== 'string') {
+    return reason.problem;
+  }
+  return {
+    type: draft.kind,
+    ...size,
+    ...(draft.lineId === null ? {} : { order_line_id: draft.lineId }),
+    reason,
+  };
+}
+
+const EMPTY_DRAFT: DiscountDraft = {
+  kind: 'percentage',
+  value: '',
+  lineId: null,
+  reason: null,
+  note: '',
+};
+
+/** The discounts already on the bill, each with the one way to take it off again. */
+function GivenDiscounts({ order }: { order: Order }): ReactElement | null {
+  const remove = useRemoveDiscount();
+  if (order.discounts.length === 0) {
+    return null;
+  }
+  return (
+    <>
+      <ul className="flex flex-col">
+        {order.discounts.map((row) => (
+          <li key={row.id} className="flex items-center justify-between gap-3 py-1">
+            <span className="flex-1">{row.reason}</span>
+            <span className="whitespace-nowrap font-mono tabular-nums">
+              {formatDelta(`-${row.amount}`)}
+            </span>
+            <Button
+              variant="ghost"
+              disabled={remove.isPending}
+              onClick={() => {
+                remove.mutate({ order, discountId: row.id });
+              }}
+            >
+              {strings.orders.removeDiscount}
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {remove.isError && <Notice tone="critical" {...errorProps(remove.error)} />}
+    </>
+  );
+}
+
+/**
+ * Discounts and comps (decision D2, backlog-issues B7). Only for whoever holds `order.discount`, who
+ * the server records as the authoriser. The reason is chosen from a short list, so the monthly
+ * comps-by-authoriser report can group them; a note adds the particulars. No second approval — the
+ * report is the check, and a comp is audited when it is added and when it is removed.
+ */
+function Discounts({ order }: { order: Order }): ReactElement | null {
+  const { can } = useAuth();
+  const add = useAddDiscount();
+  const menu = useOrderingMenu();
+  const names = useMemo(() => dishNames(menu.data), [menu.data]);
+  const [draft, setDraft] = useState<DiscountDraft>(EMPTY_DRAFT);
+  const [problem, setProblem] = useState<string | null>(null);
+  if (!can(Permission.ORDER_DISCOUNT)) {
+    return null;
+  }
+  const billable = order.lines.filter((line) => !OFF_THE_BILL.has(line.status));
+  const change = (patch: Partial<DiscountDraft>): void => {
+    setDraft((current) => ({ ...current, ...patch }));
+  };
+
+  function onApply(): void {
+    const discount = discountOrProblem(draft);
+    if (typeof discount === 'string') {
+      setProblem(discount);
+      return;
+    }
+    setProblem(null);
+    add.mutate(
+      { order, discount },
+      {
+        onSuccess: () => {
+          setDraft(EMPTY_DRAFT);
+        },
+      },
+    );
+  }
+
+  return (
+    <section className="flex flex-col gap-3 border-t border-border pt-4">
+      <h2 className="text-lg font-semibold">{strings.orders.discountsTitle}</h2>
+      <GivenDiscounts order={order} />
+      {problem !== null && <Notice tone="critical" title={problem} />}
+      {add.isError && <Notice tone="critical" {...errorProps(add.error)} />}
+      <Choice
+        legend={strings.orders.discountKind}
+        name="discount-kind"
+        options={(['percentage', 'flat', 'comp'] as const).map((kind) => ({
+          value: kind,
+          label: strings.orders.discountKinds[kind],
+        }))}
+        chosen={draft.kind}
+        onChoose={(kind) => {
+          change({ kind: kind as DiscountKind, value: '' });
+        }}
+      />
+      {draft.kind !== 'comp' && (
+        <Field
+          label={draft.kind === 'flat' ? strings.orders.amountOff : strings.orders.percentOff}
+          inputMode="decimal"
+          value={draft.value}
+          onChange={(event) => {
+            change({ value: event.target.value });
+          }}
+        />
+      )}
+      <Choice
+        legend={strings.orders.comesOff}
+        name="discount-line"
+        options={[
+          { value: '', label: strings.orders.wholeBill },
+          ...billable.map((line) => ({
+            value: line.id,
+            label: names.dishes.get(line.menu_item_variant_id) ?? '',
+          })),
+        ]}
+        chosen={draft.lineId ?? ''}
+        onChoose={(lineId) => {
+          change({ lineId: lineId === '' ? null : lineId });
+        }}
+      />
+      <Choice
+        legend={strings.orders.discountReason}
+        name="discount-reason"
+        options={strings.orders.discountReasons.map((reason) => ({ value: reason, label: reason }))}
+        chosen={draft.reason ?? ''}
+        onChoose={(reason) => {
+          change({ reason });
+        }}
+      />
+      <Field
+        label={strings.orders.discountNote}
+        value={draft.note}
+        maxLength={200}
+        onChange={(event) => {
+          change({ note: event.target.value });
+        }}
+      />
+      <Button variant="secondary" disabled={add.isPending} onClick={onApply}>
+        {add.isPending ? strings.orders.applying : strings.orders.apply}
+      </Button>
+    </section>
+  );
+}
+
+/** A radio group with a thumb-sized row per option. */
+function Choice({
+  legend,
+  name,
+  options,
+  chosen,
+  onChoose,
+}: {
+  legend: string;
+  name: string;
+  options: { value: string; label: string }[];
+  chosen: string;
+  onChoose: (value: string) => void;
+}): ReactElement {
+  return (
+    <fieldset className="flex flex-col">
+      <legend className="font-semibold">{legend}</legend>
+      {options.map((option) => (
+        <label key={option.value} className="flex min-h-target items-center gap-3">
+          <input
+            type="radio"
+            name={name}
+            value={option.value}
+            checked={chosen === option.value}
+            onChange={() => {
+              onChoose(option.value);
+            }}
+          />
+          {option.label}
+        </label>
+      ))}
+    </fieldset>
   );
 }

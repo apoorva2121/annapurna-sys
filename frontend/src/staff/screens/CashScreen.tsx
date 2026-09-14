@@ -13,6 +13,7 @@ import {
   type Till,
   type TillSummary,
   useAdjustment,
+  useCashOutsideTill,
   useCloseTill,
   useOpenTill,
   usePayout,
@@ -47,6 +48,7 @@ export default function CashScreen(): ReactElement {
   return (
     <div className="flex max-w-2xl flex-col gap-6">
       <h1 className="text-2xl font-semibold">{strings.cash.title}</h1>
+      <OutsideTill />
       {justClosed !== null && justClosed.variance !== null && (
         <Notice tone="success" title={strings.cash.closedNotice}>
           {`${strings.cash.countedAgainst(
@@ -352,5 +354,20 @@ function ClosedTill({ till }: { till: TillSummary }): ReactElement {
         </Button>
       )}
     </li>
+  );
+}
+
+/** Decision D3 (backlog-issues B7). Said only when there is some: an empty line every evening would
+ *  teach people to stop reading it. */
+function OutsideTill(): ReactElement | null {
+  const outside = useCashOutsideTill();
+  const payments = outside.data?.payments ?? 0;
+  if (outside.data === undefined || payments === 0) {
+    return null;
+  }
+  return (
+    <Notice tone="info" title={strings.cash.outsideTill(formatINR(outside.data.cash_taken))}>
+      {strings.cash.outsideTillHint(payments)}
+    </Notice>
   );
 }

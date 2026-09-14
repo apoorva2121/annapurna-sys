@@ -596,3 +596,57 @@ export function useCreditNote(): UseMutationResult<
     },
   });
 }
+
+/** A discount or a comp as the bill screen sends it (decision D2). No authoriser: the server records
+ *  whoever sends it. A comp is a rate of 1 on what it comes off. */
+export type DiscountInput = {
+  type: DiscountType;
+  rate?: string;
+  flat_amount?: string;
+  order_line_id?: string;
+  reason: string;
+};
+
+export function useAddDiscount(): UseMutationResult<
+  Order,
+  Error,
+  { order: Order; discount: DiscountInput }
+> {
+  return useOrderMutation(({ order, discount }) =>
+    apiPost<Order>(`/staff/orders/${order.id}/discounts`, { version: order.version, ...discount }),
+  );
+}
+
+export function useRemoveDiscount(): UseMutationResult<
+  Order,
+  Error,
+  { order: Order; discountId: string }
+> {
+  return useOrderMutation(({ order, discountId }) =>
+    apiPost<Order>(`/staff/orders/${order.id}/discounts/${discountId}/remove`, {
+      version: order.version,
+    }),
+  );
+}
+
+/** The service charge carries no amount: the server computes it at the restaurant's own rate. */
+export function useAddServiceCharge(): UseMutationResult<Order, Error, { order: Order }> {
+  return useOrderMutation(({ order }) =>
+    apiPost<Order>(`/staff/orders/${order.id}/charges`, {
+      version: order.version,
+      type: 'service_charge',
+    }),
+  );
+}
+
+export function useRemoveCharge(): UseMutationResult<
+  Order,
+  Error,
+  { order: Order; chargeId: string }
+> {
+  return useOrderMutation(({ order, chargeId }) =>
+    apiPost<Order>(`/staff/orders/${order.id}/charges/${chargeId}/remove`, {
+      version: order.version,
+    }),
+  );
+}

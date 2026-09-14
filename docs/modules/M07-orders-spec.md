@@ -358,6 +358,7 @@ Repositories → services → API, per layer rules. New helpers: `financial_year
 | GET | `/invoices/{invoice_id}` | `order.view` |
 | POST | `/setup/tables/{table_id}/status` | `restaurant.configure` |
 | GET/POST | `/cash/sessions` · `/cash/sessions/{session_id}/close` · `/payouts` · `/adjustments` | `cash.manage` |
+| GET | `/cash/outside-till` — today's cash taken with no till open (backlog-issues B7, decision D3) | `cash.manage` |
 
 The last-but-one row closes a backlog item owed to M07: `status` leaves the general table PATCH, and
 a transition table refuses `free` or `out_of_service` while an order is open on the table.

@@ -58,6 +58,11 @@ function json(body: unknown, status = 200): Response {
 function renderScreen(
   tills: Record<string, unknown>[],
   nextCursor: string | null = null,
+  outside: Record<string, unknown> = {
+    business_date: '2026-09-13',
+    cash_taken: '0.00',
+    payments: 0,
+  },
 ): ReturnType<typeof vi.fn> {
   let current = tills;
   const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
@@ -68,6 +73,9 @@ function renderScreen(
     }
     if (init?.method === 'POST') {
       return Promise.resolve(json({ ...OPEN_TILL, counts: [], movements: [] }, 201));
+    }
+    if (url.endsWith('/staff/cash/outside-till')) {
+      return Promise.resolve(json(outside));
     }
     if (url.endsWith('/staff/cash/sessions')) {
       return Promise.resolve(json({ items: current, next_cursor: nextCursor }));
@@ -191,5 +199,28 @@ describe('CashScreen', () => {
       amount: '-50.00',
       reason: 'Missing after the recount',
     });
+  });
+});
+
+// Decision D3 (backlog-issues B7): cash taken while no till was open is allowed, and this screen is
+// where somebody finds out it happened, because no count will ever expect it.
+describe('cash taken outside any till', () => {
+  it('says how much of today’s cash went into no till', async () => {
+    renderScreen([OPEN_TILL], null, {
+      business_date: '2026-09-13',
+      cash_taken: '493.50',
+      payments: 1,
+    });
+
+    expect(
+      await screen.findByText('₹493.50 taken in cash today outside any till'),
+    ).toBeInTheDocument();
+  });
+
+  it('says nothing when there is none', async () => {
+    renderScreen([OPEN_TILL]);
+    await screen.findByText(/till open/i);
+
+    expect(screen.queryByText(/outside any till/i)).not.toBeInTheDocument();
   });
 });

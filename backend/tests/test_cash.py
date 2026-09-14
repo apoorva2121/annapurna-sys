@@ -465,3 +465,76 @@ async def test_cash_settled_while_the_till_is_being_closed_never_lands_in_that_t
     finally:
         application.dependency_overrides.clear()
         await engine.dispose()
+
+
+OUTSIDE = "/api/v1/staff/cash/outside-till"
+
+
+class TestCashOutsideAnyTill:
+    """Decision D3 (backlog-issues B7). Cash is still taken with no till open — most restaurants
+    will not use the till in month 1 — but no cash-up expects it, so the till screen says how much
+    of today's cash went into no till at all."""
+
+    async def test_cash_settled_with_no_till_open_is_counted_for_today(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        world, menu, waiter = await _setup(db_session, api_client)
+        await _registered(db_session, world)
+        manager = await _token(api_client, "manager")
+        order = await _added(api_client, waiter, await _open(api_client, waiter, menu), menu.dal)
+        paid = await _settle(
+            api_client, waiter, order, payments=[{"method": "cash", "amount": "493.50"}]
+        )
+        assert paid.status_code == 201, paid.text
+
+        response = await api_client.get(OUTSIDE, headers=_auth(manager))
+
+        assert response.status_code == 200, response.text
+        assert (response.json()["cash_taken"], response.json()["payments"]) == ("493.50", 1)
+
+    async def test_cash_that_went_into_the_open_till_is_not_counted(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        _, _, _, _, manager = await _cash_bill(db_session, api_client)
+
+        response = await api_client.get(OUTSIDE, headers=_auth(manager))
+
+        assert response.status_code == 200, response.text
+        assert (response.json()["cash_taken"], response.json()["payments"]) == ("0.00", 0)
+
+    async def test_upi_is_not_cash(self, db_session: AsyncSession, api_client: AsyncClient) -> None:
+        world, menu, waiter = await _setup(db_session, api_client)
+        await _registered(db_session, world)
+        manager = await _token(api_client, "manager")
+        order = await _added(api_client, waiter, await _open(api_client, waiter, menu), menu.dal)
+        assert (await _settle(api_client, waiter, order)).status_code == 201
+
+        response = await api_client.get(OUTSIDE, headers=_auth(manager))
+
+        assert response.json()["payments"] == 0
+
+    async def test_a_waiter_cannot_read_it(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        _, _, waiter = await _setup(db_session, api_client)
+
+        response = await api_client.get(OUTSIDE, headers=_auth(waiter))
+
+        assert response.status_code == 403
+
+    async def test_another_restaurants_cash_is_not_counted(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        world, menu, waiter = await _setup(db_session, api_client)
+        await _registered(db_session, world)
+        order = await _added(api_client, waiter, await _open(api_client, waiter, menu), menu.dal)
+        paid = await _settle(
+            api_client, waiter, order, payments=[{"method": "cash", "amount": "493.50"}]
+        )
+        assert paid.status_code == 201, paid.text
+        await _world(db_session, "manager", slug="tandoor-house")
+        other = await _token(api_client, "manager", slug="tandoor-house")
+
+        response = await api_client.get(OUTSIDE, headers=_auth(other))
+
+        assert (response.json()["cash_taken"], response.json()["payments"]) == ("0.00", 0)

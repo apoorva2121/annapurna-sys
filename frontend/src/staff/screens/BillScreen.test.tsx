@@ -12,6 +12,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { AuthContext, type AuthState } from '@staff/auth/AuthContext';
+
 import BillScreen from './BillScreen';
 
 function line(id: string, variantId: string): Record<string, unknown> {
@@ -104,15 +106,20 @@ function json(body: unknown, status = 200): Response {
   } as unknown as Response;
 }
 
-function renderScreen(): ReturnType<typeof vi.fn> {
+/** What each POST answers with, by the end of its path. Discounts and charges return the order. */
+const POSTS: [string, () => unknown][] = [
+  ['/discounts', () => ORDER],
+  ['/charges', () => ORDER],
+  ['/settle', () => ({ id: 'inv1', invoice_number: '2026-27/000001' })],
+  ['/split', () => ({ ...ORDER, id: 'o2', order_number: '8' })],
+];
+
+function renderScreen(can: AuthState['can'] = () => true): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
     const url = String(input);
-    if (init?.method === 'POST' && url.endsWith('/settle')) {
-      return Promise.resolve(json({ id: 'inv1', invoice_number: '2026-27/000001' }, 201));
-    }
-    if (init?.method === 'POST' && url.endsWith('/split')) {
-      return Promise.resolve(json({ ...ORDER, id: 'o2', order_number: '8' }, 201));
-    }
+    const posted =
+      init?.method === 'POST' ? POSTS.find(([suffix]) => url.endsWith(suffix)) : undefined;
+    if (posted !== undefined) return Promise.resolve(json(posted[1](), 201));
     if (url.endsWith('/staff/menu')) return Promise.resolve(json(MENU));
     if (url.endsWith('/staff/orders/o1')) return Promise.resolve(json(ORDER));
     return Promise.resolve(json({}));
@@ -122,9 +129,18 @@ function renderScreen(): ReturnType<typeof vi.fn> {
   render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={['/orders/o1/bill']}>
-        <Routes>
-          <Route path="/orders/:orderId/bill" element={<BillScreen />} />
-        </Routes>
+        <AuthContext.Provider
+          value={{
+            session: null,
+            signIn: () => Promise.resolve(),
+            signOut: () => Promise.resolve(),
+            can,
+          }}
+        >
+          <Routes>
+            <Route path="/orders/:orderId/bill" element={<BillScreen />} />
+          </Routes>
+        </AuthContext.Provider>
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -218,5 +234,85 @@ describe('BillScreen', () => {
       version: 6,
       line_ids: ['l2'],
     });
+  });
+});
+
+// Decision D2 (backlog-issues B7): whoever holds `order.discount` may comp or discount, choosing the
+// reason from a short list with an optional note, and is recorded as its authoriser by the server.
+// No second approval; the monthly comps-by-authoriser report is the check.
+describe('discounts and comps', () => {
+  function sent(fetchMock: ReturnType<typeof vi.fn>, suffix: string): Record<string, unknown> {
+    const body = postTo(fetchMock, suffix)?.body;
+    if (typeof body !== 'string') {
+      throw new Error(`nothing was posted to ${suffix}`);
+    }
+    return JSON.parse(body) as Record<string, unknown>;
+  }
+
+  it('comps one dish with a reason from the list and a note', async () => {
+    const fetchMock = renderScreen();
+    const user = userEvent.setup();
+    await screen.findByRole('heading', { name: 'Discounts and comps' });
+
+    await user.click(screen.getByRole('radio', { name: 'Comp (on the house)' }));
+    await user.click(screen.getByRole('radio', { name: 'Dal Makhani' }));
+    await user.click(screen.getByRole('radio', { name: 'Food came out wrong' }));
+    await user.type(screen.getByLabelText('Note (optional)'), 'cold');
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    expect(sent(fetchMock, '/orders/o1/discounts')).toEqual({
+      version: 6,
+      type: 'comp',
+      rate: '1.0000',
+      order_line_id: 'l1',
+      reason: 'Food came out wrong: cold',
+    });
+  });
+
+  it('takes a percentage off the whole bill, without a float in between', async () => {
+    const fetchMock = renderScreen();
+    const user = userEvent.setup();
+    await screen.findByRole('heading', { name: 'Discounts and comps' });
+
+    await user.click(screen.getByRole('radio', { name: 'Percentage off' }));
+    await user.type(screen.getByLabelText('Percent off'), '12.5');
+    await user.click(screen.getByRole('radio', { name: 'Regular guest' }));
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    expect(sent(fetchMock, '/orders/o1/discounts')).toEqual({
+      version: 6,
+      type: 'percentage',
+      rate: '0.1250',
+      reason: 'Regular guest',
+    });
+  });
+
+  it('asks for a note when the reason is Other, and sends nothing until it has one', async () => {
+    const fetchMock = renderScreen();
+    const user = userEvent.setup();
+    await screen.findByRole('heading', { name: 'Discounts and comps' });
+
+    await user.click(screen.getByRole('radio', { name: 'Comp (on the house)' }));
+    await user.click(screen.getByRole('radio', { name: 'Other' }));
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    expect(await screen.findByText('Say what happened in the note.')).toBeInTheDocument();
+    expect(postTo(fetchMock, '/discounts')).toBeUndefined();
+  });
+
+  it('is not offered to someone who cannot give one', async () => {
+    renderScreen((permission) => permission !== 'order.discount');
+    await screen.findByText('Provisional bill. The invoice number is given when it is settled.');
+
+    expect(screen.queryByRole('heading', { name: 'Discounts and comps' })).not.toBeInTheDocument();
+  });
+
+  it('adds the optional service charge at the restaurant’s own rate, typing no amount', async () => {
+    const fetchMock = renderScreen();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Add service charge' }));
+
+    expect(sent(fetchMock, '/orders/o1/charges')).toEqual({ version: 6, type: 'service_charge' });
   });
 });
