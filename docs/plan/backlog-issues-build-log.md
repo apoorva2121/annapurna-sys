@@ -36,7 +36,7 @@ is not done. Stop at any row marked **DECIDE** that has no recorded answer.
 | B9 | Seed `PALAK_PANEER` has no spinach · menu seeder query per dish · receiving reads each stock item twice | ☐ | — |
 | B10 | vitest 3 → 5 · ruff `DTZ` · `date_trunc` audit · `audit_docs.py` eliminated tables · shared business-day vectors · new-screen reachability test · migration 0005 reads the live catalogue · expired idempotency keys never swept | ☐ | — |
 | B11 | Waiter screens not fully optimistic · `/design` gallery (**DECIDE D4**) | ☐ | — |
-| B12 | The owner's defect sheet (`issues .xlsx`, 2026-09-14): error codes on screen (issue catalogue) · address cannot be saved · tables cannot be deactivated · add-employee form · stock expiry and ungated pages · options screen editable by a waiter · receiver not shown · permission codes on the profile · till closer and adjuster. Sheet questions 3 and 8–20 are open with the owner | ☐ | — |
+| B12 | The owner's defect sheet (`issues .xlsx`, 2026-09-14): error codes on screen (issue catalogue) · address cannot be saved · tables cannot be deactivated · add-employee form · stock expiry and ungated pages · options screen editable by a waiter · receiver not shown · permission codes on the profile · till closer and adjuster. all sheet questions answered 2026-09-14 (D18–D27), plus three found in the owner's screenshot: impossible dish costs (investigate first), the Dish costs table layout, and a recipe that loses its confirmation when opened from Dish costs | ☐ | — |
 | — | **Next module may start** | ☐ | — |
 
 ---
@@ -157,3 +157,13 @@ must be written down.
 | D15 | An employee's name | **At least two letters**; digits and dots allowed | 2026-09-14 |
 | D16 | May the person who closed a till adjust it | **The owner may**, marked "adjusted by the same person" on the till and in reports; everyone else needs a second person | 2026-09-14 |
 | D17 | Staff without a login seeing their tasks | **Handled with the M11/M17 backlog row** "Staff without a login cannot see their own performance score" | 2026-09-14 |
+| D18 | Till adjustment amount | **Two choices: Cash found (extra) / Cash missing** instead of a signed amount | 2026-09-14 |
+| D19 | Employee code | **Filled in with the next free code, editable**; never a duplicate within one organization (the existing unique constraint) | 2026-09-14 |
+| D20 | Forgotten password at sign-in | **A "Forgot password? Ask your manager" link now**; the manager's reset from the staff screen is already planned in B6 | 2026-09-14 |
+| D21 | Add-employee help text | **Rewritten crisp and professional, shown to the owner before and after** | 2026-09-14 |
+| D22 | "Fantastic theme files" | **The brand design upgrade already planned after the backlog** (warm modern Indian casual dining) | 2026-09-14 |
+| D23 | Appearance in Profile and in Settings | **Keep both, with clearer labels**: Profile is this device only; Settings is the restaurant's default | 2026-09-14 |
+| D24 | Stock screens | **A usage history per item** (sold, wasted, counted) beside deliveries; **What uses this** as a collapsible panel; **expiry shown in the item's own row** | 2026-09-14 |
+| D25 | Bill-wait alarms | **Planned with M13's dashboards**: 3 minutes to the manager (and, as asked, the accountant — to be confirmed when M13 is specified), 7 minutes to the owner | 2026-09-14 |
+| D26 | Attendance-based task allocation | **Later, with M11 (tasks) and M12 (shifts)**: owner to manager and accountant; manager to waiters and chef | 2026-09-14 |
+| D27 | Credit notes | **Always viewable and printable from the browser now**; paying with store credit becomes its own feature later, with used/closed tracking and the new bill number logged; messaging waits for M11 | 2026-09-14 |
