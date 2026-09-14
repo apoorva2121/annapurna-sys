@@ -47,6 +47,12 @@ services:
         condition: service_healthy
     env_file: .env
     command: ["python", "-m", "alembic", "upgrade", "head"]
+    volumes:
+      # The same live mount as api. Without it this service runs the migrations baked into its
+      # image at the last build, so a migration added since then is silently skipped: alembic
+      # reports "head" for the head it knows, api (mounted, so current) queries a column that
+      # does not exist, and make seed fails. That happened with 0022 on 2026-09-14.
+      - ./backend:/app
     restart: "no"
 
   api:
