@@ -221,6 +221,18 @@
       "resource": "order",
       "action": "assign",
       "description": "Choose who serves a table when opening an order for someone else, and move an order from one waiter to another with a reason. Held by owner and manager: a waiter may claim an order nobody is serving, but taking a table somebody is serving would take its credit, which M17 turns into a performance score."
+    },
+    {
+      "code": "kot.view",
+      "resource": "kot",
+      "action": "view",
+      "description": "See the kitchen display: what each station has to cook, how long each ticket has been waiting, and which are late. A waiter holds this and not kot.update, which is the design's own line - the floor watches the kitchen and does not drive it."
+    },
+    {
+      "code": "kot.update",
+      "resource": "kot",
+      "action": "update",
+      "description": "Move a ticket through the kitchen - acknowledge it, start it, mark it ready - and ask for a remake with a reason. It never marks anything served: a dish is served when it reaches a table, which the kitchen cannot see, so that is written from the order screen by whoever carried it."
     }
   ],
   "roles": [
@@ -260,7 +272,9 @@
         "supplier.manage",
         "supplier.view",
         "floor.manage",
-        "order.assign"
+        "order.assign",
+        "kot.view",
+        "kot.update"
       ]
     },
     {
@@ -318,7 +332,9 @@
         "supplier.manage",
         "supplier.view",
         "floor.manage",
-        "order.assign"
+        "order.assign",
+        "kot.view",
+        "kot.update"
       ]
     },
     {
@@ -332,7 +348,9 @@
         "recipe.manage",
         "recipe.view",
         "stock.produce",
-        "stock.view"
+        "stock.view",
+        "kot.view",
+        "kot.update"
       ]
     },
     {
@@ -342,7 +360,9 @@
       "description": "Cooks to tickets. Nothing in M01.",
       "permissions": [
         "recipe.view",
-        "stock.view"
+        "stock.view",
+        "kot.view",
+        "kot.update"
       ]
     },
     {
@@ -355,7 +375,8 @@
         "order.create",
         "order.modify",
         "order.settle",
-        "order.view"
+        "order.view",
+        "kot.view"
       ]
     },
     {

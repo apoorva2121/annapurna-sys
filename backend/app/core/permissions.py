@@ -107,6 +107,18 @@ class PermissionCode(StrEnum):
     # order nobody is serving (`order.modify`), because taking a busy table takes its credit.
     ORDER_ASSIGN = "order.assign"
 
+    # M08. Both already in `seed/organization.yaml`'s P1 design, so this module amends nothing —
+    # the first module since M05 that needed no addition to it.
+    #
+    # The line worth reading is the waiter's: `kot.view` and **not** `kot.update`. The floor
+    # watches the kitchen and does not drive it. Neither code can mark anything served, because a
+    # dish is served when it reaches a table and the kitchen cannot see the table — that stays on
+    # the order path, behind permissions the waiter already holds. It is also the control against a
+    # rail being cleared of food that never left the pass: marking everything ready settles nothing,
+    # it only makes the gap to `served_at` visible.
+    KOT_VIEW = "kot.view"
+    KOT_UPDATE = "kot.update"
+
 
 class PermissionSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
