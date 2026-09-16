@@ -166,6 +166,13 @@ class Order(TimestampedUUIDMixin, Base):
             postgresql_where=text("status IN ('open', 'sent', 'served')"),
         ),
         Index("ix_order_customer", "restaurant_id", "customer_id"),
+        # M10: a guest exchanging the QR on their bill for a session. Unique because the raw token
+        # is 24 random bytes and its hash identifies exactly one order.
+        Index("ix_order_guest_token_hash", "guest_token_hash", unique=True),
+        CheckConstraint(
+            "(guest_token_hash IS NULL) = (guest_token_expires_at IS NULL)",
+            name="ck_order_guest_token_pair",
+        ),
         Index("ix_order_waiter_date", "restaurant_id", "waiter_employee_id", "business_date"),
     )
 
@@ -177,8 +184,9 @@ class Order(TimestampedUUIDMixin, Base):
     channel: Mapped[str] = mapped_column(Text, nullable=False, default=OrderChannel.POS)
     external_order_id: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, nullable=False, default=OrderStatus.OPEN)
-    # No foreign key: `customer` is M10's — the same arrangement M05 used for `supplier_id`.
-    customer_id: Mapped[uuid.UUID | None] = mapped_column(_uuid())
+    # M07 left this a bare column with a note saying "`customer` is M10's — the same arrangement
+    # M05 used for `supplier_id`". This is M10, and migration 0036 adds the foreign key.
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(_uuid(), ForeignKey("customer.id"))
     waiter_employee_id: Mapped[uuid.UUID | None] = mapped_column(_uuid(), ForeignKey("employee.id"))
     covers: Mapped[int | None] = mapped_column(SmallInteger)
     # Split lineage: an order created by splitting another names where its lines came from.
@@ -188,6 +196,12 @@ class Order(TimestampedUUIDMixin, Base):
     first_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     served_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     bill_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # M10: the capability the QR on the bill carries, **stored hashed** — `hash_refresh_token`'s
+    # reasoning applied to a second bearer token, so a stolen dump yields no live ones. Minted when
+    # the bill is printed, returned once to the client that draws the QR, and never readable again;
+    # a reprint mints a new one and the old photograph stops working.
+    guest_token_hash: Mapped[str | None] = mapped_column(Text)
+    guest_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     business_date: Mapped[date] = mapped_column(Date, nullable=False)

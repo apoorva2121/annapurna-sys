@@ -206,7 +206,7 @@ Largest module. Split the PR.
 First module with a guest surface — ADR 0009 applies in full.
 
 - **Depends on** — M07
-- **Tables** — customer, customer_preference, feedback, feedback_line, complaint
+- **Tables** — customer, customer_preference, **customer_consent** (added by M10 — `docs/compliance-rules.md` §B2 wants one consent row per purpose, never a single boolean, and none of the other five can hold that), feedback, feedback_line, complaint
 - **Endpoints** — staff: CRUD customer, `GET /customers/{id}/history`, complaint workflow, DPDP
   export + erasure. Guest: `GET /guest/menu`, `POST /guest/feedback`, `GET /guest/order/{token}`
 - **Screens** — customer profile with preferences, complaint tracking; **guest PWA**: QR → menu →

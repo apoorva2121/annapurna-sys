@@ -4,7 +4,7 @@ The concrete table specification. Conceptual model: `docs/domain-model.md`. Conv
 ADR 0004 (money/time/units), ADR 0006 (preparations), ADR 0007 (identity), ADR 0008 (keys, deletion,
 enums, numerics), ADR 0010 (idempotency, locking), ADR 0011 (performance).
 
-**76 tables in 13 domains.** Everything here is Phase 1 unless marked `[1.5]`.
+**77 tables in 13 domains.** Everything here is Phase 1 unless marked `[1.5]`.
 
 ## Reading this document
 
@@ -999,12 +999,17 @@ Never one without the other.
 
 ---
 
-## 9 · Customers & feedback — 5 tables
+## 9 · Customers & feedback — 6 tables
 
 ```
 customer                                         -- organization-scoped: a chain recognises the
   organization_id NN FK→organization             -- same diner across branches
   user_account_id     uuid UQ FK→user_account    -- nullable
+  home_restaurant_id  uuid FK→restaurant         -- M10: branch attribution. The organization owns
+                                                 -- the record; the branch owns the *view* — a
+                                                 -- manager reads the customers of the restaurant
+                                                 -- they are working in. Owner's decision,
+                                                 -- 2026-09-16.
   phone               text NN                    -- UQ (organization_id, phone)
   name                text
   email               text
@@ -1012,25 +1017,43 @@ customer                                         -- organization-scoped: a chain
   visit_count         int NN default 0
   lifetime_value      numeric(12,2) NN default 0
   birthday, anniversary  date                    -- cheap, high-impact repeat driver
+  erased_at           timestamptz                -- M10: DPDP erasure. Set once, never cleared.
   is_active
-  IX (organization_id, phone), IX (organization_id, last_visit_at)
+  UQ (id, organization_id)                       -- the tenant-safe composite key
+  IX (organization_id, last_visit_at)
 
 customer_preference                              -- persists across visits. Jain, no onion, allergy.
-  customer_id NN FK→customer
+  organization_id NN, customer_id NN             -- composite FK → customer(id, organization_id)
   type                text NN check(dietary|allergy|spice_level|seating|other)
   value               text NN
   is_critical         bool NN default false      -- allergy: must surface to the kitchen
   UQ (customer_id, type, value)
+  IX (customer_id) WHERE is_critical
+
+customer_consent                                 -- M10. Append-only: a grant is a row, a
+  organization_id NN, customer_id NN             -- withdrawal is a row, and the current state of a
+  purpose  text NN check(order_contact|          -- purpose is the latest row for it.
+                         service_recognition|
+                         feedback_followup|marketing)
+  granted             bool NN
+  notice_version      text NN                    -- which words they were shown
+  notice_language     text NN                    -- and in which language
+  source              text NN check(qr|app|staff|call)
+  captured_by         uuid FK→employee           -- null when the guest ticked it themselves
+  occurred_at         timestamptz NN
+  IX (customer_id, purpose, occurred_at DESC)
 
 feedback
   restaurant_id, order_id FK→order               -- nullable but strongly nudged
   customer_id         uuid FK→customer
   overall_rating      smallint check(1..5)
   food_rating, service_rating, cleanliness_rating  smallint
+  would_return        bool                       -- M10: the third of the three questions
   waiter_employee_id  uuid FK→employee
   comment             text
   source              text NN check(qr|app|staff|call)
   submitted_at NN, business_date NN
+  UQ (order_id) WHERE order_id IS NOT NULL       -- "never ask twice in one visit", as an index
   IX (restaurant_id, business_date), IX (restaurant_id, waiter_employee_id)
 
 feedback_line                                    -- per-dish rating
@@ -1048,13 +1071,30 @@ complaint                                        -- replaces the vision doc's se
   description         text NN
   reported_by         uuid FK→employee           -- null when the customer raised it directly
   assigned_to         uuid FK→employee
+  reference           text NN                    -- "complaint 47": what a manager says on the phone
+  financial_year      text NN                    -- UQ (restaurant_id, financial_year, reference)
   status              text NN check(open|investigating|resolved|closed)
   resolution          text
   compensation_amount numeric(12,2)
   resolved_at, closed_at  timestamptz
-  customer_returned   bool                       -- the only honest measure of recovery
+  business_date       date NN
   IX (restaurant_id, status), IX (restaurant_id, business_date)
 ```
+
+**`customer_returned` is not a column**, though this section listed one until M10. Whether the
+customer came back is derived at read time from the order ledger — is there an order for this
+customer after `resolved_at`? It is still "the only honest measure of recovery"; it is simply
+measured rather than typed. A column nothing writes, sitting beside a derivation that is always
+right, is an invitation for somebody to write it, and then the honest measure has a stale copy
+disagreeing with it. `docs/modules/M10-customers-spec.md` decision 8. If M13 ever needs a monthly
+figure frozen, that is when a column is the right answer.
+
+**The two QR codes live on tables M10 did not create** (spec decision 1):
+`restaurant_table.guest_slug` — a table's opaque, rotatable public id, unique across the product,
+which grants the menu and nothing else — and `order.guest_token_hash` + `guest_token_expires_at`,
+a per-order capability stored hashed like a refresh token, which grants that order's own bill and
+one feedback submission. M10 also adds the `order.customer_id → customer.id` foreign key that M07
+left as a bare column.
 
 ---
 
@@ -1313,7 +1353,7 @@ Dependencies force roughly this sequence:
 6. recipe, recipe_line
 7. stock_batch, stock_movement, stock_count, stock_count_line
 8. purchase_order, purchase_order_line, goods_receipt, goods_receipt_line
-9. customer, customer_preference
+9. customer, customer_preference, customer_consent
 10. cash_session, order, order_table, order_line, order_line_modifier, order_discount, order_charge,
     invoice, credit_note, credit_note_line, payment, cash_count, cash_movement
 11. kot_stream_cursor, kot_ticket, kot_ticket_line

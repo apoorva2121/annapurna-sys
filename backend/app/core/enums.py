@@ -373,3 +373,75 @@ class CashMovementType(StrEnum):
 
     PAYOUT = "payout"
     ADJUSTMENT = "adjustment"
+
+
+# ---------------------------------------------------------------- M10 · customers & feedback
+
+
+class PreferenceType(StrEnum):
+    """What a customer always wants. `ALLERGY` is the only one the kitchen is told about, and the
+    telling is `customer_preference.is_critical` rather than this value — a spice level can be
+    critical to nobody, and a restaurant may decide a dietary rule is."""
+
+    DIETARY = "dietary"
+    ALLERGY = "allergy"
+    SPICE_LEVEL = "spice_level"
+    SEATING = "seating"
+    OTHER = "other"
+
+
+class ConsentPurpose(StrEnum):
+    """One purpose per consent row (`docs/compliance-rules.md` §B2).
+
+    Purpose limitation, stated concretely: "a phone number collected for a bill is not marketing
+    consent". Granting one of these grants nothing else, and withdrawing one withdraws nothing else.
+    """
+
+    ORDER_CONTACT = "order_contact"
+    SERVICE_RECOGNITION = "service_recognition"
+    FEEDBACK_FOLLOWUP = "feedback_followup"
+    MARKETING = "marketing"
+
+
+class ContactSource(StrEnum):
+    """How a piece of customer input reached us — shared by `feedback` and `customer_consent`.
+
+    One enum rather than two because the four ways are the same four ways, and because the value is
+    read the same way in both places: a `STAFF` rating and a `STAFF` consent both mean an employee
+    entered it on somebody's behalf, which is legitimate and must be visible.
+    """
+
+    QR = "qr"
+    APP = "app"
+    STAFF = "staff"
+    CALL = "call"
+
+
+class ComplaintCategory(StrEnum):
+    FOOD_QUALITY = "food_quality"
+    SERVICE = "service"
+    DELAY = "delay"
+    BILLING = "billing"
+    HYGIENE = "hygiene"
+    STAFF_CONDUCT = "staff_conduct"
+    OTHER = "other"
+
+
+class ComplaintSeverity(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class ComplaintStatus(StrEnum):
+    """`RESOLVED` means somebody wrote down what was done; `CLOSED` means it is finished with.
+
+    The gap between them is deliberate: a complaint can be resolved and still open on somebody's
+    screen until the manager agrees it is done.
+    """
+
+    OPEN = "open"
+    INVESTIGATING = "investigating"
+    RESOLVED = "resolved"
+    CLOSED = "closed"

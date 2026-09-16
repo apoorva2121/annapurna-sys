@@ -10,6 +10,14 @@ from __future__ import annotations
 from app.models.access import EmployeeRoleAssignment, Permission, Role, RolePermission
 from app.models.audit import AuditLog, Issue
 from app.models.base import Base
+from app.models.customers import (
+    Complaint,
+    Customer,
+    CustomerConsent,
+    CustomerPreference,
+    Feedback,
+    FeedbackLine,
+)
 from app.models.identity import Employee, UserAccount, UserSession
 from app.models.inventory import (
     StockBatch,
@@ -66,11 +74,17 @@ __all__ = [
     "CashCount",
     "CashMovement",
     "CashSession",
+    "Complaint",
     "CreditNote",
     "CreditNoteLine",
+    "Customer",
+    "CustomerConsent",
+    "CustomerPreference",
     "DiningArea",
     "Employee",
     "EmployeeRoleAssignment",
+    "Feedback",
+    "FeedbackLine",
     "GoodsReceipt",
     "GoodsReceiptLine",
     "IdempotencyKey",

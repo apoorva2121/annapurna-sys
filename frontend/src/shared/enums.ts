@@ -343,3 +343,62 @@ export const CashMovementType = {
   ADJUSTMENT: 'adjustment',
 } as const;
 export type CashMovementType = (typeof CashMovementType)[keyof typeof CashMovementType];
+
+/** What a customer always wants. `ALLERGY` is the kind the kitchen is told about. */
+export const PreferenceType = {
+  DIETARY: 'dietary',
+  ALLERGY: 'allergy',
+  SPICE_LEVEL: 'spice_level',
+  SEATING: 'seating',
+  OTHER: 'other',
+} as const;
+export type PreferenceType = (typeof PreferenceType)[keyof typeof PreferenceType];
+
+/**
+ * One purpose per consent row. Granting one grants nothing else, and withdrawing one withdraws
+ * nothing else — a phone number collected for a bill is not marketing consent.
+ */
+export const ConsentPurpose = {
+  ORDER_CONTACT: 'order_contact',
+  SERVICE_RECOGNITION: 'service_recognition',
+  FEEDBACK_FOLLOWUP: 'feedback_followup',
+  MARKETING: 'marketing',
+} as const;
+export type ConsentPurpose = (typeof ConsentPurpose)[keyof typeof ConsentPurpose];
+
+/** How a piece of customer input reached us. Shared by feedback and consent. */
+export const ContactSource = {
+  QR: 'qr',
+  APP: 'app',
+  STAFF: 'staff',
+  CALL: 'call',
+} as const;
+export type ContactSource = (typeof ContactSource)[keyof typeof ContactSource];
+
+export const ComplaintCategory = {
+  FOOD_QUALITY: 'food_quality',
+  SERVICE: 'service',
+  DELAY: 'delay',
+  BILLING: 'billing',
+  HYGIENE: 'hygiene',
+  STAFF_CONDUCT: 'staff_conduct',
+  OTHER: 'other',
+} as const;
+export type ComplaintCategory = (typeof ComplaintCategory)[keyof typeof ComplaintCategory];
+
+export const ComplaintSeverity = {
+  LOW: 'low',
+  MEDIUM: 'medium',
+  HIGH: 'high',
+  CRITICAL: 'critical',
+} as const;
+export type ComplaintSeverity = (typeof ComplaintSeverity)[keyof typeof ComplaintSeverity];
+
+/** `RESOLVED` means somebody wrote down what was done; `CLOSED` means it is finished with. */
+export const ComplaintStatus = {
+  OPEN: 'open',
+  INVESTIGATING: 'investigating',
+  RESOLVED: 'resolved',
+  CLOSED: 'closed',
+} as const;
+export type ComplaintStatus = (typeof ComplaintStatus)[keyof typeof ComplaintStatus];

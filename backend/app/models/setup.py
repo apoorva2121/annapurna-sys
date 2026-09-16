@@ -85,6 +85,9 @@ class RestaurantTable(TimestampedUUIDMixin, Base):
         # "T4" is what staff say out loud and what prints on a KOT. Unique per restaurant, because
         # two branches both having a T4 is normal.
         UniqueConstraint("restaurant_id", "code", name="uq_restaurant_table_code"),
+        # M10: the table's public id, unique across the product because a slug is what *determines*
+        # a restaurant rather than being looked up inside one.
+        UniqueConstraint("guest_slug", name="uq_restaurant_table_guest_slug"),
         # M07: the target of order_table's tenant-safe composite foreign key.
         UniqueConstraint("id", "restaurant_id", name="uq_restaurant_table_id_restaurant"),
         CheckConstraint(f"status IN ({_TABLE_STATUSES})", name="ck_restaurant_table_status"),
@@ -107,6 +110,11 @@ class RestaurantTable(TimestampedUUIDMixin, Base):
         postgresql.UUID(as_uuid=True), ForeignKey("dining_area.id"), nullable=False
     )
     code: Mapped[str] = mapped_column(Text, nullable=False)
+    # M10, ADR 0009. What the QR sticker carries: opaque, rotatable, and worth exactly one thing —
+    # the guest menu. `docs/security.md` treats a photographed QR as permanently public, so what it
+    # grants is the document already hanging on the wall. Rotating it kills every photograph of the
+    # old sticker.
+    guest_slug: Mapped[str] = mapped_column(Text, nullable=False)
     seats: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     # Live state, unlike everything else in this module. `reserved` is set by hand by a manager
     # taking a walk-in booking (M02 spec decision 3); there is no reservation system behind it and
