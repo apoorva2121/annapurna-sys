@@ -430,8 +430,26 @@ Test both refusals and the staging path.
    run Cloud Run **Job** `migrate` (`python -m alembic upgrade head`) to completion, then deploy
    Cloud Run **service** `restaurant-os-api` with env `ENV=staging DEBUG=false LOG_LEVEL=INFO
    CORS_ORIGINS=<the origin> STATIC_DIR=/app/static`, secrets mounted as env, startup probe
-   `GET /api/v1/ready`, liveness `GET /api/v1/health`, `min-instances=0` (becomes 1 at M08 for
-   SSE), `max-instances=3`, 512 MiB, concurrency 40.
+   `GET /api/v1/ready`, liveness `GET /api/v1/health`, **`min-instances=1`** (see below),
+   `max-instances=3`, 512 MiB, concurrency 40.
+
+   **M08 settled the `min-instances` question, and two more that came with it** (external review
+   X6). The kitchen display holds an SSE connection open for a whole service:
+
+   - **`min-instances=1`, not 0.** Scale-to-zero kills the instance holding every open stream. The
+     clients reconnect, and because the stream replays from a revision cursor rather than from a
+     queue nobody loses a ticket — but a display that goes blank between rounds all evening is a
+     display that gets turned off, whatever the recovery story says.
+   - **Cloud Run's request timeout caps a stream at 60 minutes.** Fine, and needs no code: the
+     client reconnects with its `Last-Event-ID` and carries on. Recorded here so nobody later
+     reports it as a bug.
+   - **Buffering proxies are already handled**, by FastAPI rather than by us: an SSE response
+     carries `Cache-Control: no-cache` and `X-Accel-Buffering: no`. Depended upon and not owned, so
+     `tests/test_kitchen_endpoints.py` asserts both — a framework upgrade that dropped them would
+     otherwise be found by a restaurant.
+   - **Concurrency 40 counts a held stream as a live request.** Six screens is six of the forty
+     before a single order is taken. Worth watching rather than acting on: the fix is to raise the
+     number, and the evidence to set it by does not exist yet.
 6. Cloud Run Job `seed` with `SEED_PASSWORD` from Secret Manager; run once.
 7. Smoke: `scripts/smoke_prod.py --base https://<service>.run.app`; `/version` shows the commit.
 8. Custom domain + HTTPS later; the `run.app` URL is fine for the manual pass.
@@ -548,7 +566,7 @@ Each carries a status naming its chunk, which is the second half of what G-20 as
 | M05 | X7 stock balance snapshot · S16 cache rule · prep-sheet thin slice (give it a module number) |
 | M06 | ☑ done 2026-09-13 — `stock_batch.supplier_id` and `goods_receipt_line_id` finally got their foreign keys (migration 0017), which `docs/schema.md` §5 had been asking for since M05 |
 | M07 | S1 `invoice` · S4 channel fields + CSV import · S5 cash close · S6 tips · S7 charges · S9 table merge · PWA manifest + service worker + outbox |
-| M08 | S2 `kot_ticket_line` timestamps · M4 pure-ASGI middleware · X6 SSE fan-out and `min-instances=1` · print-agent design note |
+| M08 | ☑ done 2026-09-16 — S2's three line timestamps are in migration 0030; M4's middleware is pure ASGI and the access line finally carries a status code; X6 is settled by the revision cursor plus the deploy notes in R4 above; the print agent is designed in the M08 spec (decision 9) and built never — *the stream is the print queue*, so a future local agent is an SSE client with a cursor of its own and needs no new endpoint. **P1-9 was paid here too**, though it was never on this row |
 | M10 | S8 consent columns · M13 separate guest key · M7 field-level PII gating |
 | M13 | X1 permission cache if measured · X10 partitioning |
 | M16 | M6 key rotation · RLS · pen-test |

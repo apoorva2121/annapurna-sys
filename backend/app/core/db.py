@@ -5,10 +5,12 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated
 
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
+from fastapi import Depends
 from sqlalchemy import Connection, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -39,6 +41,25 @@ async def get_session() -> AsyncIterator[AsyncSession]:
     """FastAPI dependency. One session per request, always closed."""
     async with get_sessionmaker()() as session:
         yield session
+
+
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    """The factory itself, for the one endpoint that must not hold a session.
+
+    `GET /kot/stream` (M08) stays open for a whole service. Taking `get_session` would hold one
+    pooled database connection for exactly that long, so six kitchen screens would take six
+    connections out of the pool and never give them back — the pool would be exhausted by the
+    displays before a single order was taken.
+
+    So the stream takes this instead and opens a short-lived session per tick. It is a dependency
+    rather than a direct call to `get_sessionmaker` so the test harness can bind it to the test's
+    transaction, exactly as it does for `get_session`; calling the module function directly would
+    make the stream the one thing in the application the suite cannot see inside.
+    """
+    return get_sessionmaker()
+
+
+SessionFactoryDep = Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
 
 
 async def database_reachable() -> bool:

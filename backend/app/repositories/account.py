@@ -102,6 +102,28 @@ class UserSessionRepository:
         )
         return (await self.session.scalars(query)).first()
 
+    async def is_live(self, session_id: uuid.UUID) -> bool:
+        """Is this session still usable — not revoked, not expired?
+
+        Added for M08's kitchen stream, which is the first thing in the product that stays
+        connected for longer than a request. Every other route re-checks authorisation by being
+        called again; a stream opened at 9pm on a token revoked at 10pm would otherwise still be
+        delivering a restaurant's tickets at 3am, because the handshake was the only check it ever
+        got.
+
+        One indexed lookup on the primary key, run once per tick. Both conditions are in SQL for the
+        same reason `find_live_by_hash` puts them there: there is then no window in which a caller
+        remembers one of them and forgets the other.
+        """
+        found = await self.session.scalar(
+            select(UserSession.id).where(
+                UserSession.id == session_id,
+                UserSession.revoked_at.is_(None),
+                UserSession.expires_at > datetime.now(UTC),
+            )
+        )
+        return found is not None
+
     async def claim_for_rotation(self, token_hash: str) -> UserSession | None:
         """Atomically retire a live session and hand it back, or return None.
 

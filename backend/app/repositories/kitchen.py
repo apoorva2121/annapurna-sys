@@ -32,7 +32,7 @@ from sqlalchemy.orm import selectinload
 from app.core.enums import KotTicketStatus
 from app.models.kitchen import KotStreamCursor, KotTicket, KotTicketLine
 from app.models.menu import MenuItem, MenuItemVariant, Modifier
-from app.models.orders import Order, OrderLine, OrderLineModifier
+from app.models.orders import Order, OrderLine, OrderLineModifier, OrderTable
 from app.repositories.base import RestaurantScopedRepository, page_size
 
 # A namespace of its own, so a ticket-number lock never collides with an order-number lock taken in
@@ -239,7 +239,9 @@ class KitchenRepository(RestaurantScopedRepository[KotTicket]):
         """
         return self.scoped().options(
             selectinload(KotTicket.lines),
-            selectinload(KotTicket.order).selectinload(Order.tables),
+            selectinload(KotTicket.order)
+            .selectinload(Order.tables)
+            .selectinload(OrderTable.restaurant_table),
         )
 
     async def since(

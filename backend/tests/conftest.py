@@ -34,7 +34,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from app.core.db import get_session
+from app.core.db import get_session, get_session_factory
 from app.main import create_app
 
 _BACKEND = Path(__file__).resolve().parents[1]
@@ -109,6 +109,12 @@ async def api(db_connection: AsyncConnection) -> AsyncIterator[FastAPI]:
             yield session
 
     application.dependency_overrides[get_session] = _session_override
+    # M08's kitchen stream takes the factory rather than a session, because it stays open for a
+    # whole service and must not hold a pooled connection for that long. Bound to the test's
+    # transaction here for the same reason `get_session` is: without it the stream would be the one
+    # thing in the application this suite cannot see inside, and the reconnect behaviour is
+    # precisely what has to be tested.
+    application.dependency_overrides[get_session_factory] = lambda: _session_factory(db_connection)
     yield application
     application.dependency_overrides.clear()
 

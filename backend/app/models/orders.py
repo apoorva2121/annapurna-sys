@@ -66,6 +66,7 @@ from app.core.enums import (
 )
 from app.models.base import Base, TimestampedUUIDMixin
 from app.models.identity import Employee
+from app.models.setup import RestaurantTable
 
 
 def _in(column: str, values: type[Any]) -> str:
@@ -250,6 +251,18 @@ class OrderTable(TimestampedUUIDMixin, Base):
     order_id: Mapped[uuid.UUID] = mapped_column(_uuid(), nullable=False)
     restaurant_table_id: Mapped[uuid.UUID] = mapped_column(_uuid(), nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # Added by M08. The waiter's screens resolve a table id against the floor plan they have
+    # already loaded; a kitchen display has no floor plan and no reason to fetch one, and "T6" is
+    # what a runner needs in order to carry the food anywhere. `viewonly`, because an order's
+    # tables are changed through `OrderService`, never through this.
+    restaurant_table: Mapped[RestaurantTable] = relationship(
+        primaryjoin="and_(OrderTable.restaurant_table_id == RestaurantTable.id, "
+        "OrderTable.restaurant_id == RestaurantTable.restaurant_id)",
+        foreign_keys="[OrderTable.restaurant_table_id, OrderTable.restaurant_id]",
+        viewonly=True,
+        lazy="raise",
+    )
 
 
 class OrderLine(TimestampedUUIDMixin, Base):
