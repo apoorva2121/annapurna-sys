@@ -21,9 +21,32 @@ Spec: `docs/modules/M10-customers-spec.md`. **Resume from the State table below.
 | 2 | E | Feedback and complaints, plus the customer history and the DPDP export | ☑ done | `701770b` |
 | 2 | F | Staff screens | ☑ done | `c97f1a8` |
 | 2 | G | The guest bundle: vite entry, eslint boundary, three screens, `brand.md` §7.1 | ☑ done | `94c753b` |
-| 2 | H | Seed, adversarial review, manual script | ☐ | — |
-| 2 | — | **PR 2 gate: full `make check`** | ☐ | — |
+| 2 | H | Seed, adversarial review, manual script | ☑ done | `d6843a9` |
+| 2 | — | **PR 2 gate: full `make check`** | ☐ **not yet run to completion** | — |
 | — | — | **Your manual pass** — `docs/manual-tests/M10-customers.md` | ☐ | — |
+
+---
+
+## Resume here
+
+**Every chunk A–H is written, committed and individually green.** What is outstanding is one thing:
+the module gate has not run to completion.
+
+| Run | What happened |
+|---|---|
+| 1 | Failed at `lint-api` in ~1 minute: one line over 100 characters in `tests/test_seed_customers.py`. Fixed. |
+| 2 | **Killed by the harness for low memory**, about 5% into the test phase. Not a failure — the machine had 1.5 GB free of 13 GB, and `make check` starts a Postgres testcontainer on top of whatever is already running. |
+| 3 | Stopped by the owner, who is restarting the machine. |
+
+**Before the next attempt:** `docker compose stop` (the dev stack had been up fifteen hours and was
+holding the memory the testcontainer needed — it is stopped now, and `make dev` brings it back).
+Then the usual: `make check > check.log 2>&1; echo $?` and **read the number, not the last lines**.
+
+Everything below the gate line is already true: lint, mypy, eslint, tsc and every suite in this
+module were run and green as each chunk landed — 24 customer and complaint tests, 17 endpoint tests,
+16 consent and erasure tests, 19 guest-surface tests, 10 seed tests, 29 generic suites including
+suite 5, and 396 frontend tests. What the gate adds is *all of them at once*, which is exactly the
+thing that has caught the last two modules out.
 
 ---
 
