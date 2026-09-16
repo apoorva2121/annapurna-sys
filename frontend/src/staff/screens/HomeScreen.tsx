@@ -39,6 +39,14 @@ const links: { to: string; label: string; permission: Permission | null }[] = [
   { to: '/stock/receive', label: strings.nav.receive, permission: Permission.STOCK_RECEIVE },
   { to: '/stock/produce', label: strings.nav.produce, permission: Permission.STOCK_PRODUCE },
   { to: '/stock/count', label: strings.nav.count, permission: Permission.STOCK_COUNT },
+  // M08. The rail was reachable only from its own ticket detail, which links back to it — a
+  // circular pair the reachability test cannot see through, so the kitchen display had no entry
+  // point from anywhere a person starts. Found while wiring M09's links.
+  { to: '/kitchen', label: strings.nav.kitchen, permission: Permission.KOT_VIEW },
+  // M09. Logging is a kitchen and storeroom act; the summary is behind `stock.view`, because
+  // seeing what was thrown away is not the same power as throwing it away.
+  { to: '/waste', label: strings.nav.logWaste, permission: Permission.WASTAGE_LOG },
+  { to: '/waste/summary', label: strings.nav.wasteSummary, permission: Permission.STOCK_VIEW },
   { to: '/profile', label: strings.nav.profile, permission: null },
 ];
 

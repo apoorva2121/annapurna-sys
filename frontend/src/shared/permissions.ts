@@ -73,6 +73,11 @@ export const Permission = {
   // table, which the kitchen cannot see, so that stays on the order screen.
   KOT_VIEW: 'kot.view',
   KOT_UPDATE: 'kot.update',
+  // M09. A waiter holds neither: waste is a kitchen and storeroom event. The people who log most
+  // of it — the chef and the kitchen staff — hold LOG and not APPROVE, which is the separation of
+  // duties standing between an expensive reason code and somebody logging theft as waste.
+  WASTAGE_LOG: 'wastage.log',
+  WASTAGE_APPROVE: 'wastage.approve',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

@@ -109,8 +109,14 @@ export function useWastageSummary(since?: string, until?: string): UseQueryResul
 export type LogWastageInput = {
   stockItemId: string;
   wastageReasonId: string;
-  /** Base units, converted by the screen from the preset the person tapped. */
+  /** What the person tapped — in the item's purchase unit when `perPurchaseUnit` is true. */
   quantity: string;
+  /**
+   * Whether the server must convert. The screen never does the arithmetic itself: a quantity
+   * divided by a thousand in a browser is the float round-trip invariant 3 forbids, and that rule
+   * exists because a delivery typed against the wrong unit once repriced cabbage to ₹40 a gram.
+   */
+  perPurchaseUnit: boolean;
   note?: string;
   idempotencyKey: string;
 };
@@ -118,13 +124,21 @@ export type LogWastageInput = {
 export function useLogWastage(): UseMutationResult<WastageEvent, Error, LogWastageInput> {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ stockItemId, wastageReasonId, quantity, note, idempotencyKey }) =>
+    mutationFn: ({
+      stockItemId,
+      wastageReasonId,
+      quantity,
+      perPurchaseUnit,
+      note,
+      idempotencyKey,
+    }) =>
       apiPost<WastageEvent>(
         '/staff/wastage',
         {
           stock_item_id: stockItemId,
           wastage_reason_id: wastageReasonId,
           quantity,
+          per_purchase_unit: perPurchaseUnit,
           ...(note === undefined ? {} : { note }),
         },
         { idempotencyKey },

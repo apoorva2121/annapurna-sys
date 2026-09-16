@@ -76,10 +76,13 @@ describe('the staff home screen', () => {
       'stock.receive',
       'stock.produce',
       'stock.count',
+      'kot.view',
+      'wastage.log',
     ]);
 
     expect(hrefs()).toEqual([
       '/costs',
+      '/kitchen',
       '/menu',
       '/menu/options',
       '/profile',
@@ -90,24 +93,37 @@ describe('the staff home screen', () => {
       '/stock/on-hand',
       '/stock/produce',
       '/stock/receive',
+      '/waste',
+      '/waste/summary',
     ]);
   });
 
   it('offers a chef the batch he makes and not the delivery he does not sign for', () => {
     // The grant that carries the most meaning in M05, visible at the level a person experiences
     // it: the chef's home screen has "Make a batch" on it and no way to record a delivery.
-    renderFor(['stock.view', 'stock.produce']);
+    // M09 adds two: a chef logs waste (`wastage.log`) and sees the summary (`stock.view`), and
+    // still cannot approve it — approval is a manager's, which is the separation of duties the
+    // module's whole control rests on.
+    renderFor(['stock.view', 'stock.produce', 'wastage.log']);
 
-    expect(hrefs()).toEqual(['/profile', '/stock/on-hand', '/stock/produce']);
+    expect(hrefs()).toEqual([
+      '/profile',
+      '/stock/on-hand',
+      '/stock/produce',
+      '/waste',
+      '/waste/summary',
+    ]);
   });
 
   it('offers kitchen staff the shelf and nothing that changes it', () => {
     // `stock.view` alone is what `seed/organization.yaml` grants kitchen_staff. Seeing what is on
     // the shelf is the job; changing what the book says it is, is not — and the home screen is
     // where that boundary first becomes visible to the person holding it.
+    // `stock.view` alone now also opens the waste *summary* — reading what was thrown away is
+    // seeing the shelf's history, not changing it. Logging still needs `wastage.log`.
     renderFor(['stock.view']);
 
-    expect(hrefs()).toEqual(['/profile', '/stock/on-hand']);
+    expect(hrefs()).toEqual(['/profile', '/stock/on-hand', '/waste/summary']);
   });
 
   it('offers a chef recipes and not rupees', () => {

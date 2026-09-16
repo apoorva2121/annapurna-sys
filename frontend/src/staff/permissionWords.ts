@@ -39,6 +39,8 @@ export const PERMISSION_WORDS: Record<Permission, string> = {
   'order.assign': 'Choose or change who serves a table',
   'kot.view': 'See the kitchen display: what each station is cooking and what is late',
   'kot.update': 'Move a ticket through the kitchen and ask for a dish to be remade',
+  'wastage.log': 'Record something thrown away — the system works out what it cost',
+  'wastage.approve': 'Sign off waste that needs a second person to check it',
 };
 
 export function wordsFor(code: string): string | null {

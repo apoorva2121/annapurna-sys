@@ -38,6 +38,8 @@ import RestaurantSettingsScreen from '@staff/screens/RestaurantSettingsScreen';
 import StaffListScreen from '@staff/screens/StaffListScreen';
 import StationsScreen from '@staff/screens/StationsScreen';
 import TaxRatesScreen from '@staff/screens/TaxRatesScreen';
+import WasteScreen from '@staff/screens/WasteScreen';
+import WasteSummaryScreen from '@staff/screens/WasteSummaryScreen';
 
 /**
  * The staff application's routes.
@@ -289,6 +291,25 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.KOT_VIEW}>
               <KitchenTicketScreen />
+            </RequirePermission>
+          }
+        />
+        {/* M09. Logging waste is a kitchen and storeroom act — a waiter holds neither permission.
+            The summary sits behind stock.view, which everyone in the kitchen has: seeing what was
+            thrown away is not the same power as throwing it away. */}
+        <Route
+          path="waste"
+          element={
+            <RequirePermission permission={Permission.WASTAGE_LOG}>
+              <WasteScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="waste/summary"
+          element={
+            <RequirePermission permission={Permission.STOCK_VIEW}>
+              <WasteSummaryScreen />
             </RequirePermission>
           }
         />

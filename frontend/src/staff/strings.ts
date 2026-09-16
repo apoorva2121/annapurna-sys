@@ -54,6 +54,9 @@ export const strings = {
     onHand: 'Stock on hand',
     receive: 'Record a delivery',
     produce: 'Make a batch',
+    kitchen: 'Kitchen',
+    logWaste: 'Log waste',
+    wasteSummary: 'Waste',
     count: 'Stock count',
   },
 
@@ -1037,6 +1040,47 @@ export const strings = {
       remakeHint: 'A few words. It goes on the record and nobody is blamed for it.',
       remakeSubmit: 'Remake it',
       remade: (reason: string) => `Being remade: ${reason}`,
+    },
+  },
+
+  // Logging waste, on a phone, one-handed, standing at a bin. `docs/waste-model.md`: if logging
+  // waste is slow it does not get logged and the module is fiction — so every word here is short
+  // and every step is a tap.
+  //
+  // No cost appears in any of these strings before the waste is logged. That is deliberate and it
+  // is the same rule as the blind cash count and the blind goods-receipt weight: a figure shown
+  // while somebody is deciding what to record is a figure some people record towards.
+  waste: {
+    title: 'Log waste',
+    loading: 'Loading…',
+    pickItem: 'What was thrown away?',
+    howMuch: (unit: string) => `How much? (${unit})`,
+    why: 'Why?',
+    logged: (reason: string) => `Logged: ${reason}`,
+    // Shown only after. This is the teaching half of the rule.
+    costHint: 'That is what it cost. Nobody is asked to know this — the system works it out.',
+    awaitingApproval: 'A manager will check this one.',
+    logAnother: 'Log something else',
+    stage: {
+      receiving: 'At the door',
+      storage: 'In storage',
+      prep: 'In prep',
+      service: 'In service',
+    },
+    summary: {
+      title: 'Waste',
+      loading: 'Working it out…',
+      empty: 'Nothing logged in this period. Waste appears here as it is recorded.',
+      total: 'Lost in this period',
+      range: (since: string, until: string) => `${since} to ${until}`,
+      events: (count: number) => (count === 1 ? '1 time' : `${String(count)} times`),
+      // The point of the whole report: not one number, but which stage to look at.
+      hint: 'Each stage has a different owner and a different fix. The biggest is where to start.',
+      stageHeading: 'Stage',
+      reasonHeading: 'Reason',
+      timesHeading: 'Times',
+      costHeading: 'Cost',
+      shareHeading: 'Share',
     },
   },
 
