@@ -137,6 +137,10 @@ class KotTicket(TimestampedUUIDMixin, Base):
     # between them is the measurement, so neither may ever overwrite the other.
     target_minutes: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     business_date: Mapped[date] = mapped_column(Date, nullable=False)
+    # M10: the order's allergy note, copied again when the round was sent. A second frozen copy on
+    # purpose — the ticket in a chef's hand is the warning that was actually printed, and a customer
+    # detached from the order afterwards must not blank a ticket already on the rail.
+    allergy_note: Mapped[str | None] = mapped_column(Text)
     revision: Mapped[int] = mapped_column(BigInteger, nullable=False)
     printed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

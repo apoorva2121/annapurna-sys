@@ -202,9 +202,16 @@ class TestSwitchingBranch:
         # exclusion alone would pass for an empty one.
         #
         # `kot.view` joined the set in M08 — a waiter watches the kitchen display and, lacking
-        # `kot.update`, cannot drive it.
+        # `kot.update`, cannot drive it. `customer.view` and `feedback.view` joined in M10, so a
+        # waiter can greet a regular by name and read how their own tables rated them.
+        #
+        # Worth keeping in mind for this test specifically: `customer.view` does **not** carry the
+        # organization. After the switch she reads the customers of the branch she switched *to*,
+        # which is the same rule that makes the switch meaningful at all.
         assert switched.permissions == frozenset(
             {
+                "customer.view",
+                "feedback.view",
                 "kot.view",
                 "menu.view",
                 "order.create",

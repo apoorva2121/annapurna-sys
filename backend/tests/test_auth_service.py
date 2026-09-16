@@ -123,8 +123,16 @@ class TestLogin:
         # display and cannot drive it. Being able to see that table six's mains are still
         # `preparing` is information; being able to declare them ready is a way to make the numbers
         # look better.
+        #
+        # M10 added `customer.view` and `feedback.view`, both from the P1 design and both for the
+        # same reason: `docs/customer-experience.md` puts the regular's card on the waiter's screen
+        # — "7th visit, usually orders Butter Chicken + Butter Naan, no onion/garlic" — and a rating
+        # is about a table this person served. Deliberately **not** `customer.manage`: editing
+        # somebody's details, and erasing them, are accountable acts that belong to a manager.
         assert result.permissions == frozenset(
             {
+                "customer.view",
+                "feedback.view",
                 "kot.view",
                 "menu.view",
                 "order.create",

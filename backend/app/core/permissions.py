@@ -133,6 +133,28 @@ class PermissionCode(StrEnum):
     WASTAGE_LOG = "wastage.log"
     WASTAGE_APPROVE = "wastage.approve"
 
+    # M10. All four already in `seed/organization.yaml`, so this module amends the design not at
+    # all — the third in a row, and the reason it keeps mattering is that the shipped catalogue must
+    # be a *subset* of that design, so a fifth code invented here would be changing the design from
+    # inside an implementation.
+    #
+    # **A waiter holds `customer.view` and `feedback.view`**, which is the design being right rather
+    # than generous: `docs/customer-experience.md` puts the regular's card on the waiter's screen -
+    # "7th visit, usually orders Butter Chicken + Butter Naan, no onion/garlic" - and a waiter who
+    # cannot see a customer cannot greet one. They hold neither `customer.manage` nor
+    # `complaint.manage`: editing somebody's details and owning a complaint are accountable acts.
+    #
+    # The kitchen roles hold none of the four. A chef sees grams, not diners; the allergy that must
+    # reach them reaches them on the ticket, copied when the customer was attached.
+    #
+    # What `customer.view` does **not** grant is the whole organization. A person sees the customers
+    # of the restaurant they are working in; handling a second branch is an assignment, which is
+    # M01's gesture and not a permission at all.
+    CUSTOMER_VIEW = "customer.view"
+    CUSTOMER_MANAGE = "customer.manage"
+    FEEDBACK_VIEW = "feedback.view"
+    COMPLAINT_MANAGE = "complaint.manage"
+
 
 class PermissionSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

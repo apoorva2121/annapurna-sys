@@ -29,6 +29,7 @@ A photographed table sticker is therefore worth the menu, which is already on th
 
 from __future__ import annotations
 
+import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -41,6 +42,21 @@ from app.core.security import ExpiredTokenError, InvalidTokenError
 
 _ALGORITHM = "HS256"
 _GUEST = "guest"
+
+# 128 bits of randomness, hex, no separators. Long enough that guessing one is not a strategy, short
+# enough to sit in a QR code that still scans from a table at arm's length.
+_SLUG_BYTES = 16
+
+
+def new_guest_slug() -> str:
+    """A table's public id.
+
+    Generated **Python-side**, like `id` and for the same reason ADR 0008 gives: the code that
+    creates a table is the code that needs to print its QR, and a server default is not known until
+    after the insert. The migration's column default exists only to backfill tables created before
+    M10 existed.
+    """
+    return secrets.token_hex(_SLUG_BYTES)
 
 
 class GuestScopeKind(StrEnum):

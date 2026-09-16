@@ -23,6 +23,11 @@ from app.core.enums import ConsentPurpose
 
 # The notice published in `docs/consent-notices.md`. Bump by adding a section there, never by
 # editing one.
+#
+# **There is no endpoint that serves this.** `frontend/src/guest/consentNotice.ts` carries the same
+# string beside the words a guest reads, and `tests/test_consent_notice.py` asserts the two match —
+# so a client already knows the current version by construction, and a route to ask for it would be
+# a second source of truth for a value that must have exactly one.
 CURRENT_NOTICE_VERSION = "2026-09-16.1"
 
 # The only language M10 can produce. The mechanism is built and the content is a person-shaped

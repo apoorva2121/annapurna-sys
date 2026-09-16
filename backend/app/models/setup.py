@@ -44,6 +44,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import TableStatus
+from app.core.guest_token import new_guest_slug
 from app.models.base import Base, TimestampedUUIDMixin
 
 _TABLE_STATUSES = ", ".join(f"'{member.value}'" for member in TableStatus)
@@ -114,7 +115,7 @@ class RestaurantTable(TimestampedUUIDMixin, Base):
     # the guest menu. `docs/security.md` treats a photographed QR as permanently public, so what it
     # grants is the document already hanging on the wall. Rotating it kills every photograph of the
     # old sticker.
-    guest_slug: Mapped[str] = mapped_column(Text, nullable=False)
+    guest_slug: Mapped[str] = mapped_column(Text, nullable=False, default=new_guest_slug)
     seats: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     # Live state, unlike everything else in this module. `reserved` is set by hand by a manager
     # taking a walk-in booking (M02 spec decision 3); there is no reservation system behind it and

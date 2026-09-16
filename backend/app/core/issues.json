@@ -955,6 +955,31 @@
       "number": 1191,
       "code": "stock.no_purchase_unit",
       "text": "This item is not bought by a separate unit, so it is counted in the unit the ledger holds."
+    },
+    {
+      "number": 1192,
+      "code": "customer.not_found",
+      "text": "That customer no longer exists."
+    },
+    {
+      "number": 1193,
+      "code": "customer.phone_taken",
+      "text": "Somebody with this number is already a customer here. Open their profile instead of making a second one."
+    },
+    {
+      "number": 1194,
+      "code": "customer.erased",
+      "text": "This person asked for their details to be erased, so nothing more can be recorded about them."
+    },
+    {
+      "number": 1195,
+      "code": "customer.already_erased",
+      "text": "Those details were already erased. There is nothing left to erase."
+    },
+    {
+      "number": 1196,
+      "code": "customer.preference_not_found",
+      "text": "That preference is already gone."
     }
   ]
 }

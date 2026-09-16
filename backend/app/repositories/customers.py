@@ -142,6 +142,19 @@ class CustomerPreferenceRepository(OrgScopedRepository[CustomerPreference]):
         # database does not guarantee.
         return cast("CursorResult[Any]", result).rowcount or 0
 
+    async def get_for_customer(
+        self, customer_id: uuid.UUID, preference_id: uuid.UUID
+    ) -> CustomerPreference | None:
+        """Scoped by the customer as well as by the id, so a preference id from another person's
+        profile finds nothing rather than being deleted from theirs."""
+        result = await self.session.scalars(
+            self.scoped().where(
+                CustomerPreference.id == preference_id,
+                CustomerPreference.customer_id == customer_id,
+            )
+        )
+        return result.first()
+
 
 class ConsentRepository(OrgScopedRepository[CustomerConsent]):
     model = CustomerConsent

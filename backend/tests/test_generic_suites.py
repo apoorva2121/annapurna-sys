@@ -34,6 +34,7 @@ from app.core.enums import EmploymentType, TableStatus, UserAccountStatus
 from app.core.permissions import CATALOGUE, permissions_for_role
 from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
+from app.models.customers import Customer, CustomerPreference
 from app.models.identity import Employee, UserAccount
 from app.models.inventory import StockCount, StockCountLine
 from app.models.kitchen import KotTicket, KotTicketLine
@@ -396,6 +397,13 @@ _VICTIM_PARAMETERS = frozenset(
         # else's waste, which is the one write in that module that exists to be a control.
         "reason_id",
         "event_id",
+        # M10, and the sixth. A customer is a name, a phone number and what somebody eats — the most
+        # personal data this product holds, and a competitor's most valuable asset. The victim row
+        # lives in the other *organization*, because a customer is organization-scoped: the branch
+        # rule inside one business is a narrower view test and lives in
+        # `tests/test_customer_endpoints.py`.
+        "customer_id",
+        "preference_id",
     }
 )
 
@@ -777,7 +785,27 @@ async def _victim_resources(
     )
     await session.flush()
 
+    victim_customer = Customer(
+        organization_id=tenant.organization.id,
+        home_restaurant_id=tenant.restaurant.id,
+        phone=f"9{uuid.uuid4().int % 10**9:09d}",
+        name="Victim Regular",
+    )
+    session.add(victim_customer)
+    await session.flush()
+    victim_preference = CustomerPreference(
+        organization_id=tenant.organization.id,
+        customer_id=victim_customer.id,
+        type="allergy",
+        value="Peanuts",
+        is_critical=True,
+    )
+    session.add(victim_preference)
+    await session.flush()
+
     return {
+        "customer_id": str(victim_customer.id),
+        "preference_id": str(victim_preference.id),
         "order_id": str(victim_order.id),
         "line_id": str(victim_line.id),
         "ticket_id": str(victim_ticket.id),

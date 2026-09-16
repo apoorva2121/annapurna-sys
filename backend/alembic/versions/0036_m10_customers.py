@@ -476,12 +476,25 @@ def upgrade() -> None:
         "(guest_token_hash IS NULL) = (guest_token_expires_at IS NULL)",
     )
 
+    # ---------------------------------------------------------------- the allergy, frozen twice
+    #
+    # `docs/modules.md` requires that allergy preferences surface to the kitchen, and the mechanism
+    # is deliberately dumb: attaching a customer **copies** their critical preferences onto the
+    # order, and sending a round copies that onto the ticket. Two frozen copies rather than a live
+    # join, because a preference deleted next week must not change what the kitchen was warned about
+    # on a ticket it has already cooked, and detaching a customer must not blank a ticket already on
+    # the rail. The kitchen's record of what it was told has to be the warning it received.
+    op.add_column("order", sa.Column("allergy_note", sa.Text(), nullable=True))
+    op.add_column("kot_ticket", sa.Column("allergy_note", sa.Text(), nullable=True))
+
     # ---------------------------------------------------------------- the FK M07 left for M10
     op.create_foreign_key("fk_order_customer", "order", "customer", ["customer_id"], ["id"])
 
 
 def downgrade() -> None:
     op.drop_constraint("fk_order_customer", "order", type_="foreignkey")
+    op.drop_column("kot_ticket", "allergy_note")
+    op.drop_column("order", "allergy_note")
     op.drop_constraint("ck_order_guest_token_pair", "order", type_="check")
     op.drop_index("ix_order_guest_token_hash", table_name="order")
     op.drop_column("order", "guest_token_expires_at")

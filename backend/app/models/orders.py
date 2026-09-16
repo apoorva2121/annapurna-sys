@@ -187,6 +187,12 @@ class Order(TimestampedUUIDMixin, Base):
     # M07 left this a bare column with a note saying "`customer` is M10's — the same arrangement
     # M05 used for `supplier_id`". This is M10, and migration 0036 adds the foreign key.
     customer_id: Mapped[uuid.UUID | None] = mapped_column(_uuid(), ForeignKey("customer.id"))
+    # M10: the customer's critical preferences — their allergies — **copied** onto the order at the
+    # moment the customer was attached, never joined. A preference deleted next week must not change
+    # what the kitchen was warned about on a ticket it has already cooked; the kitchen's record of
+    # what it was told has to be the warning it actually received. Same reasoning as M05's frozen
+    # batch costs and ADR 0011's frozen published metrics.
+    allergy_note: Mapped[str | None] = mapped_column(Text)
     waiter_employee_id: Mapped[uuid.UUID | None] = mapped_column(_uuid(), ForeignKey("employee.id"))
     covers: Mapped[int | None] = mapped_column(SmallInteger)
     # Split lineage: an order created by splitting another names where its lines came from.
