@@ -14,6 +14,7 @@ a log line.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import secrets
 import uuid
@@ -65,26 +66,49 @@ def _hasher() -> PasswordHasher:
     )
 
 
-def hash_password(password: str) -> str:
-    """Argon2id with a fresh random salt. The returned string carries its own parameters, so
-    raising the cost later does not invalidate existing hashes."""
+def _hash_blocking(password: str) -> str:
     return _hasher().hash(password)
 
 
-def verify_password(password: str, stored_hash: str | None) -> bool:
-    """False rather than an exception for every failure mode.
-
-    `stored_hash` is None for an invited-but-not-activated account, and can be malformed if a row
-    was written by hand. Both must deny the login quietly — raising here would turn a bad password
-    into a 500 that a caller retries, and would distinguish "no such account" from "wrong
-    password" by response code, which is the enumeration hole this module exists to close.
-    """
+def _verify_blocking(password: str, stored_hash: str | None) -> bool:
     if not stored_hash:
         return False
     try:
         return _hasher().verify(stored_hash, password)
     except (Argon2Error, InvalidHashError):
         return False
+
+
+async def hash_password(password: str) -> str:
+    """Argon2id with a fresh random salt. The returned string carries its own parameters, so
+    raising the cost later does not invalidate existing hashes.
+
+    **Async because argon2 is deliberately slow** — 150 to 300 ms at this configuration, which is
+    the point of it. Run on the event loop, that is 150 to 300 ms in which this process serves
+    nobody: P1-9, guardrail G-6, ratcheted since the 2026-09-11 audit and paid down here because
+    M08 is where it stops being theoretical. A kitchen display holds a connection open for a whole
+    service, and a block of that length is a visible stutter on a screen somebody is watching.
+
+    The *public* function is the async one, rather than leaving the blocking call and asking every
+    caller to wrap it. A rule that depends on remembering is a rule that gets forgotten once, and
+    once is all it takes: `_sign_in_one_of` already had the `to_thread` and the four other call
+    sites did not.
+    """
+    return await asyncio.to_thread(_hash_blocking, password)
+
+
+async def verify_password(password: str, stored_hash: str | None) -> bool:
+    """False rather than an exception for every failure mode.
+
+    `stored_hash` is None for an invited-but-not-activated account, and can be malformed if a row
+    was written by hand. Both must deny the login quietly — raising here would turn a bad password
+    into a 500 that a caller retries, and would distinguish "no such account" from "wrong
+    password" by response code, which is the enumeration hole this module exists to close.
+
+    Async for the reason `hash_password` is. Note the thread does not weaken the timing guarantee
+    the decoy hash exists for: the work is the same work, and it is still waited for.
+    """
+    return await asyncio.to_thread(_verify_blocking, password, stored_hash)
 
 
 def hash_refresh_token(raw_token: str) -> str:

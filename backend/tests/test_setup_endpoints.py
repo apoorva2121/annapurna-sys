@@ -81,7 +81,7 @@ async def _world(
         account = UserAccount(
             organization_id=organization.id,
             email=f"{role_code}@{slug}.test",
-            password_hash=hash_password(PASSWORD),
+            password_hash=await hash_password(PASSWORD),
             status=UserAccountStatus.ACTIVE,
         )
         session.add(account)

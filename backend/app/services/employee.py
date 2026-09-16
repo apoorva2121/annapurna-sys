@@ -203,7 +203,7 @@ class EmployeeService:
             organization_id=actor.organization_id,
             email=email,
             phone=phone,
-            password_hash=hash_password(password) if password else None,
+            password_hash=await hash_password(password) if password else None,
             # No password yet means invited, not active: the account exists and cannot be signed
             # in to until someone sets one.
             status=UserAccountStatus.ACTIVE if password else UserAccountStatus.INVITED,
@@ -422,7 +422,7 @@ class EmployeeService:
                 "employee.no_login", "That employee does not have a login.", status_code=400
             )
 
-        account.password_hash = hash_password(new_password)
+        account.password_hash = await hash_password(new_password)
         account.status = UserAccountStatus.ACTIVE
         # Somebody else now knows this password. The flag ends that the first time the account's
         # real owner signs in and changes it (P1-6).

@@ -333,7 +333,7 @@ async def _login(
         # and kitchen staff, and a seed that only carried emails would leave that path untested
         # against real data.
         phone=None if record.phone is None else normalise_identifier(record.phone),
-        password_hash=hash_password(password),
+        password_hash=await hash_password(password),
         status=UserAccountStatus.ACTIVE,
     )
     session.add(account)

@@ -68,7 +68,7 @@ async def _owner_at_a_restaurant_with_an_address(session: AsyncSession) -> Resta
     account = UserAccount(
         organization_id=organization.id,
         email="owner@spice-garden.test",
-        password_hash=hash_password(PASSWORD),
+        password_hash=await hash_password(PASSWORD),
         status=UserAccountStatus.ACTIVE,
     )
     session.add(account)

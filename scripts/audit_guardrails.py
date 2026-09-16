@@ -176,27 +176,31 @@ for name in root_binaries:
 
 # ---------------------------------------------------------------- G-6 and G-7 · ratchets
 #
-# **These two rules are not satisfied today and cannot be made so by this script.** Argon2 really
-# does run on the event loop (P1-9, deferred to measured load or M08), and `docs/security.md` really
-# does carry two tags across seventeen sections (G-7's sweep, never scheduled). Enforcing either
-# outright would make the build red on the day the gate shipped, and a red gate gets switched off
-# within a fortnight.
+# **G-6 was a ratchet and is now enforced.** Argon2 really did run on the event loop (P1-9), and
+# while that was true the honest middle was to measure the debt, write it down, and refuse to let it
+# grow - enforcing it outright would have made the build red on the day the gate shipped, and a red
+# gate gets switched off within a fortnight. M08 paid it down: `hash_password` and `verify_password`
+# are coroutines that hand the work to a thread, so there is no longer a spelling of either that a
+# caller can put on the loop. The check below therefore asks a different question - not "are there
+# more call sites than there were" but "does any call site skip the await" - and its baseline is nil.
 #
-# So they ratchet instead: the debt is measured, written down, and **not allowed to grow**. A new
-# argon2 call site or a new untagged control section fails the build; paying the debt down lets
-# somebody lower the baseline. That is the honest middle between "enforced" and "a wish", and it is
-# the only basis on which R9 can claim to have covered these two rows at all.
-print("\n=== G-6 / G-7: RATCHETS ON DEBT THAT MAY NOT GROW ===")
+# **G-7 is still a ratchet.** `docs/security.md` really does carry two tags across seventeen
+# sections (G-7's sweep, never scheduled), so its debt is measured, written down, and not allowed to
+# grow: a new untagged control section fails the build, and paying the debt down lets somebody lower
+# the baseline.
+print("\n=== G-6 / G-7: ARGON2 OFF THE LOOP, AND THE DEBT THAT MAY NOT GROW ===")
 
-# Measured 2026-09-13 by running this script. Lower them as the debt is paid; never raise them.
+# Measured by running this script. Lower it as the debt is paid; never raise it.
 #
-# The second was briefly set to 15, by subtracting the two tagged *lines* from the seventeen
-# headings. Both tags turned out to live in one section, so the real figure was 16 and the ratchet
-# reported a violation that was arithmetic rather than a regression. A baseline is measured, never
-# computed - which is the same mistake, in miniature, that the coverage gate made.
-ARGON2_CALLSITE_BASELINE = 8
+# It was briefly set to 15, by subtracting the two tagged *lines* from the seventeen headings. Both
+# tags turned out to live in one section, so the real figure was 16 and the ratchet reported a
+# violation that was arithmetic rather than a regression. A baseline is measured, never computed -
+# which is the same mistake, in miniature, that the coverage gate made.
 UNTAGGED_SECTION_BASELINE = 16
 
+# Both functions are coroutines since M08. An un-awaited call is a coroutine nobody runs, which
+# hashes no password and verifies nobody; wrapping one in `asyncio.run` or `to_thread` would be
+# putting the block back. Either way the rule is the same and it is greppable: await it.
 _ARGON2 = re.compile(r"(?<![A-Za-z_.])(verify_password|hash_password)\s*\(")
 
 argon2_sites = []
@@ -204,29 +208,23 @@ for path in walk("backend/app"):
     if path.endswith("core/security.py"):
         continue
     for number, line in enumerate(read(path).split("\n"), 1):
-        # A call already handed to a worker thread is exactly what G-6 asks for.
-        if _ARGON2.search(line) and "to_thread" not in line:
+        stripped = line.strip()
+        # Prose in this codebase names these functions constantly; only code counts. An import is
+        # not a call site either.
+        if stripped.startswith(("#", "*", "from ", "import ")):
+            continue
+        hit = _ARGON2.search(line)
+        if hit is not None and "await " not in line[: hit.start()]:
             argon2_sites.append("%s:%d" % (path, number))
 
-print(
-    "  argon2 call sites on the event loop: %d (baseline %d)"
-    % (len(argon2_sites), ARGON2_CALLSITE_BASELINE)
-)
-if len(argon2_sites) > ARGON2_CALLSITE_BASELINE:
+print("  argon2 calls that are not awaited: %d (must be none)" % len(argon2_sites))
+for hit in argon2_sites:
     flag(
         "HIGH",
         "G-6",
-        "%d argon2 call sites, up from a baseline of %d. P1-9 is deferred, but the debt may not "
-        "grow: put the new one behind asyncio.to_thread. Sites: %s"
-        % (len(argon2_sites), ARGON2_CALLSITE_BASELINE, ", ".join(argon2_sites)),
-    )
-elif len(argon2_sites) < ARGON2_CALLSITE_BASELINE:
-    flag(
-        "LOW",
-        "G-6",
-        "only %d argon2 call sites now, below the baseline of %d - lower "
-        "ARGON2_CALLSITE_BASELINE so the ratchet keeps its grip"
-        % (len(argon2_sites), ARGON2_CALLSITE_BASELINE),
+        "argon2 called without await, which either blocks the event loop for 150-300ms or never "
+        "runs at all. hash_password and verify_password are coroutines (P1-9, paid down in "
+        "M08): %s" % hit,
     )
 
 # G-7: a control paragraph that does not say whether it is built is finding D5 exactly -

@@ -498,17 +498,25 @@ not:
 | G-8 | no SQL construction under `app/services/`; no `*Repository` outside `app/api/deps.py` |
 | G-16 | no **tracked** binary at the repository root |
 | G-20 | every row of the guardrails table names an artefact that exists and a status the plan agrees with |
-| G-6 | **ratcheted** at 8 argon2 call sites on the event loop |
+| G-6 | **enforced since M08** — no argon2 call may skip its `await`. Was ratcheted at 8 call sites |
 | G-7 | **ratcheted** at 16 untagged sections in `docs/security.md` |
 | G-12, G-14 | their deferrals' triggers are checked: a committed Sentry DSN demands `before_send`; a done R4/R7 demands `make smoke-prod` |
 
-**Why two rules ratchet instead of being enforced.** Argon2 really does run on the event loop
-(P1-9, deferred to measured load or M08) and `docs/security.md` really does carry two tags across
-seventeen sections. Enforcing either outright would have made the gate red on the day it shipped,
-and a red gate is switched off within a fortnight — at which point twenty rules are wishes again
-with an extra file to maintain. A ratchet measures the debt, writes it down, and fails the build
-only when it *grows*. That is the honest middle, and it is recorded here rather than presented as
-full enforcement.
+**Why these rules ratcheted instead of being enforced.** Argon2 really did run on the event loop
+(P1-9) and `docs/security.md` really does carry two tags across seventeen sections. Enforcing
+either outright would have made the gate red on the day it shipped, and a red gate is switched off
+within a fortnight — at which point twenty rules are wishes again with an extra file to maintain. A
+ratchet measures the debt, writes it down, and fails the build only when it *grows*. That is the
+honest middle, and it was recorded here rather than presented as full enforcement.
+
+**P1-9 was paid on 2026-09-16, in M08.** The deferral said "measured load or M08", and M08 is the
+first module that holds a connection open for a whole service — a 150–300 ms block is a visible
+stutter on a kitchen display somebody is watching, rather than latency nobody attributes. The fix
+was not to wrap the five call sites: it was to delete the synchronous spelling. `hash_password` and
+`verify_password` are coroutines that hand the work to a thread, so a caller cannot put argon2 on
+the loop by forgetting something. The old arrangement depended on remembering, and exactly one of
+the five call sites had. `backend/tests/test_event_loop.py` asserts the property rather than the
+shape, so a future refactor that keeps the signature and loses the thread still fails.
 
 **Proved by planting, as this chunk required.** Five violations were planted one at a time, the
 script run, and each file restored byte for byte: a service building SQL, a route importing a

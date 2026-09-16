@@ -73,7 +73,7 @@ async def _one_person(session: AsyncSession) -> None:
     account = UserAccount(
         organization_id=organization.id,
         email=IDENTIFIER,
-        password_hash=hash_password(PASSWORD),
+        password_hash=await hash_password(PASSWORD),
         status=UserAccountStatus.ACTIVE,
     )
     session.add(account)

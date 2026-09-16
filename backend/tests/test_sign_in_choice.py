@@ -54,7 +54,7 @@ async def _person_in(
         organization_id=organization.id,
         email=email,
         phone=phone,
-        password_hash=hash_password(password),
+        password_hash=await hash_password(password),
         status=UserAccountStatus.ACTIVE,
     )
     session.add_all([restaurant, account])

@@ -18,7 +18,6 @@ import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from functools import lru_cache
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -73,16 +72,27 @@ def login_delay_seconds(failures: int) -> int:
     return int(min(2**exponent, settings.login_delay_max_seconds))
 
 
-@lru_cache
-def _decoy_hash() -> str:
+# Computed on first use and then kept. Not `@lru_cache`, because `hash_password` is a coroutine
+# since M08 moved argon2 off the event loop and caching one would cache the *awaitable*, which a
+# second caller cannot await. A plain module slot says what is meant: hash once, reuse for ever.
+_DECOY: str | None = None
+
+
+async def _decoy_hash() -> str:
     """Verified against when no account matches, so an unknown identifier costs the same time as a
     wrong password.
 
     Computed on first use rather than at import: hashing at import time would make this module
     unimportable without a full Settings (breaking any tooling that merely reads the routing
     table) and would put an argon2 hash on the critical path of every process start.
+
+    A race between two first callers costs one extra hash and nothing else — both compute the same
+    kind of value and either is equally useless to an attacker, so a lock here would buy nothing.
     """
-    return hash_password("a-password-nobody-has-and-nobody-needs-to-guess")
+    global _DECOY
+    if _DECOY is None:
+        _DECOY = await hash_password("a-password-nobody-has-and-nobody-needs-to-guess")
+    return _DECOY
 
 
 class InvalidCredentialsError(AppError):
@@ -236,7 +246,7 @@ class AuthService:
         if not matches:
             # Spend the time anyway. A fast rejection here is a timing oracle that undoes the
             # identical error message entirely.
-            verify_password(password, _decoy_hash())
+            await verify_password(password, await _decoy_hash())
             raise InvalidCredentialsError
         if len(matches) == 1:
             return await self._sign_in(matches[0], password, ip_address, device_info)
@@ -249,7 +259,7 @@ class AuthService:
         ip_address: str | None,
         device_info: dict[str, object] | None,
     ) -> LoginResult:
-        if not verify_password(password, account.password_hash):
+        if not await verify_password(password, account.password_hash):
             raise InvalidCredentialsError
 
         if account.status != UserAccountStatus.ACTIVE:
@@ -298,8 +308,10 @@ class AuthService:
         opened: list[UserAccount] = []
         for account in matches:
             # On a worker thread (G-6): one argon2 verification per match must not hold the event
-            # loop, which every other request in the process is waiting on.
-            matched = await asyncio.to_thread(verify_password, password, account.password_hash)
+            # loop, which every other request in the process is waiting on. This was the *only*
+            # call site that remembered to say so; since M08 `verify_password` is itself the
+            # coroutine, so there is no longer a version of it that can be called wrongly.
+            matched = await verify_password(password, account.password_hash)
             usable_account = account.status == UserAccountStatus.ACTIVE and (
                 account.locked_until is None or account.locked_until <= now
             )
@@ -732,14 +744,14 @@ class AuthService:
         if account is None:
             raise AppError("auth.no_login", "This employee has no login.", status_code=400)
 
-        if not verify_password(current_password, account.password_hash):
+        if not await verify_password(current_password, account.password_hash):
             raise AppError(
                 "auth.current_password_wrong",
                 "Your current password is not correct.",
                 status_code=400,
             )
 
-        account.password_hash = hash_password(new_password)
+        account.password_hash = await hash_password(new_password)
         # Whatever anyone else knew is now stale, so the requirement is satisfied.
         account.password_reset_required = False
         await self.session.flush()

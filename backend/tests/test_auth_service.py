@@ -64,7 +64,7 @@ async def _setup(
         organization_id=organization.id,
         email=email,
         phone=phone,
-        password_hash=hash_password(PASSWORD),
+        password_hash=await hash_password(PASSWORD),
         status=UserAccountStatus.ACTIVE,
     )
     session.add_all([restaurant, account])

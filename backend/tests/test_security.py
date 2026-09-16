@@ -27,41 +27,48 @@ from app.core.security import (
 
 
 class TestPasswordHashing:
-    def test_a_correct_password_verifies(self) -> None:
-        stored = hash_password("Staging#2026")
-        assert verify_password("Staging#2026", stored) is True
+    """Both functions are coroutines since M08 moved argon2 off the event loop (P1-9, G-6).
 
-    def test_a_wrong_password_does_not_verify(self) -> None:
-        stored = hash_password("Staging#2026")
-        assert verify_password("staging#2026", stored) is False
+    The awaits below are the *point*, not noise: there is no synchronous spelling of either
+    function any more, so no caller can put a 150-to-300 ms block on the loop by forgetting to
+    wrap one. `tests/test_event_loop.py` asserts that property directly.
+    """
 
-    def test_the_hash_is_argon2id(self) -> None:
+    async def test_a_correct_password_verifies(self) -> None:
+        stored = await hash_password("Staging#2026")
+        assert await verify_password("Staging#2026", stored) is True
+
+    async def test_a_wrong_password_does_not_verify(self) -> None:
+        stored = await hash_password("Staging#2026")
+        assert await verify_password("staging#2026", stored) is False
+
+    async def test_the_hash_is_argon2id(self) -> None:
         # Not argon2i and not argon2d: id is the hybrid OWASP recommends, and the M01 spec names.
-        assert hash_password("Staging#2026").startswith("$argon2id$")
+        assert (await hash_password("Staging#2026")).startswith("$argon2id$")
 
-    def test_the_same_password_hashes_differently_every_time(self) -> None:
+    async def test_the_same_password_hashes_differently_every_time(self) -> None:
         """Proves the salt is per-hash. Without it, identical passwords produce identical hashes
         and a stolen dump tells an attacker which accounts share a password."""
-        assert hash_password("Staging#2026") != hash_password("Staging#2026")
+        assert await hash_password("Staging#2026") != await hash_password("Staging#2026")
 
-    def test_the_plaintext_never_appears_in_the_hash(self) -> None:
-        assert "Staging#2026" not in hash_password("Staging#2026")
+    async def test_the_plaintext_never_appears_in_the_hash(self) -> None:
+        assert "Staging#2026" not in await hash_password("Staging#2026")
 
-    def test_verifying_against_a_corrupt_hash_is_false_rather_than_an_exception(self) -> None:
+    async def test_verifying_against_a_corrupt_hash_is_false_rather_than_an_exception(self) -> None:
         # A malformed row must deny the login, not return a 500 that someone retries.
-        assert verify_password("Staging#2026", "not-a-hash") is False
+        assert await verify_password("Staging#2026", "not-a-hash") is False
 
-    def test_verifying_against_no_hash_is_false(self) -> None:
+    async def test_verifying_against_no_hash_is_false(self) -> None:
         # An invited-but-not-activated account has password_hash NULL. It must not be loggable in.
-        assert verify_password("Staging#2026", None) is False
+        assert await verify_password("Staging#2026", None) is False
 
-    def test_a_long_password_is_accepted(self) -> None:
+    async def test_a_long_password_is_accepted(self) -> None:
         # bcrypt silently truncates at 72 bytes; argon2 does not. Asserted so a future swap back
         # cannot reintroduce that.
         long_password = "a" * 200 + "Z9!"
-        stored = hash_password(long_password)
-        assert verify_password(long_password, stored) is True
-        assert verify_password("a" * 200, stored) is False
+        stored = await hash_password(long_password)
+        assert await verify_password(long_password, stored) is True
+        assert await verify_password("a" * 200, stored) is False
 
 
 class TestRefreshTokens:
