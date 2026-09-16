@@ -50,6 +50,9 @@ logger = logging.getLogger(__name__)
 # `docs/schema.md` §5 since M05 — this module is what finally writes it.
 REF_TYPE = "wastage_event"
 
+# What `stock_movement.quantity_delta` and `wastage_event.quantity` hold: NUMERIC(14, 4).
+_LEDGER_PLACES = Decimal("0.0001")
+
 
 class WastageService:
     def __init__(self, session: AsyncSession, scope: TenantScope) -> None:
@@ -138,6 +141,7 @@ class WastageService:
         stock_item_id: uuid.UUID,
         wastage_reason_id: uuid.UUID,
         quantity: Decimal,
+        per_purchase_unit: bool = False,
         station_id: uuid.UUID | None = None,
         menu_item_variant_id: uuid.UUID | None = None,
         order_line_id: uuid.UUID | None = None,
@@ -156,6 +160,14 @@ class WastageService:
                 "wastage.quantity_invalid", "Say how much was thrown away.", status_code=422
             )
         reason = await self._reason(wastage_reason_id)
+        if per_purchase_unit:
+            # One conversion, on the server, through M05's own helper — so the ledger only ever
+            # sees base units (invariant 5) and no screen does the arithmetic.
+            quantity = await self._inventory.quantity_in_base_units(stock_item_id, quantity)
+        # Quantised either way, so the response does not depend on which path the quantity took.
+        # Without this, "500" and "500.0000" come back from the same endpoint for the same waste,
+        # and a client comparing quantities across two records finds they differ when they do not.
+        quantity = quantity.quantize(_LEDGER_PLACES)
         moment = occurred_at or datetime.now(UTC)
         business_date = await self._inventory.business_date_now(moment)
 

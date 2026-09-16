@@ -356,3 +356,52 @@ class TestReasons:
         response = await _log(api_client, token, item_id, reason["id"])
 
         assert response.status_code == 409, response.text
+
+
+class TestUnitsAreConvertedByTheServer:
+    """Backlog-issues B12e, applied to the screen whose whole promise is ten seconds.
+
+    A cook thinks in half a kilo of paneer, not five hundred grams. So the presets are labelled in
+    the item's purchase unit and the **server** converts — the same rule the receiving form follows,
+    after a delivery typed against the wrong unit repriced cabbage to ₹40 *per gram* and made a
+    plate of Veg Manchurian cost ₹5,207.
+    """
+
+    async def test_a_quantity_in_the_purchase_unit_is_converted(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """Half a kilo of paneer is 500 g at ₹0.36/g — ₹180.00. Typed as "0.5" with the flag set.
+
+        Without the conversion it would be half a *gram*, and the cook would see ₹0.18 for a tray
+        they had just binned — a number so wrong it teaches them the screen is lying.
+        """
+        item_id, token = await _stocked(db_session, api_client)
+        reason = await _reason(api_client, token, "EXPIRED", WastageStage.STORAGE)
+
+        response = await api_client.post(
+            WASTAGE,
+            json={
+                "stock_item_id": item_id,
+                "wastage_reason_id": reason["id"],
+                "quantity": "0.5",
+                "per_purchase_unit": True,
+            },
+            headers={**_auth(token), "Idempotency-Key": str(uuid.uuid4())},
+        )
+
+        assert response.status_code == 201, response.text
+        assert response.json()["quantity"] == "500.0000"
+        assert response.json()["cost_value"] == "180.00"
+
+    async def test_base_units_remain_the_default(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """A caller that knows grams keeps working, unchanged — `per_purchase_unit` defaults to
+        false, which is the old meaning."""
+        item_id, token = await _stocked(db_session, api_client)
+        reason = await _reason(api_client, token, "EXPIRED", WastageStage.STORAGE)
+
+        response = await _log(api_client, token, item_id, reason["id"], quantity="500")
+
+        assert response.json()["quantity"] == "500.0000"
+        assert response.json()["cost_value"] == "180.00"

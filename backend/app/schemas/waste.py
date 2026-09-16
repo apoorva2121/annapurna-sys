@@ -72,10 +72,16 @@ class WastageLogRequest(_Schema):
 
     stock_item_id: uuid.UUID
     wastage_reason_id: uuid.UUID
-    # Base units. The screen offers preset buttons (¼, ½, 1, 2) against the item's own purchase
-    # unit and converts before sending, because 12 kg typed as 12 g is how a plate of cabbage ends
-    # up costing more than a car (backlog-issues B12e).
     quantity: Decimal = Field(gt=0)
+    # **The screen never converts, and this is why** (backlog-issues B12e). A cook thinks in half a
+    # kilo of paneer, not five hundred grams, so the presets are labelled in the item's purchase
+    # unit and this flag says so — the server does the one conversion, exactly as the receiving
+    # form does. A quantity divided by a thousand in a browser is the float round-trip invariant 3
+    # forbids, and a unit mix-up on a form like this is what made a plate of cabbage cost more than
+    # a car.
+    #
+    # False is the old meaning — base units — so a caller that knows grams keeps working.
+    per_purchase_unit: bool = False
     station_id: uuid.UUID | None = None
     # Both optional and both a person's choice. The server never fills these in: M08 deliberately
     # does not book waste when a dish is remade, because it may be reheated rather than binned.

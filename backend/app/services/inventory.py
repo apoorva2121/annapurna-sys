@@ -320,6 +320,33 @@ class InventoryService:
 
     # ------------------------------------------------------------------ consume
 
+    async def quantity_in_base_units(self, stock_item_id: uuid.UUID, quantity: Decimal) -> Decimal:
+        """A quantity typed in the item's purchase unit, as the ledger holds it.
+
+        The quantity half of `_in_base_units`, for callers that carry no price. M09's waste form is
+        the first: a cook thinks in half a kilo of paneer, not five hundred grams, so the screen
+        labels its presets in the purchase unit and the **server** does the one conversion — the
+        same rule the receiving form follows, and for the same reason. A quantity divided by a
+        thousand in a browser is the float round-trip invariant 3 forbids.
+
+        There is no price to sanity-check here, so none of `_in_base_units`'s unusual-price
+        machinery applies; the two are deliberately not merged, because a shared function with half
+        its parameters unused is how the price check eventually gets skipped by the caller that
+        does have one.
+        """
+        item = await self._require_item(stock_item_id)
+        with_profile = await self.items.get_with_profile(item.id)
+        profile = with_profile.ingredient if with_profile is not None else None
+        if profile is None:
+            raise AppError(
+                "stock.no_purchase_unit",
+                f"{item.name} is not bought by a separate unit, so it is counted in "
+                f"{item.base_unit}.",
+                status_code=422,
+            )
+        base_quantity, _ = to_base_units(quantity, Decimal("0"), _dec(profile.purchase_to_base))
+        return base_quantity
+
     async def consume(
         self,
         actor: Actor | None,

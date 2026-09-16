@@ -180,6 +180,7 @@ async def log_wastage(
         stock_item_id=payload.stock_item_id,
         wastage_reason_id=payload.wastage_reason_id,
         quantity=payload.quantity,
+        per_purchase_unit=payload.per_purchase_unit,
         station_id=payload.station_id,
         menu_item_variant_id=payload.menu_item_variant_id,
         order_line_id=payload.order_line_id,
