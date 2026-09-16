@@ -55,25 +55,25 @@ _PERMISSIONS = (
         "code": "customer.view",
         "resource": "customer",
         "action": "view",
-        "description": "See a customer's profile: their number, how often they have been, what they usually order and how they like it. Held by a waiter as well as a manager, because greeting a regular by name and remembering they eat no onion is the whole point of keeping the record - asking a regular for the fourth time whether they eat onion is a small insult, and remembering is a small delight.",
+        "description": "See a customer's profile: their number, how often they have been, what they usually order and how they like it. Held by a waiter as well as a manager, because greeting a regular by name and remembering they eat no onion is the whole point of keeping the record - asking a regular for the fourth time whether they eat onion is a small insult, and remembering is a small delight. A person sees the customers of the restaurant they are working in, not the whole organization's.",
     },
     {
         "code": "customer.manage",
         "resource": "customer",
         "action": "manage",
-        "description": "Create and edit a customer, record their preferences, capture or withdraw a consent, export everything held about them, and erase them at their request. Erasure destroys every detail that names a person and keeps every order, because a bill is a financial record; it cannot be undone, and after it the same person returning is a new customer with no history.",
+        "description": "Create and edit a customer, record their preferences, capture or withdraw a consent, export everything held about them, and erase them at their request. Erasure destroys every detail that names a person and keeps every order, because a bill is a financial record; it cannot be undone, and afterwards the same person returning is a new customer with no history.",
     },
     {
         "code": "feedback.view",
         "resource": "feedback",
         "action": "view",
-        "description": "Read what diners said: the three questions from the QR form on the bill, per order and per day. Held by a waiter, deliberately - a rating is about a table they served, and a person who cannot see how their service landed cannot improve it. What nobody can do is submit feedback on their own tables: that needs the token printed on the guest's bill.",
+        "description": "Read what diners said: the three questions from the QR code on the bill, per order and per day. Held by a waiter deliberately - a rating is about a table they served, and somebody who cannot see how their service landed cannot improve it. What nobody can do is submit feedback on their own tables: that needs the token printed on the guest's bill.",
     },
     {
         "code": "complaint.manage",
         "resource": "complaint",
         "action": "manage",
-        "description": "Log a complaint, assign it an owner, and record what was actually done about it - a comp, a remake, a refund, an apology. A complaint with no owner is worse than no system, which is why assigning is part of the same permission as logging. Whether the customer came back afterwards is not typed by anybody: it is derived from the order ledger, because it is the only honest measure of recovery and it becomes true weeks after everyone has forgotten the complaint.",
+        "description": "Log a complaint, give it an owner, and record what was actually done about it - a comp, a remake, a refund, an apology. A complaint nobody owns is worse than no system, which is why assigning is part of the same permission as logging. Whether the customer came back afterwards is not typed by anybody: it is derived from the order ledger, because it is the only honest measure of recovery and it becomes true weeks after everyone has forgotten.",
     },
 )
 
