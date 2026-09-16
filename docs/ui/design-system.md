@@ -240,7 +240,7 @@ waiter's job for those thirty seconds.
 | Pattern | Where | Rules |
 |---|---|---|
 | Table map cell | `TableMapScreen` | The table code is large. **Status is a word** ("Free", "Occupied", "Bill asked for"), never only a border colour. A free table is a `button` that opens an order in one tap; an occupied one is a link to its order. A table that is out of service is disabled, not hidden, so the floor keeps its shape |
-| Order line row | `OrderScreen` | `quantity × dish`, options beneath, and the line's status as a word. The line total is right-aligned in tabular numerals. An unsent line comes off in one tap; a sent one asks why first. A cancelled or returned line stays on screen, struck through |
+| Order line row | `OrderScreen` | `quantity × dish`, options beneath, and the line's status as a word. **A change shows at once** (B11): a tapped dish appears as "Adding…" and a new count as "Saving…", with no price until the server prices it, and a refusal puts back what was there. The line total is right-aligned in tabular numerals. An unsent line comes off in one tap; a sent one asks why first. A cancelled or returned line stays on screen, struck through |
 | Money display | every screen | `formatINR` on the server's string, in tabular numerals, right-aligned. A reduction (discount, refund) uses `formatDelta`'s real minus sign. Show or hide a row by comparing to `"0.00"`; **never add two amounts on the client** (CLAUDE.md invariant 3) |
 | Quantity stepper | `staff/components/QuantityStepper.tsx` | Two buttons and the number, never a text box. Each button is named for what it changes ("One more Dal Makhani"). A button at its limit is disabled rather than hidden, so the row does not move under a thumb. The count is `aria-live="polite"` |
 

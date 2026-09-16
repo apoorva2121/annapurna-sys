@@ -193,11 +193,13 @@ function json(body: unknown, status = 200): Response {
 function renderScreen(
   current = order(),
   permissions: string[] = ['order.modify'],
+  // What a write answers. Backlog-issues B11 holds it open, or refuses it, to see the screen in between.
+  write: () => Promise<Response> = () => Promise.resolve(json(order([PENDING_LINE]), 201)),
 ): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
     const url = String(input);
     if (init?.method === 'POST' || init?.method === 'PATCH') {
-      return Promise.resolve(json(order([PENDING_LINE]), 201));
+      return write();
     }
     if (url.endsWith('/staff/waiters')) return Promise.resolve(json(WAITERS));
     if (url.endsWith('/staff/menu')) return Promise.resolve(json(MENU));
@@ -388,5 +390,50 @@ describe('who is serving the table', () => {
       employee_id: 'e2',
       reason: 'Shift ended',
     });
+  });
+});
+
+// Backlog-issues B11 (docs/ui/conventions.md: optimistic UI on the waiter surface). A dish appears
+// the moment it is tapped, marked as being added and with no price, because a price is the server's to
+// compute (CLAUDE.md invariant 3); a refusal takes it back off.
+describe('before the server answers', () => {
+  const never = (): Promise<Response> =>
+    new Promise<Response>(() => {
+      // held open
+    });
+
+  it('shows a tapped dish at once, as being added and with no price', async () => {
+    renderScreen(order(), ['order.modify'], never);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /Dal Makhani/ }));
+
+    expect(await screen.findByText('1 × Dal Makhani')).toBeInTheDocument();
+    expect(screen.getByText('Adding…')).toBeInTheDocument();
+    expect(screen.queryByText('₹493.50')).not.toBeInTheDocument();
+  });
+
+  it('takes the dish back off when the server refuses it', async () => {
+    renderScreen(order(), ['order.modify'], () =>
+      Promise.resolve(
+        json({ code: 'order.closed', message: 'This order is already settled.' }, 409),
+      ),
+    );
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /Dal Makhani/ }));
+
+    expect(await screen.findByText('This order is already settled.')).toBeInTheDocument();
+    expect(screen.queryByText('1 × Dal Makhani')).not.toBeInTheDocument();
+  });
+
+  it('shows the new count at once while it is saved', async () => {
+    renderScreen(order([PENDING_LINE]), ['order.modify'], never);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'One more Dal Makhani' }));
+
+    expect(await screen.findByText('2 × Dal Makhani')).toBeInTheDocument();
+    expect(screen.getByText('Saving…')).toBeInTheDocument();
   });
 });

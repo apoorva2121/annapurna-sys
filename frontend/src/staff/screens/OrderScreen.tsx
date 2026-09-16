@@ -368,8 +368,15 @@ function LineRow({
       <div className="flex items-start justify-between gap-3">
         <LineText line={line} names={names} off={off} />
         <div className="flex flex-col items-end gap-1">
-          <span className="font-mono tabular-nums">{formatINR(line.line_total)}</span>
-          {!off && reason === null && (
+          {line.provisional === undefined ? (
+            <span className="font-mono tabular-nums">{formatINR(line.line_total)}</span>
+          ) : (
+            // No price until the server has priced it (CLAUDE.md invariant 3, backlog-issues B11).
+            <span className="text-sm text-muted-foreground">
+              {line.provisional === 'adding' ? strings.orders.adding : strings.orders.saving}
+            </span>
+          )}
+          {!off && reason === null && line.provisional === undefined && (
             <Button variant="ghost" disabled={remove.isPending} onClick={takeOff}>
               {strings.orders.takeOff}
             </Button>
@@ -383,7 +390,7 @@ function LineRow({
           min={1}
           max={MAX_QUANTITY}
           label={names.dishes.get(line.menu_item_variant_id) ?? ''}
-          disabled={change.isPending}
+          disabled={change.isPending || line.provisional === 'adding'}
           onChange={(quantity) => {
             change.mutate({ order, lineId: line.id, quantity });
           }}

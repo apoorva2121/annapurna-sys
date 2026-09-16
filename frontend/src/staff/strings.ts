@@ -708,6 +708,9 @@ export const strings = {
       returned: 'Sent back',
     } as Record<string, string>,
     takeOff: 'Take off',
+    // Backlog-issues B11: a change shown before the server answers. `adding` is the one already
+    // defined below for the Add to order button — the same word, for a line not yet priced.
+    saving: 'Saving…',
     takeOffReason: 'Why is it coming off?',
     confirmTakeOff: 'Take it off',
     keep: 'Keep it',

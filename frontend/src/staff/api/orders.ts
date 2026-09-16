@@ -36,9 +36,12 @@ import type { RestaurantTable } from '@staff/api/setup';
  * overwriting it.
  *
  * **Each write puts the server's answer straight into the cache.** The server returns the whole
- * repriced order with its new version, so the screen updates the moment the response lands and the
- * next tap is made against the right version — without waiting on a refetch. That is short of the
- * fully optimistic UI `docs/ui/conventions.md` asks of the waiter surface, and the build log says so.
+ * repriced order with its new version, so the next tap is made against the right version — without
+ * waiting on a refetch.
+ *
+ * **Adding a dish, changing an unsent count and taking an unsent dish off show before the server
+ * answers** (backlog-issues B11, `docs/ui/conventions.md`). The line appears marked as being added
+ * or saved and with no price, because pricing is the server's; a refusal puts back what was there.
  */
 
 const ORDERS_KEY = ['staff', 'orders'] as const;
@@ -67,6 +70,8 @@ export type OrderLine = {
   cancel_reason: string | null;
   seq: number;
   modifiers: OrderLineModifier[];
+  /** Set only in the cache while a change waits for the server (B11); the server never sends it. */
+  provisional?: 'adding' | 'saving';
 };
 
 export type OrderDiscount = {
@@ -265,18 +270,40 @@ export function useInvoice(invoiceId: string | undefined): UseQueryResult<Invoic
  */
 function useOrderMutation<TVariables>(
   fn: (variables: TVariables) => Promise<Order>,
+  // What the order looks like the moment the change is made (B11). Omitted, the screen waits.
+  optimistic?: (current: Order, variables: TVariables) => Order,
 ): UseMutationResult<Order, Error, TVariables> {
   const client = useQueryClient();
-  return useMutation({
+  // The fourth argument is the context onMutate hands to onError: the order as it was before
+  // the optimistic write. Typed rather than left as the default `unknown`, so the rollback on
+  // line 302 is checked rather than trusted.
+  return useMutation<Order, Error, TVariables, Order | undefined>({
     mutationFn: fn,
+    onMutate: async (variables) => {
+      const orderId = orderIdOf(variables);
+      if (optimistic === undefined || orderId === null) {
+        return undefined;
+      }
+      const key = [...ORDERS_KEY, 'order', orderId];
+      // A refetch landing mid-change would overwrite the optimistic order with the old one.
+      await client.cancelQueries({ queryKey: key });
+      const before = client.getQueryData<Order>(key);
+      if (before !== undefined) {
+        client.setQueryData(key, optimistic(before, variables));
+      }
+      return before;
+    },
     onSuccess: (order) => {
       client.setQueryData([...ORDERS_KEY, 'order', order.id], order);
       void client.invalidateQueries({ queryKey: FLOOR_KEY });
     },
-    // A stale version means somebody else changed the order. Re-read it straight away, so the
-    // screen shows what the server holds and the next tap is made against the right version.
-    onError: (error, variables) => {
+    // A refusal puts back the order as it was. A stale version means somebody else changed it, so
+    // it is re-read straight away and the next tap is made against the right version.
+    onError: (error, variables, before) => {
       const orderId = orderIdOf(variables);
+      if (orderId !== null && before !== undefined) {
+        client.setQueryData([...ORDERS_KEY, 'order', orderId], before);
+      }
       if (error instanceof ApiClientError && error.code === 'order.stale' && orderId !== null) {
         void client.invalidateQueries({ queryKey: [...ORDERS_KEY, 'order', orderId] });
       }
@@ -369,17 +396,51 @@ export type AddLineInput = {
 };
 
 export function useAddLine(): UseMutationResult<Order, Error, AddLineInput> {
-  return useOrderMutation(({ order, variantId, quantity, modifierIds, instructions }) =>
-    apiPost<Order>(`/staff/orders/${order.id}/lines`, {
-      version: order.version,
-      menu_item_variant_id: variantId,
-      quantity,
-      modifier_ids: modifierIds,
-      ...(instructions === undefined || instructions === ''
-        ? {}
-        : { special_instructions: instructions }),
-    }),
+  return useOrderMutation(
+    ({ order, variantId, quantity, modifierIds, instructions }) =>
+      apiPost<Order>(`/staff/orders/${order.id}/lines`, {
+        version: order.version,
+        menu_item_variant_id: variantId,
+        quantity,
+        modifier_ids: modifierIds,
+        ...(instructions === undefined || instructions === ''
+          ? {}
+          : { special_instructions: instructions }),
+      }),
+    withLineBeingAdded,
   );
+}
+
+/** The order with the tapped dish on it, priced at nothing until the server prices it. */
+function withLineBeingAdded(current: Order, input: AddLineInput): Order {
+  const line: OrderLine = {
+    id: `adding-${String(current.lines.length)}`,
+    menu_item_variant_id: input.variantId,
+    quantity: input.quantity,
+    unit_price: '0.00',
+    line_subtotal: '0.00',
+    line_discount: '0.00',
+    tax_regime: '',
+    tax_rate: '0.0000',
+    tax_inclusive: false,
+    taxable_value: '0.00',
+    cgst_amount: '0.00',
+    sgst_amount: '0.00',
+    tax_amount: '0.00',
+    line_total: '0.00',
+    status: 'pending',
+    sent_at: null,
+    special_instructions: input.instructions ?? null,
+    cancel_reason: null,
+    seq: current.lines.length + 1,
+    modifiers: input.modifierIds.map((modifierId) => ({
+      id: `adding-${modifierId}`,
+      modifier_id: modifierId,
+      price_delta: '0.00',
+    })),
+    provisional: 'adding',
+  };
+  return { ...current, lines: [...current.lines, line] };
 }
 
 export function useChangeQuantity(): UseMutationResult<
@@ -387,10 +448,17 @@ export function useChangeQuantity(): UseMutationResult<
   Error,
   { order: Order; lineId: string; quantity: number }
 > {
-  return useOrderMutation(({ order, lineId, quantity }) =>
-    apiPatch<Order>(`/staff/orders/${order.id}/lines/${lineId}`, {
-      version: order.version,
-      quantity,
+  return useOrderMutation(
+    ({ order, lineId, quantity }) =>
+      apiPatch<Order>(`/staff/orders/${order.id}/lines/${lineId}`, {
+        version: order.version,
+        quantity,
+      }),
+    (current, { lineId, quantity }) => ({
+      ...current,
+      lines: current.lines.map((line) =>
+        line.id === lineId ? { ...line, quantity, provisional: 'saving' as const } : line,
+      ),
     }),
   );
 }
@@ -400,11 +468,18 @@ export function useRemoveLine(): UseMutationResult<
   Error,
   { order: Order; lineId: string; reason?: string }
 > {
-  return useOrderMutation(({ order, lineId, reason }) =>
-    apiPost<Order>(`/staff/orders/${order.id}/lines/${lineId}/remove`, {
-      version: order.version,
-      ...(reason === undefined ? {} : { reason }),
-    }),
+  return useOrderMutation(
+    ({ order, lineId, reason }) =>
+      apiPost<Order>(`/staff/orders/${order.id}/lines/${lineId}/remove`, {
+        version: order.version,
+        ...(reason === undefined ? {} : { reason }),
+      }),
+    // Only an unsent dish goes at once. A sent one is the kitchen's too, and waits for the server to
+    // record why it came off.
+    (current, { lineId, reason }) =>
+      reason === undefined
+        ? { ...current, lines: current.lines.filter((line) => line.id !== lineId) }
+        : current,
   );
 }
 
