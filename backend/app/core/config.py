@@ -69,6 +69,22 @@ class Settings(BaseSettings):
     login_ip_budget: int = 30
     login_ip_window_minutes: int = 10
 
+    # M10, docs/security.md: "Aggressive per-IP and per-token rate limits" on the guest surface,
+    # and the write side tighter than the read side because "feedback and order endpoints are
+    # write-limited to prevent spam and rating manipulation".
+    #
+    # The numbers are per address per minute, chosen against what a *table* does rather than what a
+    # server can serve. A party of six scanning the menu, browsing, opening a few dishes and asking
+    # for the bill is a few dozen reads over an hour; sixty a minute is far above that and far below
+    # what a scraper needs to be useful. Writes are a session, a rating and possibly a consent
+    # withdrawal — six a minute is generous for a person and useless for a bot trying to move a
+    # waiter's average.
+    #
+    # In-process, and therefore a floor rather than a defence (`app/core/rate_limit.py` says so at
+    # length, and `docs/backlog.md` carries the shared-store follow-up with its trigger).
+    guest_read_per_minute: int = 60
+    guest_write_per_minute: int = 6
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

@@ -980,6 +980,36 @@
       "number": 1196,
       "code": "customer.preference_not_found",
       "text": "That preference is already gone."
+    },
+    {
+      "number": 1197,
+      "code": "guest.session_expired",
+      "text": "This code is no longer valid. Please scan the QR code again."
+    },
+    {
+      "number": 1198,
+      "code": "guest.too_many_requests",
+      "text": "Too many requests from this connection. Please wait a moment and try again."
+    },
+    {
+      "number": 1199,
+      "code": "guest.order_not_found",
+      "text": "This bill is no longer available. Ask a member of staff."
+    },
+    {
+      "number": 1200,
+      "code": "feedback.order_not_found",
+      "text": "That order is no longer open, so feedback cannot be attached to it."
+    },
+    {
+      "number": 1201,
+      "code": "consent.nothing_to_withdraw",
+      "text": "There is nothing to turn off here."
+    },
+    {
+      "number": 1202,
+      "code": "consent.purpose_not_offered",
+      "text": "That is not something this form can ask for."
     }
   ]
 }

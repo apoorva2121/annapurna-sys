@@ -88,7 +88,14 @@ print("=== G-8: LAYERING ===")
 # the established pattern in every service here (the route commits, the service flushes). The first
 # version of this regex matched both and reported two honest lines, one of which predates R8b's
 # layering cleanup and survived it.
-_SQL_CALL = re.compile(r"(?<![A-Za-z_.])(select|insert|update|delete)\s*\(")
+#
+# **And `def` is excluded, added 2026-09-16 (M10).** `async def update(...)` is a *method named*
+# update — `CustomerService.update` was the first one in this codebase — and reporting it as a
+# service building SQL is a false positive. A guardrail that cries wolf is a guardrail somebody
+# starts skipping, which costs more than the rule is worth. The check is unchanged for every real
+# case: a service that writes `update(Customer)` still trips it, because the word is not preceded
+# by `def`.
+_SQL_CALL = re.compile(r"(?<![A-Za-z_.])(?<!def )(select|insert|update|delete)\s*\(")
 
 service_hits = []
 for path in walk("backend/app/services"):
@@ -113,9 +120,16 @@ _REPOSITORY_CLASS = re.compile(r"\b([A-Z][A-Za-z0-9]*Repository)\b")
 
 api_hits = []
 for path in walk("backend/app/api"):
-    if path.endswith("/deps.py"):
-        # deps.py is where the actor is assembled, which genuinely needs two repositories. It is
-        # the one exemption and it is named in G-8 itself.
+    if path.endswith("/deps.py") or path.endswith("/guest_deps.py"):
+        # A dependency chain is where a caller's identity is assembled, which genuinely needs a
+        # repository before any service exists to own it. `deps.py` has been the one exemption
+        # since R8b; `guest_deps.py` joins it in M10 for the same reason and no other.
+        #
+        # **There are two of them because ADR 0009 requires two.** "Separate route trees, separate
+        # middleware stacks, separate dependency chains. No handler is reachable from both." A
+        # single shared chain would satisfy this check and defeat the ADR, which would be a worse
+        # outcome than a second exemption — so the exemption is a list of exactly the files that
+        # assemble a caller, and both are named in G-8.
         continue
     for number, line in enumerate(read(path).split("\n"), 1):
         if _REPOSITORY_CLASS.search(line) and not line.strip().startswith("#"):

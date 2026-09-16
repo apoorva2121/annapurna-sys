@@ -22,17 +22,53 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from app.models.menu import MenuCategory, MenuItem, ModifierGroup
-from app.schemas.menu import (
+from app.schemas.guest import (
     GuestCategory,
     GuestItem,
     GuestMenuResponse,
+    GuestModifier,
+    GuestModifierGroup,
     GuestVariant,
+)
+from app.schemas.menu import (
     MenuItemVariantResponse,
     MenuTreeResponse,
     ModifierGroupResponse,
     StaffCategory,
     StaffItem,
 )
+
+
+def _guest_groups_of(item: MenuItem) -> list[GuestModifierGroup]:
+    """The same groups, in the shape a diner may see.
+
+    **Built separately from `_groups_of` on purpose.** ADR 0009: "some serialisation logic is
+    duplicated between staff and guest schemas — that duplication is the feature", and this is the
+    case that proves it. While the guest tree reused the staff builder, every modifier's `code` and
+    `is_active` travelled with it, three levels below the field anybody was checking.
+    """
+    out: list[GuestModifierGroup] = []
+    for link in item.modifier_links:
+        group: ModifierGroup = link.group
+        if not group.is_active:
+            continue
+        out.append(
+            GuestModifierGroup(
+                id=group.id,
+                name=group.name,
+                min_select=group.min_select,
+                max_select=group.max_select,
+                is_required=group.is_required,
+                modifiers=[
+                    GuestModifier(
+                        id=modifier.id, name=modifier.name, price_delta=modifier.price_delta
+                    )
+                    for modifier in group.modifiers
+                    if modifier.is_active
+                ],
+            )
+        )
+    return out
 
 
 def _groups_of(item: MenuItem, *, include_inactive: bool) -> list[ModifierGroupResponse]:
@@ -121,7 +157,8 @@ def guest_tree(version: int, categories: Sequence[MenuCategory]) -> GuestMenuRes
             if not item.is_active:
                 continue
             variants = [
-                GuestVariant(id=v.id, code=v.code, name=v.name, price=v.price)
+                # No `code`: `FULL` is a join key, not a label, and M03's own test file says so.
+                GuestVariant(id=v.id, name=v.name, price=v.price)
                 for v in item.variants
                 if v.is_active
             ]
@@ -140,7 +177,7 @@ def guest_tree(version: int, categories: Sequence[MenuCategory]) -> GuestMenuRes
                     serving_size=item.serving_size,
                     image_url=item.image_url,
                     variants=variants,
-                    modifier_groups=_groups_of(item, include_inactive=False),
+                    modifier_groups=_guest_groups_of(item),
                 )
             )
         if not items:

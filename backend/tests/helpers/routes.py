@@ -20,6 +20,7 @@ from typing import Any
 from fastapi import FastAPI
 
 from app.api.deps import PERMISSION_MARKER
+from app.core.rate_limit import RATE_LIMIT_MARKER
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,13 @@ class RouteInfo:
     path: str
     permissions: tuple[str, ...]
     name: str
+    # What the route answers with. Suite 5 walks this to prove a guest route cannot answer with a
+    # staff schema, and cannot reach one three levels down either.
+    response_model: Any = None
+    # The guest surface's analogue of a declared permission: a staff route declares what a person
+    # must hold, a guest route declares what an address may spend. Both are declared on the route
+    # rather than checked in a handler, for the reason `require_permission`'s docstring gives.
+    rate_limits: tuple[str, ...] = ()
 
     @property
     def key(self) -> str:
@@ -84,6 +92,22 @@ def _declared_permissions(dependant: Any) -> tuple[str, ...]:
     return tuple(found)
 
 
+def _declared_rate_limits(dependant: Any) -> tuple[str, ...]:
+    """Walk the whole dependency tree, the same way `_declared_permissions` does and for the same
+    reason: a limit nested one level deeper would otherwise read as absent."""
+    found: list[str] = []
+
+    def walk(node: Any) -> None:
+        for sub in getattr(node, "dependencies", []):
+            tier = getattr(getattr(sub, "call", None), RATE_LIMIT_MARKER, None)
+            if tier:
+                found.append(str(tier))
+            walk(sub)
+
+    walk(dependant)
+    return tuple(found)
+
+
 def _from_context(context: Any) -> list[RouteInfo]:
     methods = getattr(context, "methods", None) or set()
     path = getattr(context, "path", None) or getattr(context, "path_format", None)
@@ -91,9 +115,18 @@ def _from_context(context: Any) -> list[RouteInfo]:
     if not path or dependant is None:
         return []
     permissions = _declared_permissions(dependant)
+    rate_limits = _declared_rate_limits(dependant)
     name = str(getattr(context, "name", "") or "")
+    response_model = getattr(context, "response_model", None)
     return [
-        RouteInfo(method=method, path=str(path), permissions=permissions, name=name)
+        RouteInfo(
+            method=method,
+            path=str(path),
+            permissions=permissions,
+            name=name,
+            response_model=response_model,
+            rate_limits=rate_limits,
+        )
         for method in sorted(set(methods) - {"HEAD", "OPTIONS"})
     ]
 
@@ -116,3 +149,12 @@ def all_routes(app: FastAPI) -> list[RouteInfo]:
 
 def staff_routes(app: FastAPI) -> list[RouteInfo]:
     return [route for route in all_routes(app) if route.is_staff]
+
+
+def guest_routes(app: FastAPI) -> list[RouteInfo]:
+    """The mirror of `staff_routes`.
+
+    Suite 5 asserts it finds at least five, for the reason this file's own docstring was written
+    about: an enumerator that silently returns nothing turns every guarantee below it off at once.
+    """
+    return [route for route in all_routes(app) if route.is_guest]

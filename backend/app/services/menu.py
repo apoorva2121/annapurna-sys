@@ -37,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
 from app.core.errors import AppError, ConflictError, NotFoundError
+from app.core.tenancy import TenantScope
 from app.models.audit import AuditLog
 from app.models.menu import (
     MenuCategory,
@@ -55,6 +56,7 @@ from app.repositories.menu import (
     ModifierRepository,
 )
 from app.repositories.setup import StationRepository, TaxGroupRepository
+from app.repositories.tenancy import organization_of
 from app.schemas.menu import (
     AttachModifierGroupsRequest,
     BulkAttachRequest,
@@ -132,6 +134,31 @@ class MenuService:
         tree = self._tree(actor)
         version = await tree.menu_version()
         categories = await tree.load_tree(include_inactive=include_inactive)
+        return version, categories
+
+    async def load_guest_tree(self, restaurant_id: uuid.UUID) -> tuple[int, Sequence[MenuCategory]]:
+        """The same tree, for a realm that cannot construct an `Actor`.
+
+        **What is shared and what is not.** ADR 0009's duplication rule is about *serialisation* —
+        its own words are "some serialisation logic is duplicated between staff and guest schemas" —
+        so the loader is shared and the filter and the schemas are not. Duplicating the loader would
+        buy nothing and cost a second N+1 to get wrong.
+
+        There is no `include_inactive`: a diner never sees a deactivated dish, and a flag nobody can
+        set is a flag nobody can get wrong.
+
+        The organization is resolved here, in one query, because `MenuTreeRepository` takes a
+        `TenantScope` and a guest token deliberately carries no organization. **That is not the
+        token growing an `org` claim** — nothing a guest sends influences this lookup. It is the
+        server knowing something about its own restaurant, which it always has.
+        """
+        organization_id = await organization_of(self.session, restaurant_id)
+        if organization_id is None:
+            raise NotFoundError("restaurant.not_found", "That restaurant does not exist.")
+        scope = TenantScope(organization_id=organization_id, restaurant_id=restaurant_id)
+        tree = MenuTreeRepository(self.session, scope)
+        version = await tree.menu_version()
+        categories = await tree.load_tree(include_inactive=False)
         return version, categories
 
     # ------------------------------------------------------------------ categories

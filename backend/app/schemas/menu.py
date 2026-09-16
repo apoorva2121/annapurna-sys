@@ -160,41 +160,11 @@ class MenuCategoryListResponse(_Schema):
 # --------------------------------------------------------------------------- the tree
 
 
-class GuestVariant(_Schema):
-    """What a diner may see of a variant: what it is called and what it costs.
-
-    Not `prep_minutes` — a kitchen's standard time is an internal number, and a guest shown "11
-    minutes" will hold the restaurant to it.
-    """
-
-    id: uuid.UUID
-    code: str
-    name: str
-    price: Decimal
-
-
-class GuestItem(_Schema):
-    """A dish, as a diner sees it. No station (which is kitchen routing and, aggregated, tells a
-    competitor how the kitchen is laid out) and no internal codes."""
-
-    id: uuid.UUID
-    name: str
-    description: str | None
-    food_type: FoodType
-    # What a guest with an allergy reads (compliance-rules §A2): text, NULL when never asked.
-    allergen_statement: str | None = None
-    # §B1, for a restaurant the calorie rule covers.
-    calories_kcal: int | None = None
-    serving_size: str | None = None
-    image_url: str | None
-    variants: list[GuestVariant]
-    modifier_groups: list[ModifierGroupResponse]
-
-
-class GuestCategory(_Schema):
-    id: uuid.UUID
-    name: str
-    items: list[GuestItem]
+# The guest-facing schemas moved to `app/schemas/guest.py` in M10, and the move is the point rather
+# than tidying: ADR 0009 says a guest response must not be able to reach a staff schema, and suite 5
+# enforces that by *module*. While `GuestItem` lived here it carried the staff
+# `ModifierGroupResponse` — which has `code` and `is_active` on the group and on every modifier —
+# so a menu that carefully withheld `BUTTER_CHICKEN` handed over `EXTRA_CHEESE` one level down.
 
 
 class StaffItem(_Schema):
@@ -230,11 +200,6 @@ class MenuTreeResponse(_Schema):
 
     version: int
     categories: list[StaffCategory]
-
-
-class GuestMenuResponse(_Schema):
-    version: int
-    categories: list[GuestCategory]
 
 
 # --------------------------------------------------------------------------- write models

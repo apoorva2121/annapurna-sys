@@ -199,3 +199,69 @@ class TestTheStaffViewIsDifferent:
 
         assert len(tree.categories[0].items) == 1
         assert tree.categories[0].items[0].is_active is False
+
+
+# --------------------------------------------------------------------------- M10 regression
+#
+# Written before the fix, per CLAUDE.md. The tests above assert about the fields somebody thought to
+# look at — `test_a_guest_sees_no_internal_code_on_a_dish` checks the *dish* — and two internal
+# codes were reaching a guest anyway, three levels down. Nothing shipped them, because there was no
+# guest route until M10; routing the tree is exactly what would have.
+
+
+def _fields_everywhere(model: object, seen: set[type] | None = None) -> set[str]:
+    """Every field name reachable from a model, at any depth.
+
+    A rule that walks the graph does not have the failure mode a hand-written list has: it does not
+    need somebody to think of `code` on a modifier inside a group inside an item.
+    """
+    from typing import get_args
+
+    from pydantic import BaseModel
+
+    seen = set() if seen is None else seen
+    if not isinstance(model, type) or not issubclass(model, BaseModel) or model in seen:
+        return set()
+    seen.add(model)
+
+    names: set[str] = set(model.model_fields)
+
+    def walk(annotation: object) -> None:
+        names.update(_fields_everywhere(annotation, seen))
+        for argument in get_args(annotation):
+            walk(argument)
+
+    for field in model.model_fields.values():
+        walk(field.annotation)
+    return names
+
+
+def test_no_internal_code_reaches_a_guest_at_any_depth() -> None:
+    """`BUTTER_CHICKEN` is a join key, not a label — and so is `EXTRA_CHEESE`.
+
+    `GuestItem` used to carry the *staff* `ModifierGroupResponse`, which has `code` and `is_active`
+    on the group and on every modifier inside it, and `GuestVariant` carried a `code` of its own. A
+    menu that carefully withheld the dish's code handed over the modifier's.
+    """
+    from app.schemas.guest import GuestMenuResponse
+
+    reachable = _fields_everywhere(GuestMenuResponse)
+
+    assert "code" not in reachable
+    assert "is_active" not in reachable
+
+
+def test_a_guest_still_gets_the_modifier_choices_themselves() -> None:
+    """The fix removes the codes, not the feature. A guest still sees what they may choose, what it
+    costs and how many they may pick — which is everything needed to order."""
+    from app.schemas.guest import GuestModifier, GuestModifierGroup
+
+    assert set(GuestModifierGroup.model_fields) == {
+        "id",
+        "name",
+        "min_select",
+        "max_select",
+        "is_required",
+        "modifiers",
+    }
+    assert set(GuestModifier.model_fields) == {"id", "name", "price_delta"}

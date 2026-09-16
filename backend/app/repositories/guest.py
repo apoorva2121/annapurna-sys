@@ -27,13 +27,14 @@ from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import OrderLineStatus
+from app.core.errors import NotFoundError
 from app.core.guest_token import GuestScope
 from app.models.base import Base
 from app.models.customers import Customer, Feedback
 from app.models.menu import MenuItem, MenuItemVariant
 from app.models.orders import Order, OrderLine
 from app.models.setup import RestaurantTable
-from app.models.tenancy import Restaurant
+from app.repositories.tenancy import organization_of
 
 
 class GuestScopedRepository[ModelT: Base]:
@@ -199,10 +200,20 @@ class GuestCustomerRepository:
         self.session = session
         self.scope = scope
 
+    async def organization_id(self) -> uuid.UUID:
+        """The restaurant's organization, resolved server-side.
+
+        A guest token deliberately carries none — which organization a restaurant belongs to is how
+        a chain recognises a diner across branches, and it is none of a table's business. Nothing a
+        guest sends influences this lookup.
+        """
+        found = await organization_of(self.session, self.scope.restaurant_id)
+        if found is None:
+            raise NotFoundError("guest.order_not_found", "This bill is no longer available.")
+        return found
+
     async def find_or_create(self, phone: str) -> Customer:
-        organization_id = await self.session.scalar(
-            select(Restaurant.organization_id).where(Restaurant.id == self.scope.restaurant_id)
-        )
+        organization_id = await self.organization_id()
         existing = await self.session.scalars(
             select(Customer).where(
                 Customer.organization_id == organization_id, Customer.phone == phone

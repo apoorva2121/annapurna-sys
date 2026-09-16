@@ -17,14 +17,16 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import Iterator
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, get_args
 
 import jwt
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -57,7 +59,7 @@ from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, Tax
 from app.models.stock import IngredientProfile, Recipe, RecipeLine, StockItem
 from app.models.tenancy import Organization, Restaurant
 from app.models.waste import WastageEvent, WastageReason
-from tests.helpers.routes import RouteInfo, all_routes, staff_routes
+from tests.helpers.routes import RouteInfo, all_routes, guest_routes, staff_routes
 
 PASSWORD = "Staging#2026"  # noqa: S105
 
@@ -153,6 +155,158 @@ class TestEveryRouteDeclaresAPermission:
         # person reads it as "this path is intentionally public", which is worse than useless.
         keys = {route.key for route in all_routes(api)}
         assert not (_PUBLIC - keys), f"allow-list names routes that do not exist: {_PUBLIC - keys}"
+
+
+# --------------------------------------------------------------------------- suite 5
+
+# Fields a guest response may never contain, at any depth. Names rather than types, because the leak
+# is always somebody reusing a schema that happens to carry one.
+_FORBIDDEN_FIELDS = frozenset(
+    {
+        "cost",
+        "cost_value",
+        "unit_cost",
+        "margin",
+        "recipe",
+        "recipe_id",
+        "station",
+        "station_id",
+        "prep_minutes",
+        "employee_id",
+        "waiter_employee_id",
+        "reported_by",
+        "created_by",
+        "code",
+        "is_active",
+        "internal_note",
+        "organization_id",
+        "restaurant_id",
+    }
+)
+
+# What a guest response *may* carry that looks like money. Named here so that allowing each one is a
+# decision somebody made rather than a gap somebody left, and checked against the forbidden set
+# below so the two cannot quietly overlap.
+_ALLOWED_MONEY = frozenset(
+    {
+        "price",
+        "price_delta",
+        "line_total",
+        "subtotal",
+        "discount_total",
+        "charge_total",
+        "tax_total",
+        "round_off",
+        "grand_total",
+    }
+)
+
+_GUEST_SCHEMA_MODULE = "app.schemas.guest"
+
+
+def _reachable_models(model: type[BaseModel]) -> set[type[BaseModel]]:
+    """Every Pydantic model reachable from this one, including itself.
+
+    Walks annotations rather than fields' declared types alone, because a leak three levels down
+    inside a `list[...]` or an `X | None` is exactly the shape that gets missed by hand.
+    """
+    seen: set[type[BaseModel]] = set()
+
+    def walk(current: type[BaseModel]) -> None:
+        if current in seen:
+            return
+        seen.add(current)
+        for field in current.model_fields.values():
+            for candidate in _types_in(field.annotation):
+                if isinstance(candidate, type) and issubclass(candidate, BaseModel):
+                    walk(candidate)
+
+    walk(model)
+    return seen
+
+
+def _types_in(annotation: Any) -> Iterator[Any]:
+    yield annotation
+    for argument in get_args(annotation):
+        yield from _types_in(argument)
+
+
+class TestTheGuestSurfaceIsNarrow:
+    """Suite 5. ADR 0009's structural half, enforced over the real routing table.
+
+    The ADR's consequence is that "some serialisation logic is duplicated between staff and guest
+    schemas. **That duplication is the feature**". These tests are what make it a feature rather
+    than an aspiration: a guest route cannot answer with a staff schema, a guest schema cannot
+    reach one, and no guest route can be registered without a rate limit.
+    """
+
+    def test_what_a_guest_may_see_and_what_it_may_not_do_not_overlap(self) -> None:
+        """The allow-list is a claim, so it is checked.
+
+        `price` is what the guest pays and `cost` is what the dish cost the restaurant; the day
+        somebody adds one of the allowed names to the forbidden set, the forbidden set silently
+        stops meaning anything. This is the test that notices.
+        """
+        assert not (_ALLOWED_MONEY & _FORBIDDEN_FIELDS)
+
+    def test_the_enumerator_finds_the_guest_routes(self, api: FastAPI) -> None:
+        # The empty-enumerator failure, again: every test below passes vacuously against no routes.
+        assert len(guest_routes(api)) >= 5
+
+    def test_every_guest_route_answers_from_the_guest_schema_module(self, api: FastAPI) -> None:
+        wrong = [
+            f"{route.key} -> {route.response_model}"
+            for route in guest_routes(api)
+            if route.response_model is not None
+            and getattr(route.response_model, "__module__", "") != _GUEST_SCHEMA_MODULE
+        ]
+        assert not wrong, f"these guest routes answer with a schema from elsewhere: {wrong}"
+
+    def test_no_schema_a_guest_route_answers_with_reaches_a_staff_schema(
+        self, api: FastAPI
+    ) -> None:
+        """The leak is never in the top-level model.
+
+        It is three levels down, in something reused because it looked harmless.
+        """
+        outsiders: list[str] = []
+        for route in guest_routes(api):
+            model = route.response_model
+            if model is None or not isinstance(model, type) or not issubclass(model, BaseModel):
+                continue
+            for reachable in _reachable_models(model):
+                if reachable.__module__ != _GUEST_SCHEMA_MODULE:
+                    outsiders.append(
+                        f"{route.key} reaches {reachable.__module__}.{reachable.__name__}"
+                    )
+        assert not outsiders, (
+            "a guest response reaches a schema defined outside the guest module. That is how a "
+            f"field added for staff appears in a guest response: {sorted(set(outsiders))}"
+        )
+
+    def test_no_guest_response_carries_a_forbidden_field(self, api: FastAPI) -> None:
+        leaks: list[str] = []
+        for route in guest_routes(api):
+            model = route.response_model
+            if model is None or not isinstance(model, type) or not issubclass(model, BaseModel):
+                continue
+            for reachable in _reachable_models(model):
+                for name in reachable.model_fields:
+                    if name in _FORBIDDEN_FIELDS:
+                        leaks.append(f"{route.key}: {reachable.__name__}.{name}")
+        assert not leaks, f"guest responses carry staff fields: {sorted(set(leaks))}"
+
+    def test_every_guest_route_declares_a_rate_limit(self, api: FastAPI) -> None:
+        """`docs/security.md`: the guest surface is public and abusable, and the limit is declared
+        on the route for the same reason a permission is - so a test can see it."""
+        undeclared = [route.key for route in guest_routes(api) if not route.rate_limits]
+        assert not undeclared, f"these guest routes declare no rate limit: {undeclared}"
+
+    def test_no_guest_route_declares_a_permission(self, api: FastAPI) -> None:
+        """A permission on a guest route means somebody wired the staff dependency chain into the
+        guest one, which is the exact failure ADR 0009 is structured to prevent."""
+        wired = [route.key for route in guest_routes(api) if route.permissions]
+        assert not wired, f"these guest routes depend on the staff chain: {wired}"
 
 
 # --------------------------------------------------------------------------- fixtures

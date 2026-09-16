@@ -1,0 +1,1015 @@
+{
+  "_readme": "The issue catalogue (backlog-issues B12, owner decisions D11 and D12). Every error a person can meet: a permanent number, the stable code the frontend switches on (never shown), and plain words. A new issue takes the next free number; a retired number is never reused. Copied into the `issue` table by migration: a change here needs a migration declaring its ISSUES_FINGERPRINT (tests/test_issue_catalogue.py).",
+  "issues": [
+    {
+      "number": 1001,
+      "code": "auth.choice_expired",
+      "text": "That took too long. Please sign in again."
+    },
+    {
+      "number": 1002,
+      "code": "auth.current_password_wrong",
+      "text": "Your current password is not correct."
+    },
+    {
+      "number": 1003,
+      "code": "auth.locked",
+      "text": "This account is locked. Ask an owner or admin to unlock it."
+    },
+    {
+      "number": 1004,
+      "code": "auth.no_login",
+      "text": "This employee has no login."
+    },
+    {
+      "number": 1005,
+      "code": "auth.no_restaurant",
+      "text": "Your account is not set up for any restaurant yet. Ask your manager to assign you a role."
+    },
+    {
+      "number": 1006,
+      "code": "auth.required",
+      "text": "Please sign in."
+    },
+    {
+      "number": 1007,
+      "code": "auth.restaurant_not_available",
+      "text": "You do not work at that restaurant."
+    },
+    {
+      "number": 1008,
+      "code": "auth.session_invalid",
+      "text": "Please sign in again."
+    },
+    {
+      "number": 1009,
+      "code": "auth.token_expired",
+      "text": "Your session has expired."
+    },
+    {
+      "number": 1010,
+      "code": "auth.too_many_attempts",
+      "text": "Too many sign-in attempts from this network. Wait a few minutes and try again."
+    },
+    {
+      "number": 1011,
+      "code": "cash.adjustment_by_closer",
+      "text": "The person who closed a till cannot adjust its variance. Another manager has to."
+    },
+    {
+      "number": 1012,
+      "code": "cash.count_duplicate",
+      "text": "Each note or coin is counted once."
+    },
+    {
+      "number": 1013,
+      "code": "cash.payout_exceeds_till",
+      "text": "The till should hold ₹… , so ₹… cannot come out of it."
+    },
+    {
+      "number": 1014,
+      "code": "cash.session_closed",
+      "text": "This till is closed. A payout comes out of the open till."
+    },
+    {
+      "number": 1015,
+      "code": "cash.session_open",
+      "text": "A till is already open. Close it before opening another."
+    },
+    {
+      "number": 1016,
+      "code": "cash.session_still_open",
+      "text": "A till is adjusted after it is closed. While it is open, the count at close settles it."
+    },
+    {
+      "number": 1017,
+      "code": "cash_session.not_found",
+      "text": "That till session does not exist."
+    },
+    {
+      "number": 1018,
+      "code": "conflict.duplicate",
+      "text": "Somebody saved the same thing a moment ago. Reload to see it."
+    },
+    {
+      "number": 1019,
+      "code": "conflict.missing",
+      "text": "Something this refers to no longer exists. Reload and try again."
+    },
+    {
+      "number": 1020,
+      "code": "count_already_approved",
+      "text": "This count has already been approved."
+    },
+    {
+      "number": 1021,
+      "code": "count_not_draft",
+      "text": "A count can only be edited while it is a draft. A submitted count is fixed."
+    },
+    {
+      "number": 1022,
+      "code": "count_not_submitted",
+      "text": "A count must be submitted before it can be approved."
+    },
+    {
+      "number": 1023,
+      "code": "credit_note.line_not_on_invoice",
+      "text": "That dish is not on this invoice."
+    },
+    {
+      "number": 1024,
+      "code": "credit_note.more_than_billed",
+      "text": "Only … of that dish is left to credit on this invoice."
+    },
+    {
+      "number": 1025,
+      "code": "credit_note.not_found",
+      "text": "That credit note does not exist."
+    },
+    {
+      "number": 1026,
+      "code": "credit_note.nothing_to_credit",
+      "text": "Those dishes carried nothing on the bill, so there is nothing to credit."
+    },
+    {
+      "number": 1027,
+      "code": "credit_note.refund_exceeds",
+      "text": "A refund of ₹… is more than the ₹… this credit note reduces the bill by."
+    },
+    {
+      "number": 1028,
+      "code": "credit_note.refund_exceeds_received",
+      "text": "Invoice … has ₹… actually received, less earlier refunds, so a refund of ₹… cannot be given against it."
+    },
+    {
+      "number": 1029,
+      "code": "dining_area.has_tables",
+      "text": "Move or deactivate this area's … table(s) first. Tables are never deleted, so an order taken here last year still resolves."
+    },
+    {
+      "number": 1030,
+      "code": "dining_area.inactive",
+      "text": "… is deactivated, so it takes no new tables."
+    },
+    {
+      "number": 1031,
+      "code": "dining_area.name_taken",
+      "text": "This restaurant already has an area called …."
+    },
+    {
+      "number": 1032,
+      "code": "dining_area.not_found",
+      "text": "That dining area does not exist."
+    },
+    {
+      "number": 1033,
+      "code": "dining_area.reorder_incomplete",
+      "text": "The new order does not match what this restaurant has. Reload and try again."
+    },
+    {
+      "number": 1034,
+      "code": "employee.cannot_change_own_roles",
+      "text": "You cannot change your own roles. Ask someone more senior."
+    },
+    {
+      "number": 1035,
+      "code": "employee.cannot_deactivate_self",
+      "text": "You cannot deactivate your own account."
+    },
+    {
+      "number": 1036,
+      "code": "employee.code_taken",
+      "text": "Employee code … is already in use."
+    },
+    {
+      "number": 1037,
+      "code": "employee.login_taken",
+      "text": "That phone number or email is already in use."
+    },
+    {
+      "number": 1038,
+      "code": "employee.more_senior",
+      "text": "You cannot change someone more senior than you."
+    },
+    {
+      "number": 1039,
+      "code": "employee.no_login",
+      "text": "That employee does not have a login."
+    },
+    {
+      "number": 1040,
+      "code": "employee.not_found",
+      "text": "That employee was not found."
+    },
+    {
+      "number": 1041,
+      "code": "employee.role_too_senior",
+      "text": "You cannot grant the … role, because it is more senior than yours."
+    },
+    {
+      "number": 1042,
+      "code": "field.invalid",
+      "text": "This value is not valid."
+    },
+    {
+      "number": 1043,
+      "code": "field.invalid_date",
+      "text": "Enter a valid date."
+    },
+    {
+      "number": 1044,
+      "code": "field.invalid_time",
+      "text": "Enter a valid time."
+    },
+    {
+      "number": 1045,
+      "code": "field.not_a_number",
+      "text": "Enter a whole number."
+    },
+    {
+      "number": 1046,
+      "code": "goods_receipt.duplicate_item",
+      "text": "That delivery lists the same item twice. Put the whole quantity on one line."
+    },
+    {
+      "number": 1047,
+      "code": "goods_receipt.empty",
+      "text": "A delivery needs at least one line."
+    },
+    {
+      "number": 1048,
+      "code": "goods_receipt.invoice_already_booked",
+      "text": "Invoice … from this supplier was already booked on …. Booking it twice would double the stock it brought in."
+    },
+    {
+      "number": 1049,
+      "code": "goods_receipt.not_found",
+      "text": "That delivery does not exist here."
+    },
+    {
+      "number": 1050,
+      "code": "goods_receipt.price_required",
+      "text": "That item is not on the order, so the delivery has to say what it cost."
+    },
+    {
+      "number": 1051,
+      "code": "goods_receipt.supplier_required",
+      "text": "A delivery with no purchase order behind it has to say who it came from."
+    },
+    {
+      "number": 1052,
+      "code": "http.status",
+      "text": "The server gave an answer this screen did not expect. Try again in a moment."
+    },
+    {
+      "number": 1053,
+      "code": "idempotency.in_progress",
+      "text": "This request is still being processed. Wait a moment, then reload before trying again."
+    },
+    {
+      "number": 1054,
+      "code": "idempotency.key_invalid",
+      "text": "An Idempotency-Key is 16 to 128 letters, digits, dashes, dots, colons or underscores."
+    },
+    {
+      "number": 1055,
+      "code": "idempotency.key_missing",
+      "text": "This screen sent a request without its safety key. Reload the page and try again."
+    },
+    {
+      "number": 1056,
+      "code": "idempotency.key_required",
+      "text": "This action needs an Idempotency-Key header, created when the button was pressed."
+    },
+    {
+      "number": 1057,
+      "code": "idempotency.key_reused",
+      "text": "This Idempotency-Key was already used for a different request."
+    },
+    {
+      "number": 1058,
+      "code": "internal.error",
+      "text": "Something went wrong. Try again, and tell a manager if it keeps happening."
+    },
+    {
+      "number": 1059,
+      "code": "invalid_cost",
+      "text": "A unit cost cannot be negative."
+    },
+    {
+      "number": 1060,
+      "code": "invalid_movement_type",
+      "text": "… does not take stock out. Use an adjustment instead."
+    },
+    {
+      "number": 1061,
+      "code": "invalid_quantity",
+      "text": "A receipt must be for more than zero. To correct a mistake, record an adjustment."
+    },
+    {
+      "number": 1062,
+      "code": "invoice.already_cancelled",
+      "text": "Invoice … is already cancelled."
+    },
+    {
+      "number": 1063,
+      "code": "invoice.cancel_window_closed",
+      "text": "Invoice … was issued on business day …. After its own day, a reduction is a credit note."
+    },
+    {
+      "number": 1064,
+      "code": "invoice.cancelled",
+      "text": "Invoice … is cancelled, so there is nothing on it to credit."
+    },
+    {
+      "number": 1065,
+      "code": "invoice.has_credit_notes",
+      "text": "Invoice … already has a credit note against it, so it cannot be cancelled as though it had been issued in error."
+    },
+    {
+      "number": 1066,
+      "code": "invoice.not_found",
+      "text": "That invoice does not exist."
+    },
+    {
+      "number": 1067,
+      "code": "invoice.till_closed",
+      "text": "The cash on invoice … went into a till that has already been counted. Cancelling it now would change that count."
+    },
+    {
+      "number": 1068,
+      "code": "menu_category.code_taken",
+      "text": "A category with code … already exists. Codes are permanent, so pick another."
+    },
+    {
+      "number": 1069,
+      "code": "menu_category.has_active_items",
+      "text": "… still has … active …. Move or deactivate them first."
+    },
+    {
+      "number": 1070,
+      "code": "menu_category.not_found",
+      "text": "That category does not exist."
+    },
+    {
+      "number": 1071,
+      "code": "menu_category.reorder_incomplete",
+      "text": "The new order does not match what this restaurant has. Reload and try again."
+    },
+    {
+      "number": 1072,
+      "code": "menu_item.code_taken",
+      "text": "A dish with code … already exists. The code is how recipes and the starter library find this dish, so it is permanent — pick another."
+    },
+    {
+      "number": 1073,
+      "code": "menu_item.not_found",
+      "text": "That dish does not exist."
+    },
+    {
+      "number": 1074,
+      "code": "menu_item_variant.code_taken",
+      "text": "… already has a … variant."
+    },
+    {
+      "number": 1075,
+      "code": "menu_item_variant.last_active",
+      "text": "That is the only variant this dish can be ordered as. Deactivate the dish itself, or add another variant first."
+    },
+    {
+      "number": 1076,
+      "code": "menu_item_variant.not_found",
+      "text": "That variant does not exist."
+    },
+    {
+      "number": 1077,
+      "code": "menu_item_variant.unavailable",
+      "text": "… is not available."
+    },
+    {
+      "number": 1078,
+      "code": "modifier.code_taken",
+      "text": "… already has a … option."
+    },
+    {
+      "number": 1079,
+      "code": "modifier.not_found",
+      "text": "That option does not exist."
+    },
+    {
+      "number": 1080,
+      "code": "modifier_group.code_taken",
+      "text": "A modifier group with code … already exists."
+    },
+    {
+      "number": 1081,
+      "code": "modifier_group.max_below_min",
+      "text": "A group cannot allow … choices while requiring …."
+    },
+    {
+      "number": 1082,
+      "code": "modifier_group.not_found",
+      "text": "That modifier group does not exist."
+    },
+    {
+      "number": 1083,
+      "code": "modifier_group.required_needs_one",
+      "text": "A required group must ask for at least one choice, or there is no answer that satisfies it."
+    },
+    {
+      "number": 1084,
+      "code": "network.unreachable",
+      "text": "Could not reach the server. Check the connection and try again."
+    },
+    {
+      "number": 1085,
+      "code": "no_current_recipe",
+      "text": "… has no current recipe, so there is nothing to make it from."
+    },
+    {
+      "number": 1086,
+      "code": "no_items",
+      "text": "A count needs at least one item to count."
+    },
+    {
+      "number": 1087,
+      "code": "not_a_preparation",
+      "text": "… is an ingredient, not a preparation. Receive it rather than make it."
+    },
+    {
+      "number": 1088,
+      "code": "order.counter",
+      "text": "Order … is a counter order; nobody serves it at a table."
+    },
+    {
+      "number": 1089,
+      "code": "order.discount_exceeds_bill",
+      "text": "A discount on this order is now larger than what it comes off. Remove the discount first."
+    },
+    {
+      "number": 1090,
+      "code": "order.empty",
+      "text": "Order … has nothing on it."
+    },
+    {
+      "number": 1091,
+      "code": "order.final",
+      "text": "Order … is … and cannot change."
+    },
+    {
+      "number": 1092,
+      "code": "order.not_found",
+      "text": "That order does not exist."
+    },
+    {
+      "number": 1093,
+      "code": "order.not_sent",
+      "text": "Nothing on order … has gone to the kitchen."
+    },
+    {
+      "number": 1094,
+      "code": "order.not_settled",
+      "text": "Only a settled order's invoice can be cancelled."
+    },
+    {
+      "number": 1095,
+      "code": "order.nothing_to_send",
+      "text": "Order … has nothing new for the kitchen."
+    },
+    {
+      "number": 1096,
+      "code": "order.split_everything",
+      "text": "That moves every dish, which would leave nothing on this order."
+    },
+    {
+      "number": 1097,
+      "code": "order.stale",
+      "text": "Somebody changed this order after you opened it. Reload it and try again."
+    },
+    {
+      "number": 1098,
+      "code": "order.waiter_not_eligible",
+      "text": "That person cannot serve tables here. Choose someone who takes orders at this restaurant."
+    },
+    {
+      "number": 1099,
+      "code": "order.waiter_taken",
+      "text": "… is already serving order …. A manager can move it to you."
+    },
+    {
+      "number": 1100,
+      "code": "order.waiter_unchanged",
+      "text": "That person is already serving this order."
+    },
+    {
+      "number": 1101,
+      "code": "order_charge.not_found",
+      "text": "That charge is not on this order."
+    },
+    {
+      "number": 1102,
+      "code": "order_charge.not_gst",
+      "text": "A charge is part of the meal and is taxed under GST, not a state tax."
+    },
+    {
+      "number": 1103,
+      "code": "order_discount.exceeds_base",
+      "text": "A discount of ₹… cannot come off ₹…. A discount cannot exceed what it is taken from."
+    },
+    {
+      "number": 1104,
+      "code": "order_discount.not_found",
+      "text": "That discount is not on this order."
+    },
+    {
+      "number": 1105,
+      "code": "order_line.already_removed",
+      "text": "That dish is already off the bill."
+    },
+    {
+      "number": 1106,
+      "code": "order_line.already_sent",
+      "text": "That dish has gone to the kitchen. Take it off and add it again instead."
+    },
+    {
+      "number": 1107,
+      "code": "order_line.duplicate_modifier",
+      "text": "Each option can be chosen once."
+    },
+    {
+      "number": 1108,
+      "code": "order_line.modifier_not_offered",
+      "text": "… does not offer that option."
+    },
+    {
+      "number": 1109,
+      "code": "order_line.modifier_selection",
+      "text": "… : … needs …."
+    },
+    {
+      "number": 1110,
+      "code": "order_line.negative",
+      "text": "Those options take … below zero."
+    },
+    {
+      "number": 1111,
+      "code": "order_line.not_found",
+      "text": "That dish is not on this order."
+    },
+    {
+      "number": 1112,
+      "code": "order_line.reason_required",
+      "text": "That dish has gone to the kitchen, so taking it off needs a reason."
+    },
+    {
+      "number": 1113,
+      "code": "permission.denied",
+      "text": "You do not have access to this."
+    },
+    {
+      "number": 1114,
+      "code": "purchase_order.closed",
+      "text": "… is … and cannot take another delivery."
+    },
+    {
+      "number": 1115,
+      "code": "purchase_order.duplicate_item",
+      "text": "That order lists the same item twice. Put the whole quantity on one line."
+    },
+    {
+      "number": 1116,
+      "code": "purchase_order.empty",
+      "text": "An order needs at least one line."
+    },
+    {
+      "number": 1117,
+      "code": "purchase_order.not_cancellable",
+      "text": "… is …. An order that has been delivered against cannot be cancelled — the stock is already on the shelf."
+    },
+    {
+      "number": 1118,
+      "code": "purchase_order.not_draft",
+      "text": "… has already been sent, so its lines cannot change. Cancel it and raise another if the order was wrong."
+    },
+    {
+      "number": 1119,
+      "code": "purchase_order.not_found",
+      "text": "That purchase order does not exist at this restaurant."
+    },
+    {
+      "number": 1120,
+      "code": "purchase_order.not_sent",
+      "text": "… has not been sent yet, so nothing can have arrived against it. Send it first, or book this as a market purchase with no order."
+    },
+    {
+      "number": 1121,
+      "code": "purchase_order.reason_required",
+      "text": "Cancelling an order needs a reason. It is a commitment somebody is withdrawing."
+    },
+    {
+      "number": 1122,
+      "code": "purchase_order.sequence_exhausted",
+      "text": "This restaurant has reached the last purchase-order number this format can hold. Widening it changes how every existing number sorts, so it needs a migration rather than a retry."
+    },
+    {
+      "number": 1123,
+      "code": "reason_required",
+      "text": "An adjustment needs a reason. It is the only movement nobody observed."
+    },
+    {
+      "number": 1124,
+      "code": "recipe.cycle",
+      "text": "That would make a preparation contain itself: … ."
+    },
+    {
+      "number": 1125,
+      "code": "recipe.duplicate_component",
+      "text": "The same ingredient is listed twice. Combine the quantities into one line."
+    },
+    {
+      "number": 1126,
+      "code": "recipe.not_a_preparation",
+      "text": "… is an ingredient. Only a preparation is made from a recipe."
+    },
+    {
+      "number": 1127,
+      "code": "recipe.not_found",
+      "text": "That recipe does not exist."
+    },
+    {
+      "number": 1128,
+      "code": "recipe.owner_required",
+      "text": "A recipe belongs to exactly one of: a dish variant, a preparation it makes, or a modifier. This one names …."
+    },
+    {
+      "number": 1129,
+      "code": "recipe.too_deep",
+      "text": "Recipes may nest … levels deep. This one goes further: … ."
+    },
+    {
+      "number": 1172,
+      "code": "recipe.unchanged",
+      "text": "Nothing has changed in this recipe, so there is no new version to save."
+    },
+    {
+      "number": 1130,
+      "code": "recipe.unknown_component",
+      "text": "A recipe line points at something that is not a stock item."
+    },
+    {
+      "number": 1131,
+      "code": "request.invalid",
+      "text": "Some of the details entered are not valid. Each field says what to fix."
+    },
+    {
+      "number": 1132,
+      "code": "request.rejected",
+      "text": "That value is not allowed here."
+    },
+    {
+      "number": 1133,
+      "code": "restaurant.bad_currency",
+      "text": "… is not a currency code. Use three letters, such as 'INR'."
+    },
+    {
+      "number": 1134,
+      "code": "restaurant.gstin_required",
+      "text": "A tax invoice has to carry the restaurant's GSTIN (CGST Rules, Rule 46). The owner can add it in settings."
+    },
+    {
+      "number": 1135,
+      "code": "restaurant.not_found",
+      "text": "This restaurant no longer exists."
+    },
+    {
+      "number": 1136,
+      "code": "restaurant.setting_not_nullable",
+      "text": "… cannot be cleared. Send a value, or leave the field out."
+    },
+    {
+      "number": 1137,
+      "code": "restaurant.stale",
+      "text": "Somebody changed these settings after you opened them. Reload to see what they saved, then make your change again."
+    },
+    {
+      "number": 1138,
+      "code": "restaurant.unknown_timezone",
+      "text": "… is not a known timezone. Use an IANA name such as 'Asia/Kolkata'."
+    },
+    {
+      "number": 1139,
+      "code": "restaurant_not_found",
+      "text": "This restaurant no longer exists."
+    },
+    {
+      "number": 1140,
+      "code": "role.not_found",
+      "text": "One of those roles does not exist."
+    },
+    {
+      "number": 1141,
+      "code": "seed.not_local",
+      "text": "Refusing to seed demo data when ENV=…. Every seeded login uses a password committed to this repository; creating them outside local would hand an owner account to anyone who can read the source."
+    },
+    {
+      "number": 1142,
+      "code": "self_approval",
+      "text": "A count must be approved by somebody other than the person who counted it."
+    },
+    {
+      "number": 1143,
+      "code": "service_charge.already_added",
+      "text": "This order already carries a service charge."
+    },
+    {
+      "number": 1144,
+      "code": "service_charge.disabled",
+      "text": "This restaurant does not charge a service charge. The owner can enable one."
+    },
+    {
+      "number": 1145,
+      "code": "settlement.no_payment",
+      "text": "A bill is settled by at least one payment."
+    },
+    {
+      "number": 1146,
+      "code": "settlement.payment_time",
+      "text": "A payment cannot be received before the order was placed or after now."
+    },
+    {
+      "number": 1147,
+      "code": "settlement.payments_do_not_match",
+      "text": "The payments come to ₹… and the bill is ₹…."
+    },
+    {
+      "number": 1148,
+      "code": "station.code_taken",
+      "text": "This restaurant already has a station …. Codes are permanent because the menu routes dishes by them."
+    },
+    {
+      "number": 1149,
+      "code": "station.not_found",
+      "text": "That kitchen station does not exist."
+    },
+    {
+      "number": 1150,
+      "code": "stock_count_not_found",
+      "text": "That stock count does not exist here."
+    },
+    {
+      "number": 1151,
+      "code": "stock_item.code_taken",
+      "text": "A stock item with code … already exists. The code is how recipes and the starter library find it, so it is permanent — pick another."
+    },
+    {
+      "number": 1152,
+      "code": "stock_item.not_found",
+      "text": "That stock item does not exist at this restaurant."
+    },
+    {
+      "number": 1153,
+      "code": "stock_item.profile_required",
+      "text": "An ingredient needs a purchase unit, a conversion to base units and a shelf life."
+    },
+    {
+      "number": 1154,
+      "code": "stock_item.wrong_profile",
+      "text": "… is a preparation, so it has no purchase unit or shelf life in days."
+    },
+    {
+      "number": 1155,
+      "code": "stock_item_not_found",
+      "text": "That stock item does not exist at this restaurant."
+    },
+    {
+      "number": 1170,
+      "code": "stock_receipt.no_purchase_unit",
+      "text": "This item is not bought by a separate unit, so a delivery of it is counted in the unit the ledger holds."
+    },
+    {
+      "number": 1171,
+      "code": "stock_receipt.unusual_price",
+      "text": "That price is far from what this item has been costing, which is usually the unit rather than the price. Check both, then confirm it."
+    },
+    {
+      "number": 1156,
+      "code": "supplier.inactive",
+      "text": "… is no longer an active supplier here. Reactivate them before ordering."
+    },
+    {
+      "number": 1157,
+      "code": "supplier.name_taken",
+      "text": "… is already a supplier here. Two rows for one business cannot be summed, so the variance report would understate what they owe you."
+    },
+    {
+      "number": 1158,
+      "code": "supplier.not_found",
+      "text": "That supplier does not exist at this restaurant."
+    },
+    {
+      "number": 1159,
+      "code": "table.code_taken",
+      "text": "This restaurant already has a table …."
+    },
+    {
+      "number": 1160,
+      "code": "table.inactive",
+      "text": "Table … is deactivated."
+    },
+    {
+      "number": 1161,
+      "code": "table.not_being_cleared",
+      "text": "Table … is … , not being cleared."
+    },
+    {
+      "number": 1162,
+      "code": "table.not_found",
+      "text": "That table does not exist."
+    },
+    {
+      "number": 1163,
+      "code": "table.order_open",
+      "text": "Table … still has order … open. Settle or cancel it first."
+    },
+    {
+      "number": 1164,
+      "code": "table.out_of_service",
+      "text": "Table … is out of service."
+    },
+    {
+      "number": 1165,
+      "code": "tax.no_rate",
+      "text": "… has no tax rate in force on …. The owner needs to set one before it can be sold."
+    },
+    {
+      "number": 1166,
+      "code": "tax_group.back_dated",
+      "text": "A rate cannot start before today (… ). Tax already charged and reported must not move; set a future date instead."
+    },
+    {
+      "number": 1167,
+      "code": "tax_group.code_taken",
+      "text": "A tax group with code … already exists. Codes are permanent, so pick another — or add a new rate to the existing group instead."
+    },
+    {
+      "number": 1168,
+      "code": "tax_group.not_found",
+      "text": "That tax group does not exist."
+    },
+    {
+      "number": 1169,
+      "code": "tax_group.rate_already_scheduled",
+      "text": "… already has a rate starting on …. Two rates of one group cannot overlap — pick a date before that one, or remove it first."
+    },
+    {
+      "number": 1173,
+      "code": "kot.not_found",
+      "text": "That kitchen ticket does not exist."
+    },
+    {
+      "number": 1174,
+      "code": "kot.finished",
+      "text": "Ticket … is … and cannot change. A dish that has to be cooked again is a remake, which the kitchen records with a reason."
+    },
+    {
+      "number": 1175,
+      "code": "kot.out_of_order",
+      "text": "Ticket … is …, so that is not the next step. The kitchen goes new, acknowledged, preparing, ready — one step at a time, and never backwards."
+    },
+    {
+      "number": 1176,
+      "code": "kot.served_is_the_floors",
+      "text": "A dish is served from the order screen, by whoever carried it to the table. The kitchen marks it ready; the floor marks it served."
+    },
+    {
+      "number": 1177,
+      "code": "kot.line_not_found",
+      "text": "That dish is not on this ticket."
+    },
+    {
+      "number": 1178,
+      "code": "kot.line_finished",
+      "text": "That dish is no longer on the rail and cannot change."
+    },
+    {
+      "number": 1179,
+      "code": "kot.line_status",
+      "text": "A dish goes to preparing, then to ready."
+    },
+    {
+      "number": 1180,
+      "code": "kot.line_out_of_order",
+      "text": "That dish is already being cooked."
+    },
+    {
+      "number": 1181,
+      "code": "kot.remake_reason",
+      "text": "Say why it is being remade. The reason is how the kitchen learns which dishes come back and why."
+    },
+    {
+      "number": 1182,
+      "code": "kot.unroutable",
+      "text": "One of these dishes has no kitchen station any more. Reload the menu and try again."
+    },
+    {
+      "number": 1183,
+      "code": "wastage.not_found",
+      "text": "That waste record does not exist."
+    },
+    {
+      "number": 1184,
+      "code": "wastage.reason_not_found",
+      "text": "That reason does not exist. Pick one from the list, or ask an owner to add it."
+    },
+    {
+      "number": 1185,
+      "code": "wastage.reason_inactive",
+      "text": "… is no longer offered. Pick another reason."
+    },
+    {
+      "number": 1186,
+      "code": "wastage.reason_code_taken",
+      "text": "A reason with code … already exists. Codes are permanent, so pick another — or reactivate the existing one."
+    },
+    {
+      "number": 1187,
+      "code": "wastage.quantity_invalid",
+      "text": "Say how much was thrown away."
+    },
+    {
+      "number": 1188,
+      "code": "wastage.already_approved",
+      "text": "That has already been approved."
+    },
+    {
+      "number": 1189,
+      "code": "wastage.approver_is_reporter",
+      "text": "Somebody else has to approve waste you logged yourself. That is the point of approval: a second person looked."
+    },
+    {
+      "number": 1190,
+      "code": "wastage.range_invalid",
+      "text": "That date range runs backwards. Check the two dates."
+    },
+    {
+      "number": 1191,
+      "code": "stock.no_purchase_unit",
+      "text": "This item is not bought by a separate unit, so it is counted in the unit the ledger holds."
+    },
+    {
+      "number": 1192,
+      "code": "customer.not_found",
+      "text": "That customer no longer exists."
+    },
+    {
+      "number": 1193,
+      "code": "customer.phone_taken",
+      "text": "Somebody with this number is already a customer here. Open their profile instead of making a second one."
+    },
+    {
+      "number": 1194,
+      "code": "customer.erased",
+      "text": "This person asked for their details to be erased, so nothing more can be recorded about them."
+    },
+    {
+      "number": 1195,
+      "code": "customer.already_erased",
+      "text": "Those details were already erased. There is nothing left to erase."
+    },
+    {
+      "number": 1196,
+      "code": "customer.preference_not_found",
+      "text": "That preference is already gone."
+    },
+    {
+      "number": 1197,
+      "code": "guest.session_expired",
+      "text": "This code is no longer valid. Please scan the QR code again."
+    },
+    {
+      "number": 1198,
+      "code": "guest.too_many_requests",
+      "text": "Too many requests from this connection. Please wait a moment and try again."
+    },
+    {
+      "number": 1199,
+      "code": "guest.order_not_found",
+      "text": "This bill is no longer available. Ask a member of staff."
+    },
+    {
+      "number": 1200,
+      "code": "feedback.order_not_found",
+      "text": "That order is no longer open, so feedback cannot be attached to it."
+    },
+    {
+      "number": 1201,
+      "code": "consent.nothing_to_withdraw",
+      "text": "There is nothing to turn off here."
+    },
+    {
+      "number": 1202,
+      "code": "consent.purpose_not_offered",
+      "text": "That is not something this form can ask for."
+    }
+  ]
+}
