@@ -957,19 +957,42 @@ wastage_reason                                   -- lookup: rows carry policy, s
 wastage_event
   restaurant_id, stock_item_id NN FK→stock_item, stock_batch_id FK→stock_batch
   wastage_reason_id   uuid NN FK→wastage_reason
-  quantity            numeric(14,4) NN
+  quantity            numeric(14,4) NN           -- base units (invariant 5); CHECK > 0
   cost_value          numeric(12,2) NN           -- computed; never asked of the person logging
   occurred_at NN, business_date NN
   reported_by         uuid NN FK→employee
-  shift_id            uuid FK→shift
+  shift_id            uuid                       -- NO FK: `shift` is M12's, like cash_session's
   station_id          uuid FK→station
   menu_item_variant_id uuid FK→menu_item_variant -- when a specific dish caused it
   order_line_id       uuid FK→order_line         -- returns / remakes
   approved_by         uuid FK→employee
+  approved_at         timestamptz                -- added by M09: an approval is a person AND a
+                                                 -- time, paired by CHECK, or it cannot be audited
   note                text
   IX (restaurant_id, business_date)
   IX (restaurant_id, stock_item_id, business_date)
+  IX (restaurant_id, order_line_id)              -- M10 reads this: a returned dish is a waste
+                                                 -- event and a CX signal at once
 ```
+
+### What migration 0033 added beyond the sketch above
+
+**`approved_at`, paired with `approved_by` by a CHECK.** The sketch recorded who approved and not
+when, and an approval with no time cannot be audited — approval is the control standing between an
+expensive reason code and somebody logging theft as waste.
+
+**`cost_value` is NOT NULL, and that is load-bearing rather than tidy.** `docs/waste-model.md` says
+never to ask the person logging what it cost, and to show the rupee value only *afterwards* because
+showing it first suppresses honest reporting. NOT NULL means no "fill the cost in later" path can
+exist, so the rule cannot be dropped by a future service method.
+
+**`shift_id` carries no foreign key.** `shift` is M12's table and nothing waits for a roster to
+record that something was thrown away — the same shape `cash_session.shift_id` has had since M07. A
+test asserts the absence, so the day M12 lands somebody is told to add the constraint.
+
+**`requires_photo` is stored and not enforced**, tagged `[planned: M11]`. `seed/operations.yaml`
+sets it on six of twelve reasons and is right to, but `attachment` is M11's table, and a flag
+nothing can satisfy would leave a cook unable to record the waste in front of them.
 
 Every `wastage_event` writes a paired `stock_movement` of type `wastage` in the same transaction.
 Never one without the other.

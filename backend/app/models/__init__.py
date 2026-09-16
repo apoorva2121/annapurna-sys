@@ -58,6 +58,7 @@ from app.models.stock import (
     StockItem,
 )
 from app.models.tenancy import Organization, Restaurant
+from app.models.waste import WastageEvent, WastageReason
 
 __all__ = [
     "AuditLog",
@@ -114,4 +115,6 @@ __all__ = [
     "TaxRate",
     "UserAccount",
     "UserSession",
+    "WastageEvent",
+    "WastageReason",
 ]

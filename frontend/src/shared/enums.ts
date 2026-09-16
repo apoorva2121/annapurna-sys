@@ -219,6 +219,22 @@ export const OrderLineStatus = {
 export type OrderLineStatus = (typeof OrderLineStatus)[keyof typeof OrderLineStatus];
 
 /**
+ * Where in the restaurant the money leaked (M09). Four stages, never lumped: each has a different
+ * owner, a different fix and a different size, and lumping them produces a number nobody can act
+ * on. Prep is the biggest and the least measured, and the only one with a same-day fix.
+ *
+ * Staff meals and comps are deliberately absent — they are separate movement types and are not
+ * waste. Counted as waste they look like theft and poison every variance number.
+ */
+export const WastageStage = {
+  RECEIVING: 'receiving',
+  STORAGE: 'storage',
+  PREP: 'prep',
+  SERVICE: 'service',
+} as const;
+export type WastageStage = (typeof WastageStage)[keyof typeof WastageStage];
+
+/**
  * One round of dishes at one station (M08). The path is one-way — `new → acknowledged → preparing
  * → ready` — and `served` is not the kitchen's to set: a dish is served when it reaches a table,
  * which the kitchen cannot see. The KDS renders it and never sends it.

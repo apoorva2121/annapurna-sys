@@ -236,6 +236,25 @@ class OrderLineStatus(StrEnum):
     RETURNED = "returned"
 
 
+class WastageStage(StrEnum):
+    """Where in the restaurant the money leaked (M09, `docs/waste-model.md`).
+
+    Four stages, never lumped: each has a different owner, a different fix and a different size,
+    and "lumping them produces a number nobody can act on" is the sentence this enum exists for.
+    Prep is the biggest and the least measured — 4 to 8% of food cost — and the only one with a
+    same-day fix.
+
+    What is **not** here is as important: `staff_meal` and `complimentary` are separate movement
+    types from M05 and are not waste. Indian restaurants feed staff, always; counted as waste it
+    looks like theft and poisons every variance number.
+    """
+
+    RECEIVING = "receiving"
+    STORAGE = "storage"
+    PREP = "prep"
+    SERVICE = "service"
+
+
 class KotTicketStatus(StrEnum):
     """One round of dishes at one station, from the printer to the pass (M08).
 
