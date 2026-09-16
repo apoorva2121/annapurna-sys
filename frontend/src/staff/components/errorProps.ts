@@ -48,15 +48,17 @@ export function fieldErrors(error: unknown): Record<string, string> {
 export function errorProps(
   error: unknown,
   labels: Readonly<Record<string, string>> = {},
-): { title: string; code: string | undefined; lines: string[] } {
+): { title: string; issue: number | undefined; lines: string[] } {
   if (error instanceof ApiClientError) {
     return {
       title: error.message,
-      code: error.code,
+      // The number a person quotes (D12). A form mistake shows only its sentences: the fields say
+      // what to fix, and there is nothing to report.
+      issue: error.code === 'request.invalid' ? undefined : error.issue,
       lines: problems(error).map(
         (problem) => `${labels[problem.field] ?? humanise(problem.field)}: ${problem.message}`,
       ),
     };
   }
-  return { title: 'Something went wrong.', code: undefined, lines: [] };
+  return { title: 'Something went wrong.', issue: undefined, lines: [] };
 }

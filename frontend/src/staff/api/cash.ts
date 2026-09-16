@@ -8,6 +8,7 @@ import {
 
 import { apiGet, apiPost } from '@shared/api';
 import type { CashMovementType, CashSessionStatus } from '@shared/enums';
+import type { Person } from '@staff/api/people';
 
 /**
  * The till: open with a float, pay out, count at close, adjust afterwards.
@@ -31,6 +32,9 @@ export type CashMovement = {
   reason: string;
   recorded_by: string;
   occurred_at: string;
+  recorded_by_person?: Person | null;
+  /** Recorded by the person who closed the till (D16). */
+  by_closer?: boolean;
 };
 
 export type TillSummary = {
@@ -49,6 +53,9 @@ export type TillSummary = {
   adjustments: string;
   expected_cash: string;
   adjusted_variance: string | null;
+  /** Decision D13: who closed and who adjusted, by name. Absent from an older API. */
+  closed_by_person?: Person | null;
+  adjusted_by?: (Person & { by_closer: boolean })[];
 };
 
 export type Till = TillSummary & { counts: CashCount[]; movements: CashMovement[] };

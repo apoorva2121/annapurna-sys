@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactElement, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { ApiClientError } from '@shared/api';
 import { Button } from '@shared/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select';
 import { Field } from '@staff/components/Field';
@@ -10,6 +11,7 @@ import { QueryState } from '@staff/components/QueryState';
 import { strings } from '@staff/strings';
 import { useReceiveStock } from '@staff/api/inventory';
 import { useStockItems } from '@staff/api/stock';
+import { priceLabel, quantityLabel, typedIn } from '@staff/purchaseUnits';
 
 /**
  * Record a delivery. One primary action, and it is the most important write in the product.
@@ -33,13 +35,16 @@ export default function StockReceiveScreen(): ReactElement {
   const items = useStockItems('ingredient');
 
   const [stockItemId, setStockItemId] = useState('');
+  // What the boxes are labelled in, and whether the server must convert (backlog-issues B12e).
+  const { unit, perPurchaseUnit } = typedIn(items.data?.items ?? [], stockItemId);
   const [quantity, setQuantity] = useState('');
   const [unitCost, setUnitCost] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [storage, setStorage] = useState('');
 
-  function onSubmit(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
+  // A delivery is sent twice at most: once as typed, and once more when the person has read the
+  // sanity check and meant the price after all (backlog-issues B12e).
+  function send(confirmPrice: boolean): void {
     receive.mutate(
       {
         stock_item_id: stockItemId,
@@ -47,6 +52,9 @@ export default function StockReceiveScreen(): ReactElement {
         unit_cost: unitCost,
         expiry_date: expiryDate === '' ? null : expiryDate,
         storage_location: storage === '' ? null : storage,
+        per_purchase_unit: perPurchaseUnit,
+        // Only ever true on the second attempt, after the sentence below has been read.
+        confirm_unusual_price: confirmPrice,
       },
       {
         onSuccess: () => {
@@ -55,6 +63,15 @@ export default function StockReceiveScreen(): ReactElement {
       },
     );
   }
+
+  function onSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    send(false);
+  }
+
+  const unusualPrice =
+    receive.error instanceof ApiClientError &&
+    receive.error.code === 'stock_receipt.unusual_price';
 
   return (
     <form onSubmit={onSubmit} className="flex max-w-md flex-col gap-4" noValidate>
@@ -93,7 +110,7 @@ export default function StockReceiveScreen(): ReactElement {
       </QueryState>
 
       <Field
-        label={strings.stockLedger.quantityIn}
+        label={quantityLabel(unit)}
         value={quantity}
         onChange={(event) => {
           setQuantity(event.target.value);
@@ -102,7 +119,7 @@ export default function StockReceiveScreen(): ReactElement {
         required
       />
       <Field
-        label={strings.stockLedger.unitCost}
+        label={priceLabel(unit)}
         value={unitCost}
         onChange={(event) => {
           setUnitCost(event.target.value);
@@ -130,6 +147,20 @@ export default function StockReceiveScreen(): ReactElement {
       <Button type="submit" disabled={receive.isPending}>
         {strings.stockLedger.record}
       </Button>
+      {/* The guard is a question, not a refusal: a price really can move that far, and the person
+          at the gate is holding the invoice that says so. */}
+      {unusualPrice && (
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={receive.isPending}
+          onClick={() => {
+            send(true);
+          }}
+        >
+          {strings.units.recordAnyway}
+        </Button>
+      )}
     </form>
   );
 }

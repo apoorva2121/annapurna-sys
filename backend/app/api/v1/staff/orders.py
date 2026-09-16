@@ -49,6 +49,7 @@ from app.schemas.orders import (
     CreditNoteLineResponse,
     CreditNoteRequest,
     CreditNoteResponse,
+    CreditNoteSummaryResponse,
     FloorArea,
     FloorBusyRequest,
     FloorBusyResponse,
@@ -429,7 +430,9 @@ async def split_order(
 # Appended to app/api/v1/staff/orders.py by chunk G's patch.
 
 _INVOICE_FIELDS = tuple(
-    name for name in InvoiceResponse.model_fields if name not in {"payments", "credited"}
+    name
+    for name in InvoiceResponse.model_fields
+    if name not in {"payments", "credited", "credit_notes"}
 )
 
 
@@ -437,6 +440,7 @@ def _invoice_response(
     invoice: Invoice,
     payments: Sequence[Payment],
     credited: Mapping[uuid.UUID, tuple[int, Decimal]],
+    notes: Sequence[CreditNote] = (),
 ) -> InvoiceResponse:
     fields = {name: getattr(invoice, name) for name in _INVOICE_FIELDS}
     return InvoiceResponse.model_validate(
@@ -449,6 +453,7 @@ def _invoice_response(
                     credited.items(), key=lambda item: str(item[0])
                 )
             ],
+            "credit_notes": [CreditNoteSummaryResponse.model_validate(note) for note in notes],
         }
     )
 

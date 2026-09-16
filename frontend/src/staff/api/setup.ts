@@ -23,6 +23,15 @@ export type BusyWindow = { starts: string; ends: string };
 /** `cleaning_minutes: null` means only a person clears a table, with Mark ready. */
 export type TableSettings = { cleaning_minutes: number | null; busy_windows: BusyWindow[] };
 
+/** The API's `PostalAddress`: line 1 and city required (backlog-issues B12). */
+export type PostalAddress = {
+  line1: string;
+  line2: string | null;
+  city: string;
+  state: string | null;
+  pincode: string | null;
+};
+
 export type Restaurant = {
   id: string;
   name: string;
@@ -33,7 +42,7 @@ export type Restaurant = {
   gstin: string | null;
   fssai_licence: string | null;
   fssai_licence_expires_on?: string | null;
-  address: string | null;
+  address: PostalAddress | null;
   /** Lives in the server's `settings` JSONB rather than in columns — it is genuinely configuration,
    *  unlike the FSSAI licence that finding S13 moved *out* of settings because it prints on bills.
    *
@@ -52,7 +61,7 @@ export type RestaurantChanges = {
   gstin?: string | null;
   fssai_licence?: string | null;
   fssai_licence_expires_on?: string | null;
-  address?: string | null;
+  address?: PostalAddress | null;
   /** Sent whole, never merged: the client owns the complete theme settings, so a removed festive
    *  window is expressible. A merge on the server would make deletion impossible. */
   theme?: RestaurantTheme;
@@ -214,13 +223,24 @@ export function useUpdateDiningArea(): UseMutationResult<
 
 // --------------------------------------------------------------------------- tables
 
-export function useTables(diningAreaId?: string): UseQueryResult<Page<RestaurantTable>> {
+export function useTables(
+  diningAreaId?: string,
+  includeInactive = false,
+): UseQueryResult<Page<RestaurantTable>> {
   return useQuery({
-    queryKey: [...SETUP_KEY, 'tables', { diningAreaId: diningAreaId ?? null }],
-    queryFn: () =>
-      apiGet<Page<RestaurantTable>>(
-        `/staff/setup/tables${diningAreaId === undefined ? '' : `?dining_area_id=${diningAreaId}`}`,
-      ),
+    queryKey: [...SETUP_KEY, 'tables', { diningAreaId: diningAreaId ?? null, includeInactive }],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (diningAreaId !== undefined) {
+        params.set('dining_area_id', diningAreaId);
+      }
+      // A deactivated table has to be listed to be reactivated (backlog-issues B12).
+      if (includeInactive) {
+        params.set('include_inactive', 'true');
+      }
+      const query = params.toString();
+      return apiGet<Page<RestaurantTable>>(`/staff/setup/tables${query === '' ? '' : `?${query}`}`);
+    },
   });
 }
 

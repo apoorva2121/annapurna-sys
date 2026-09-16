@@ -45,6 +45,10 @@ export type OnHandList = {
 
 export type ExpiringBatch = {
   batch_id: string;
+  stock_item_id: string;
+  code: string;
+  name: string;
+  base_unit: string;
   unit_cost: string;
   remaining: string;
   expiry_date: string | null;
@@ -175,6 +179,11 @@ export type ReceiptInput = {
   unit_cost: string;
   expiry_date?: string | null;
   storage_location?: string | null;
+  /** The two numbers above are in the item's purchase unit, not its base unit (B12e). The server
+   *  does the conversion; no price is divided in the browser (invariant 3). */
+  per_purchase_unit?: boolean;
+  /** Send the price again after the person has read the sanity check and meant it. */
+  confirm_unusual_price?: boolean;
 };
 
 export function useReceiveStock(): UseMutationResult<StockBatch, Error, ReceiptInput> {

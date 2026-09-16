@@ -34,7 +34,9 @@ from app.schemas.cash import (
     CashSessionResponse,
     CashSessionSummary,
 )
+from app.schemas.people import AdjusterResponse, PersonResponse
 from app.services.cash import CashService, TillPosition
+from app.services.people import Person
 
 router = APIRouter(tags=["cash"])
 
@@ -61,24 +63,45 @@ def _summary_fields(position: TillPosition) -> dict[str, object]:
         "adjustments": position.totals.adjustments,
         "expected_cash": position.expected,
         "adjusted_variance": position.adjusted_variance,
+        "closed_by_person": PersonResponse.of(position.closer),
+        "adjusted_by": [
+            AdjusterResponse(
+                full_name=person.full_name,
+                employee_code=person.employee_code,
+                roles=list(person.roles),
+                by_closer=person.id == till.closed_by,
+            )
+            for person in position.adjusters
+        ],
     }
 
 
 def _detail(
-    position: TillPosition, counts: list[CashCount], movements: list[CashMovement]
+    position: TillPosition,
+    counts: list[CashCount],
+    movements: list[CashMovement],
+    named: dict[uuid.UUID, Person],
 ) -> CashSessionResponse:
     return CashSessionResponse.model_validate(
         _summary_fields(position)
         | {
             "counts": [CashCountResponse.model_validate(row) for row in counts],
-            "movements": [CashMovementResponse.model_validate(row) for row in movements],
+            "movements": [
+                CashMovementResponse.model_validate(row).model_copy(
+                    update={
+                        "recorded_by_person": PersonResponse.of(named.get(row.recorded_by)),
+                        "by_closer": row.recorded_by == position.till.closed_by,
+                    }
+                )
+                for row in movements
+            ],
         }
     )
 
 
 async def _read(service: CashService, till_id: uuid.UUID) -> CashSessionResponse:
-    position, counts, movements = await service.detail(till_id)
-    return _detail(position, list(counts), list(movements))
+    position, counts, movements, named = await service.detail(till_id)
+    return _detail(position, list(counts), list(movements), named)
 
 
 @router.get("/cash/sessions", response_model=CashSessionListResponse)

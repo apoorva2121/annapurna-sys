@@ -207,6 +207,17 @@ class EmployeeListResponse(_Schema):
     next_cursor: uuid.UUID | None = None
 
 
+def _two_letters(value: str | None) -> str | None:
+    """At least two letters; initials, dots and digits may sit beside them ("S. Patil", "Ravi 2").
+
+    Owner decision D15 (backlog-issues B12): `12345` was accepted as somebody's name."""
+    if value is None:
+        return None
+    if sum(character.isalpha() for character in value) < 2:
+        raise ValueError("Use at least two letters. Initials and digits are fine, like S. Patil.")
+    return value
+
+
 class EmployeeCreateRequest(_Schema):
     full_name: str = Field(min_length=1, max_length=200)
     employee_code: str = Field(min_length=1, max_length=40)
@@ -218,6 +229,8 @@ class EmployeeCreateRequest(_Schema):
     # not a workaround.
     login_identifier: str | None = Field(default=None, max_length=320)
     initial_password: str | None = Field(default=None, min_length=10, max_length=1024)
+
+    _name = field_validator("full_name")(_two_letters)
 
     @field_validator("login_identifier")
     @classmethod
@@ -242,6 +255,12 @@ class EmployeeCreateRequest(_Schema):
         return cleaned
 
 
+class EmployeeCodeResponse(_Schema):
+    """The next free employee code, for the add-employee form to fill in (decision D19)."""
+
+    employee_code: str
+
+
 class EmployeeUpdateRequest(_Schema):
     """Every field optional — a PATCH changes what it names and nothing else.
 
@@ -255,6 +274,7 @@ class EmployeeUpdateRequest(_Schema):
     date_of_birth: date | None = None
     employment_type: EmploymentType | None = None
 
+    _name = field_validator("full_name")(_two_letters)
     _validate_phone = field_validator("phone")(EmployeeCreateRequest._validate_phone.__func__)  # type: ignore[attr-defined]
 
 

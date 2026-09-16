@@ -8,6 +8,7 @@ import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { errorProps } from '@staff/components/errorProps';
 import { ThemePicker } from '@staff/components/ThemePicker';
+import { wordsFor } from '@staff/permissionWords';
 import { strings } from '@staff/strings';
 
 /**
@@ -57,11 +58,15 @@ export default function ProfileScreen(): ReactElement {
 
       <section>
         <h2 className="text-lg font-semibold">{strings.profile.permissions}</h2>
-        <ul className="mt-2 font-mono text-sm text-muted-foreground">
+        {/* In words, never as codes (defect sheet row 19). A permission this screen has no words
+            for yet is left out rather than shown as its code. */}
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
           {[...session.permissions]
             .sort((a, b) => a.localeCompare(b))
-            .map((permission) => (
-              <li key={permission}>{permission}</li>
+            .map((permission) => wordsFor(permission))
+            .filter((words): words is string => words !== null)
+            .map((words) => (
+              <li key={words}>{words}</li>
             ))}
         </ul>
       </section>

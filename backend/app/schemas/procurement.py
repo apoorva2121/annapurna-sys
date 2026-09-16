@@ -26,6 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.enums import PurchaseOrderStatus
 from app.schemas.gstin import GSTIN_PATTERN, capitalise_gstin
+from app.schemas.people import PersonResponse
 
 
 class _Schema(BaseModel):
@@ -224,6 +225,8 @@ class ReceiptResponse(_ReadSchema):
     invoice_amount: Decimal | None
     tax_amount: Decimal | None
     received_by: uuid.UUID | None
+    # By name, code and role (owner defect sheet row 22).
+    received_by_person: PersonResponse | None = None
     lines: list[ReceiptLineResponse]
 
 

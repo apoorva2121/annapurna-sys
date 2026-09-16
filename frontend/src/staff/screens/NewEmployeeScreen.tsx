@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { businessToday } from '@shared/businessDay';
 import { EmploymentType } from '@shared/enums';
-import { useCreateEmployee } from '@staff/api/staff';
+import { useCreateEmployee, useNextEmployeeCode } from '@staff/api/staff';
 import { useAuth } from '@staff/auth/AuthContext';
 import { Button } from '@shared/ui/button';
 import { Field } from '@staff/components/Field';
@@ -24,7 +24,10 @@ export default function NewEmployeeScreen(): ReactElement {
   const { session } = useAuth();
 
   const [fullName, setFullName] = useState('');
-  const [employeeCode, setEmployeeCode] = useState('');
+  const nextCode = useNextEmployeeCode();
+  // Null until somebody types: the next free code is filled in, and theirs wins once they do (D19).
+  const [typedCode, setTypedCode] = useState<string | null>(null);
+  const employeeCode = typedCode ?? nextCode.data?.employee_code ?? '';
   const [phone, setPhone] = useState('');
   // The restaurant's today, not the browser's. Between local midnight and 05:30 IST those are
   // different days, and the browser's answer is yesterday — a wrong joining date recorded by
@@ -49,11 +52,14 @@ export default function NewEmployeeScreen(): ReactElement {
         employment_type: EmploymentType.FULL_TIME,
         phone: phone === '' ? undefined : phone,
         login_identifier: loginIdentifier === '' ? undefined : loginIdentifier,
-        initial_password: initialPassword === '' ? undefined : initialPassword,
+        // A password belongs to a login: none is sent without one (defect sheet row 8).
+        initial_password:
+          loginIdentifier === '' || initialPassword === '' ? undefined : initialPassword,
       },
       {
         onSuccess: (employee) => {
-          void navigate(`/staff/${employee.id}`);
+          // To their page to give them a role, then Finish (decision D14).
+          void navigate(`/staff/${employee.id}?added=1`);
         },
       },
     );
@@ -65,6 +71,7 @@ export default function NewEmployeeScreen(): ReactElement {
 
       <Field
         label={strings.employee.fullName}
+        hint={strings.employee.fullNameHint}
         value={fullName}
         onChange={(event) => {
           setFullName(event.target.value);
@@ -74,9 +81,10 @@ export default function NewEmployeeScreen(): ReactElement {
       />
       <Field
         label={strings.employee.employeeCode}
+        hint={strings.employee.employeeCodeHint}
         value={employeeCode}
         onChange={(event) => {
-          setEmployeeCode(event.target.value);
+          setTypedCode(event.target.value);
         }}
         required
       />
@@ -103,13 +111,16 @@ export default function NewEmployeeScreen(): ReactElement {
         value={loginIdentifier}
         onChange={(event) => {
           setLoginIdentifier(event.target.value);
+          if (event.target.value === '') {
+            setInitialPassword('');
+          }
         }}
         autoComplete="off"
       />
       {loginIdentifier !== '' && (
         <Field
           label={strings.employee.initialPassword}
-          hint={strings.employee.passwordHint}
+          hint={strings.employee.initialPasswordHint}
           type="password"
           value={initialPassword}
           onChange={(event) => {

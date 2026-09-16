@@ -116,6 +116,10 @@ async def expiring(
         batches=[
             ExpiringBatchResponse(
                 batch_id=position.batch_id,
+                stock_item_id=position.stock_item_id,
+                code=position.code,
+                name=position.name,
+                base_unit=position.base_unit,
                 unit_cost=position.unit_cost,
                 remaining=position.remaining,
                 expiry_date=position.expiry_date,
@@ -166,6 +170,8 @@ async def receive(
         batch_code=payload.batch_code,
         expiry_date=payload.expiry_date,
         storage_location=payload.storage_location,
+        per_purchase_unit=payload.per_purchase_unit,
+        confirm_unusual_price=payload.confirm_unusual_price,
     )
     await session.commit()
     return BatchResponse.model_validate(batch)

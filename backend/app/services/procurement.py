@@ -62,6 +62,7 @@ from app.repositories.procurement import (
 )
 from app.repositories.stock import StockItemRepository
 from app.services.inventory import InventoryService
+from app.services.people import Person, people
 
 # Rupees, when a figure reaches a person. Unit costs keep their six places, for the same reason
 # `services/costing.py` gives: 0.1489 per ml rounded to two is a 0.7% error on every gram.
@@ -865,6 +866,10 @@ class ProcurementService:
         self, *, supplier_id: uuid.UUID | None = None, limit: int | None = None
     ) -> Sequence[GoodsReceipt]:
         return await self.receipts.list_recent(supplier_id=supplier_id, limit=limit)
+
+    async def receivers(self, receipts: Sequence[GoodsReceipt]) -> dict[uuid.UUID, Person]:
+        """Who received each delivery, by name, code and role (defect sheet row 22)."""
+        return await people(self.session, self.scope, [receipt.received_by for receipt in receipts])
 
     async def get_receipt(self, receipt_id: uuid.UUID) -> GoodsReceipt:
         receipt = await self.receipts.get_with_lines(receipt_id)

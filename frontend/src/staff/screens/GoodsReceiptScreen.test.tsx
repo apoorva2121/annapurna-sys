@@ -53,6 +53,7 @@ const POSTED = {
     invoice_amount: '2100.00',
     tax_amount: null,
     received_by: 'e1',
+    received_by_person: { full_name: 'Arun Kulkarni', employee_code: 'EMP004', roles: ['Chef'] },
     lines: [],
   },
   lines: [
@@ -291,5 +292,16 @@ describe('after it is booked in', () => {
 
     const tags = await screen.findAllByText('Billed and not delivered');
     expect(tags.length).toBeGreaterThan(0);
+  });
+});
+
+// Owner defect sheet row 22 (backlog-issues B12): a delivery says who received it.
+describe('after booking in', () => {
+  it('names who received the delivery', async () => {
+    renderScreen();
+
+    await weighIn('50000', '47000');
+
+    expect(await screen.findByText('Received by Arun Kulkarni (EMP004, Chef)')).toBeInTheDocument();
   });
 });

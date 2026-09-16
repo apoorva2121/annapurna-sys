@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -37,12 +37,15 @@ from app.core.actor import Actor
 from app.core.business_day import business_date_of
 from app.core.enums import CashMovementType, CashSessionStatus
 from app.core.errors import AppError, ConflictError, NotFoundError
+from app.core.money import format_inr
+from app.core.permissions import OWNER_RANK
 from app.core.tenancy import TenantScope
 from app.models.audit import AuditLog
 from app.models.orders import CashCount, CashMovement, CashSession
 from app.models.tenancy import Restaurant
 from app.repositories.orders import CashSessionRepository, PaymentRepository, TillTotals
 from app.repositories.setup import RestaurantRepository
+from app.services.people import Person, people
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +60,9 @@ class TillPosition:
 
     till: CashSession
     totals: TillTotals
+    # By name (D13): who closed it, and who adjusted it afterwards, first to last.
+    closer: Person | None = None
+    adjusters: tuple[Person, ...] = ()
 
     @property
     def expected(self) -> Decimal:
@@ -79,24 +85,55 @@ class CashService:
 
     async def detail(
         self, till_id: uuid.UUID
-    ) -> tuple[TillPosition, Sequence[CashCount], Sequence[CashMovement]]:
+    ) -> tuple[TillPosition, Sequence[CashCount], Sequence[CashMovement], dict[uuid.UUID, Person]]:
+        """The till, its counts and movements, and everyone they name (D13)."""
         till = await self._tills.get(till_id)
         if till is None:
             raise NotFoundError("cash_session.not_found", "That till session does not exist.")
         position = await self._position_of(till)
-        return (
-            position,
-            await self._tills.counts_of(till.id),
-            await self._tills.movements_of(till.id),
+        movements = await self._tills.movements_of(till.id)
+        named = await people(
+            self.session, self.scope, [till.closed_by, *(row.recorded_by for row in movements)]
         )
+        adjusters: list[Person] = []
+        for row in movements:
+            person = named.get(row.recorded_by)
+            if (
+                row.type == CashMovementType.ADJUSTMENT
+                and person is not None
+                and person not in adjusters
+            ):
+                adjusters.append(person)
+        position = replace(
+            position,
+            closer=named.get(till.closed_by) if till.closed_by is not None else None,
+            adjusters=tuple(adjusters),
+        )
+        return position, await self._tills.counts_of(till.id), movements, named
 
     async def list_tills(
         self, *, limit: int | None = None, after: uuid.UUID | None = None
     ) -> list[TillPosition]:
         """A page of tills with their derived figures, in three statements whatever its size."""
         tills = await self._tills.list_page(limit=limit, after=after)
-        totals = await self._tills.totals_for([till.id for till in tills])
-        return [TillPosition(till=till, totals=totals[till.id]) for till in tills]
+        ids = [till.id for till in tills]
+        totals = await self._tills.totals_for(ids)
+        adjusted = await self._tills.adjusters_for(ids)
+        named = await people(
+            self.session,
+            self.scope,
+            [till.closed_by for till in tills]
+            + [who for each in adjusted.values() for who in each],
+        )
+        return [
+            TillPosition(
+                till=till,
+                totals=totals[till.id],
+                closer=named.get(till.closed_by) if till.closed_by is not None else None,
+                adjusters=tuple(named[who] for who in adjusted[till.id] if who in named),
+            )
+            for till in tills
+        ]
 
     async def outside_any_till(self) -> tuple[date, Decimal, int]:
         """Today's cash that went into no till, and how many payments (decision D3). Today is the
@@ -155,7 +192,7 @@ class CashService:
         if amount > position.expected:
             raise AppError(
                 "cash.payout_exceeds_till",
-                f"The till should hold ₹{position.expected}, so ₹{amount} cannot come out of it.",
+                f"Not enough cash in the till. Only {format_inr(position.expected)} is available.",
                 details={"expected": str(position.expected)},
                 status_code=422,
             )
@@ -220,10 +257,13 @@ class CashService:
                 "A till is adjusted after it is closed. While it is open, the count at close "
                 "settles it.",
             )
-        if till.closed_by == actor.employee_id:
+        # Decision D16: the owner may correct a till they closed, and it is marked on the till
+        # and in reports; anyone else needs a second person, as M05's count approval does.
+        if till.closed_by == actor.employee_id and actor.rank != OWNER_RANK:
             raise ConflictError(
                 "cash.adjustment_by_closer",
-                "The person who closed a till cannot adjust its variance. Another manager has to.",
+                "The person who closed a till cannot adjust it. Another manager, or the "
+                "owner, has to.",
             )
         await self._movement(actor, till, CashMovementType.ADJUSTMENT, amount, reason)
         self._audit(

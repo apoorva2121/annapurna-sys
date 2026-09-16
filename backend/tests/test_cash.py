@@ -538,3 +538,24 @@ class TestCashOutsideAnyTill:
         response = await api_client.get(OUTSIDE, headers=_auth(other))
 
         assert (response.json()["cash_taken"], response.json()["payments"]) == ("0.00", 0)
+
+
+class TestThePayoutRefusalReadsLikeMoney:
+    """The refusal said "₹12000.00" and named a code (B12, owner defect sheet, D11)."""
+
+    async def test_the_refusal_says_how_much_is_there_with_its_issue_number(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        from app.core.issues import issue_for
+
+        await _setup(db_session, api_client)
+        manager = await _token(api_client, "manager")
+        till = await _open_till(api_client, manager, "12000.00")
+
+        response = await _payout(api_client, manager, till, "15000.00")
+
+        assert response.status_code == 422, response.text
+        assert response.json()["message"] == (
+            "Not enough cash in the till. Only ₹12,000.00 is available."
+        )
+        assert response.json()["issue"] == issue_for("cash.payout_exceeds_till")

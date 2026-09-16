@@ -19,6 +19,7 @@ from app.core.permissions import PermissionCode
 from app.models.identity import Employee
 from app.repositories.base import DEFAULT_PAGE_SIZE
 from app.schemas.identity import (
+    EmployeeCodeResponse,
     EmployeeCreateRequest,
     EmployeeListResponse,
     EmployeeResponse,
@@ -114,6 +115,13 @@ async def create_employee(
     )
     await session.commit()
     return await _render(service, employee, actor.restaurant_id)
+
+
+@router.get("/next-code", response_model=EmployeeCodeResponse)
+async def next_employee_code(actor: _CreateDep, session: SessionDep) -> EmployeeCodeResponse:
+    """The next free employee code, for the add-employee form to fill in (decision D19). Declared
+    before `/{employee_id}`, which would otherwise read "next-code" as an id and refuse it."""
+    return EmployeeCodeResponse(employee_code=await EmployeeService(session).next_code(actor))
 
 
 @router.get("/{employee_id}", response_model=EmployeeResponse)

@@ -110,3 +110,26 @@ describe('when everyone fits on one page', () => {
     expect(screen.queryByRole('button', { name: /show more/i })).not.toBeInTheDocument();
   });
 });
+
+// Decision D14 (backlog-issues B12): finishing an added employee lands here, saying so.
+describe('after adding someone', () => {
+  it('says who was added and as what', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(json({ items: [], next_cursor: null }))),
+    );
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter
+          initialEntries={[{ pathname: '/staff', state: { added: 'Ravi Sharma added as Waiter' } }]}
+        >
+          <AuthContext.Provider value={AUTH}>
+            <StaffListScreen />
+          </AuthContext.Provider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText('Ravi Sharma added as Waiter')).toBeInTheDocument();
+  });
+});

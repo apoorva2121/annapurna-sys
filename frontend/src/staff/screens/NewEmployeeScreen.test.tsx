@@ -9,9 +9,13 @@
 // pass or fail depending on what time of day it ran, which is worse than not having it.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+
+/** What `fetch` is mocked with here; vitest 5 infers a bare `vi.fn` as returning void. */
+type FetchMock = Mock<(url: string, init?: RequestInit) => Promise<Response>>;
 
 import { AuthContext, type AuthState } from '@staff/auth/AuthContext';
 import type { RestaurantSummary, Session } from '@staff/auth/session';
@@ -128,5 +132,61 @@ describe('the joining date default', () => {
     renderScreen();
 
     expect(joinedOnField().value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+// Owner defect sheet rows 8 and 11, decision D19 (backlog-issues B12).
+describe('filling in the form', () => {
+  function withServer(): FetchMock {
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return Promise.resolve(
+          new Response(JSON.stringify({ id: 'e9', full_name: 'Ravi Sharma' }), {
+            status: 201,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify(url.includes('next-code') ? { employee_code: 'EMP018' } : {}), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('fills in the next free employee code', async () => {
+    vi.useRealTimers();
+    withServer();
+    renderScreen();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/employee code/i)).toHaveValue('EMP018');
+    });
+  });
+
+  it('forgets a password typed for a login that was then cleared', async () => {
+    vi.useRealTimers();
+    const fetchMock = withServer();
+    renderScreen();
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText(/full name/i), 'Ravi Sharma');
+    await user.type(screen.getByLabelText(/login/i), '9820011018');
+    await user.type(screen.getByLabelText(/initial password/i), 'not-meant-to-be-set');
+    await user.clear(screen.getByLabelText(/login/i));
+    await user.click(screen.getByRole('button', { name: 'Add employee' }));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
+      expect(post).toBeDefined();
+      const raw = (post?.[1])?.body;
+      expect(typeof raw).toBe('string');
+      const body = JSON.parse(raw as string) as Record<string, unknown>;
+      expect(body).not.toHaveProperty('initial_password');
+    });
   });
 });

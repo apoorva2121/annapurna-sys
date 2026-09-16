@@ -50,7 +50,8 @@ describe('errorProps', () => {
     const props = errorProps(invalid, { gstin: 'GSTIN' });
 
     expect(props.title).toBe('Please fix the 2 highlighted fields.');
-    expect(props.code).toBe('request.invalid');
+    // A form mistake shows its sentences and no issue number (D12).
+    expect(props.issue).toBeUndefined();
     // A field the screen names gets its label; one it does not still reads as words, not as
     // `payment_terms_days`.
     expect(props.lines).toEqual([`GSTIN: ${GSTIN_RULE}`, `Payment terms days: ${TERMS_RULE}`]);
@@ -67,8 +68,26 @@ describe('errorProps', () => {
   it('still gives a title for a throw it did not model', () => {
     expect(errorProps(new Error('boom'))).toEqual({
       title: 'Something went wrong.',
-      code: undefined,
+      issue: undefined,
       lines: [],
     });
+  });
+});
+
+// Backlog-issues B12 (owner decisions D11, D12): the code is never shown; the number is.
+describe('an error a person reports', () => {
+  it('shows the sentence and the issue number, never the code', () => {
+    const refusal = new ApiClientError({
+      code: 'cash.payout_exceeds_till',
+      message: 'Not enough cash in the till. Only ₹2,000.00 is available.',
+      issue: 1042,
+    });
+
+    render(<Notice tone="critical" {...errorProps(refusal)} />);
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Not enough cash in the till. Only ₹2,000.00 is available.');
+    expect(alert).toHaveTextContent('Issue 1042');
+    expect(alert).not.toHaveTextContent('cash.payout_exceeds_till');
   });
 });

@@ -105,7 +105,9 @@ export default function FloorPlanScreen(): ReactElement {
         <AddArea />
       </section>
 
-      {current !== null && <TablesSection areaId={current} areas={items} />}
+      {current !== null && (
+        <TablesSection areaId={current} areas={items} includeInactive={showInactive} />
+      )}
     </div>
   );
 }
@@ -245,8 +247,16 @@ function AddArea(): ReactElement {
   );
 }
 
-function TablesSection({ areaId, areas }: { areaId: string; areas: DiningArea[] }): ReactElement {
-  const tables = useTables(areaId);
+function TablesSection({
+  areaId,
+  areas,
+  includeInactive,
+}: {
+  areaId: string;
+  areas: DiningArea[];
+  includeInactive: boolean;
+}): ReactElement {
+  const tables = useTables(areaId, includeInactive);
   const items = tables.data?.items ?? [];
 
   return (
@@ -268,6 +278,7 @@ function TablesSection({ areaId, areas }: { areaId: string; areas: DiningArea[] 
                 <TableHead className="text-right">{strings.setup.floor.seats}</TableHead>
                 <TableHead>{strings.setup.floor.status}</TableHead>
                 <TableHead>{strings.setup.floor.inArea}</TableHead>
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -336,6 +347,23 @@ function TableRowEditor({
           </SelectContent>
         </Select>
         {update.isError && <Notice tone="critical" {...errorProps(update.error)} />}
+      </TableCell>
+      <TableCell>
+        {/* A table is never deleted (ADR 0008); deactivating it is what lets its area be
+            deactivated too (defect sheet row 7). */}
+        <Button
+          variant="ghost"
+          disabled={update.isPending}
+          aria-label={strings.setup.floor.tableAction(
+            table.is_active ? strings.setup.floor.deactivate : strings.setup.floor.reactivate,
+            table.code,
+          )}
+          onClick={() => {
+            update.mutate({ id: table.id, changes: { is_active: !table.is_active } });
+          }}
+        >
+          {table.is_active ? strings.setup.floor.deactivate : strings.setup.floor.reactivate}
+        </Button>
       </TableCell>
     </TableRow>
   );

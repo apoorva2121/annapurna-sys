@@ -15,6 +15,7 @@ from typing import Annotated, Any, Self
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.enums import CashMovementType, CashSessionStatus
+from app.schemas.people import AdjusterResponse, PersonResponse
 
 
 class _Schema(BaseModel):
@@ -81,6 +82,9 @@ class CashMovementResponse(_ReadSchema):
     reason: str
     recorded_by: uuid.UUID
     occurred_at: datetime
+    # By name, code and role (D13); and whether the person who closed the till recorded it (D16).
+    recorded_by_person: PersonResponse | None = None
+    by_closer: bool = False
 
 
 class CashSessionSummary(_Schema):
@@ -99,6 +103,9 @@ class CashSessionSummary(_Schema):
     adjustments: Decimal
     expected_cash: Decimal
     adjusted_variance: Decimal | None
+    # Decision D13: who closed and who adjusted, shown beside the figures.
+    closed_by_person: PersonResponse | None = None
+    adjusted_by: list[AdjusterResponse] = Field(default_factory=list)
 
 
 class CashSessionResponse(CashSessionSummary):

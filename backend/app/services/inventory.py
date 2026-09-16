@@ -48,6 +48,7 @@ from app.repositories.inventory import (
     StockMovementRepository,
 )
 from app.repositories.stock import RecipeRepository, StockItemRepository
+from app.services.purchase_units import to_base_units, unusual_price_problem
 
 # A movement that consumes must be one of these. Kept as a set rather than checked inline so the
 # list is visible in one place when M09 (waste) and M07 (orders) start calling in.
@@ -192,6 +193,42 @@ class InventoryService:
 
     # ------------------------------------------------------------------ receive
 
+    async def _in_base_units(
+        self, item: Any, quantity: Decimal, unit_cost: Decimal, *, confirmed: bool
+    ) -> tuple[Decimal, Decimal]:
+        """What was typed on the invoice, as the ledger holds it (backlog-issues B12e).
+
+        The supplier sells by the kilo and `stock_movements` is in grams (invariant 5). One
+        conversion, here, so no screen does the arithmetic and no float crosses the boundary.
+        The sanity check is the owner's: a plate of cabbage costing more than a car came from a
+        price typed against the wrong unit, where 40 was a plausible number and the unit was not.
+        """
+        # `StockItem.ingredient` is lazy="raise", so the profile is read deliberately and only
+        # when the form asked for a conversion - not on every delivery.
+        with_profile = await self.items.get_with_profile(item.id)
+        profile = with_profile.ingredient if with_profile is not None else None
+        if profile is None:
+            raise AppError(
+                "stock_receipt.no_purchase_unit",
+                f"{item.name} is not bought by a separate unit, so a delivery of it is counted "
+                f"in {item.base_unit}.",
+                status_code=422,
+            )
+        factor = _dec(profile.purchase_to_base)
+        base_quantity, base_price = to_base_units(quantity, unit_cost, factor)
+        if not confirmed:
+            current = item.current_unit_cost
+            problem = unusual_price_problem(
+                item_name=item.name,
+                purchase_unit=profile.purchase_unit,
+                purchase_to_base=factor,
+                base_price=base_price,
+                current_unit_cost=_dec(current) if current is not None else None,
+            )
+            if problem is not None:
+                raise AppError("stock_receipt.unusual_price", problem, status_code=422)
+        return base_quantity, base_price
+
     async def receive_stock(
         self,
         actor: Actor,
@@ -205,6 +242,8 @@ class InventoryService:
         source: str = "purchase",
         occurred_at: datetime | None = None,
         item: Any = None,
+        per_purchase_unit: bool = False,
+        confirm_unusual_price: bool = False,
     ) -> StockBatch:
         """Stock arrives: one batch and its receipt movement, in one transaction.
 
@@ -229,7 +268,11 @@ class InventoryService:
             or item.id != stock_item_id
             or item.restaurant_id != self.scope.restaurant_id
         ):
-            await self._require_item(stock_item_id)
+            item = await self._require_item(stock_item_id)
+        if per_purchase_unit:
+            quantity, unit_cost = await self._in_base_units(
+                item, quantity, unit_cost, confirmed=confirm_unusual_price
+            )
         moment = occurred_at or datetime.now(UTC)
         business_date = await self.business_date_now(moment)
 

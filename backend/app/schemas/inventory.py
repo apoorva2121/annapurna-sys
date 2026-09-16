@@ -43,6 +43,13 @@ class ReceiptRequest(_Schema):
     batch_code: str | None = Field(default=None, max_length=64)
     expiry_date: date | None = None
     storage_location: str | None = Field(default=None, max_length=120)
+    # Backlog-issues B12e. The form labels its boxes in the item's purchase unit - a supplier sells
+    # by the kilo, the ledger holds grams - and says so here; the server does the one conversion.
+    # False is the old meaning, so every existing caller keeps sending base units.
+    per_purchase_unit: bool = False
+    # A price ten times the item's own cost, or a tenth of it, is put back to the person as a
+    # sentence. They confirm it here rather than being refused: a price really can move that far.
+    confirm_unusual_price: bool = False
 
 
 class ProductionRequest(_Schema):
@@ -123,6 +130,12 @@ class OnHandListResponse(_ReadSchema):
 
 class ExpiringBatchResponse(_ReadSchema):
     batch_id: uuid.UUID
+    # What it is (defect sheet row 26): the list showed a date and a quantity of nothing in
+    # particular.
+    stock_item_id: uuid.UUID
+    code: str
+    name: str
+    base_unit: str
     unit_cost: Decimal
     remaining: Decimal
     expiry_date: date | None

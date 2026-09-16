@@ -93,6 +93,21 @@ class EmployeeRepository(OrgScopedRepository[Employee]):
         )
         return result.first()
 
+    async def codes(self) -> list[str]:
+        """Every employee code this organization uses, deactivated people included, so a suggested
+        code is never one somebody already holds (backlog-issues B12, D19)."""
+        result = await self.session.scalars(self.scoped().with_only_columns(Employee.employee_code))
+        return list(result.all())
+
+    async def by_ids(self, employee_ids: Sequence[uuid.UUID]) -> Sequence[Employee]:
+        """Many people at once, organization-scoped rather than branch-visible: a person who closed
+        a till or received a delivery is named even after leaving this branch (backlog-issues
+        B12)."""
+        result = await self.session.scalars(
+            self.scoped().where(Employee.id.in_(list(employee_ids)))
+        )
+        return result.all()
+
     async def code_exists(self, employee_code: str) -> bool:
         """Whether this organization already employs someone with this code.
 

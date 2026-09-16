@@ -1,4 +1,4 @@
-import { Fragment, type ReactElement, useMemo, useState } from 'react';
+import { Fragment, type ReactElement, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import type { PaymentMethod } from '@shared/enums';
@@ -14,6 +14,7 @@ import { strings } from '@staff/strings';
 import {
   type CreditLineInput,
   type CreditNote,
+  type CreditNoteSummary,
   type DishNames,
   type Invoice,
   type Order,
@@ -116,6 +117,7 @@ function InvoiceDetail({
       )}
       <InvoiceTotals invoice={invoice} />
       <Payments invoice={invoice} />
+      <CreditNotes order={order} invoice={invoice} names={names} />
       {note !== null && (
         <IssuedNote
           note={note}
@@ -431,5 +433,109 @@ function CancelInvoice({ invoice }: { invoice: Invoice }): ReactElement {
         </Button>
       </div>
     </section>
+  );
+}
+
+/**
+ * Every credit note against this invoice, readable and printable (decision D27). Printing uses the
+ * browser's own print: the chosen note is the only thing on the page while it prints.
+ */
+function CreditNotes({
+  order,
+  invoice,
+  names,
+}: {
+  order: Order;
+  invoice: Invoice;
+  names: DishNames;
+}): ReactElement | null {
+  const [printing, setPrinting] = useState<string | null>(null);
+  useEffect(() => {
+    if (printing === null) {
+      return;
+    }
+    window.print();
+    setPrinting(null);
+  }, [printing]);
+  const notes = invoice.credit_notes ?? [];
+  if (notes.length === 0) {
+    return null;
+  }
+  const dishOf = (orderLineId: string): string => {
+    const line = order.lines.find((each) => each.id === orderLineId);
+    return line === undefined ? '' : (names.dishes.get(line.menu_item_variant_id) ?? '');
+  };
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-lg font-semibold print:hidden">{strings.bills.creditNotesTitle}</h2>
+      {notes.map((note) => (
+        <PrintableNote
+          key={note.id}
+          note={note}
+          invoice={invoice}
+          dishOf={dishOf}
+          hidden={printing !== null && printing !== note.id}
+          onPrint={() => {
+            setPrinting(note.id);
+          }}
+        />
+      ))}
+    </section>
+  );
+}
+
+function PrintableNote({
+  note,
+  invoice,
+  dishOf,
+  hidden,
+  onPrint,
+}: {
+  note: CreditNoteSummary;
+  invoice: Invoice;
+  dishOf: (orderLineId: string) => string;
+  hidden: boolean;
+  onPrint: () => void;
+}): ReactElement {
+  return (
+    <article className={`rounded-lg border border-border p-4 ${hidden ? 'print:hidden' : ''}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold">{strings.bills.creditNoteTitle(note.credit_note_number)}</p>
+          <p className="text-sm text-muted-foreground">
+            {strings.bills.againstInvoice(invoice.invoice_number, note.note_date)}
+          </p>
+          <p className="text-sm">{invoice.supplier_name}</p>
+          {invoice.supplier_gstin !== null && (
+            <p className="text-sm">{strings.bills.gstin(invoice.supplier_gstin)}</p>
+          )}
+        </div>
+        <Button
+          variant="secondary"
+          className="print:hidden"
+          aria-label={strings.bills.printCreditNote(note.credit_note_number)}
+          onClick={onPrint}
+        >
+          {strings.bills.print}
+        </Button>
+      </div>
+      <p className="mt-2">{note.reason}</p>
+      <ul className="mt-2">
+        {note.lines.map((line) => (
+          <li key={line.id} className="flex justify-between gap-3">
+            <span>{`${String(line.quantity)} × ${dishOf(line.order_line_id)}`}</span>
+            <span className="whitespace-nowrap font-mono tabular-nums">
+              {formatINR(line.line_total)}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 flex justify-between gap-3 font-semibold">
+        <span>{strings.bills.creditTotalLabel}</span>
+        <span className="whitespace-nowrap font-mono tabular-nums">
+          {formatINR(note.grand_total)}
+        </span>
+      </p>
+    </article>
   );
 }

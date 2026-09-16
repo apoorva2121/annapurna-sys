@@ -45,6 +45,20 @@ class BatchPosition:
     expiry_date: date | None
 
 
+@dataclass(frozen=True, slots=True)
+class ExpiringBatch:
+    """A dated batch with stock left, and what it is (owner defect sheet row 26)."""
+
+    batch_id: uuid.UUID
+    stock_item_id: uuid.UUID
+    code: str
+    name: str
+    base_unit: str
+    unit_cost: Decimal
+    remaining: Decimal
+    expiry_date: date | None
+
+
 class StockBatchRepository(RestaurantScopedRepository[StockBatch]):
     model = StockBatch
 
@@ -129,30 +143,53 @@ class StockBatchRepository(RestaurantScopedRepository[StockBatch]):
 
     async def expiring_before(
         self, cutoff: date, *, limit: int | None = None
-    ) -> list[BatchPosition]:
-        """Dated batches with stock left, soonest first. Backed by `ix_stock_batch_expiry`."""
+    ) -> list[ExpiringBatch]:
+        """Dated batches with stock left, soonest first, each with its item. Backed by
+        `ix_stock_batch_expiry`; the item is one join, not a read per batch."""
         remaining = func.coalesce(func.sum(StockMovement.quantity_delta), 0)
         statement = (
             select(
                 StockBatch.id,
+                StockBatch.stock_item_id,
+                StockItem.code,
+                StockItem.name,
+                StockItem.base_unit,
                 StockBatch.unit_cost,
                 remaining.label("remaining"),
                 StockBatch.expiry_date,
             )
             .join(StockMovement, StockMovement.stock_batch_id == StockBatch.id)
+            .join(StockItem, StockItem.id == StockBatch.stock_item_id)
             .where(
                 StockBatch.restaurant_id == self.scope.restaurant_id,
                 StockBatch.expiry_date.isnot(None),
                 StockBatch.expiry_date <= cutoff,
             )
-            .group_by(StockBatch.id, StockBatch.unit_cost, StockBatch.expiry_date)
+            .group_by(
+                StockBatch.id,
+                StockBatch.stock_item_id,
+                StockItem.code,
+                StockItem.name,
+                StockItem.base_unit,
+                StockBatch.unit_cost,
+                StockBatch.expiry_date,
+            )
             .having(remaining > 0)
             .order_by(StockBatch.expiry_date.asc())
             .limit(page_size(limit))
         )
         rows = await self.session.execute(statement)
         return [
-            BatchPosition(batch_id=row[0], unit_cost=row[1], remaining=row[2], expiry_date=row[3])
+            ExpiringBatch(
+                batch_id=row[0],
+                stock_item_id=row[1],
+                code=row[2],
+                name=row[3],
+                base_unit=row[4],
+                unit_cost=row[5],
+                remaining=row[6],
+                expiry_date=row[7],
+            )
             for row in rows.all()
         ]
 

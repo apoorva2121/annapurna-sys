@@ -12,7 +12,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, Text, UniqueConstraint, func
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import INET, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -51,3 +51,21 @@ class AuditLog(TimestampedUUIDMixin, Base):
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class Issue(TimestampedUUIDMixin, Base):
+    """One entry of the issue catalogue (backlog-issues B12, D11). Reference data, not tenant data.
+
+    The application reads `app/core/issues.json`; this table is the copy support and reports query,
+    kept equal to the file by migration and asserted by tests/test_issue_catalogue.py.
+    """
+
+    __tablename__ = "issue"
+    __table_args__ = (
+        UniqueConstraint("number", name="uq_issue_number"),
+        UniqueConstraint("code", name="uq_issue_code"),
+    )
+
+    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    code: Mapped[str] = mapped_column(Text, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)

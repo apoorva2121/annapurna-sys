@@ -4,7 +4,7 @@ The concrete table specification. Conceptual model: `docs/domain-model.md`. Conv
 ADR 0004 (money/time/units), ADR 0006 (preparations), ADR 0007 (identity), ADR 0008 (keys, deletion,
 enums, numerics), ADR 0010 (idempotency, locking), ADR 0011 (performance).
 
-**74 tables in 13 domains.** Everything here is Phase 1 unless marked `[1.5]`.
+**75 tables in 13 domains.** Everything here is Phase 1 unless marked `[1.5]`.
 
 ## Reading this document
 
@@ -1069,7 +1069,7 @@ shift_assignment
 
 ---
 
-## 12 · System — 3 tables
+## 12 · System — 4 tables
 
 ```
 audit_log                                        -- APPEND-ONLY. Written by a service decorator.
@@ -1102,6 +1102,11 @@ idempotency_key                                  -- ADR 0010. The waiter double-
   expires_at          timestamptz NN             -- 24h; swept by a nightly job
   actor_employee_id   uuid FK→employee
   IX (expires_at)
+
+issue                                            -- B12 (D11, D12): the issue catalogue. Reference data.
+  number              integer NN                 -- UQ; what a person quotes: "Issue 1042"
+  code                text NN                    -- UQ; the stable code the frontend switches on, never shown
+  text                text NN                    -- plain words; seeded from app/core/issues.json by migration
 
 notification
   restaurant_id, recipient_employee_id NN FK→employee
@@ -1238,7 +1243,7 @@ Dependencies force roughly this sequence:
 13. feedback, feedback_line, complaint
 14. shift, shift_assignment
 15. conversation, conversation_participant, message, task, task_event, attachment
-16. audit_log, notification, idempotency_key
+16. audit_log, notification, idempotency_key, issue
 17. incentive_scheme, performance_period, performance_score, performance_note, recognition_award
 
 `stock_batch.goods_receipt_line_id` and `conversation_participant.last_read_message_id` are circular

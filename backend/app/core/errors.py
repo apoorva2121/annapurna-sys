@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.issues import issue_for
 from app.core.logging import REQUEST_ID_HEADER, request_id_var
 from app.core.validation_messages import describe, summary
 
@@ -92,6 +93,10 @@ def build_envelope(
     request_id: str | None = None,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {"code": code, "message": message, "details": details or {}}
+    # What a person quotes (backlog-issues B12, D12). The code is for the frontend and never shown.
+    issue = issue_for(code)
+    if issue is not None:
+        body["issue"] = issue
     resolved = request_id if request_id is not None else request_id_var.get()
     if resolved is not None:
         body["request_id"] = resolved

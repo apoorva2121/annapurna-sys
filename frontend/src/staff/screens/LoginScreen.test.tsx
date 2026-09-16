@@ -83,3 +83,16 @@ describe('LoginScreen', () => {
     expect(screen.getByRole('radio', { name: 'Spice Garden' })).not.toBeChecked();
   });
 });
+
+// Decision D20 (backlog-issues B12): nothing on the sign-in screen said what to do about a
+// forgotten password.
+describe('a forgotten password', () => {
+  it('says who can set a new one', async () => {
+    renderScreen(() => Promise.resolve());
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Forgot password?' }));
+
+    expect(screen.getByText(/ask your manager/i)).toBeInTheDocument();
+  });
+});

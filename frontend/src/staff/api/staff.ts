@@ -169,3 +169,11 @@ export function useResetPassword(employeeId: string): UseMutationResult<void, Er
     },
   });
 }
+
+/** The next free employee code (decision D19): filled in on the add-employee form, and editable. */
+export function useNextEmployeeCode(): UseQueryResult<{ employee_code: string }> {
+  return useQuery({
+    queryKey: ['staff', 'employees', 'next-code'],
+    queryFn: () => apiGet<{ employee_code: string }>('/staff/employees/next-code'),
+  });
+}

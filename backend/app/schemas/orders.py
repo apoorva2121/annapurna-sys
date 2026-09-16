@@ -406,6 +406,8 @@ class InvoiceResponse(_Schema):
     # Per dish, what credit notes have already taken off (backlog-issues B6), so a second note is
     # written knowing what the first one did.
     credited: list[CreditedLineResponse] = Field(default_factory=list)
+    # Every credit note against this invoice, oldest first (decision D27).
+    credit_notes: list[CreditNoteSummaryResponse] = Field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- reversals
@@ -466,6 +468,17 @@ class CreditNoteLineResponse(_ReadSchema):
     sgst_amount: Decimal
     tax_amount: Decimal
     line_total: Decimal
+
+
+class CreditNoteSummaryResponse(_ReadSchema):
+    """A credit note as its invoice lists it (decision D27): enough to read and print it."""
+
+    id: uuid.UUID
+    credit_note_number: str
+    note_date: date
+    reason: str
+    grand_total: Decimal
+    lines: list[CreditNoteLineResponse]
 
 
 class CreditNoteResponse(_Schema):

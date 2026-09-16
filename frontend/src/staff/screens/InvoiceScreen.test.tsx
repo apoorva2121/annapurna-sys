@@ -12,7 +12,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import InvoiceScreen from './InvoiceScreen';
 
@@ -160,10 +160,14 @@ function json(body: unknown, status = 200): Response {
   } as unknown as Response;
 }
 
+/** The shape `fetch` is mocked with here. Vitest 5 types a bare `vi.fn` as a procedure
+ *  returning void, which makes every Promise-returning implementation a misused promise. */
+type FetchMock = Mock<(input: unknown, init?: RequestInit) => Promise<Response>>;
+
 function renderScreen(
   invoiceId: string | null = 'inv1',
   credited: unknown[] = [],
-): ReturnType<typeof vi.fn> {
+): FetchMock {
   let cancelled = false;
   const invoice = (): Record<string, unknown> =>
     cancelled
@@ -203,12 +207,12 @@ function renderScreen(
   return fetchMock;
 }
 
-function postTo(fetchMock: ReturnType<typeof vi.fn>, suffix: string): RequestInit | undefined {
+function postTo(fetchMock: FetchMock, suffix: string): RequestInit | undefined {
   const call = fetchMock.mock.calls.find(
     ([input, init]) =>
-      (init as RequestInit | undefined)?.method === 'POST' && String(input).endsWith(suffix),
+      (init)?.method === 'POST' && String(input).endsWith(suffix),
   );
-  return call?.[1] as RequestInit | undefined;
+  return call?.[1];
 }
 
 afterEach(() => {
@@ -307,5 +311,51 @@ describe('what has already been credited', () => {
     await user.click(more);
 
     expect(more).toBeDisabled();
+  });
+});
+
+// Decision D27 (backlog-issues B12): every credit note stays on its invoice, and prints.
+describe('credit notes already issued', () => {
+  it('lists each one and prints it on request', async () => {
+    const print = vi.fn();
+    vi.stubGlobal('print', print);
+    const note = {
+      id: 'cn1',
+      credit_note_number: 'CN/2026-27/00001',
+      note_date: '2026-09-13',
+      reason: 'Sent back cold',
+      grand_total: '493.50',
+      lines: [
+        {
+          id: 'cl1',
+          order_line_id: 'l1',
+          quantity: 1,
+          taxable_value: '470.00',
+          cgst_amount: '11.75',
+          sgst_amount: '11.75',
+          tax_amount: '23.50',
+          line_total: '493.50',
+        },
+      ],
+    };
+    const fetchMock = renderScreen();
+    fetchMock.mockImplementation((input: unknown) => {
+      const url = String(input);
+      if (url.endsWith('/staff/invoices/inv1')) {
+        return Promise.resolve(json({ ...INVOICE, credit_notes: [note] }));
+      }
+      if (url.endsWith('/staff/menu')) return Promise.resolve(json(MENU));
+      if (url.endsWith('/staff/orders/o1')) return Promise.resolve(json(settledOrder('inv1')));
+      return Promise.resolve(json({}));
+    });
+    const user = userEvent.setup();
+
+    const print_button = await screen.findByRole('button', {
+      name: 'Print credit note CN/2026-27/00001',
+    });
+    expect(screen.getByText('Sent back cold')).toBeInTheDocument();
+    await user.click(print_button);
+
+    expect(print).toHaveBeenCalledTimes(1);
   });
 });

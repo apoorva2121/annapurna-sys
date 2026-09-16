@@ -1,10 +1,12 @@
 import { type FormEvent, type ReactElement, useState } from 'react';
 
 import { formatDelta, parseAmount } from '@shared/money';
+import { Permission } from '@shared/permissions';
 import { Button } from '@shared/ui/button';
 import { Label } from '@shared/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select';
 import { Switch } from '@shared/ui/switch';
+import { useAuth } from '@staff/auth/AuthContext';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
@@ -32,6 +34,9 @@ import {
 export default function ModifierGroupsScreen(): ReactElement {
   const groups = useModifierGroups();
   const items = groups.data?.items ?? [];
+  // Read-only without menu.manage, as the dish screen is: a form the server will refuse is a
+  // control that lies (defect sheet row 30, backlog-issues B12).
+  const mayManage = useAuth().can(Permission.MENU_MANAGE);
 
   return (
     <div className="max-w-3xl space-y-page">
@@ -47,19 +52,25 @@ export default function ModifierGroupsScreen(): ReactElement {
         ) : (
           <div className="space-y-4">
             {items.map((group) => (
-              <GroupCard key={group.id} group={group} />
+              <GroupCard key={group.id} group={group} mayManage={mayManage} />
             ))}
           </div>
         )}
       </QueryState>
 
-      <AddGroup />
-      {items.length > 0 && <BulkApply groups={items} />}
+      {mayManage && <AddGroup />}
+      {mayManage && items.length > 0 && <BulkApply groups={items} />}
     </div>
   );
 }
 
-function GroupCard({ group }: { group: ModifierGroup }): ReactElement {
+function GroupCard({
+  group,
+  mayManage,
+}: {
+  group: ModifierGroup;
+  mayManage: boolean;
+}): ReactElement {
   const add = useAddModifier();
   const [name, setName] = useState('');
   const [delta, setDelta] = useState('0');
@@ -117,6 +128,7 @@ function GroupCard({ group }: { group: ModifierGroup }): ReactElement {
         ))}
       </ul>
 
+      {mayManage && (
       <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
         <Field
           label={strings.menu.optionName}
@@ -146,6 +158,7 @@ function GroupCard({ group }: { group: ModifierGroup }): ReactElement {
           </div>
         )}
       </form>
+      )}
     </section>
   );
 }

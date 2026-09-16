@@ -89,7 +89,8 @@ Never edit a migration that has been applied on staging — write a new one.
 - Enums live in `app/core/enums.py` and are mirrored in `frontend/src/shared/enums.ts`.
 - Tests: every service gets a test; every endpoint gets a tenant-isolation test proving restaurant A cannot read restaurant B.
 - Frontend data access is TanStack Query only — no `fetch` in components.
-- Errors surface as `{code, message, details}`; `code` is a stable string the frontend switches on.
+- Errors surface as `{code, message, details, issue}`; `code` is a stable string the frontend switches on
+  and is **never shown** — a person reads `message` and "Issue N" from `app/core/issues.json` (D11, D12).
 
 ## Non-negotiable process rules
 

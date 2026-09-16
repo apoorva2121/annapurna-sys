@@ -222,6 +222,26 @@ export type Invoice = {
   payments: Payment[];
   /** Per dish, what credit notes already took off (backlog-issues B6). Absent from an older API. */
   credited?: { order_line_id: string; quantity: number; amount: string }[];
+  /** Every credit note against this invoice, oldest first (decision D27). */
+  credit_notes?: CreditNoteSummary[];
+};
+
+export type CreditNoteSummary = {
+  id: string;
+  credit_note_number: string;
+  note_date: string;
+  reason: string;
+  grand_total: string;
+  lines: {
+    id: string;
+    order_line_id: string;
+    quantity: number;
+    taxable_value: string;
+    cgst_amount: string;
+    sgst_amount: string;
+    tax_amount: string;
+    line_total: string;
+  }[];
 };
 
 export type PaymentInput = { method: PaymentMethod; amount: string; reference?: string };

@@ -17,6 +17,7 @@ import {
   usePurchaseOrder,
   useReceiveAgainstOrder,
 } from '@staff/api/procurement';
+import { type Person, describePerson } from '@staff/api/people';
 import { useStockItems } from '@staff/api/stock';
 
 type Weighed = { invoiced: string; received: string; rejected: string; reason: string };
@@ -308,6 +309,13 @@ function PostedPanel({
     <div className="space-y-page">
       <h1 className="text-2xl font-semibold">{strings.procurement.postedTitle}</h1>
       <p className="text-sm text-muted-foreground">{strings.procurement.postedIntro}</p>
+      {(posted.receipt.received_by_person ?? null) !== null && (
+        <p className="text-sm">
+          {strings.procurement.receivedBy(
+            describePerson(posted.receipt.received_by_person as Person),
+          )}
+        </p>
+      )}
 
       <Notice
         tone="success"

@@ -13,6 +13,7 @@ import { errorProps, fieldErrors } from '@staff/components/errorProps';
 import { strings } from '@staff/strings';
 import {
   type BusyWindow,
+  type PostalAddress,
   type Restaurant,
   useRestaurant,
   useUpdateRestaurant,
@@ -63,7 +64,7 @@ function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement 
   const [gstin, setGstin] = useState(restaurant.gstin ?? '');
   const [fssai, setFssai] = useState(restaurant.fssai_licence ?? '');
   const [licenceExpires, setLicenceExpires] = useState(restaurant.fssai_licence_expires_on ?? '');
-  const [address, setAddress] = useState(restaurant.address ?? '');
+  const [address, setAddress] = useState<AddressDraft>(() => addressDraft(restaurant.address));
 
   function onSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -78,7 +79,7 @@ function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement 
         gstin: gstin.trim() === '' ? null : gstin.trim(),
         fssai_licence: fssai.trim() === '' ? null : fssai.trim(),
         fssai_licence_expires_on: licenceExpires === '' ? null : licenceExpires,
-        address: address.trim() === '' ? null : address.trim(),
+        address: addressToSend(address),
         // The version this page was read at (backlog-issues B6): a change saved elsewhere since is
         // refused with a sentence, never silently overwritten.
         settings_version: restaurant.settings_version,
@@ -93,7 +94,7 @@ function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement 
           setGstin(saved.gstin ?? '');
           setFssai(saved.fssai_licence ?? '');
           setLicenceExpires(saved.fssai_licence_expires_on ?? '');
-          setAddress(saved.address ?? '');
+          setAddress(addressDraft(saved.address));
         },
       },
     );
@@ -153,14 +154,7 @@ function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement 
         }}
         error={problems.fssai_licence_expires_on}
       />
-      <Field
-        label={strings.setup.restaurant.address}
-        value={address}
-        onChange={(event) => {
-          setAddress(event.target.value);
-        }}
-        maxLength={500}
-      />
+      <AddressFields value={address} onChange={setAddress} problems={problems} />
 
       {/* Every mutation renders pending, error and success explicitly (restaurant-ui rule 6). */}
       {save.isError && (
@@ -172,6 +166,11 @@ function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement 
             gstin: strings.setup.restaurant.gstin,
             fssai_licence: strings.setup.restaurant.fssai,
             address: strings.setup.restaurant.address,
+            'address.line1': strings.setup.restaurant.addressLine1,
+            'address.line2': strings.setup.restaurant.addressLine2,
+            'address.city': strings.setup.restaurant.city,
+            'address.state': strings.setup.restaurant.state,
+            'address.pincode': strings.setup.restaurant.pincode,
           })}
         />
       )}
@@ -511,4 +510,76 @@ function safeExample(value: string): ReturnType<typeof businessDayExample> {
     // A half-typed time is not an error worth showing; the field itself will refuse to submit.
     return null;
   }
+}
+
+/** The address as typed: every part a string, so a box can be empty (backlog-issues B12). */
+type AddressDraft = { line1: string; line2: string; city: string; state: string; pincode: string };
+
+const EMPTY_ADDRESS: AddressDraft = { line1: '', line2: '', city: '', state: '', pincode: '' };
+
+/** One absence check rather than five: `line1` and `city` are required on the wire, and only the
+ *  other three can be null, so a per-field `??` was branching for cases the type rules out. */
+function addressDraft(address: PostalAddress | null | undefined): AddressDraft {
+  if (address === null || address === undefined) {
+    return EMPTY_ADDRESS;
+  }
+  const text = (value: string | null): string => value ?? '';
+  return {
+    line1: address.line1,
+    line2: text(address.line2),
+    city: address.city,
+    state: text(address.state),
+    pincode: text(address.pincode),
+  };
+}
+
+/** Null when nothing is entered; otherwise the parts the API takes, a blank optional part as null.
+ *  The address used to go as one string, which the API refused on every save (defect sheet row 6). */
+function addressToSend(draft: AddressDraft): PostalAddress | null {
+  if (Object.values(draft).every((value) => value.trim() === '')) {
+    return null;
+  }
+  const optional = (value: string): string | null => (value.trim() === '' ? null : value.trim());
+  return {
+    line1: draft.line1.trim(),
+    line2: optional(draft.line2),
+    city: draft.city.trim(),
+    state: optional(draft.state),
+    pincode: optional(draft.pincode),
+  };
+}
+
+function AddressFields({
+  value,
+  onChange,
+  problems,
+}: {
+  value: AddressDraft;
+  onChange: (next: AddressDraft) => void;
+  problems: Record<string, string>;
+}): ReactElement {
+  const part = (key: keyof AddressDraft, label: string, hint?: string): ReactElement => (
+    <Field
+      key={key}
+      label={label}
+      hint={hint}
+      value={value[key]}
+      inputMode={key === 'pincode' ? 'numeric' : undefined}
+      onChange={(event) => {
+        onChange({ ...value, [key]: event.target.value });
+      }}
+      error={problems[`address.${key}`]}
+    />
+  );
+  return (
+    <fieldset className="flex flex-col gap-3">
+      <legend className="font-semibold">{strings.setup.restaurant.address}</legend>
+      <p className="text-sm text-muted-foreground">{strings.setup.restaurant.addressHint}</p>
+      {part('line1', strings.setup.restaurant.addressLine1)}
+      {part('line2', strings.setup.restaurant.addressLine2)}
+      {part('city', strings.setup.restaurant.city)}
+      {part('state', strings.setup.restaurant.state)}
+      {part('pincode', strings.setup.restaurant.pincode, strings.setup.restaurant.pincodeHint)}
+    </fieldset>
+  );
 }

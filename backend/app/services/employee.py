@@ -17,8 +17,10 @@ a notification without M01 having to change.
 
 from __future__ import annotations
 
+import re
 import uuid
-from collections.abc import Sequence
+from collections import Counter
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
@@ -57,6 +59,30 @@ def _not_found() -> NotFoundError:
     tenant scoping exists to prevent (manual test D1).
     """
     return NotFoundError("employee.not_found", "That employee was not found.")
+
+
+# `EMP017`, `E000`, `K7`: letters then digits.
+_CODE_SHAPE = re.compile(r"^([A-Za-z]*)(\d+)$")
+
+
+def next_employee_code(existing: Iterable[str]) -> str:
+    """The next free code in the organization's own style (decision D19, backlog-issues B12).
+
+    The prefix most codes use, one past the highest number with it, padded to the widest such number
+    — `EMP017` → `EMP018`. `EMP001` when nothing is numbered yet. A suggestion only: the unique
+    constraint still decides, and a person may type another."""
+    codes = [code.strip() for code in existing]
+    shaped = [match for code in codes if (match := _CODE_SHAPE.match(code))]
+    if not shaped:
+        return "EMP001"
+    prefix = Counter(match.group(1) for match in shaped).most_common(1)[0][0]
+    same = [match for match in shaped if match.group(1) == prefix]
+    width = max(len(match.group(2)) for match in same)
+    taken = {code.upper() for code in codes}
+    number = max(int(match.group(2)) for match in same) + 1
+    while f"{prefix}{number:0{width}d}".upper() in taken:
+        number += 1
+    return f"{prefix}{number:0{width}d}"
 
 
 class EmployeeService:
@@ -143,6 +169,10 @@ class EmployeeService:
             },
         )
         return employee
+
+    async def next_code(self, actor: Actor) -> str:
+        """The code the add-employee form fills in (D19)."""
+        return next_employee_code(await self._repository(actor).codes())
 
     async def _reject_duplicate_code(self, actor: Actor, employee_code: str) -> None:
         # Caught here so the caller gets a readable message rather than a database constraint

@@ -42,6 +42,8 @@ const CLOSED_TILL = {
   counted_cash: '4830.00',
   variance: '-400.00',
   adjusted_variance: '-400.00',
+  closed_by_person: { full_name: 'Arun Kulkarni', employee_code: 'EMP004', roles: ['Chef'] },
+  adjusted_by: [],
   counts: [],
   movements: [],
 };
@@ -191,7 +193,9 @@ describe('CashScreen', () => {
     expect(screen.getByText('After adjustments: Exact')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Adjust this till' }));
-    await user.type(screen.getByLabelText('Amount (minus for missing)'), '-50');
+    // Decision D18: found or missing is a choice, not a minus sign.
+    await user.click(screen.getByRole('radio', { name: 'Cash missing' }));
+    await user.type(screen.getByLabelText('Amount'), '50');
     await user.type(screen.getByLabelText('Reason'), 'Missing after the recount');
     await user.click(screen.getByRole('button', { name: 'Record adjustment' }));
 
@@ -222,5 +226,33 @@ describe('cash taken outside any till', () => {
     await screen.findByText(/till open/i);
 
     expect(screen.queryByText(/outside any till/i)).not.toBeInTheDocument();
+  });
+});
+
+// Decisions D13 and D16 (backlog-issues B12): who closed and who adjusted, beside the figures.
+describe('who counted and who corrected', () => {
+  it('names who closed the till', async () => {
+    renderScreen([CLOSED_TILL]);
+
+    expect(await screen.findByText('Closed by Arun Kulkarni (EMP004, Chef)')).toBeInTheDocument();
+  });
+
+  it('marks an adjustment made by the person who closed the till', async () => {
+    renderScreen([
+      {
+        ...CLOSED_TILL,
+        adjustments: '400.00',
+        adjusted_variance: '0.00',
+        adjusted_by: [
+          { full_name: 'Arun Kulkarni', employee_code: 'EMP004', roles: ['Chef'], by_closer: true },
+        ],
+      },
+    ]);
+
+    expect(
+      await screen.findByText(
+        'Adjusted by Arun Kulkarni (EMP004, Chef), the same person who closed it',
+      ),
+    ).toBeInTheDocument();
   });
 });

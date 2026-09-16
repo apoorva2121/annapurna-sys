@@ -184,7 +184,7 @@ async def _seed_one(
     )
 
     await cash.payout(actor, till_id, amount=_PAYOUT, reason="Ice and lemons from the market")
-    position, _, _ = await cash.detail(till_id)
+    position, _, _, _ = await cash.detail(till_id)
     await cash.close(actor, till_id, counts=_notes_for(position.expected - _SHORTFALL))
     return created, 1, 1, 1
 

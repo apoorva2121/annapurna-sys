@@ -19,6 +19,7 @@ import {
   usePayout,
   useTills,
 } from '@staff/api/cash';
+import { type Person, describePerson } from '@staff/api/people';
 
 /**
  * The till, on the manager's tablet: open it, pay out of it, count it, and correct it afterwards.
@@ -172,9 +173,13 @@ function MovementForm({
   const [reason, setReason] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [recorded, setRecorded] = useState(false);
+  // Decision D18: found or missing is a choice, and the amount is always typed as a positive figure.
+  const [direction, setDirection] = useState<'found' | 'missing'>('found');
 
   function onRecord(): void {
-    const parsed = parseAmount(amount, { allowNegative: kind === 'adjustment' });
+    const typed = parseAmount(amount);
+    const parsed =
+      typed !== null && kind === 'adjustment' && direction === 'missing' ? `-${typed}` : typed;
     const found =
       parsed === null
         ? text.amountProblem
@@ -205,6 +210,24 @@ function MovementForm({
       {problem !== null && <Notice tone="critical" title={problem} />}
       {mutation.isError && <Notice tone="critical" {...errorProps(mutation.error)} />}
       {recorded && <Notice tone="success" title={text.recorded} />}
+      {kind === 'adjustment' && (
+        <fieldset className="flex flex-col">
+          <legend className="text-sm font-medium">{strings.cash.adjustment.which}</legend>
+          {(['found', 'missing'] as const).map((choice) => (
+            <label key={choice} className="flex min-h-target items-center gap-3">
+              <input
+                type="radio"
+                name={`adjustment-${tillId}`}
+                checked={direction === choice}
+                onChange={() => {
+                  setDirection(choice);
+                }}
+              />
+              {choice === 'found' ? strings.cash.adjustment.found : strings.cash.adjustment.missing}
+            </label>
+          ))}
+        </fieldset>
+      )}
       <Field
         label={text.amount}
         inputMode="decimal"
@@ -331,6 +354,16 @@ function ClosedTill({ till }: { till: TillSummary }): ReactElement {
               formatINR(till.expected_cash),
             )}
           </p>
+          {(till.closed_by_person ?? null) !== null && (
+            <p className="text-sm text-muted-foreground">
+              {strings.cash.closedBy(describePerson(till.closed_by_person as Person))}
+            </p>
+          )}
+          {(till.adjusted_by ?? []).map((person) => (
+            <p key={person.employee_code} className="text-sm text-muted-foreground">
+              {strings.cash.adjustedBy(describePerson(person), person.by_closer)}
+            </p>
+          ))}
         </div>
         <div className="text-right">
           {till.variance !== null && <p className="font-semibold">{varianceWord(till.variance)}</p>}

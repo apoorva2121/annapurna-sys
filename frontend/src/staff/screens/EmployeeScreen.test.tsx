@@ -11,7 +11,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import type { ReactElement } from 'react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthContext, type AuthState } from '@staff/auth/AuthContext';
@@ -78,13 +79,19 @@ function everythingLoaded(): void {
   );
 }
 
-function renderScreen(): void {
+function StaffListProbe(): ReactElement {
+  const { state } = useLocation() as { state: { added?: string } | null };
+  return <p>{state?.added ?? 'no notice'}</p>;
+}
+
+function renderScreen(path = '/staff/e1'): void {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/staff/e1']}>
+      <MemoryRouter initialEntries={[path]}>
         <AuthContext.Provider value={ALL_PERMISSIONS}>
           <Routes>
+            <Route path="/staff" element={<StaffListProbe />} />
             <Route path="/staff/:employeeId" element={<EmployeeScreen />} />
           </Routes>
         </AuthContext.Provider>
@@ -157,5 +164,26 @@ describe('setting a new password for someone', () => {
       const init = (call as unknown[])[1] as RequestInit;
       expect(JSON.parse(init.body as string)).toEqual({ new_password: 'short-enough-now' });
     });
+  });
+});
+
+// Decision D14 (backlog-issues B12): adding someone ended on their page with nowhere to go.
+describe('finishing an employee', () => {
+  it('asks for a role after adding, then finishes back to the staff list naming it', async () => {
+    everythingLoaded();
+    renderScreen('/staff/e1?added=1');
+    const user = userEvent.setup();
+
+    expect(await screen.findByText('Now give Vikram Deshmukh a role')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Finish' }));
+
+    expect(await screen.findByText('Vikram Deshmukh added as Manager')).toBeInTheDocument();
+  });
+
+  it('offers a way back when editing someone who already exists', async () => {
+    everythingLoaded();
+    renderScreen();
+
+    expect(await screen.findByRole('link', { name: 'Back to staff' })).toHaveAttribute('href', '/staff');
   });
 });

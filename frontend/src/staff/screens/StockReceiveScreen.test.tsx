@@ -79,7 +79,10 @@ function postedBody(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown
 async function submitWith(quantity: string, cost: string): Promise<void> {
   const user = userEvent.setup();
   await user.type(await screen.findByLabelText(/Quantity/), quantity);
-  await user.type(screen.getByLabelText(/Cost per unit/), cost);
+  // B12e renamed this box: it is the price per whatever the invoice sells by, and the label
+  // says which unit that is once an item is chosen. "Cost per unit" against a base unit of
+  // grams is what put ₹40-a-gram cabbage into the ledger.
+  await user.type(screen.getByLabelText(/Price per unit/), cost);
   await user.click(screen.getByRole('button', { name: 'Record it' }));
 }
 

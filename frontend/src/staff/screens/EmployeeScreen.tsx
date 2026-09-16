@@ -1,5 +1,5 @@
 import { type FormEvent, type ReactElement, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { Permission } from '@shared/permissions';
 import {
@@ -39,6 +39,7 @@ function Loaded({ employee }: { employee: Employee }): ReactElement {
 
   return (
     <div className="space-y-8">
+      <AddedOrBack employee={employee} />
       <div>
         <h1 className="text-2xl font-semibold">{employee.full_name}</h1>
         <p className="font-mono text-sm text-muted-foreground">{employee.employee_code}</p>
@@ -253,5 +254,36 @@ function PasswordReset({ employee }: { employee: Employee }): ReactElement {
         </Button>
       </form>
     </section>
+  );
+}
+
+/** After adding someone: the next step, and a way to finish (decision D14). Otherwise a way back. */
+function AddedOrBack({ employee }: { employee: Employee }): ReactElement {
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const roles = useRoles();
+  if (params.get('added') !== '1') {
+    return (
+      <Link to="/staff" className="text-info underline underline-offset-4">
+        {strings.employee.backToStaff}
+      </Link>
+    );
+  }
+  const given = (roles.data ?? [])
+    .filter((role) => employee.roles.includes(role.code))
+    .map((role) => role.name);
+  return (
+    <Notice tone="info" title={strings.employee.nowGiveRole(employee.full_name)}>
+      <Button
+        className="mt-2"
+        onClick={() => {
+          void navigate('/staff', {
+            state: { added: strings.employee.addedAs(employee.full_name, given) },
+          });
+        }}
+      >
+        {strings.employee.finish}
+      </Button>
+    </Notice>
   );
 }

@@ -167,6 +167,7 @@ function Credentials({
         autoComplete="current-password"
         required
       />
+      <ForgotPassword />
     </>
   );
 }
@@ -207,7 +208,7 @@ function SignInProblem({ error }: { error: ApiClientError }): ReactElement {
     <Notice
       tone="critical"
       title={error.code === 'network.unreachable' ? strings.login.offline : error.message}
-      code={error.code}
+      issue={error.issue}
     />
   );
 }
@@ -239,5 +240,25 @@ function Actions({
         {strings.login.startOver}
       </Button>
     </>
+  );
+}
+
+/** Decision D20 (backlog-issues B12): who can set a new password, said where it is looked for. */
+function ForgotPassword(): ReactElement {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="text-sm">
+      <button
+        type="button"
+        className="min-h-target text-info underline underline-offset-4"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen((current) => !current);
+        }}
+      >
+        {strings.login.forgot}
+      </button>
+      {open && <p className="text-muted-foreground">{strings.login.forgotAnswer}</p>}
+    </div>
   );
 }

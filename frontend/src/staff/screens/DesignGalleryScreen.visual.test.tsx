@@ -52,8 +52,15 @@ describe('the design gallery', () => {
 
       await expect(page.elementLocator(specimen as Element)).toMatchScreenshot(name, {
         comparatorName: 'pixelmatch',
-        // Anti-aliasing differs run to run even on one image; a real change is many pixels.
-        comparatorOptions: { threshold: 0.2, allowedMismatchedPixelRatio: 0.002 },
+        // Tightened from 0.002 after it let a real change through: the Notice specimen went from
+        // "Issue 12" to "Issue 1012" and the run stayed green, because a few hundred changed pixels
+        // sat under 0.2% of the image. A guard whose stated job is catching a button moving by a
+        // pixel cannot also tolerate a line of text changing.
+        //
+        // Safe to tighten because the picture is taken in one pinned image: re-taking every
+        // baseline here produced byte-identical files, so run-to-run variance in this container is
+        // nil. The small allowance that remains is for the container itself changing, not for noise.
+        comparatorOptions: { threshold: 0.2, allowedMismatchedPixelRatio: 0.0002 },
       });
     });
   }

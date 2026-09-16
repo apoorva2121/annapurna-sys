@@ -22,6 +22,10 @@ export const strings = {
     submit: 'Sign in',
     submitting: 'Signing in…',
     offline: 'You appear to be offline. Check the connection and try again.',
+    // Decision D20.
+    forgot: 'Forgot password?',
+    forgotAnswer:
+      'Ask your manager or the owner. They set a new one from Staff, and you choose your own the next time you sign in.',
     // Backlog-issues B4: one login at more than one hotel. Asked only after the password.
     chooseTitle: 'Which hotel?',
     chooseHint: 'Your login works at more than one hotel. Choose where to sign in.',
@@ -83,7 +87,18 @@ export const strings = {
     phone: 'Phone number',
     joinedOn: 'Joined on',
     loginIdentifier: 'Login (phone or email)',
-    loginHint: 'Optional. Leave blank for someone who never signs in — a cleaner, for example.',
+    // Help text rewritten for decision D21.
+    fullNameHint: 'As it should appear on rotas and reports. At least two letters.',
+    employeeCodeHint: 'Filled in with the next free code. Change it if you number staff your own way.',
+    loginHint: 'Only for someone who will sign in. Leave it blank for staff who never use the app.',
+    initialPasswordHint:
+      'At least 10 characters. Tell them in person; they choose their own the first time they sign in.',
+    // Decision D14.
+    nowGiveRole: (name: string) => `Now give ${name} a role`,
+    finish: 'Finish',
+    addedAs: (name: string, roles: string[]) =>
+      roles.length === 0 ? `${name} added, with no role yet` : `${name} added as ${roles.join(', ')}`,
+    backToStaff: 'Back to staff',
     initialPassword: 'Initial password',
     passwordHint: 'At least 10 characters.',
     save: 'Save',
@@ -126,8 +141,9 @@ export const strings = {
     submit: 'Change password',
     submitting: 'Changing…',
     changed: 'Password changed. Your other devices have been signed out.',
-    appearance: 'Appearance',
-    appearanceHint: 'How the app looks on this device. Only you see this choice.',
+    // Decision D23: this device only; the restaurant's default is in Settings.
+    appearance: 'Appearance on this device',
+    appearanceHint: "Only this device, and only for you. The restaurant's default look is set in Settings.",
     appearanceSelected: 'in use',
     mustChange: 'Change your password now',
     mustChangeWhy:
@@ -141,8 +157,8 @@ export const strings = {
     navTax: 'Tax rates',
 
     theme: {
-      title: 'Appearance for everyone here',
-      hint: 'The look this restaurant shows by default. Anyone who has picked a theme on their own device keeps it.',
+      title: 'Restaurant default appearance',
+      hint: 'The look everyone here sees, unless they chose one on their own device in their profile.',
       defaultLabel: 'Default theme',
       none: 'Follow the device',
       scheduleTitle: 'Festive themes',
@@ -202,6 +218,13 @@ export const strings = {
       fssaiExpires: 'FSSAI licence valid until',
       fssaiExpiresHint: 'The date on the licence. The app warns 30 days before it runs out.',
       address: 'Address',
+      addressHint: 'Line 1 and the city are needed. The address prints on every bill.',
+      addressLine1: 'Address line 1',
+      addressLine2: 'Address line 2',
+      city: 'City',
+      state: 'State',
+      pincode: 'PIN code',
+      pincodeHint: 'Six digits.',
       save: 'Save settings',
       saving: 'Saving…',
       saved: 'Settings saved.',
@@ -209,6 +232,7 @@ export const strings = {
 
     floor: {
       title: 'Floor plan',
+      tableAction: (verb: string, code: string) => `${verb} table ${code}`,
       areasTitle: 'Dining areas',
       areasEmpty: 'No dining areas yet. Add one before adding tables.',
       addArea: 'Add a dining area',
@@ -376,6 +400,8 @@ export const strings = {
     expiringTitle: 'Expiring soon',
     expiringEmpty: 'Nothing expiring in the next 7 days.',
     expiringOn: 'Expires',
+    // Decision D24.
+    expiresOn: (date: string) => `Expires ${date}`,
     remaining: 'Left',
     noExpiry: 'No expiry date',
     showZero: 'Include items at zero',
@@ -613,6 +639,8 @@ export const strings = {
     rejectedNeedsReason: 'Say why it was refused.',
 
     postedTitle: 'Booked in',
+    // Defect sheet row 22.
+    receivedBy: (person: string) => `Received by ${person}`,
     // The headline, not a repeat of the page title. A Notice whose title says the same thing as the
     // heading above it is a box a person learns to skip, and this is the one box on the screen with
     // the numbers that matter in it.
@@ -842,6 +870,14 @@ export const strings = {
     creditTotal: (total: string) => `The bill is reduced by ${total}.`,
     refunded: (method: string, amount: string) => `${method} refund of ${amount}`,
     anotherCredit: 'Issue another credit note',
+    // Decision D27.
+    creditNotesTitle: 'Credit notes on this bill',
+    creditNoteTitle: (number: string) => `Credit note ${number}`,
+    againstInvoice: (invoice: string, date: string) => `Against invoice ${invoice} · ${date}`,
+    gstin: (gstin: string) => `GSTIN ${gstin}`,
+    print: 'Print',
+    printCreditNote: (number: string) => `Print credit note ${number}`,
+    creditTotalLabel: 'Total credited',
     cancelInvoice: 'Cancel this invoice',
     cancelHint:
       'Only for a bill issued in error, on the day it was issued. It keeps its number and moves no money.',
@@ -878,8 +914,12 @@ export const strings = {
     adjustment: {
       title: 'Adjust',
       hint: 'Cash found or missing after the count. Recorded by someone other than whoever closed the till, and shown beside the original figure, never instead of it.',
-      amount: 'Amount (minus for missing)',
-      amountProblem: 'Enter the amount, with a minus sign if it is missing.',
+      // Decision D18.
+      which: 'Was cash found or missing?',
+      found: 'Cash found (extra)',
+      missing: 'Cash missing',
+      amount: 'Amount',
+      amountProblem: 'Enter the amount found or missing, like 400 or 49.50.',
       record: 'Record adjustment',
       recorded: 'Adjustment recorded',
     },
@@ -901,6 +941,10 @@ export const strings = {
     businessDay: (date: string) => `Business day ${date}`,
     adjust: 'Adjust this till',
     olderTills: 'Older tills are not shown here.',
+    // Decisions D13 and D16.
+    closedBy: (person: string) => `Closed by ${person}`,
+    adjustedBy: (person: string, byCloser: boolean) =>
+      byCloser ? `Adjusted by ${person}, the same person who closed it` : `Adjusted by ${person}`,
     // Backlog-issues B7, decision D3.
     outsideTill: (amount: string) => `${amount} taken in cash today outside any till`,
     outsideTillHint: (payments: number) =>
@@ -920,6 +964,17 @@ export const strings = {
     waiterPatterns: 'Waiter patterns',
   },
 
+  // Backlog-issues B12e. A supplier sells by the kilo and the ledger holds grams (invariant 5), so
+  // a box that says only "Quantity" is how 12 kg gets typed as 12 g and a plate of cabbage ends up
+  // costing more than a car. The unit is named beside the number, always.
+  units: {
+    quantity: 'Quantity',
+    quantityIn: (unit: string) => `Quantity (${unit})`,
+    pricePerUnit: 'Price per unit',
+    pricePer: (unit: string) => `Price per ${unit}`,
+    recordAnyway: 'Record it anyway',
+  },
+
   licence: {
     expired: (date: string) => `The FSSAI licence ran out on ${date}`,
     expiredHint:
@@ -927,6 +982,8 @@ export const strings = {
     expiring: (date: string) => `The FSSAI licence runs out on ${date}. Renew it before then.`,
   },
   errors: {
+    // Backlog-issues B12 (D12): what a person quotes when they report a problem.
+    issue: (number: number) => `Issue ${String(number)}`,
     title: 'Something went wrong',
     forbidden: 'You do not have access to this.',
     forbiddenHint: 'If you think you should, ask an owner or manager to check your roles.',

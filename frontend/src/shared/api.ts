@@ -39,7 +39,19 @@ export type ApiError = {
   message: string;
   details?: Record<string, unknown>;
   requestId?: string;
+  /** The number a person quotes (backlog-issues B12, D12). The code is never shown. */
+  issue?: number;
 };
+
+/**
+ * Issue numbers for the errors the browser makes itself, from `backend/app/core/issues.json`.
+ * `api.issue.test.ts` fails if they drift from the catalogue.
+ */
+export const FRONTEND_ISSUES = {
+  'network.unreachable': 1084,
+  'idempotency.key_missing': 1055,
+  'http.status': 1052,
+} as const;
 
 export class ApiClientError extends Error {
   readonly code: string;
@@ -50,12 +62,15 @@ export class ApiClientError extends Error {
 
   readonly requestId: string | undefined;
 
+  readonly issue: number | undefined;
+
   constructor(error: ApiError) {
     super(error.message);
     this.name = 'ApiClientError';
     this.code = error.code;
     this.details = error.details;
     this.requestId = error.requestId;
+    this.issue = error.issue;
   }
 }
 
@@ -87,6 +102,7 @@ type ErrorEnvelope = {
   code: string;
   message: string;
   details?: Record<string, unknown>;
+  issue?: unknown;
 };
 
 function isErrorEnvelope(body: unknown): body is ErrorEnvelope {
@@ -124,6 +140,7 @@ function toApiError(status: number, body: unknown, requestId: string | null): Ap
     return {
       code: `http.${String(status)}`,
       message: `The server returned an unexpected response (HTTP ${String(status)}).`,
+      issue: FRONTEND_ISSUES['http.status'],
       ...identity,
     };
   }
@@ -132,6 +149,7 @@ function toApiError(status: number, body: unknown, requestId: string | null): Ap
     code: body.code,
     message: body.message,
     ...(body.details === undefined ? {} : { details: body.details }),
+    ...(typeof body.issue === 'number' ? { issue: body.issue } : {}),
     ...identity,
   };
 }
@@ -173,11 +191,12 @@ async function send(
     return await fetch(`${API_BASE}${path}`, init);
   } catch {
     // Restaurant networks drop constantly. A dead network has to surface as a coded error rather
-    // than a bare TypeError, since every error state renders `code` and nothing may fail silently
+    // than a bare TypeError, since every error state carries `code` and nothing may fail silently
     // (docs/ui/conventions.md).
     throw new ApiClientError({
       code: 'network.unreachable',
       message: 'Could not reach the server. Check the connection and try again.',
+      issue: FRONTEND_ISSUES['network.unreachable'],
     });
   }
 }
@@ -255,6 +274,7 @@ async function request<T>(
   if (idempotencyKey === undefined && requiresIdempotencyKey(method, path)) {
     throw new ApiClientError({
       code: 'idempotency.key_missing',
+      issue: FRONTEND_ISSUES['idempotency.key_missing'],
       message: 'This action was sent without its idempotency key, which is a bug in this screen.',
     });
   }

@@ -267,7 +267,7 @@ Where the product finally shows its face.
 ## M14 · Audit & Notifications
 
 - **Depends on** — M01
-- **Tables** — audit_log, notification
+- **Tables** — audit_log, notification; issue (the issue catalogue, built early by backlog-issues B12)
 - **Endpoints** — `GET /audit` (filter by entity, actor, date), `GET /notifications`, mark read
 - **Screens** — audit trail viewer, notification centre
 - **Rules** — audit written by a **service-layer decorator**, not by hand at each call site — hand-

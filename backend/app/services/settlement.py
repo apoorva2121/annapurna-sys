@@ -50,7 +50,7 @@ from app.core.enums import (
 )
 from app.core.errors import AppError, ConflictError, NotFoundError
 from app.core.tax import ZERO, collects_tax, document_type_for, invoice_number, rate_date, to_paisa
-from app.models.orders import Invoice, Order, OrderLine, Payment
+from app.models.orders import CreditNote, Invoice, Order, OrderLine, Payment
 from app.models.tenancy import Restaurant
 from app.repositories.orders import (
     CashSessionRepository,
@@ -232,7 +232,12 @@ class SettlementService(OrderService):
 
     async def get_invoice(
         self, invoice_id: uuid.UUID
-    ) -> tuple[Invoice, Sequence[Payment], dict[uuid.UUID, tuple[int, Decimal]]]:
+    ) -> tuple[
+        Invoice,
+        Sequence[Payment],
+        dict[uuid.UUID, tuple[int, Decimal]],
+        Sequence[CreditNote],
+    ]:
         """The invoice, its payments, and per dish what credit notes have already taken off — as a
         quantity and an amount including tax (backlog-issues B6). One more statement, whatever the
         number of notes."""
@@ -245,7 +250,9 @@ class SettlementService(OrderService):
             line_id: (entry.quantity, entry.taxable + entry.tax)
             for line_id, entry in so_far.items()
         }
-        return invoice, payments, credited
+        # Every note against it, for the screen to list and print (decision D27).
+        notes = await CreditNoteRepository(self.session, self.scope).for_invoice(invoice.id)
+        return invoice, payments, credited, notes
 
     # ------------------------------------------------------------------ steps
 

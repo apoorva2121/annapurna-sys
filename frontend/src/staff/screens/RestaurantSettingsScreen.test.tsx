@@ -300,3 +300,49 @@ describe('what was saved', () => {
     });
   });
 });
+
+// Owner defect sheet row 6 (backlog-issues B12): the address was one text box sent as a string, and
+// the API takes its parts, so every save was refused.
+describe('the address', () => {
+  it('is sent in parts, blank parts as null', async () => {
+    const fetchMock = vi.fn<(...call: FetchCall) => Promise<Response>>(() =>
+      Promise.resolve(json(SETTINGS)),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderScreen();
+
+    await user.type(await screen.findByLabelText('Address line 1'), 'Lane 5, Koregaon Park');
+    await user.type(screen.getByLabelText('City'), 'Pune');
+    await user.type(screen.getByLabelText('PIN code'), '411001');
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
+
+    await waitFor(() => {
+      const patch = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH');
+      expect(sentJson(patch).address).toEqual({
+        line1: 'Lane 5, Koregaon Park',
+        line2: null,
+        city: 'Pune',
+        state: null,
+        pincode: '411001',
+      });
+    });
+  });
+
+  it('is null when nothing is entered', async () => {
+    const fetchMock = vi.fn<(...call: FetchCall) => Promise<Response>>(() =>
+      Promise.resolve(json(SETTINGS)),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderScreen();
+    await screen.findByLabelText('Address line 1');
+
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
+
+    await waitFor(() => {
+      const patch = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH');
+      expect(sentJson(patch).address).toBeNull();
+    });
+  });
+});

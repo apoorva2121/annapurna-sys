@@ -88,8 +88,9 @@ export default function StockItemsScreen(): ReactElement {
                   key={item.id}
                   item={item}
                   mayCost={mayCost}
+                  isOpen={inspecting === item.id}
                   onInspect={() => {
-                    setInspecting(item.id);
+                    setInspecting((current) => (current === item.id ? null : item.id));
                   }}
                 />
               ))}
@@ -98,14 +99,6 @@ export default function StockItemsScreen(): ReactElement {
         )}
       </QueryState>
 
-      {inspecting !== null && (
-        <UsedByPanel
-          itemId={inspecting}
-          onClose={() => {
-            setInspecting(null);
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -114,12 +107,15 @@ function ItemRow({
   item,
   onInspect,
   mayCost,
+  isOpen,
 }: {
   item: StockItem;
   onInspect: () => void;
   mayCost: boolean;
+  isOpen: boolean;
 }): ReactElement {
   return (
+    <>
     <TableRow>
       <TableCell className="font-mono text-sm">{item.code}</TableCell>
       <TableCell>
@@ -148,11 +144,20 @@ function ItemRow({
             : '—'}
       </TableCell>
       <TableCell>
-        <Button variant="ghost" onClick={onInspect}>
+        <Button variant="ghost" onClick={onInspect} aria-expanded={isOpen}>
           {strings.stock.usedBy}
         </Button>
       </TableCell>
     </TableRow>
+    {/* Decision D24: under its own row, where it opens, not below the whole table. */}
+    {isOpen && (
+      <TableRow>
+        <TableCell colSpan={mayCost ? 6 : 5}>
+          <UsedByPanel itemId={item.id} onClose={onInspect} />
+        </TableCell>
+      </TableRow>
+    )}
+    </>
   );
 }
 

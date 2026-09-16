@@ -39,6 +39,7 @@ from app.core.enums import PurchaseOrderStatus
 from app.core.permissions import PermissionCode
 from app.core.tenancy import TenantScope
 from app.models.procurement import GoodsReceipt
+from app.schemas.people import PersonResponse
 from app.schemas.procurement import (
     AdHocReceiptRequest,
     OrderCancelRequest,
@@ -58,6 +59,7 @@ from app.schemas.procurement import (
     SupplierVarianceResponse,
     VarianceRowResponse,
 )
+from app.services.people import Person
 from app.services.procurement import (
     OrderLineInput,
     ProcurementService,
@@ -111,7 +113,15 @@ def _receipt_lines(payload: ReceiveAgainstOrderRequest) -> list[ReceiptLineInput
     ]
 
 
-def _posted(result: ReceiptResult, receipt: GoodsReceipt) -> PostedReceiptResponse:
+def _receipt(receipt: GoodsReceipt, receivers: dict[uuid.UUID, Person]) -> ReceiptResponse:
+    """The receipt with who received it, by name (defect sheet row 22)."""
+    person = receivers.get(receipt.received_by) if receipt.received_by is not None else None
+    return ReceiptResponse.model_validate(receipt).model_copy(
+        update={"received_by_person": PersonResponse.of(person)}
+    )
+
+
+def _posted(result: ReceiptResult, receipt: ReceiptResponse) -> PostedReceiptResponse:
     """Shape the confirmation panel. Every derived figure comes off the service's own dataclass —
     nothing is recomputed here, so the API and the ledger cannot disagree about a variance.
 
@@ -120,7 +130,7 @@ def _posted(result: ReceiptResult, receipt: GoodsReceipt) -> PostedReceiptRespon
     commit, so the idempotency ledger records exactly the response that is returned.
     """
     return PostedReceiptResponse(
-        receipt=ReceiptResponse.model_validate(receipt),
+        receipt=receipt,
         lines=[
             PostedLineResponse(
                 stock_item_id=line.stock_item_id,
@@ -334,7 +344,8 @@ async def receive_against_order(
         tax_amount=payload.tax_amount,
         received_at=payload.received_at,
     )
-    response = _posted(result, await service.get_receipt(result.receipt_id))
+    receipt = await service.get_receipt(result.receipt_id)
+    response = _posted(result, _receipt(receipt, await service.receivers([receipt])))
     await call.complete(status.HTTP_201_CREATED, response)
     await session.commit()
     return response
@@ -368,7 +379,8 @@ async def receive_ad_hoc(
         tax_amount=payload.tax_amount,
         received_at=payload.received_at,
     )
-    response = _posted(result, await service.get_receipt(result.receipt_id))
+    receipt = await service.get_receipt(result.receipt_id)
+    response = _posted(result, _receipt(receipt, await service.receivers([receipt])))
     await call.complete(status.HTTP_201_CREATED, response)
     await session.commit()
     return response
@@ -381,12 +393,16 @@ async def list_receipts(
     supplier_id: Annotated[uuid.UUID | None, Query()] = None,
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
 ) -> ReceiptListResponse:
-    rows = await _service(session, actor).list_receipts(supplier_id=supplier_id, limit=limit)
-    return ReceiptListResponse(receipts=[ReceiptResponse.model_validate(row) for row in rows])
+    service = _service(session, actor)
+    rows = await service.list_receipts(supplier_id=supplier_id, limit=limit)
+    receivers = await service.receivers(rows)
+    return ReceiptListResponse(receipts=[_receipt(row, receivers) for row in rows])
 
 
 @router.get("/goods-receipts/{receipt_id}", response_model=ReceiptResponse)
 async def get_receipt(
     receipt_id: uuid.UUID, session: SessionDep, actor: _ViewDep
 ) -> ReceiptResponse:
-    return ReceiptResponse.model_validate(await _service(session, actor).get_receipt(receipt_id))
+    service = _service(session, actor)
+    receipt = await service.get_receipt(receipt_id)
+    return _receipt(receipt, await service.receivers([receipt]))

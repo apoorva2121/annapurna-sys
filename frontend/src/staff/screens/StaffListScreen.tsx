@@ -1,10 +1,11 @@
 import { type ReactElement, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 import { Permission } from '@shared/permissions';
 import { useEmployees } from '@staff/api/staff';
 import { useAuth } from '@staff/auth/AuthContext';
 import { Button } from '@shared/ui/button';
+import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
 import { strings } from '@staff/strings';
 
@@ -19,6 +20,9 @@ import { strings } from '@staff/strings';
 export default function StaffListScreen(): ReactElement {
   const [includeInactive, setIncludeInactive] = useState(false);
   const { can } = useAuth();
+  // Set by Finish on a newly added employee's page (decision D14).
+  const { state } = useLocation() as { state: { added?: string } | null };
+  const added = state?.added;
   const employees = useEmployees(includeInactive);
   // Pages are an artefact of the transport, not something the list should think about.
   const people = employees.data?.pages.flatMap((page) => page.items) ?? [];
@@ -35,6 +39,8 @@ export default function StaffListScreen(): ReactElement {
           </Button>
         )}
       </div>
+
+      {typeof added === 'string' && <Notice tone="success" title={added} />}
 
       <label className="flex min-h-target items-center gap-2">
         <input

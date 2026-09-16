@@ -418,3 +418,24 @@ class TestTheInvoiceSaysWhatWasCredited:
         assert after["credited"] == [
             {"order_line_id": order["lines"][0]["id"], "quantity": 1, "amount": "493.50"}
         ]
+
+
+class TestTheInvoiceListsItsCreditNotes:
+    """Decision D27 (backlog-issues B12): a credit note is always viewable from its invoice. It was
+    shown once, as it was issued, and never again."""
+
+    async def test_each_note_is_on_the_invoice_with_its_dishes(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        _, _, token, _, invoice = await _settled(db_session, api_client)
+        manager = await _token(api_client, "manager")
+        credited = await _credit(api_client, manager, invoice)
+        assert credited.status_code == 201, credited.text
+
+        after = (await api_client.get(f"{INVOICES}/{invoice['id']}", headers=_auth(token))).json()
+
+        [note] = after["credit_notes"]
+        assert note["credit_note_number"] == credited.json()["credit_note_number"]
+        assert note["reason"] == "the dal came out cold"
+        assert note["grand_total"] == "493.50"
+        assert [line["quantity"] for line in note["lines"]] == [1]

@@ -458,6 +458,28 @@ class CashSessionRepository(RestaurantScopedRepository[CashSession]):
             totals[till_id] = replace(totals[till_id], **{field: Decimal(str(amount))})
         return totals
 
+    async def adjusters_for(
+        self, till_ids: Sequence[uuid.UUID]
+    ) -> dict[uuid.UUID, list[uuid.UUID]]:
+        """Who recorded each till's adjustments, first to last, for any number of tills in one
+        statement (backlog-issues B12, D13). Bounded by `ix_cash_movement_session`."""
+        found: dict[uuid.UUID, list[uuid.UUID]] = {till_id: [] for till_id in till_ids}
+        if not till_ids:
+            return found
+        rows = await self.session.execute(
+            select(CashMovement.cash_session_id, CashMovement.recorded_by)
+            .where(
+                CashMovement.restaurant_id == self.scope.restaurant_id,
+                CashMovement.cash_session_id.in_(list(till_ids)),
+                CashMovement.type == CashMovementType.ADJUSTMENT,
+            )
+            .order_by(CashMovement.occurred_at)
+        )
+        for till_id, recorded_by in rows.tuples().all():
+            if recorded_by not in found[till_id]:
+                found[till_id].append(recorded_by)
+        return found
+
     async def counts_of(self, till_id: uuid.UUID) -> Sequence[CashCount]:
         result = await self.session.scalars(
             select(CashCount)
@@ -618,6 +640,16 @@ class CreditNoteRepository(RestaurantScopedRepository[CreditNote]):
             )
             for line_id, quantity, taxable, cgst, tax in rows.tuples().all()
         }
+
+    async def for_invoice(self, invoice_id: uuid.UUID) -> Sequence[CreditNote]:
+        """Every credit note against one invoice with its lines, oldest first (decision D27)."""
+        result = await self.session.scalars(
+            self.scoped()
+            .options(selectinload(CreditNote.lines))
+            .where(CreditNote.invoice_id == invoice_id)
+            .order_by(CreditNote.issued_at)
+        )
+        return result.all()
 
     async def get_detail(self, credit_note_id: uuid.UUID) -> CreditNote | None:
         query = (

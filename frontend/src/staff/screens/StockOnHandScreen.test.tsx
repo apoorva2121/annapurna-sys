@@ -12,7 +12,7 @@
 // invariant 3.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -45,7 +45,16 @@ const ON_HAND = {
 
 const EXPIRING = {
   batches: [
-    { batch_id: 'b1', unit_cost: '0.360000', remaining: '500.0000', expiry_date: '2026-09-14' },
+    {
+      batch_id: 'b1',
+      stock_item_id: 's1',
+      code: 'PANEER',
+      name: 'Paneer',
+      base_unit: 'g',
+      unit_cost: '0.360000',
+      remaining: '500.0000',
+      expiry_date: '2026-09-14',
+    },
   ],
 };
 
@@ -141,6 +150,32 @@ describe('stock on hand', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/2026-09-14/)).toBeInTheDocument();
+    });
+  });
+});
+
+// Owner defect sheet row 26, decision D24 (backlog-issues B12).
+describe('expiring stock', () => {
+  it('names the item that is expiring', async () => {
+    renderScreen();
+
+    const section = (await screen.findByRole('heading', { name: /expiring/i })).closest('section');
+    expect(await within(section as HTMLElement).findByText('Paneer')).toBeInTheDocument();
+  });
+
+  it('shows the expiry in the item’s own row', async () => {
+    renderScreen();
+
+    // The row is looked up inside waitFor, not before it. "Paneer" appears in the expiring list
+    // above the table as well, so findAllByText resolves on that one while the table is still
+    // pending — capturing the row once would pin it to undefined and retry forever.
+    await waitFor(() => {
+      const row = screen
+        .getAllByText('Paneer')
+        .map((element) => element.closest('tr'))
+        .find((element) => element !== null);
+      expect(row).toBeDefined();
+      expect(within(row as HTMLElement).getByText('Expires 2026-09-14')).toBeInTheDocument();
     });
   });
 });

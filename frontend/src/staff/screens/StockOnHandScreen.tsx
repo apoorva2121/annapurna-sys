@@ -125,11 +125,11 @@ function ExpiringSection(): ReactElement {
                 className="flex flex-wrap items-baseline justify-between gap-2 rounded border border-caution/40 bg-caution-soft px-3 py-2 text-sm"
               >
                 <span>
-                  {strings.stockLedger.expiringOn}{' '}
+                  <span className="font-medium">{batch.name}</span> · {strings.stockLedger.expiringOn}{' '}
                   {batch.expiry_date ?? strings.stockLedger.noExpiry}
                 </span>
                 <span className="tabular-nums">
-                  {strings.stockLedger.remaining} {batch.remaining}
+                  {strings.stockLedger.remaining} {batch.remaining} {batch.base_unit}
                 </span>
               </li>
             ))}
@@ -161,11 +161,22 @@ function StockRow({
   isOpen: boolean;
   onToggle: () => void;
 }): ReactElement {
+  // Decision D24: the soonest expiry in the item's own row. The same query the expiring list makes,
+  // so it is read once however many rows there are; the list comes soonest first.
+  const expiring = useExpiring(7);
+  const soonest = expiring.data?.batches.find(
+    (batch) => batch.stock_item_id === row.stock_item_id,
+  )?.expiry_date;
   return (
     <>
       <TableRow>
         <TableCell>
           <span className="font-medium">{row.name}</span>
+          {soonest !== undefined && soonest !== null && (
+            <span className="ml-2 rounded bg-caution-soft px-1.5 py-0.5 text-xs text-caution">
+              {strings.stockLedger.expiresOn(soonest)}
+            </span>
+          )}
           {row.is_negative && (
             // The word, not only the colour. This is the row somebody needs to act on.
             <span className="ml-2 rounded bg-critical-soft px-1.5 py-0.5 text-xs text-critical">

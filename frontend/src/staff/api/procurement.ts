@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query';
 
 import { apiGet, apiPatch, apiPost } from '@shared/api';
+import type { Person } from '@staff/api/people';
 
 /**
  * Suppliers, purchase orders and the delivery door.
@@ -86,6 +87,8 @@ export type GoodsReceipt = {
   invoice_amount: string | null;
   tax_amount: string | null;
   received_by: string | null;
+  /** By name, code and role (defect sheet row 22). */
+  received_by_person?: Person | null;
   lines: ReceiptLine[];
 };
 

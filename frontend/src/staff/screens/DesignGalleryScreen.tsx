@@ -168,7 +168,7 @@ export default function DesignGalleryScreen(): ReactElement {
 
         <Specimen name="notice">
           <div className="flex flex-col gap-3">
-            <Notice tone="critical" title="Not enough cash in the till." code="Issue 12">
+            <Notice tone="critical" title="Not enough cash in the till." issue={1012}>
               Only ₹12,000.00 is available.
             </Notice>
             <Notice tone="success" title="Saved." />

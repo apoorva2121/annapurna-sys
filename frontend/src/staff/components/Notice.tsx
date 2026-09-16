@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 
 import { cn } from '@shared/cn';
+import { strings } from '@staff/strings';
 
 export type Tone = 'critical' | 'success' | 'info';
 
@@ -15,15 +16,15 @@ const TONES: Record<Tone, string> = {
 export function Notice({
   tone,
   title,
-  code,
+  issue,
   lines,
   children,
 }: {
   tone: Tone;
   title: string;
-  /** The backend's stable error code. Shown small, because it is what a user reads out on the
-   *  phone when something is wrong and it is the only thing that makes a report actionable. */
-  code?: string | undefined;
+  /** The issue number a person reads out on the phone (backlog-issues B12, D11, D12). The error's
+   *  code is never shown: it is for the frontend to switch on, not for a person to read. */
+  issue?: number | undefined;
   /** One sentence per thing to fix — "GSTIN: Use the 15-character GSTIN…" — from `errorProps`. */
   lines?: readonly string[] | undefined;
   children?: ReactNode;
@@ -42,7 +43,9 @@ export function Notice({
         </ul>
       )}
       {children !== undefined && <p className="mt-1 text-foreground">{children}</p>}
-      {code !== undefined && <p className="mt-1 font-mono text-xs text-muted-foreground">{code}</p>}
+      {issue !== undefined && (
+        <p className="mt-1 text-xs text-muted-foreground">{strings.errors.issue(issue)}</p>
+      )}
     </div>
   );
 }

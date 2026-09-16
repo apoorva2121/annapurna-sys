@@ -8,7 +8,7 @@ table it did not know about. Importing them in one place is what prevents that.
 from __future__ import annotations
 
 from app.models.access import EmployeeRoleAssignment, Permission, Role, RolePermission
-from app.models.audit import AuditLog
+from app.models.audit import AuditLog, Issue
 from app.models.base import Base
 from app.models.identity import Employee, UserAccount, UserSession
 from app.models.inventory import (
@@ -74,6 +74,7 @@ __all__ = [
     "IdempotencyKey",
     "IngredientProfile",
     "Invoice",
+    "Issue",
     "MenuCategory",
     "MenuItem",
     "MenuItemModifierGroup",
