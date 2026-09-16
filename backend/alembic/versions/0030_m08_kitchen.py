@@ -75,9 +75,7 @@ def _timestamps() -> tuple[sa.Column[object], sa.Column[object]]:
 
 def upgrade() -> None:
     # ------------------------------------------------- the target the composite keys below need
-    op.create_unique_constraint(
-        "uq_station_id_restaurant", "station", ["id", "restaurant_id"]
-    )
+    op.create_unique_constraint("uq_station_id_restaurant", "station", ["id", "restaurant_id"])
 
     # ---------------------------------------------------------------- kot_stream_cursor
     op.create_table(
@@ -178,9 +176,7 @@ def upgrade() -> None:
         ),
     )
     # The KDS query, and the only one with a latency budget (50 ms with 200 open tickets).
-    op.create_index(
-        "ix_kot_ticket_rail", "kot_ticket", ["restaurant_id", "station_id", "status"]
-    )
+    op.create_index("ix_kot_ticket_rail", "kot_ticket", ["restaurant_id", "station_id", "status"])
     op.create_index("ix_kot_ticket_printed", "kot_ticket", ["restaurant_id", "printed_at"])
     # The stream query: everything at or after a client's cursor.
     op.create_index("ix_kot_ticket_revision", "kot_ticket", ["restaurant_id", "revision"])

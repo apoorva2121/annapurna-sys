@@ -43,6 +43,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import KotLineStatus, KotTicketStatus
 from app.models.base import Base, TimestampedUUIDMixin
+from app.models.orders import Order
 
 
 def _uuid() -> Any:
@@ -151,6 +152,21 @@ class KotTicket(TimestampedUUIDMixin, Base):
         order_by="KotTicketLine.seq",
         lazy="raise",
         cascade="all, delete-orphan",
+    )
+    # The rail shows an order number and which tables to carry the food to. The dish names are on
+    # the line already, so this is the only thing a ticket has to join for — and the tables are
+    # deliberately read live rather than snapshotted: a party that pushes two tables together
+    # halfway through the meal has to be found where they are now.
+    #
+    # `viewonly`, because the kitchen may read an order and must never write one. The composite
+    # foreign key is tenant-safe, so this cannot reach another restaurant's order even if a query
+    # forgot to scope itself.
+    order: Mapped[Order] = relationship(
+        primaryjoin="and_(KotTicket.order_id == Order.id, "
+        "KotTicket.restaurant_id == Order.restaurant_id)",
+        foreign_keys="[KotTicket.order_id, KotTicket.restaurant_id]",
+        viewonly=True,
+        lazy="raise",
     )
 
 

@@ -89,6 +89,7 @@ from app.services.floor_rules import (
     read_table_settings,
     ready_at,
 )
+from app.services.kitchen import KitchenService
 
 logger = logging.getLogger(__name__)
 
@@ -526,6 +527,17 @@ class OrderService:
     # ------------------------------------------------------------------ the evening
 
     async def send(self, order_id: uuid.UUID, *, version: int) -> None:
+        """Mark the new dishes sent, and raise the kitchen's paper for them (M08).
+
+        **One transaction, deliberately.** A line that says `sent` with no ticket behind it is a
+        dish the waiter believes is being cooked and the kitchen has never heard of — the single
+        worst outcome available to this method, and worse than the send failing outright. So the
+        tickets are raised here rather than by a listener, a job, or the route.
+
+        The tickets are raised from `pending` — the lines this send is about — rather than from the
+        order re-read. The decision about which dishes are new is made once, above, and making it
+        twice is how a dish ends up on two rails.
+        """
         order = await self._locked(order_id, version)
         pending = [line for line in order.lines if line.status == OrderLineStatus.PENDING]
         if not pending:
@@ -534,6 +546,9 @@ class OrderService:
                 f"Order {order.order_number} has nothing new for the kitchen.",
             )
         now = datetime.now(UTC)
+        tickets = await KitchenService(self.session, self.scope).raise_tickets(
+            order, pending, now=now
+        )
         for line in pending:
             line.status = OrderLineStatus.SENT
             line.sent_at = now
@@ -542,7 +557,10 @@ class OrderService:
             order.first_sent_at = now
         order.updated_at = now
         await self.session.flush()
-        logger.info("order.sent", extra={"order_id": str(order.id), "lines": len(pending)})
+        logger.info(
+            "order.sent",
+            extra={"order_id": str(order.id), "lines": len(pending), "tickets": len(tickets)},
+        )
 
     async def mark_served(self, order_id: uuid.UUID, *, version: int) -> None:
         """Until M08's kitchen display exists, serving the order serves everything the kitchen has.
