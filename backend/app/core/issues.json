@@ -860,6 +860,56 @@
       "number": 1169,
       "code": "tax_group.rate_already_scheduled",
       "text": "… already has a rate starting on …. Two rates of one group cannot overlap — pick a date before that one, or remove it first."
+    },
+    {
+      "number": 1173,
+      "code": "kot.not_found",
+      "text": "That kitchen ticket does not exist."
+    },
+    {
+      "number": 1174,
+      "code": "kot.finished",
+      "text": "Ticket … is … and cannot change. A dish that has to be cooked again is a remake, which the kitchen records with a reason."
+    },
+    {
+      "number": 1175,
+      "code": "kot.out_of_order",
+      "text": "Ticket … is …, so that is not the next step. The kitchen goes new, acknowledged, preparing, ready — one step at a time, and never backwards."
+    },
+    {
+      "number": 1176,
+      "code": "kot.served_is_the_floors",
+      "text": "A dish is served from the order screen, by whoever carried it to the table. The kitchen marks it ready; the floor marks it served."
+    },
+    {
+      "number": 1177,
+      "code": "kot.line_not_found",
+      "text": "That dish is not on this ticket."
+    },
+    {
+      "number": 1178,
+      "code": "kot.line_finished",
+      "text": "That dish is no longer on the rail and cannot change."
+    },
+    {
+      "number": 1179,
+      "code": "kot.line_status",
+      "text": "A dish goes to preparing, then to ready."
+    },
+    {
+      "number": 1180,
+      "code": "kot.line_out_of_order",
+      "text": "That dish is already being cooked."
+    },
+    {
+      "number": 1181,
+      "code": "kot.remake_reason",
+      "text": "Say why it is being remade. The reason is how the kitchen learns which dishes come back and why."
+    },
+    {
+      "number": 1182,
+      "code": "kot.unroutable",
+      "text": "One of these dishes has no kitchen station any more. Reload the menu and try again."
     }
   ]
 }

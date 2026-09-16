@@ -7,7 +7,6 @@ import json
 import logging
 
 import pytest
-from fastapi import Request
 from httpx import AsyncClient
 
 from app.core.config import Settings
@@ -80,7 +79,10 @@ def test_route_template_replaces_parameter_values_with_their_names() -> None:
         "server": ("test", 80),
         "scheme": "http",
     }
-    assert route_template(Request(scope)) == "/api/v1/staff/orders/{order_id}"
+    # The scope itself, not a `Request` wrapped around it: M08's middleware is pure ASGI and
+    # never builds a Request, because the access line is written from the raw scope after the
+    # response body has finished.
+    assert route_template(scope) == "/api/v1/staff/orders/{order_id}"
 
 
 def test_sentry_is_not_initialised_without_a_dsn(monkeypatch: pytest.MonkeyPatch) -> None:

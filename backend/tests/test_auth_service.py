@@ -118,8 +118,20 @@ class TestLogin:
         #
         # M07 added the four a waiter needs to take and settle a bill, and deliberately not
         # `order.void`, `order.discount` or `cash.manage` — the design's classic leakage vectors.
+        #
+        # M08 added `kot.view` and deliberately **not** `kot.update`: a waiter watches the kitchen
+        # display and cannot drive it. Being able to see that table six's mains are still
+        # `preparing` is information; being able to declare them ready is a way to make the numbers
+        # look better.
         assert result.permissions == frozenset(
-            {"menu.view", "order.create", "order.modify", "order.settle", "order.view"}
+            {
+                "kot.view",
+                "menu.view",
+                "order.create",
+                "order.modify",
+                "order.settle",
+                "order.view",
+            }
         )
 
     async def test_a_phone_number_logs_in_the_same_way_an_email_does(

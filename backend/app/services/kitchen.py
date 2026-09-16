@@ -70,8 +70,17 @@ _TICKET_TO_LINE: dict[str, str] = {
     KotTicketStatus.PREPARING: KotLineStatus.PREPARING,
     KotTicketStatus.READY: KotLineStatus.READY,
 }
-# A line that is still work. Everything else has left the rail.
+# **Two different questions, and conflating them cost an evening's debugging.**
+#
+# `_LINE_OPEN` is "can this line still change?" — it can still be served, cancelled or remade, and
+# a `ready` dish sitting on the pass can be all three.
+#
+# `_LINE_COOKING` is "does the kitchen still have work to do on it?" — and a `ready` dish does not.
+# The ticket arrives when nothing is left *cooking*, not when nothing is left open; using the first
+# set for that question left every ticket stuck on `preparing` for ever, because its own ready
+# lines counted as work outstanding.
 _LINE_OPEN = frozenset({KotLineStatus.PENDING, KotLineStatus.PREPARING, KotLineStatus.READY})
+_LINE_COOKING = frozenset({KotLineStatus.PENDING, KotLineStatus.PREPARING})
 # What the order line reads while the kitchen has it, so the waiter's screen says the same thing
 # the rail does.
 _ORDER_LINE_ECHO: dict[str, str] = {
@@ -171,6 +180,14 @@ class KitchenService:
             station_id=station_id, statuses=statuses or OPEN_STATUSES, limit=limit
         )
 
+    async def current_revision(self) -> int:
+        """Where this restaurant's kitchen has got to.
+
+        Returned beside the rail so a screen can open the stream exactly where its read finished —
+        no gap in between, and nothing replayed twice.
+        """
+        return await self._kitchen.current_revision()
+
     async def get(self, ticket_id: uuid.UUID) -> KotTicket:
         ticket = await self._kitchen.with_lines(ticket_id)
         if ticket is None:
@@ -247,8 +264,8 @@ class KitchenService:
         if ticket.status == KotTicketStatus.ACKNOWLEDGED:
             ticket.status = KotTicketStatus.PREPARING
             ticket.started_at = now
-        open_lines = [line for line in ticket.lines if line.status in _LINE_OPEN]
-        if not open_lines and ticket.status == KotTicketStatus.PREPARING:
+        still_cooking = [line for line in ticket.lines if line.status in _LINE_COOKING]
+        if not still_cooking and ticket.status == KotTicketStatus.PREPARING:
             ticket.status = KotTicketStatus.READY
             ticket.ready_at = now
             ticket.ready_by = actor.employee_id
@@ -323,7 +340,10 @@ class KitchenService:
                 "actor_employee_id": str(actor.employee_id),
             },
         )
-        return remake
+        # Re-read rather than returned as constructed. A ticket built in this session has none of
+        # its relationships loaded, and they are `lazy="raise"` on purpose — so rendering it would
+        # raise rather than quietly issuing a query per field.
+        return await self.get(remake.id)
 
     # ------------------------------------------------------------------ what the floor does
 

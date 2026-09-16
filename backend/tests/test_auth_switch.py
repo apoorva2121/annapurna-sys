@@ -200,8 +200,18 @@ class TestSwitchingBranch:
         # She keeps what a waiter holds and loses everything else. Asserted both ways: the
         # inclusion alone would pass for a token carrying every permission there is, and the
         # exclusion alone would pass for an empty one.
+        #
+        # `kot.view` joined the set in M08 — a waiter watches the kitchen display and, lacking
+        # `kot.update`, cannot drive it.
         assert switched.permissions == frozenset(
-            {"menu.view", "order.create", "order.modify", "order.settle", "order.view"}
+            {
+                "kot.view",
+                "menu.view",
+                "order.create",
+                "order.modify",
+                "order.settle",
+                "order.view",
+            }
         )
         assert "employee.view" not in switched.permissions, (
             "switching branch carried her owner permissions across"
