@@ -130,6 +130,9 @@ function Figure({
  * "high", not "bad", because a loss-leader can be deliberate and the screen does not know which.
  */
 const HIGH_FOOD_COST = 35;
+// Above this a dish costs more to make than it is sold for, which is a different kind of news
+// from an expensive dish and says so in a different word (owner defect sheet row 23).
+const SOLD_AT_A_LOSS = 100;
 
 function CostRow({
   row,
@@ -140,9 +143,6 @@ function CostRow({
   isOpen: boolean;
   onToggle: () => void;
 }): ReactElement {
-  const percent = row.food_cost_percent === null ? null : Number(row.food_cost_percent);
-  const isHigh = percent !== null && percent > HIGH_FOOD_COST;
-
   return (
     <>
       <TableRow>
@@ -152,7 +152,7 @@ function CostRow({
           {!row.recipe_confirmed && row.has_recipe && (
             // The label `library/PROVENANCE.md` requires. A cost from an unchecked recipe is a
             // proposal, and saying so is the difference between a number and a claim.
-            <span className="ml-2 rounded-sm bg-caution-soft px-1.5 py-0.5 text-xs text-caution">
+            <span className="ml-2 whitespace-nowrap rounded-sm bg-caution-soft px-1.5 py-0.5 text-xs text-caution">
               {strings.cost.unconfirmed}
             </span>
           )}
@@ -162,13 +162,16 @@ function CostRow({
           {row.has_recipe ? formatINR(row.cost) : '—'}
         </TableCell>
         <TableCell className="text-right font-mono tabular-nums">
-          <FoodCost percent={percent} isHigh={isHigh} />
+          <FoodCost value={row.food_cost_percent} />
         </TableCell>
-        <TableCell className="text-right font-mono tabular-nums">
+        {/* A loss printed its minus sign on one line and its figure on the next, which reads as
+            a positive number under a stray dash. The sign belongs to the number. */}
+        <TableCell className="whitespace-nowrap text-right font-mono tabular-nums">
           {row.has_recipe ? formatINR(row.margin) : '—'}
         </TableCell>
         <TableCell>
-          <div className="flex flex-wrap gap-2">
+          {/* One row, not two: Breakdown and Recipe wrapped out of line with each other. */}
+          <div className="flex flex-nowrap items-center gap-2">
             {row.has_recipe && (
               <Button variant="ghost" onClick={onToggle} aria-expanded={isOpen}>
                 {isOpen ? strings.cost.hideBreakdown : strings.cost.showBreakdown}
@@ -191,7 +194,10 @@ function CostRow({
   );
 }
 
-function FoodCost({ percent, isHigh }: { percent: number | null; isHigh: boolean }): ReactElement {
+function FoodCost({ value }: { value: string | null }): ReactElement {
+  const percent = value === null ? null : Number(value);
+  const atALoss = percent !== null && percent > SOLD_AT_A_LOSS;
+  const isHigh = percent !== null && percent > HIGH_FOOD_COST && !atALoss;
   if (percent === null) {
     // Never "0%" — that reads as a dish that is free to make, which is the opposite of what an
     // uncosted dish means.
@@ -201,8 +207,13 @@ function FoodCost({ percent, isHigh }: { percent: number | null; isHigh: boolean
     <>
       {percent}%{/* Colour is not the only signal (restaurant-ui rule 5) — "high" is a word. */}
       {isHigh && (
-        <span className="ml-2 rounded-sm bg-critical-soft px-1.5 py-0.5 text-xs text-critical">
+        <span className="ml-2 whitespace-nowrap rounded-sm bg-critical-soft px-1.5 py-0.5 text-xs text-critical">
           {strings.cost.high}
+        </span>
+      )}
+      {atALoss && (
+        <span className="ml-2 whitespace-nowrap rounded-sm bg-critical-soft px-1.5 py-0.5 text-xs text-critical">
+          {strings.cost.atALoss}
         </span>
       )}
     </>

@@ -478,6 +478,9 @@ export const strings = {
     foodCost: 'Food cost',
     margin: 'Margin',
     high: 'High',
+    // Owner defect sheet row 23: 2083% carried the same word as 36%. A dish costing more
+    // than it sells for is not an expensive dish, it is a plate sold at a loss.
+    atALoss: 'Sold at a loss',
     noRecipe: 'No recipe',
     unconfirmed: 'Unconfirmed recipe',
     openRecipe: 'Recipe',
@@ -529,6 +532,12 @@ export const strings = {
     unconfirmed: 'Nobody has checked these quantities',
     unconfirmedWhy:
       'This recipe came from the starter library, which is mostly estimated. Confirm it once a chef has weighed a real portion — until then every cost computed from it is a proposal.',
+    // Owner defect sheet row 24: Save was the only way off this page, so it was pressed to
+    // leave and every press made another version of the same recipe.
+    back: 'Back',
+    unsaved: 'This recipe has unsaved changes.',
+    leaveAnyway: 'Leave without saving',
+    keepEditing: 'Keep editing',
     confirm: 'Confirm these quantities',
     confirming: 'Confirming…',
     confirmed: 'Confirmed by a chef',

@@ -1,5 +1,5 @@
 import { type ReactElement, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { Permission } from '@shared/permissions';
 import { Button } from '@shared/ui/button';
@@ -91,6 +91,8 @@ function Editor({
   const [draft, setDraft] = useState<Draft[]>(() => savedLines(current));
   const [notes, setNotes] = useState(current?.notes ?? '');
   const [problem, setProblem] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const navigate = useNavigate();
 
   // What the server holds, compared with what is on screen. It is the whole reason Confirm can be
   // trusted: without it a chef could edit three lines and certify the version underneath them.
@@ -154,15 +156,95 @@ function Editor({
             }}
           />
           {save.isError && <Notice tone="critical" {...errorProps(save.error)} />}
+          <LeaveWarning
+            show={leaving}
+            onLeave={() => {
+              void navigate(-1);
+            }}
+            onStay={() => {
+              setLeaving(false);
+            }}
+          />
           <div className="flex flex-wrap gap-2">
-            <Button onClick={onSave} disabled={save.isPending}>
+            {/* Disabled until something changes: saving an identical recipe made a new unconfirmed
+                version of the same thing, and the server refuses it now as well. */}
+            <Button onClick={onSave} disabled={save.isPending || !dirty}>
               {save.isPending ? strings.recipe.saving : strings.recipe.save}
             </Button>
             <ConfirmButton current={current} dirty={dirty} />
+            <BackButton
+              dirty={dirty}
+              onWarn={() => {
+                setLeaving(true);
+              }}
+              onLeave={() => {
+                void navigate(-1);
+              }}
+            />
           </div>
         </>
       )}
     </div>
+  );
+}
+
+/** A way off this page that is not Save (owner defect sheet, row 24).
+ *
+ * Back goes where the person came from - usually Dish costs, which is where the owner's steps
+ * start. Whether a change is worth a question is this button's decision, not the editor's. */
+function BackButton({
+  dirty,
+  onWarn,
+  onLeave,
+}: {
+  dirty: boolean;
+  onWarn: () => void;
+  onLeave: () => void;
+}): ReactElement {
+  return (
+    <Button
+      variant="ghost"
+      onClick={() => {
+        if (dirty) {
+          onWarn();
+          return;
+        }
+        onLeave();
+      }}
+    >
+      {strings.recipe.back}
+    </Button>
+  );
+}
+
+/** One question before a change is thrown away (owner defect sheet, row 24).
+ *
+ * Its own component rather than a block inside the editor, which is already at the complexity the
+ * lint rule allows - and a prompt rendered in the page rather than `window.confirm`, which blocks
+ * the tab and cannot be tested. */
+function LeaveWarning({
+  show,
+  onLeave,
+  onStay,
+}: {
+  show: boolean;
+  onLeave: () => void;
+  onStay: () => void;
+}): ReactElement | null {
+  if (!show) {
+    return null;
+  }
+  return (
+    <Notice tone="info" title={strings.recipe.unsaved}>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button variant="secondary" onClick={onLeave}>
+          {strings.recipe.leaveAnyway}
+        </Button>
+        <Button variant="ghost" onClick={onStay}>
+          {strings.recipe.keepEditing}
+        </Button>
+      </div>
+    </Notice>
   );
 }
 

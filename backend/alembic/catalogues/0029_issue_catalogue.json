@@ -647,6 +647,11 @@
       "text": "Recipes may nest … levels deep. This one goes further: … ."
     },
     {
+      "number": 1172,
+      "code": "recipe.unchanged",
+      "text": "Nothing has changed in this recipe, so there is no new version to save."
+    },
+    {
       "number": 1130,
       "code": "recipe.unknown_component",
       "text": "A recipe line points at something that is not a stock item."

@@ -59,6 +59,26 @@ const COSTS = {
   uncosted: 1,
 };
 
+/** The row from the owner's screenshot: a dish that costs twenty times what it sells for. */
+const AT_A_LOSS = {
+  rows: [
+    {
+      menu_item_id: 'i4',
+      menu_item_name: 'Veg Manchurian Dry',
+      menu_item_variant_id: 'v4',
+      variant_name: 'Full',
+      cost: '5207.96',
+      price: '250.00',
+      food_cost_percent: '2083.2',
+      margin: '-4957.96',
+      has_recipe: true,
+      recipe_confirmed: false,
+    },
+  ],
+  average_food_cost_percent: '2083.2',
+  uncosted: 0,
+};
+
 function json(body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -66,10 +86,10 @@ function json(body: unknown): Response {
   });
 }
 
-function renderScreen(): void {
+function renderScreen(costs: unknown = COSTS): void {
   vi.stubGlobal(
     'fetch',
-    vi.fn(() => Promise.resolve(json(COSTS))),
+    vi.fn(() => Promise.resolve(json(costs))),
   );
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -155,5 +175,32 @@ describe('what the screen is for', () => {
     renderScreen();
 
     expect(await screen.findByText('Without a recipe')).toBeInTheDocument();
+  });
+});
+
+describe('a dish that costs more than it sells for', () => {
+  // Owner defect sheet, row 23. The screen showed 2083% with the same "High" badge a 36% dish
+  // gets. High is a margin worth a conversation; over 100% is a plate sold at a loss, and the two
+  // should not read the same.
+  it('says it is sold at a loss, not merely high', async () => {
+    renderScreen(AT_A_LOSS);
+
+    expect(await screen.findByText(/sold at a loss/i)).toBeInTheDocument();
+  });
+
+  it('keeps a negative amount and its minus sign on one line', async () => {
+    // The screenshot wrapped "-" onto its own line above the figure, which reads as a positive
+    // number under a stray dash.
+    renderScreen(AT_A_LOSS);
+    const margin = await screen.findByText('-₹4,957.96');
+
+    expect(margin.className).toMatch(/whitespace-nowrap/);
+  });
+
+  it('keeps the unconfirmed badge whole rather than wrapping it mid-phrase', async () => {
+    renderScreen(AT_A_LOSS);
+    const badge = await screen.findByText('Unconfirmed recipe');
+
+    expect(badge.className).toMatch(/whitespace-nowrap/);
   });
 });

@@ -152,8 +152,8 @@ The context a reviewer needs in order to weight correctly:
 |---|---|---|
 | Scope | Full Phase 1, over a narrower recommendation | Decided by the human; do not re-open |
 | Serving topology | FastAPI serves the built SPA — one origin, one Cloud Run service, cookies stay `Lax`, no CORS in production | R4 **DECIDE**, resolved 2026-09-11 |
-| Identifier uniqueness | Application-level for now; a global unique index is declined because the proper fix is a per-tenant login surface, after which the index must come off again | `docs/backlog.md` |
-| Lockout semantics | Hard lock, 15-minute auto-unlock, owner/admin clears instantly | M01 spec, open decision 3 |
+| Identifier uniqueness | **Superseded 2026-09-14 by B4 (decision D1).** A login is unique *per organization*, enforced by database constraints; there is no global rule and R6 is closed. One person may hold the same login in two organizations and is asked which at sign-in | backlog-issues B4; `docs/plan/backlog-issues-build-log.md` |
+| Lockout semantics | **Superseded 2026-09-14 by B5 (decision D28).** There is no automatic lock: a delay per login (1s, doubling to 30s from the third wrong password), 30 failures per network in ten minutes, and a lock only by a person - checked *after* the password, so it reveals nothing about whether an identifier exists | backlog-issues B5 |
 | Manual pass vs staging | The DoD addendum requires staging. The local pass still runs first, because it is cheap and finds usability defects before remediation churns the code | Human's call, 2026-09-11 |
 
 ---
@@ -213,3 +213,64 @@ Six defects. Five of them **read as working and were not**, which is the pattern
   three real bugs here hid behind exactly that. A comment that merely exists is not.
 - **Test verbosity.** Same reasoning.
 - Anything already listed above as known.
+
+---
+
+## 9 · The backlog-issues branch, B4-B12 — state at hand-off, 2026-09-16
+
+Nine chunks off `docs/backlog.md` and the owner's defect sheet, between 2026-09-14 and 2026-09-16.
+Same purpose as section 8: a map of what is already known, so review time goes on what is not.
+
+### Already found and fixed — please do not re-report as new
+
+- **Palak Paneer contained no palak**, and the seed had no spinach at all (B9). The weighted menu
+  food cost moved 25.6% → 25.7% and every live citation moved with it. The dated 2026-09-12 S15
+  measurements still say 25.6% on purpose: they record what was measured then.
+- **The menu seeder read modifier links one dish at a time**, and **receiving read each stock item
+  twice per delivered line** (B9). Both are shape-tested: the tests compare reads with rows rather
+  than asserting a count, so the defect cannot return behind a number somebody updated.
+- **Error codes reached the screen.** Every error now carries an issue number and plain words, from
+  a catalogue of 172 scanned out of the code (B12, D11, D12).
+- **A delivery was priced per base unit with nothing saying so** (B12e). This is the cause of the
+  owner's impossible dish costs: ₹28 a kilo booked as ₹28 a gram. The form is labelled in the item's
+  purchase unit and the server does the conversion.
+- Address as five fields, table deactivation, the add-employee flow, options read-only without
+  `menu.manage`, permissions in words, credit notes listed on their invoice, expiring stock naming
+  the item, people named on tills and deliveries (B12; D13-D27).
+- **Recipe versions could be created identical to the current one** (B12, row 24). Refused by the
+  server *and* disabled on the screen - the screen alone was the original bug.
+
+### Deliberate deviations, recorded so they are argued with rather than discovered
+
+- **Migrations 0002 and 0005 were edited after being written** (B10). CLAUDE.md forbids editing an
+  applied migration; no staging database exists yet, so the rule is not engaged. Recorded because
+  the day it *is* engaged, this is the precedent someone will find, and it should not read as
+  permission.
+- **`contracts/` is a new top-level directory** (B10), holding the business-day vectors both
+  implementations read. It belongs to neither `backend/` nor `frontend/`, and putting it in either
+  makes the other a guest.
+- **The `/design` gallery exists only in a development build** (B11b, D4) - route *and* link. A
+  production route with no link is exactly what B10's reachability test was added to catch.
+- **Visual baselines are only ever taken inside `mcr.microsoft.com/playwright:v1.63.0-noble`**
+  (B11b). They are Linux pixels; a Windows or macOS run differs in font hinting alone. `make visual`
+  and the CI job share the image. The comparator tolerance was tightened 0.002 → 0.0002 after it let
+  a real text change through green (B12).
+- **The owner may adjust a till they closed** (B12, D16), marked as such. The service previously
+  refused everyone including them.
+- **An unusual delivery price is a question, not a refusal** (B12e). Ten times the item's own cost,
+  or a tenth, is put back as a sentence and confirmed - because a price really can move that far.
+- **The menu seeder now fails loudly on a rule that lists the same category twice** (B9), where it
+  used to tolerate it silently. No rule in `seed/` does this; a loud refusal on malformed seed data
+  is the better of the two.
+
+### What to weight heavily here
+
+Tenant isolation on the new write paths, and the arithmetic in `app/services/purchase_units.py` -
+that one is what a restaurant's food cost rests on. The issue catalogue's *numbers* are permanent
+once shipped: a wrong number is cheap to fix today and expensive after an owner has read one out.
+
+### What to weight lightly
+
+The three rows still open on the owner's sheet are known and named in
+`docs/plan/backlog-issues-build-log.md`. The prose density in the new modules is deliberate, as
+section 8 says.

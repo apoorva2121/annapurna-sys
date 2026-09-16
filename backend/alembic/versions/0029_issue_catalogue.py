@@ -24,7 +24,7 @@ down_revision: str | None = "0028_catalogue_descriptions"
 branch_labels: str | None = None
 depends_on: str | None = None
 
-ISSUES_FINGERPRINT = "sha256:124b4a07e94ec66cb648324be7b30e7d0fbf46cb56cd7b0407b6c7809c4411c6"
+ISSUES_FINGERPRINT = "sha256:830048a839a395386de70209ad52dde4f43490bac10b48828ae2d728702930bd"
 
 _CATALOGUE_PATH = Path(__file__).resolve().parents[1] / "catalogues" / "0029_issue_catalogue.json"
 

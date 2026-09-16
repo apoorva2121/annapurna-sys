@@ -190,6 +190,74 @@ class TestWhatUsesThis:
         assert "Butter Chicken" in body["dish_names"]
 
 
+class TestSavingARecipeThatDidNotChange:
+    """The owner's defect sheet, row 24. Veg Manchurian Dry had five versions with identical lines,
+    alternating confirmed and unconfirmed, because Save stayed enabled with nothing changed and the
+    recipe screen offered no other way out - so Save was pressed to leave, and every press made a
+    new unconfirmed version of the same recipe.
+
+    The screen now disables Save until something changes and offers a way back. This is the other
+    half: the server refuses it too, so the next screen that forgets cannot do it again.
+    """
+
+    async def test_is_refused_rather_than_making_another_version_of_the_same_thing(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        await _seeded(db_session)
+        token = await _seed_token(api_client, "owner")
+        variant_id = await _variant_id(db_session, "JEERA_RICE", "FULL")
+        ghee = await _item_id(db_session, "GHEE")
+        body = {
+            "menu_item_variant_id": str(variant_id),
+            "lines": [{"component_id": str(ghee), "quantity": "40"}],
+        }
+
+        first = await api_client.post(f"{STAFF}/recipes", json=body, headers=_auth(token))
+        assert first.status_code == 201, first.text
+
+        again = await api_client.post(f"{STAFF}/recipes", json=body, headers=_auth(token))
+
+        assert again.status_code == 409, again.text
+        assert again.json()["code"] == "recipe.unchanged"
+        versions = list(
+            await db_session.scalars(
+                select(Recipe).where(Recipe.menu_item_variant_id == variant_id)
+            )
+        )
+        assert len(versions) == 2, "the refused save must not have written a third version"
+
+    async def test_a_real_change_still_makes_the_next_version(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The guard is about identical lines, not about saving twice."""
+        await _seeded(db_session)
+        token = await _seed_token(api_client, "owner")
+        variant_id = await _variant_id(db_session, "JEERA_RICE", "FULL")
+        ghee = await _item_id(db_session, "GHEE")
+
+        first = await api_client.post(
+            f"{STAFF}/recipes",
+            json={
+                "menu_item_variant_id": str(variant_id),
+                "lines": [{"component_id": str(ghee), "quantity": "40"}],
+            },
+            headers=_auth(token),
+        )
+        assert first.status_code == 201, first.text
+
+        second = await api_client.post(
+            f"{STAFF}/recipes",
+            json={
+                "menu_item_variant_id": str(variant_id),
+                "lines": [{"component_id": str(ghee), "quantity": "41"}],
+            },
+            headers=_auth(token),
+        )
+
+        assert second.status_code == 201, second.text
+        assert second.json()["version"] == 3
+
+
 class TestARecipeIsNeverEdited:
     async def test_a_change_creates_a_version_and_leaves_the_old_one_alone(
         self, db_session: AsyncSession, api_client: AsyncClient

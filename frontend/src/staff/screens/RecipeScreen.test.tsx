@@ -191,6 +191,46 @@ describe('what a chef sees', () => {
   });
 });
 
+describe('leaving the recipe screen', () => {
+  // The owner's defect sheet, row 24. Veg Manchurian Dry ended up with five versions of identical
+  // lines because Save was the only way off this page, and Save was always enabled.
+  it('does not offer to save a recipe nobody has changed', async () => {
+    renderScreen(CHEF);
+
+    expect(await screen.findByRole('button', { name: 'Save this recipe' })).toBeDisabled();
+  });
+
+  it('offers to save once something has actually changed', async () => {
+    const user = userEvent.setup();
+    renderScreen(CHEF);
+    const quantity = await screen.findByLabelText('Quantity of Paneer');
+
+    await user.clear(quantity);
+    await user.type(quantity, '250');
+
+    expect(screen.getByRole('button', { name: 'Save this recipe' })).toBeEnabled();
+  });
+
+  it('gives a way back that is not Save', async () => {
+    renderScreen(CHEF);
+
+    expect(await screen.findByRole('button', { name: 'Back' })).toBeInTheDocument();
+  });
+
+  it('asks before throwing away a change, rather than leaving silently', async () => {
+    const user = userEvent.setup();
+    renderScreen(CHEF);
+    const quantity = await screen.findByLabelText('Quantity of Paneer');
+    await user.clear(quantity);
+    await user.type(quantity, '250');
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(screen.getByText(/unsaved/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keep editing' })).toBeInTheDocument();
+  });
+});
+
 describe('a dish with no recipe', () => {
   it('opens empty and invites the first ingredient, rather than erroring', async () => {
     // 404 here is an answer, not a failure — and it is a different answer from an empty recipe,
@@ -236,6 +276,12 @@ describe('saving', () => {
     const user = userEvent.setup();
     const fetchMock = renderScreen(CHEF);
     await screen.findByText('Paneer');
+    // Save is disabled until something changes (owner defect sheet row 24), so this test makes a
+    // real change first. What it is checking is unaffected: a save sends the whole recipe, not the
+    // one line that moved.
+    const quantity = screen.getByLabelText('Quantity of Paneer');
+    await user.clear(quantity);
+    await user.type(quantity, '180');
 
     await user.click(screen.getByRole('button', { name: /Save this recipe/i }));
 
@@ -252,21 +298,35 @@ describe('saving', () => {
         lines: { component_id: string; quantity: string }[];
       };
       expect(body.menu_item_variant_id).toBe('v-full');
-      expect(body.lines).toEqual([{ component_id: 'paneer', quantity: '200.0000' }]);
+      expect(body.lines).toEqual([{ component_id: 'paneer', quantity: '180' }]);
     });
   });
 
   it('refuses to save an empty recipe, which is not the same as having none', async () => {
-    const user = userEvent.setup();
     const fetchMock = renderScreen(CHEF, { recipe: null });
     await screen.findByText(/No recipe yet/i);
 
-    await user.click(screen.getByRole('button', { name: /Save this recipe/i }));
-
-    expect(await screen.findByText(/needs at least one ingredient/i)).toBeInTheDocument();
+    // A dish with no recipe and nothing typed has nothing to save, so the button never becomes
+    // pressable. Stricter than the message it used to show, and it cannot be clicked past.
+    expect(screen.getByRole('button', { name: /Save this recipe/i })).toBeDisabled();
     expect(
       fetchMock.mock.calls.some((call) => (call[1] as RequestInit | undefined)?.method === 'POST'),
     ).toBe(false);
+  });
+
+  it('still says so when a chef empties a recipe that had lines', async () => {
+    // The reachable half of the same rule: removing every line *is* a change, so Save is live and
+    // the sentence is what stops it.
+    const user = userEvent.setup();
+    renderScreen(CHEF);
+    await screen.findByText('Paneer');
+
+    for (const remove of screen.getAllByRole('button', { name: /Remove/i })) {
+      await user.click(remove);
+    }
+    await user.click(screen.getByRole('button', { name: /Save this recipe/i }));
+
+    expect(await screen.findByText(/needs at least one ingredient/i)).toBeInTheDocument();
   });
 });
 

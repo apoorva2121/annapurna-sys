@@ -57,6 +57,21 @@ from app.schemas.stock import (
 from app.services.costing import Component, Cost, CostEngine, Line, food_cost_percentage
 
 
+def _same_lines(recipe: Recipe, lines: Sequence[Line]) -> bool:
+    """Whether a recipe already says exactly this (owner defect sheet, row 24).
+
+    Compared as a set of component and quantity, because `seq` is presentation: reordering the
+    same lines is not a new recipe, and neither is retyping "40" as "40.0000".
+    """
+
+    def key(component_id: object, quantity: object) -> tuple[str, Decimal]:
+        return str(component_id), Decimal(str(quantity))
+
+    have = sorted(key(line.component_id, line.quantity) for line in recipe.lines)
+    want = sorted(key(line.component_id, line.quantity) for line in lines)
+    return have == want
+
+
 class StockService:
     """Stock items, recipes and what they cost. The caller owns the transaction."""
 
@@ -256,6 +271,28 @@ class StockService:
         # committed. `SetupService.add_tax_rate` had this right — it locks the `tax_group` row —
         # and this is the same fix. Found by review.
         await self._lock_owner(actor, request)
+
+        # The owner's defect sheet, row 24. Veg Manchurian Dry had five versions with identical
+        # lines, alternating confirmed and unconfirmed: Save stayed enabled with nothing changed
+        # and the screen offered no other way out, so Save was pressed to leave. The screen is
+        # fixed too, but a rule that only a screen enforces is a rule until the next screen.
+        #
+        # After the lock, deliberately: two identical saves racing would otherwise both read the
+        # old current version and both pass.
+        if request.menu_item_variant_id is not None:
+            live = await repo.current_for_variant(request.menu_item_variant_id)
+        elif request.produces_stock_item_id is not None:
+            live = await repo.current_for_preparation(request.produces_stock_item_id)
+        elif request.modifier_id is not None:
+            live = await repo.current_for_modifier(request.modifier_id)
+        else:  # pragma: no cover - _require_one_owner has already refused an ownerless request
+            live = None
+        if live is not None and _same_lines(live, lines):
+            raise ConflictError(
+                "recipe.unchanged",
+                "Nothing has changed in this recipe, so there is no new version to save.",
+            )
+
         await repo.clear_current(
             variant_id=request.menu_item_variant_id,
             produces_id=request.produces_stock_item_id,
