@@ -23,10 +23,12 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import KotLineStatus, KotTicketStatus
+from app.services import kitchen_stream
 from tests.test_orders_endpoints import ORDERS, Menu, _added, _menu, _open, _stepped
 from tests.test_setup_endpoints import World, _auth, _token, _world
 
@@ -402,7 +404,36 @@ class TestTheFloorWatchesAndDoesNotDrive:
         assert response.status_code == 403, response.text
 
 
+@pytest.fixture
+def short_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bound the stream to a moment, so an HTTP test of it terminates.
+
+    `request.is_disconnected()` never fires under httpx's ASGI transport, which is exactly the
+    condition `MAX_SECONDS` exists for — the first version of these tests hung for ever against a
+    client that had already hung up, and that is how the backstop came to be written.
+    """
+    monkeypatch.setattr(kitchen_stream, "MAX_SECONDS", 0.6)
+
+
+@pytest.mark.usefixtures("short_stream")
 class TestTheStreamOverHttp:
+    async def test_the_stream_ends_by_itself_rather_than_waiting_to_be_told_to(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """A stream closes on its own deadline, and the client reconnects with its cursor.
+
+        In production the deadline sits just inside Cloud Run's request cap, so the server ends the
+        response cleanly rather than the platform killing it mid-event. Here it is a fraction of a
+        second, and the fact that this test *returns* is the assertion.
+        """
+        _, menu, waiter, chef = await _chef(db_session, api_client)
+        await _sent_order(api_client, waiter, menu)
+
+        response = await api_client.get(f"{KOT}/stream", headers=_auth(chef))
+
+        assert response.status_code == 200
+        assert response.text.startswith(":")
+
     async def test_the_stream_tells_proxies_not_to_buffer_it(
         self, db_session: AsyncSession, api_client: AsyncClient
     ) -> None:

@@ -28,15 +28,17 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from decimal import ROUND_DOWN, Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
-from app.core.enums import OrderChannel, OrderType, PaymentMethod
+from app.core.enums import KotTicketStatus, OrderChannel, OrderType, PaymentMethod
 from app.core.tenancy import TenantScope
 from app.models.identity import Employee
+from app.models.kitchen import KotTicket
 from app.models.menu import MenuItem, MenuItemVariant
 from app.models.orders import Order
 from app.models.setup import RestaurantTable
@@ -51,6 +53,13 @@ logger = logging.getLogger(__name__)
 # Dishes by code, all ones `seed/menu.yaml` really creates and none with a required choice. A code
 # that is missing skips its line rather than failing the run.
 _OPEN_DISHES = ("DAL_MAKHANI", "BUTTER_NAAN")
+# The second round on the sent table, so the rail opens showing what a round actually is.
+#
+# **The same dish as the first round, deliberately.** `sequence_in_order` counts rounds *per
+# station*, so a second round of something cooked somewhere else is round 1 at that station — which
+# is correct, and demonstrates nothing. Sending another of what has already gone puts a second
+# ticket on the same rail, which is the thing worth seeing.
+_SECOND_ROUND_DISHES = ("BUTTER_CHICKEN",)
 _SENT_DISHES = ("BUTTER_CHICKEN", "JEERA_RICE")
 _SETTLED_DISHES = ("PANEER_TIKKA", "DAL_MAKHANI", "BUTTER_NAAN")
 
@@ -58,6 +67,9 @@ _OPENING_FLOAT = Decimal("2000.00")
 _PAYOUT = Decimal("300.00")
 # **The planted shortfall.** The till is counted this much under what it should hold.
 _SHORTFALL = Decimal("50.00")
+# How far past its target the planted late ticket is. Long enough that it is late against any dish
+# on the menu, short enough to read as a bad night rather than a broken clock.
+_LATE_BY_MINUTES = 40
 _DENOMINATIONS = tuple(Decimal(d) for d in ("500", "200", "100", "50", "20", "10", "5", "2", "1"))
 _RUPEE = Decimal("1")
 
@@ -143,6 +155,20 @@ async def _seed_one(
     )
     if sent_id is not None:
         await orders.send(sent_id, version=await _version(orders, sent_id))
+        # A second round on the same table (M08). The one thing about this module that a screenshot
+        # cannot show and a demo has to: starters go, mains follow twenty minutes later, and the
+        # kitchen gets a second piece of paper rather than an edit to the first.
+        for variant_id in await _variants(session, restaurant, _SECOND_ROUND_DISHES):
+            await orders.add_line(
+                sent_id,
+                version=await _version(orders, sent_id),
+                variant_id=variant_id,
+                quantity=1,
+                modifier_ids=[],
+                special_instructions="No chilli, allergy",
+            )
+            await orders.send(sent_id, version=await _version(orders, sent_id))
+        await _age_the_rail(session, restaurant)
         created += 1
 
     if restaurant.gst_scheme == "regular" and not restaurant.gstin:
@@ -187,6 +213,36 @@ async def _seed_one(
     position, _, _, _ = await cash.detail(till_id)
     await cash.close(actor, till_id, counts=_notes_for(position.expected - _SHORTFALL))
     return created, 1, 1, 1
+
+
+async def _age_the_rail(session: AsyncSession, restaurant: Restaurant) -> None:
+    """Back-date the oldest ticket so the rail opens with something already late.
+
+    **The one place this seeder writes a row rather than calling a service**, and it is worth
+    saying why the rule is not being broken. The rule exists so that seeded money is money the
+    product calculated — a seed that wrote its own totals would demo arithmetic nothing ever
+    performed. This writes no arithmetic: it moves a clock, and no service offers "pretend twenty
+    minutes passed" because nothing in a real restaurant ever needs to.
+
+    Without it the demo is a rail of tickets one minute old, where the late state — the single most
+    important thing the screen does — is invisible until somebody waits twenty minutes for it. That
+    is the same reasoning as the negative stock in the M05 seed and the short delivery in M06: a
+    demo that makes the demonstrator create the problem is a demo of an empty product.
+    """
+    oldest = await session.scalar(
+        select(KotTicket)
+        .where(KotTicket.restaurant_id == restaurant.id)
+        .order_by(KotTicket.printed_at)
+        .limit(1)
+    )
+    if oldest is None:
+        return
+    # Comfortably past any dish's standard, so it is late whatever the menu says.
+    oldest.printed_at = datetime.now(UTC) - timedelta(minutes=_LATE_BY_MINUTES)
+    oldest.status = KotTicketStatus.PREPARING
+    oldest.acknowledged_at = oldest.printed_at + timedelta(minutes=1)
+    oldest.started_at = oldest.printed_at + timedelta(minutes=2)
+    await session.flush()
 
 
 async def _tables(session: AsyncSession, restaurant: Restaurant) -> list[RestaurantTable]:

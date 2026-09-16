@@ -31,7 +31,7 @@ import logging
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -54,6 +54,19 @@ RETRY_MS = 3000
 # How many tickets one tick may carry. Bounded like every other query in this codebase
 # (engineering-standards §3); a backlog drains over the ticks that follow.
 PAGE = 50
+# **A stream ends by itself, and does not wait to be told to.**
+#
+# Fifty-five minutes, just inside Cloud Run's sixty-minute request cap, so the server closes the
+# response cleanly and the browser reconnects with its cursor rather than the platform killing a
+# connection mid-event.
+#
+# It is also the backstop for the thing that actually bit: `request.is_disconnected()` is the only
+# signal that a client has gone, and it is not reliable on every transport — under httpx's ASGI
+# transport it never fires at all, so the first version of this generator looped for ever against a
+# client that had already hung up. A loop whose only exit is a signal from somewhere else is a loop
+# that hangs when that signal does not arrive, and "for ever" on a route that holds a database
+# session per tick is not an acceptable failure mode.
+MAX_SECONDS = 55 * 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +86,7 @@ async def kitchen_events(
     is_disconnected: Callable[[], Awaitable[bool]],
     tick_seconds: float = TICK_SECONDS,
     heartbeat_seconds: float = HEARTBEAT_SECONDS,
+    max_seconds: float | None = None,
 ) -> AsyncIterator[TicketEvent | None]:
     """Yield a ticket event per change, and `None` as a heartbeat when nothing has happened.
 
@@ -81,8 +95,15 @@ async def kitchen_events(
     """
     position = cursor
     last_sent = datetime.now(UTC)
+    # `MAX_SECONDS` is read here rather than used as a default argument, because a default is
+    # evaluated once when the function is defined — so a test that lowers the constant would be
+    # lowering something this generator had already stopped reading, and would hang for the full
+    # fifty-five minutes proving it.
+    deadline = datetime.now(UTC) + timedelta(
+        seconds=MAX_SECONDS if max_seconds is None else max_seconds
+    )
 
-    while not await is_disconnected():
+    while datetime.now(UTC) < deadline and not await is_disconnected():
         async with sessions() as session:
             if not await _still_signed_in(session, actor):
                 logger.info("kot.stream_closed", extra={"reason": "session_revoked"})

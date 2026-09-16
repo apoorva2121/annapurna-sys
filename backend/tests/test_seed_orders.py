@@ -11,12 +11,15 @@ dishes, tax rates, recipes and a stock ledger the inventory seeder has already o
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.enums import KotTicketStatus
+from app.models.kitchen import KotTicket, KotTicketLine
 from app.models.orders import CashSession, CreditNote, Invoice, Order, Payment
 from app.models.tenancy import Restaurant
 from app.seed.identity import seed_identity
@@ -102,3 +105,50 @@ async def test_seeding_again_takes_no_second_order(seeded: AsyncSession) -> None
     again = await seed_orders(seeded)
 
     assert again.created_nothing
+
+
+async def test_the_kitchen_rail_opens_with_work_on_it(seeded: AsyncSession) -> None:
+    """M08's half of the same principle: a kitchen display that opens empty demos nothing.
+
+    Three things have to be visible the moment the screen is opened, because each is a thing the
+    module does that a demonstrator cannot conjure on the spot — a late ticket needs twenty minutes
+    of waiting, and a second round needs somebody to order twice.
+    """
+    await seed_orders(seeded)
+    restaurant = await _koregaon(seeded)
+
+    tickets = (
+        await seeded.scalars(
+            select(KotTicket)
+            .where(KotTicket.restaurant_id == restaurant.id)
+            .order_by(KotTicket.printed_at)
+        )
+    ).all()
+
+    assert len(tickets) >= 2, "the rail opens empty, which demonstrates nothing"
+    # A second round on one order: the module's central decision, made visible.
+    assert any(ticket.sequence_in_order > 1 for ticket in tickets)
+    # And something already late, so the state the screen exists to show is on it.
+    oldest = tickets[0]
+    assert oldest.status == KotTicketStatus.PREPARING
+    elapsed = (datetime.now(UTC) - oldest.printed_at).total_seconds() / 60
+    assert elapsed > oldest.target_minutes
+
+
+async def test_the_seeded_ticket_carries_what_the_kitchen_cooks_from(
+    seeded: AsyncSession,
+) -> None:
+    """The names are copied onto the line at the send, so the display resolves nothing — and a
+    special instruction is planted, because it is the field that sends a dish back when missed."""
+    await seed_orders(seeded)
+    restaurant = await _koregaon(seeded)
+
+    lines = (
+        await seeded.scalars(
+            select(KotTicketLine).where(KotTicketLine.restaurant_id == restaurant.id)
+        )
+    ).all()
+
+    assert lines
+    assert all(line.item_name and line.variant_name for line in lines)
+    assert any(line.special_instructions is not None for line in lines)
