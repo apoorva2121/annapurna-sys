@@ -38,6 +38,10 @@ import RestaurantSettingsScreen from '@staff/screens/RestaurantSettingsScreen';
 import StaffListScreen from '@staff/screens/StaffListScreen';
 import StationsScreen from '@staff/screens/StationsScreen';
 import TaxRatesScreen from '@staff/screens/TaxRatesScreen';
+import ComplaintsScreen from '@staff/screens/ComplaintsScreen';
+import CustomerScreen from '@staff/screens/CustomerScreen';
+import CustomersScreen from '@staff/screens/CustomersScreen';
+import FeedbackScreen from '@staff/screens/FeedbackScreen';
 import WasteScreen from '@staff/screens/WasteScreen';
 import WasteSummaryScreen from '@staff/screens/WasteSummaryScreen';
 
@@ -310,6 +314,43 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.STOCK_VIEW}>
               <WasteSummaryScreen />
+            </RequirePermission>
+          }
+        />
+        {/* M10. A waiter reads a customer and reads feedback — `docs/customer-experience.md` puts
+            the regular's card on their screen, and a rating is about a table they served. Editing
+            somebody's details, erasing them at their request, and owning a complaint are a
+            manager's. What `customer.view` does *not* grant is the organisation: a person reads the
+            customers of the branch they are working in, and a second branch is an assignment. */}
+        <Route
+          path="customers"
+          element={
+            <RequirePermission permission={Permission.CUSTOMER_VIEW}>
+              <CustomersScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="customers/:customerId"
+          element={
+            <RequirePermission permission={Permission.CUSTOMER_VIEW}>
+              <CustomerScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="feedback"
+          element={
+            <RequirePermission permission={Permission.FEEDBACK_VIEW}>
+              <FeedbackScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="complaints"
+          element={
+            <RequirePermission permission={Permission.COMPLAINT_MANAGE}>
+              <ComplaintsScreen />
             </RequirePermission>
           }
         />

@@ -47,6 +47,14 @@ const links: { to: string; label: string; permission: Permission | null }[] = [
   // seeing what was thrown away is not the same power as throwing it away.
   { to: '/waste', label: strings.nav.logWaste, permission: Permission.WASTAGE_LOG },
   { to: '/waste/summary', label: strings.nav.wasteSummary, permission: Permission.STOCK_VIEW },
+  // M10. A waiter sees the first two: the regular's card belongs on their screen, and a rating is
+  // about a table they served. Complaints are a manager's, because owning one is accountable.
+  //
+  // `reachability.test.ts` refused the build until these were here — the same test that found M09's
+  // waste screen reachable only from its own detail page.
+  { to: '/customers', label: strings.nav.customers, permission: Permission.CUSTOMER_VIEW },
+  { to: '/feedback', label: strings.nav.feedback, permission: Permission.FEEDBACK_VIEW },
+  { to: '/complaints', label: strings.nav.complaints, permission: Permission.COMPLAINT_MANAGE },
   { to: '/profile', label: strings.nav.profile, permission: null },
 ];
 

@@ -1,15 +1,19 @@
-"""The three copies of the consent notice agree, or the build fails.
+"""The four copies of the consent notice agree, or the build fails.
 
 `customer_consent.notice_version` is only worth having if it names words somebody can read back.
-There are three places those words and that version live, and each exists for a reason:
+There are four places those words and that version live, and each exists for a reason:
 
 - **`docs/consent-notices.md`** — the canonical text, versioned, with the rule that a version is
   added and never edited. This is what somebody reads back years later.
 - **`backend/app/core/consent.py`** — what the server records against a consent.
 - **`frontend/src/guest/consentNotice.ts`** — the words a guest actually reads, and the version the
-  client sends.
+  guest bundle sends.
+- **`frontend/src/staff/consentVersion.ts`** — the version the *staff* bundle sends, when a manager
+  records a consent somebody gave on the phone. Stated separately because ADR 0009 forbids the two
+  bundles importing from each other, so it is a fourth copy — and a fourth copy asserted equal to
+  the others cannot drift.
 
-Two copies that can drift will drift. These three drifting means recording a consent against a
+Two copies that can drift will drift. These four drifting means recording a consent against a
 notice nobody was shown, which is a column that proves nothing — and `docs/compliance-rules.md`
 §B2's whole mechanism is proof. Same shape as `tests/test_enum_mirror.py`, for the same reason.
 
@@ -28,6 +32,7 @@ from app.core.enums import ConsentPurpose
 
 _ROOT = Path(__file__).resolve().parents[2]
 _NOTICE_TS = _ROOT / "frontend" / "src" / "guest" / "consentNotice.ts"
+_STAFF_TS = _ROOT / "frontend" / "src" / "staff" / "consentVersion.ts"
 _NOTICE_DOC = _ROOT / "docs" / "consent-notices.md"
 
 
@@ -39,6 +44,20 @@ def _ts_constant(name: str) -> str:
 
 def test_the_server_and_the_screen_name_the_same_notice_version() -> None:
     assert _ts_constant("CURRENT_NOTICE_VERSION") == CURRENT_NOTICE_VERSION
+
+
+def test_the_staff_bundle_names_the_same_notice_version() -> None:
+    """The fourth copy, and the reason there is one.
+
+    ADR 0009 forbids the staff and guest bundles importing from each other, so the staff screen that
+    records a consent a manager took on the phone cannot read the guest constant. It states the
+    version itself, and this is what stops the two diverging the day somebody bumps one.
+    """
+    match = re.search(
+        r"export const CURRENT_NOTICE_VERSION = '([^']+)'", _STAFF_TS.read_text(encoding="utf-8")
+    )
+    assert match is not None, "CURRENT_NOTICE_VERSION is not exported from consentVersion.ts"
+    assert match.group(1) == CURRENT_NOTICE_VERSION
 
 
 def test_the_server_and_the_screen_name_the_same_language() -> None:

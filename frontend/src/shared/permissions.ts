@@ -77,6 +77,13 @@ export const Permission = {
   // of it — the chef and the kitchen staff — hold LOG and not APPROVE, which is the separation of
   // duties standing between an expensive reason code and somebody logging theft as waste.
   WASTAGE_LOG: 'wastage.log',
+  // M10. A waiter holds `customer.view` and `feedback.view` — the P1 design being right rather than
+  // generous: the regular's card belongs on the waiter's screen, and a rating is about a table they
+  // served. Editing somebody's details and owning a complaint are a manager's.
+  CUSTOMER_VIEW: 'customer.view',
+  CUSTOMER_MANAGE: 'customer.manage',
+  FEEDBACK_VIEW: 'feedback.view',
+  COMPLAINT_MANAGE: 'complaint.manage',
   WASTAGE_APPROVE: 'wastage.approve',
 } as const;
 

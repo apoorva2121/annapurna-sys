@@ -167,7 +167,7 @@ async function errorFrom(response: Response): Promise<ApiClientError> {
 
 // ---------------------------------------------------------------- transport
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'PUT';
+type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
 async function send(
   method: Method,
@@ -342,6 +342,17 @@ export function apiPatch<T>(path: string, body: unknown): Promise<T> {
  */
 export function apiPut<T>(path: string, body: unknown): Promise<T> {
   return request<T>('PUT', path, body);
+}
+
+/**
+ * DELETE, for the few rows this product genuinely removes.
+ *
+ * ADR 0008 reserves deletion for rows nothing else points at — M10's customer preferences are the
+ * first: a preference is a statement about somebody's body and their beliefs, and a person asking
+ * for it to be taken off should have it taken off rather than flagged.
+ */
+export function apiDelete<T = void>(path: string): Promise<T> {
+  return request<T>('DELETE', path);
 }
 
 // ---------------------------------------------------------------- server-sent events (M08)

@@ -57,6 +57,9 @@ export const strings = {
     kitchen: 'Kitchen',
     logWaste: 'Log waste',
     wasteSummary: 'Waste',
+    customers: 'Customers',
+    feedback: 'What diners said',
+    complaints: 'Complaints',
     count: 'Stock count',
   },
 
@@ -1082,6 +1085,125 @@ export const strings = {
       costHeading: 'Cost',
       shareHeading: 'Share',
     },
+  },
+
+  // M10. A customer a waiter can greet, and the two DPDP rights.
+  //
+  // **Nothing here calls the consent obligations current law.** `docs/compliance-rules.md` §B2: the
+  // DPDP Act 2023's notice and consent provisions are notified and commence 13 May 2027. This
+  // product builds to that standard now because consent architecture cannot be retrofitted; saying
+  // it is required today would be saying something untrue about Indian law.
+  customers: {
+    title: 'Customers',
+    loading: 'Finding them…',
+    loadingHistory: 'Looking up their visits…',
+    backToList: 'Customers',
+    searchLabel: 'Search by number or name',
+    // The branch rule, said where somebody would otherwise wonder why a regular is missing.
+    branchHint: 'Customers of this branch. Switch branch to see another one’s.',
+    empty: 'No customers here yet. They appear when somebody is added at the counter, or when a guest gives their number after rating a meal.',
+    noName: 'No name yet',
+    noResults: 'Nobody here matches that.',
+    visitSummary: (count: number) =>
+      count === 0 ? 'First visit not recorded yet' : count === 1 ? '1 visit' : `${String(count)} visits`,
+    lastVisitHeading: 'Last visit',
+    visitsHeading: 'Visits',
+    nameHeading: 'Name',
+    phoneHeading: 'Number',
+
+    preferencesTitle: 'How they like things',
+    // The only preference that leaves this screen, and the reason the word "allergy" is on it.
+    preferencesHint:
+      'An allergy is copied onto the order when they are seated, and the kitchen sees it on the ticket. Everything else stays here, for whoever is serving them.',
+    noPreferences: 'Nothing recorded yet.',
+    allergyBadge: 'Allergy',
+    allergyPlaceholder: 'Peanuts, shellfish, …',
+    addAllergy: 'Add allergy',
+    removePreference: 'Remove',
+
+    consentTitle: 'What they agreed to',
+    consentHint:
+      'Each one is separate, and each can be turned off on its own. A number given for a bill is not permission to send offers.',
+    neverAsked: 'Never asked',
+    consentState: (granted: boolean, on: string) =>
+      granted ? `On since ${on.slice(0, 10)}` : `Off since ${on.slice(0, 10)}`,
+    grant: 'Turn on',
+    withdraw: 'Turn off',
+    purpose: {
+      order_contact: 'About this visit',
+      service_recognition: 'Remembering how they like things',
+      feedback_followup: 'Following up on a complaint',
+      marketing: 'Offers and news',
+    },
+
+    eraseTitle: 'Erase their details',
+    eraseStart: 'Erase at their request',
+    eraseConfirmTitle: (phone: string) => `Erase everything about ${phone}?`,
+    // Names what goes and what stays, because it cannot be undone and "Are you sure?" says nothing.
+    eraseConfirmBody:
+      'Their name, number, email and preferences are destroyed and cannot be recovered. Every bill stays, because a bill is a financial record. If they come back tomorrow they will be a new customer with no history.',
+    eraseConfirm: 'Yes, erase their details',
+    eraseCancel: 'Keep them',
+    erasedTitle: 'Details erased',
+    erasedBody: 'This person asked for their details to be erased. Their bills are still on the books; nothing more can be recorded about them.',
+    erasureKept: (orders: number, value: string) =>
+      `${String(orders)} bill(s) kept, worth ${value}. Nothing on the books moved.`,
+
+    visitsTitle: 'What they have eaten here',
+    noVisits: 'No visits at this branch yet.',
+    dayHeading: 'Business day',
+    itemsHeading: 'What they had',
+    totalHeading: 'Bill',
+  },
+
+  complaints: {
+    title: 'Complaints',
+    loading: 'Opening the list…',
+    // A complaint nobody resolves is worse than no system, so the empty state says what "open" means.
+    empty: 'Nothing open. A complaint stays here until somebody has written down what was done about it.',
+    reference: (value: string) => `Complaint ${value}`,
+    severityHeading: 'Severity',
+    whatHappenedHeading: 'What happened',
+    severity: {
+      low: 'Low',
+      medium: 'Medium',
+      high: 'High',
+      critical: 'Critical',
+    },
+    status: {
+      open: 'Nobody yet',
+      investigating: 'Being looked at',
+      resolved: 'Sorted',
+      closed: 'Closed',
+    },
+    resolveTitle: 'What was done about it?',
+    resolutionPlaceholder: 'Remade the dish and comped it',
+    resolutionHint: 'Required. A complaint marked sorted with nothing written down is paperwork.',
+    resolve: 'Mark it sorted',
+    close: 'Close it',
+    cameBack: 'They came back',
+    notYet: 'Not back yet',
+  },
+
+  feedback: {
+    title: 'What diners said',
+    loading: 'Reading the day…',
+    empty: 'Nothing for this day. Most tables never rate a meal, which is normal — the ones who do are the signal.',
+    dayLabel: 'Business day',
+    foodHeading: 'Food',
+    serviceHeading: 'Service',
+    returnHeading: 'Would return',
+    commentHeading: 'What they said',
+    sourceHeading: 'How',
+    source: {
+      qr: 'QR on the bill',
+      app: 'App',
+      staff: 'Entered by staff',
+      call: 'Phone call',
+    },
+    wouldReturn: (answer: boolean | null) =>
+      answer === null ? '—' : answer ? 'Yes' : 'No',
+    rating: (value: number | null) => (value === null ? '—' : `${String(value)}/5`),
   },
 
   errors: {

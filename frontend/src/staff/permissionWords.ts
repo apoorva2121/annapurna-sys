@@ -41,6 +41,13 @@ export const PERMISSION_WORDS: Record<Permission, string> = {
   'kot.update': 'Move a ticket through the kitchen and ask for a dish to be remade',
   'wastage.log': 'Record something thrown away — the system works out what it cost',
   'wastage.approve': 'Sign off waste that needs a second person to check it',
+  'customer.view':
+    'See a customer of this branch: their number, how often they have been and how they like things',
+  'customer.manage':
+    'Add and edit a customer, record what they agreed to, and erase their details at their request',
+  'feedback.view': 'Read what diners said about a day’s service',
+  'complaint.manage':
+    'Log a complaint, give it an owner, and record what was actually done about it',
 };
 
 export function wordsFor(code: string): string | null {
