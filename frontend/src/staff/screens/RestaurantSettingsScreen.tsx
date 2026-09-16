@@ -1,0 +1,585 @@
+import { type FormEvent, type ReactElement, useState } from 'react';
+
+import { businessDayExample } from '@shared/businessDay';
+import type { RestaurantTheme, ThemeWindow } from '@shared/theme/theme';
+import { THEMES } from '@shared/theme/theme';
+import { Button } from '@shared/ui/button';
+import { Label } from '@shared/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select';
+import { Field } from '@staff/components/Field';
+import { Notice } from '@staff/components/Notice';
+import { QueryState } from '@staff/components/QueryState';
+import { errorProps, fieldErrors } from '@staff/components/errorProps';
+import { strings } from '@staff/strings';
+import {
+  type BusyWindow,
+  type PostalAddress,
+  type Restaurant,
+  useRestaurant,
+  useUpdateRestaurant,
+} from '@staff/api/setup';
+
+/**
+ * The restaurant's own settings — owner and admin only.
+ *
+ * The whole screen exists for one control. `business_day_start` decides which day every order's
+ * takings land in, it is the setting ADR 0004 says owners misunderstand most, and moving it is the
+ * one action here that silently restates numbers somebody has already read. Everything else on this
+ * page is a text field.
+ *
+ * So the worked example under it is not decoration and is not a tooltip: a label reading "05:00"
+ * teaches nobody what 05:00 does. The sentence is **computed** by `businessDayExample`, which runs
+ * the same rule the server runs — an explanation written out as prose would be a second statement
+ * of the rule, free to drift, with no way for the reader to tell which one the server obeys.
+ */
+export default function RestaurantSettingsScreen(): ReactElement {
+  const restaurant = useRestaurant();
+
+  return (
+    <div className="max-w-2xl space-y-page">
+      <h1 className="text-2xl font-semibold">{strings.setup.restaurant.title}</h1>
+      <QueryState
+        isPending={restaurant.isPending}
+        error={restaurant.error}
+        pendingLabel={strings.setup.restaurant.loading}
+      >
+        {restaurant.data === undefined ? null : (
+          <>
+            <SettingsForm restaurant={restaurant.data} />
+            <TablesSection restaurant={restaurant.data} />
+            <ThemeSection restaurant={restaurant.data} />
+          </>
+        )}
+      </QueryState>
+    </div>
+  );
+}
+
+function SettingsForm({ restaurant }: { restaurant: Restaurant }): ReactElement {
+  const save = useUpdateRestaurant();
+  const problems = fieldErrors(save.error);
+  const [timezone, setTimezone] = useState(restaurant.timezone);
+  const [currency, setCurrency] = useState(restaurant.currency);
+  const [dayStart, setDayStart] = useState(restaurant.business_day_start.slice(0, 5));
+  const [gstin, setGstin] = useState(restaurant.gstin ?? '');
+  const [fssai, setFssai] = useState(restaurant.fssai_licence ?? '');
+  const [licenceExpires, setLicenceExpires] = useState(restaurant.fssai_licence_expires_on ?? '');
+  const [address, setAddress] = useState<AddressDraft>(() => addressDraft(restaurant.address));
+
+  function onSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    save.mutate(
+      {
+        timezone,
+        currency,
+        // The control gives `HH:MM`; the API takes `HH:MM:SS`.
+        business_day_start: `${dayStart}:00`,
+        // Empty is null, not "". A blank GSTIN is the absence of one, and storing an empty string
+        // would make "has a GSTIN" true for a restaurant that does not have one.
+        gstin: gstin.trim() === '' ? null : gstin.trim(),
+        fssai_licence: fssai.trim() === '' ? null : fssai.trim(),
+        fssai_licence_expires_on: licenceExpires === '' ? null : licenceExpires,
+        address: addressToSend(address),
+        // The version this page was read at (backlog-issues B6): a change saved elsewhere since is
+        // refused with a sentence, never silently overwritten.
+        settings_version: restaurant.settings_version,
+      },
+      {
+        // Re-seeded from what the server saved, not left as typed: "inr" is stored as "INR", and a
+        // form still holding "inr" under a green "Saved" is showing a value the database does not hold.
+        onSuccess: (saved) => {
+          setTimezone(saved.timezone);
+          setCurrency(saved.currency);
+          setDayStart(saved.business_day_start.slice(0, 5));
+          setGstin(saved.gstin ?? '');
+          setFssai(saved.fssai_licence ?? '');
+          setLicenceExpires(saved.fssai_licence_expires_on ?? '');
+          setAddress(addressDraft(saved.address));
+        },
+      },
+    );
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      <Field
+        label={strings.setup.restaurant.timezone}
+        hint={strings.setup.restaurant.timezoneHint}
+        value={timezone}
+        onChange={(event) => {
+          setTimezone(event.target.value);
+        }}
+        required
+      />
+
+      <BusinessDayStartField value={dayStart} onChange={setDayStart} />
+
+      <Field
+        label={strings.setup.restaurant.currency}
+        value={currency}
+        onChange={(event) => {
+          setCurrency(event.target.value);
+        }}
+        maxLength={3}
+        className="uppercase"
+        required
+      />
+      <Field
+        label={strings.setup.restaurant.gstin}
+        value={gstin}
+        onChange={(event) => {
+          // The API capitalises too; doing it here shows the person what will be saved.
+          setGstin(event.target.value.toUpperCase());
+        }}
+        maxLength={15}
+        error={problems.gstin}
+      />
+      <Field
+        label={strings.setup.restaurant.fssai}
+        hint={strings.setup.restaurant.fssaiHint}
+        value={fssai}
+        onChange={(event) => {
+          setFssai(event.target.value);
+        }}
+        maxLength={32}
+        error={problems.fssai_licence}
+      />
+      <Field
+        label={strings.setup.restaurant.fssaiExpires}
+        hint={strings.setup.restaurant.fssaiExpiresHint}
+        type="date"
+        value={licenceExpires}
+        onChange={(event) => {
+          setLicenceExpires(event.target.value);
+        }}
+        error={problems.fssai_licence_expires_on}
+      />
+      <AddressFields value={address} onChange={setAddress} problems={problems} />
+
+      {/* Every mutation renders pending, error and success explicitly (restaurant-ui rule 6). */}
+      {save.isError && (
+        <Notice
+          tone="critical"
+          {...errorProps(save.error, {
+            timezone: strings.setup.restaurant.timezone,
+            currency: strings.setup.restaurant.currency,
+            gstin: strings.setup.restaurant.gstin,
+            fssai_licence: strings.setup.restaurant.fssai,
+            address: strings.setup.restaurant.address,
+            'address.line1': strings.setup.restaurant.addressLine1,
+            'address.line2': strings.setup.restaurant.addressLine2,
+            'address.city': strings.setup.restaurant.city,
+            'address.state': strings.setup.restaurant.state,
+            'address.pincode': strings.setup.restaurant.pincode,
+          })}
+        />
+      )}
+      {save.isSuccess && <Notice tone="success" title={strings.setup.restaurant.saved} />}
+
+      <Button type="submit" disabled={save.isPending} className="self-start">
+        {save.isPending ? strings.setup.restaurant.saving : strings.setup.restaurant.save}
+      </Button>
+    </form>
+  );
+}
+
+/**
+ * How long a table is cleared for after a bill, and when the floor is too busy to clear tables at
+ * all (backlog-issues B2).
+ *
+ * Saved on its own, like the theme. A blank cleaning time means only a person clears a table, with
+ * Mark ready; the server's five minutes applies to a restaurant that never saved one. A busy window
+ * may run past midnight — 22:00 to 01:00 is an ordinary late rush — and busy mode switched on from
+ * the floor is not touched by saving here.
+ */
+function TablesSection({ restaurant }: { restaurant: Restaurant }): ReactElement {
+  const save = useUpdateRestaurant();
+  const problems = fieldErrors(save.error);
+  const saved = restaurant.tables ?? { cleaning_minutes: 5, busy_windows: [] };
+  const [minutes, setMinutes] = useState(
+    saved.cleaning_minutes === null ? '' : String(saved.cleaning_minutes),
+  );
+  // The API speaks `HH:MM:SS`; a time input speaks `HH:MM`.
+  const [windows, setWindows] = useState<BusyWindow[]>(
+    saved.busy_windows.map((window) => ({
+      starts: window.starts.slice(0, 5),
+      ends: window.ends.slice(0, 5),
+    })),
+  );
+
+  function editWindow(index: number, changes: Partial<BusyWindow>): void {
+    setWindows((current) =>
+      current.map((window, at) => (at === index ? { ...window, ...changes } : window)),
+    );
+  }
+
+  return (
+    <section className="space-y-3 rounded-md border p-page">
+      <div>
+        <h2 className="text-lg font-semibold">{strings.setup.tables.title}</h2>
+        <p className="text-sm text-muted-foreground">{strings.setup.tables.hint}</p>
+      </div>
+
+      <Field
+        label={strings.setup.tables.cleaningMinutes}
+        hint={strings.setup.tables.cleaningMinutesHint}
+        inputMode="numeric"
+        value={minutes}
+        onChange={(event) => {
+          setMinutes(event.target.value.replace(/\D/g, ''));
+        }}
+        error={problems['tables.cleaning_minutes']}
+        className="max-w-24"
+      />
+
+      <div className="space-y-2">
+        <h3 className="font-medium">{strings.setup.tables.busyTitle}</h3>
+        <p className="text-sm text-muted-foreground">{strings.setup.tables.busyHint}</p>
+        {windows.length === 0 ? (
+          <p className="text-muted-foreground">{strings.setup.tables.busyEmpty}</p>
+        ) : (
+          <ul className="space-y-2">
+            {windows.map((window, index) => (
+              <li key={index} className="flex flex-wrap items-end gap-2">
+                <Field
+                  label={strings.setup.tables.from}
+                  type="time"
+                  value={window.starts}
+                  onChange={(event) => {
+                    editWindow(index, { starts: event.target.value });
+                  }}
+                />
+                <Field
+                  label={strings.setup.tables.to}
+                  type="time"
+                  value={window.ends}
+                  onChange={(event) => {
+                    editWindow(index, { ends: event.target.value });
+                  }}
+                />
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setWindows((current) => current.filter((_, at) => at !== index));
+                  }}
+                >
+                  {strings.setup.tables.remove}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setWindows((current) => [...current, { starts: '12:00', ends: '15:00' }]);
+          }}
+        >
+          {strings.setup.tables.addWindow}
+        </Button>
+      </div>
+
+      {save.isError && (
+        <Notice
+          tone="critical"
+          {...errorProps(save.error, {
+            'tables.cleaning_minutes': strings.setup.tables.cleaningMinutes,
+          })}
+        />
+      )}
+      {save.isSuccess && <Notice tone="success" title={strings.setup.tables.saved} />}
+
+      <Button
+        disabled={save.isPending}
+        onClick={() => {
+          save.mutate({
+            settings_version: restaurant.settings_version,
+            tables: {
+              cleaning_minutes: minutes === '' ? null : Number(minutes),
+              busy_windows: windows,
+            },
+          });
+        }}
+      >
+        {save.isPending ? strings.setup.restaurant.saving : strings.setup.tables.save}
+      </Button>
+    </section>
+  );
+}
+
+/**
+ * The restaurant-wide look and its festive schedule, deferred here from the UI work.
+ *
+ * Saved on its own rather than with the rest of the form: a festive schedule is edited at a
+ * different moment and for a different reason than a GSTIN, and folding both into one Save means
+ * every theme change also rewrites the tax number.
+ *
+ * The hint says out loud that a person's own device choice survives this. That is the rule in
+ * `resolveTheme`, and an owner setting a restaurant default deserves to know it will not reach the
+ * manager who deliberately chose dark for a dim back office.
+ */
+function ThemeSection({ restaurant }: { restaurant: Restaurant }): ReactElement {
+  const save = useUpdateRestaurant();
+  // Defaulted: a restaurant saved before this setting existed has no theme block at all, and the
+  // settings screen has to render for it rather than crash.
+  const [theme, setTheme] = useState<RestaurantTheme>(
+    restaurant.theme ?? { default: null, schedule: [] },
+  );
+
+  function addWindow(): void {
+    const today = new Date().toISOString().slice(0, 10);
+    setTheme((current) => ({
+      ...current,
+      schedule: [...current.schedule, { theme: FIRST_THEME, starts_on: today, ends_on: today }],
+    }));
+  }
+
+  function editWindow(index: number, changes: Partial<ThemeWindow>): void {
+    setTheme((current) => ({
+      ...current,
+      schedule: current.schedule.map((window, at) =>
+        at === index ? { ...window, ...changes } : window,
+      ),
+    }));
+  }
+
+  return (
+    <section className="space-y-3 rounded-md border p-page">
+      <div>
+        <h2 className="text-lg font-semibold">{strings.setup.theme.title}</h2>
+        <p className="text-sm text-muted-foreground">{strings.setup.theme.hint}</p>
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="default-theme">{strings.setup.theme.defaultLabel}</Label>
+        <Select
+          value={theme.default ?? NO_DEFAULT}
+          onValueChange={(value) => {
+            setTheme((current) => ({
+              ...current,
+              default: value === NO_DEFAULT ? null : value,
+            }));
+          }}
+        >
+          <SelectTrigger id="default-theme" className="max-w-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_DEFAULT}>{strings.setup.theme.none}</SelectItem>
+            {THEMES.map((each) => (
+              <SelectItem key={each.id} value={each.id}>
+                {each.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <h3 className="font-medium">{strings.setup.theme.scheduleTitle}</h3>
+        <p className="text-sm text-muted-foreground">{strings.setup.theme.scheduleHint}</p>
+        {theme.schedule.length === 0 ? (
+          <p className="text-muted-foreground">{strings.setup.theme.scheduleEmpty}</p>
+        ) : (
+          <ul className="space-y-2">
+            {theme.schedule.map((window, index) => (
+              <li key={index} className="flex flex-wrap items-end gap-2">
+                <Select
+                  value={window.theme}
+                  onValueChange={(value) => {
+                    editWindow(index, { theme: value });
+                  }}
+                >
+                  <SelectTrigger
+                    className="w-auto min-w-40"
+                    aria-label={`${strings.setup.theme.windowTheme} ${String(index + 1)}`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {THEMES.map((each) => (
+                      <SelectItem key={each.id} value={each.id}>
+                        {each.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Field
+                  label={strings.setup.theme.from}
+                  type="date"
+                  value={window.starts_on}
+                  onChange={(event) => {
+                    editWindow(index, { starts_on: event.target.value });
+                  }}
+                />
+                <Field
+                  label={strings.setup.theme.to}
+                  type="date"
+                  value={window.ends_on}
+                  onChange={(event) => {
+                    editWindow(index, { ends_on: event.target.value });
+                  }}
+                />
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setTheme((current) => ({
+                      ...current,
+                      schedule: current.schedule.filter((_, at) => at !== index),
+                    }));
+                  }}
+                >
+                  {strings.setup.theme.remove}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <Button variant="secondary" onClick={addWindow}>
+          {strings.setup.theme.addWindow}
+        </Button>
+      </div>
+
+      {save.isError && <Notice tone="critical" {...errorProps(save.error)} />}
+      {save.isSuccess && <Notice tone="success" title={strings.setup.theme.saved} />}
+
+      <Button
+        disabled={save.isPending}
+        onClick={() => {
+          save.mutate({ theme, settings_version: restaurant.settings_version });
+        }}
+      >
+        {save.isPending ? strings.setup.restaurant.saving : strings.setup.theme.save}
+      </Button>
+    </section>
+  );
+}
+
+/** Radix's Select cannot hold an empty string as a value, so "no default" needs a real one. */
+const NO_DEFAULT = '__none__';
+
+/** THEMES is never empty — it is a literal array in themes.ts — but the type does not say so. */
+const FIRST_THEME = THEMES[0]?.id ?? 'light';
+
+/**
+ * The one control on this screen that needs explaining, with its explanation attached.
+ *
+ * The example re-computes as the value changes, so someone trying 03:00 to see what it does gets
+ * the answer for 03:00 rather than the answer for whatever was saved last.
+ */
+function BusinessDayStartField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}): ReactElement {
+  // `null` at midnight, where there is no late-night window to illustrate — say so rather than
+  // invent an example. An invalid part-typed value ("0") is treated the same way.
+  const example = safeExample(value);
+
+  return (
+    <div className="space-y-1">
+      <Field
+        label={strings.setup.restaurant.businessDayStart}
+        type="time"
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+        }}
+        required
+      />
+      <p className="text-sm font-medium text-foreground">
+        {example === null
+          ? strings.setup.restaurant.businessDayMidnight
+          : strings.setup.restaurant.businessDayExample(
+              example.orderTime,
+              example.orderDay,
+              example.countsToward,
+            )}
+      </p>
+      <p className="text-sm text-muted-foreground">{strings.setup.restaurant.businessDayWhy}</p>
+    </div>
+  );
+}
+
+function safeExample(value: string): ReturnType<typeof businessDayExample> {
+  try {
+    return businessDayExample(`${value}:00`);
+  } catch {
+    // A half-typed time is not an error worth showing; the field itself will refuse to submit.
+    return null;
+  }
+}
+
+/** The address as typed: every part a string, so a box can be empty (backlog-issues B12). */
+type AddressDraft = { line1: string; line2: string; city: string; state: string; pincode: string };
+
+const EMPTY_ADDRESS: AddressDraft = { line1: '', line2: '', city: '', state: '', pincode: '' };
+
+/** One absence check rather than five: `line1` and `city` are required on the wire, and only the
+ *  other three can be null, so a per-field `??` was branching for cases the type rules out. */
+function addressDraft(address: PostalAddress | null | undefined): AddressDraft {
+  if (address === null || address === undefined) {
+    return EMPTY_ADDRESS;
+  }
+  const text = (value: string | null): string => value ?? '';
+  return {
+    line1: address.line1,
+    line2: text(address.line2),
+    city: address.city,
+    state: text(address.state),
+    pincode: text(address.pincode),
+  };
+}
+
+/** Null when nothing is entered; otherwise the parts the API takes, a blank optional part as null.
+ *  The address used to go as one string, which the API refused on every save (defect sheet row 6). */
+function addressToSend(draft: AddressDraft): PostalAddress | null {
+  if (Object.values(draft).every((value) => value.trim() === '')) {
+    return null;
+  }
+  const optional = (value: string): string | null => (value.trim() === '' ? null : value.trim());
+  return {
+    line1: draft.line1.trim(),
+    line2: optional(draft.line2),
+    city: draft.city.trim(),
+    state: optional(draft.state),
+    pincode: optional(draft.pincode),
+  };
+}
+
+function AddressFields({
+  value,
+  onChange,
+  problems,
+}: {
+  value: AddressDraft;
+  onChange: (next: AddressDraft) => void;
+  problems: Record<string, string>;
+}): ReactElement {
+  const part = (key: keyof AddressDraft, label: string, hint?: string): ReactElement => (
+    <Field
+      key={key}
+      label={label}
+      hint={hint}
+      value={value[key]}
+      inputMode={key === 'pincode' ? 'numeric' : undefined}
+      onChange={(event) => {
+        onChange({ ...value, [key]: event.target.value });
+      }}
+      error={problems[`address.${key}`]}
+    />
+  );
+  return (
+    <fieldset className="flex flex-col gap-3">
+      <legend className="font-semibold">{strings.setup.restaurant.address}</legend>
+      <p className="text-sm text-muted-foreground">{strings.setup.restaurant.addressHint}</p>
+      {part('line1', strings.setup.restaurant.addressLine1)}
+      {part('line2', strings.setup.restaurant.addressLine2)}
+      {part('city', strings.setup.restaurant.city)}
+      {part('state', strings.setup.restaurant.state)}
+      {part('pincode', strings.setup.restaurant.pincode, strings.setup.restaurant.pincodeHint)}
+    </fieldset>
+  );
+}

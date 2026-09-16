@@ -20,4 +20,7 @@ customer feedback into one data model — and turns it into food-cost, waste and
 
 ## Status
 
-Planning complete (P0-P2). Next: M00 Foundation. No application code yet.
+P0-P2 complete. **M00 Foundation and M01 Identity are built and passed their manual pass**
+(2026-09-11), followed by post-audit hardening R1, R2 and R8a and the UI design-system
+foundation. Next: M02 Restaurant Setup. State of play: `docs/plan/m01-build-log.md` and
+`docs/audit/remediation-plan.md`.

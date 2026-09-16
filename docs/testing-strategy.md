@@ -11,7 +11,29 @@ work".
 
 ## Part 1 — Automated testing (mine)
 
-### The shape
+### The harness opens one session per request
+
+**Guardrail G-2.** The `api` fixture in `backend/tests/conftest.py` gives every request its own
+session, closed when the request ends — exactly what `app.core.db.get_session` does in production.
+The test's own `db_session` is a *different* session over the same rolled-back transaction.
+
+This is not a detail. The earlier harness yielded one long-lived session to every request, which
+made the suite structurally unable to observe a rollback: a handler that flushed and then raised
+left its work visible to the next request and to the assertions, because nothing ever closed the
+session. The account lockout shipped completely inoperative underneath 262 passing tests for that
+reason, and the replayed-refresh-token revocation did too.
+
+Two consequences when writing tests:
+
+- **After a request, re-read through `db_session`** rather than trusting an object loaded before it.
+  The two sessions have separate identity maps, and that is the point.
+- **A test that must see a real `COMMIT` on disk** — one proving a write survives the process, not
+  merely the transaction — takes the `fresh_database` fixture instead. `test_lockout_persistence.py`
+  is the worked example.
+
+> A test that shares a transaction with the code under test cannot prove durability.
+
+## The shape
 
 ```
         /\        E2E (Playwright)          ~15 total, critical journeys only
@@ -48,7 +70,7 @@ covered the moment it is registered.** Nobody has to remember.
 - **Query count** — `assert_max_queries(n)` around list and detail endpoints. This is how N+1 stays
   fixed rather than being fixed once (`docs/engineering-standards.md` §3).
 - **Migration** — `upgrade → downgrade → upgrade` against real Postgres.
-- **Contract** — `app/core/enums.py` matches `frontend/src/lib/enums.ts`, asserted, so the two cannot
+- **Contract** — `app/core/enums.py` matches `frontend/src/shared/enums.ts`, asserted, so the two cannot
   drift.
 
 ### Specialist testing where the risk is concentrated

@@ -1,0 +1,190 @@
+# CI runs everything; pre-commit runs the fast subset (docs/engineering-standards.md §7).
+# The four jobs below are `make check` split for parallelism — if you add a step to the Makefile
+# gate, add it here in the same PR, or the two drift and the local gate stops meaning anything.
+#
+# Zero warnings is a gate, not an aspiration: ruff has no warning tier, mypy runs strict with
+# warn_unused_ignores, eslint runs --max-warnings 0, pytest runs filterwarnings=error. All four
+# settings live in backend/pyproject.toml and frontend/package.json, so local and CI agree.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# A force-push mid-run should not leave two runs racing for the same branch.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------- backend
+  backend:
+    name: backend · ruff · mypy · pytest · pip-audit
+    runs-on: ubuntu-latest
+    # No postgres service: tests start their own via testcontainers (see
+    # backend/tests/conftest.py), so there is exactly one way a test gets a database.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/uv.lock
+
+      # Frozen, from backend/uv.lock. --frozen fails the build if the lockfile and pyproject.toml
+      # disagree, so a dependency change that was never locked is caught here rather than shipping
+      # a different resolution than the one that was tested (M9, G-10).
+      - name: Install backend from the lockfile (same as `make setup`)
+        run: |
+          python -m pip install --upgrade pip uv
+          uv sync --frozen --project backend
+          echo "backend/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: ruff check
+        working-directory: backend
+        run: ruff check .
+
+      - name: ruff format --check
+        working-directory: backend
+        run: ruff format --check .
+
+      - name: mypy (strict, per backend/pyproject.toml)
+        working-directory: backend
+        run: mypy app tests
+
+      # Includes test_migration_roundtrip (alembic up → down → up) against a real Postgres the
+      # fixture starts — acceptance criterion 8 of docs/modules/M00-foundation-spec.md.
+      - name: pytest
+        working-directory: backend
+        run: pytest -q
+
+      - name: pip-audit
+        working-directory: backend
+        # --skip-editable: the local package has no published advisories to check, and auditing it
+        # only produces noise. Identical to `make audit-deps`.
+        run: python -m pip_audit --skip-editable
+
+  # ---------------------------------------------------------------- frontend
+  frontend:
+    name: frontend · eslint · tsc · vitest · npm audit
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # ci, not install: it installs the lockfile exactly and fails if package.json disagrees.
+      - name: npm ci
+        run: npm ci
+
+      - name: eslint (--max-warnings 0)
+        run: npm run lint
+
+      - name: tsc --noEmit
+        run: npm run typecheck
+
+      - name: vitest
+        run: npm run test -- --run
+
+      - name: npm audit
+        run: npm audit --audit-level=high
+
+  # ---------------------------------------------------------------- visual regression
+  # Backlog-issues B11b, decision D4. Runs inside the same image `make visual` uses, because the
+  # baselines committed under __screenshots__ are Linux pixels — a runner without this container
+  # would differ in font hinting alone and fail on every pull request for no reason.
+  #
+  # Deliberately its own job and not part of `make check`: the gate has to stay runnable on a
+  # laptop with nothing installed but Node.
+  visual:
+    name: visual · design gallery screenshots
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ci, not install: it installs the lockfile exactly and fails if package.json disagrees.
+      - name: npm ci
+        run: npm ci
+
+      - name: vitest (browser, screenshots)
+        run: npm run test:visual
+
+      # The diff images are the whole point of a failure: a reviewer looks at what moved.
+      - name: upload what changed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diffs
+          path: frontend/src/**/__screenshots__/**
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------- docs & seed
+  docs:
+    name: docs · guardrails · seed validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # PyYAML is not a backend dependency — seed/validate.py is the only thing that needs it, and
+      # this job does not install the backend at all.
+      - name: Install script dependencies
+        run: python -m pip install --upgrade pip pyyaml
+
+      # Docs drift is a defect: docs are updated in the same PR as the code (CLAUDE.md).
+      - name: Audit docs
+        run: python scripts/audit_docs.py
+
+      # R9 / G-20. A rule nobody can mechanically check is a wish, and a check that does not run
+      # in CI is a rule one `--no-verify` away from being a wish again. This also fails when the
+      # guardrails table's own status column disagrees with the remediation plan.
+      - name: Audit guardrails
+        run: python scripts/audit_guardrails.py
+
+      - name: Validate seed data
+        run: python seed/validate.py
+
+  # ---------------------------------------------------------------- secrets
+  secrets:
+    name: secret scan · gitleaks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gitleaks scans history, not just the diff. A shallow clone would miss a key that was
+          # committed and then "removed" in a later commit — which is the case that matters.
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Free for personal accounts and public repos. If this repo ever moves under a GitHub
+          # organisation, gitleaks-action requires GITLEAKS_LICENSE here or the job fails.

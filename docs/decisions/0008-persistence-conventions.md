@@ -41,7 +41,7 @@ Status and type columns are `TEXT` with a `CHECK (col IN (...))` constraint, not
 `ENUM`. Native enums require `ALTER TYPE` to add a value (which cannot run inside some transactions)
 and effectively cannot drop one. A CHECK constraint is a normal, reversible migration.
 
-`app/core/enums.py` is the single source of truth; `frontend/src/lib/enums.ts` mirrors it and a test
+`app/core/enums.py` is the single source of truth; `frontend/src/shared/enums.ts` mirrors it and a test
 asserts the two match. Lookup tables are used only where rows carry extra data (`role`,
 `permission`, `tax_group`, `wastage_reason`), never for a fixed list of strings.
 

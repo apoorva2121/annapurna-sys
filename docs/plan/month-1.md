@@ -61,9 +61,26 @@ expiry and low-stock alerts. Then order creation and line management.
 **Exit:** receiving stock creates batches; a manual consumption draws from the oldest batch first;
 on-hand always equals the sum of movements.
 
+### What actually happened, 2026-09-13
+
+**M06 Procurement was built before M07 was begun**, on the owner's instruction, and the plan above
+did not anticipate it — month 1's arithmetic puts M06 after M07 because M07 is the critical path
+and M06 is priority `[1.5]`. Recording the deviation rather than quietly re-drawing the weeks:
+
+- M00–M05 are complete bar their manual passes, which is the plan's month-1 target.
+- M06 is complete bar its manual pass, which the plan did not budget for at all (3 days of
+  estimate, built in one session).
+- **M07 has not been begun**, which is the 3 days month 1 reserved for it.
+
+The trade is defensible and worth stating plainly: M06 depends only on M05 and nothing depends on
+M06, so building it now cost M07 nothing structurally — and it repaid the detour by rehearsing
+M07's gapless-invoice-numbering mechanism under concurrency on a document where a gap costs
+nothing (`docs/plan/m06-build-log.md`, decision 3). What it did cost is calendar: M07 is the
+largest module in the product at 7 days, and it starts later than the plan says.
+
 ## What follows month 1
 
-M07 finish, M08 Kitchen, M09 Waste, M10 Customers, M11 Comms, M12 Shifts, M13 Dashboards,
+M07, M08 Kitchen, M09 Waste, M10 Customers, M11 Comms, M12 Shifts, M13 Dashboards,
 M14 Audit, M15 Seed generator, M16 Hardening — a further ~40 working days. Full detail and
 dependency order in `docs/modules.md`.
 
@@ -75,8 +92,9 @@ Code alone does not produce revenue, and we are building without a live test sit
    A photo is a two-minute ask and it reveals portion sizes, price points and menu breadth.
 2. **Ask them:** *"What do you think your food cost percentage is?"* Then: *"How do you know?"* The
    gap between those two answers is the pitch. Write down exactly what they say.
-3. **Start the starter recipe library** (`docs/onboarding-cold-start.md`). Content work, not code, so
-   it runs in parallel and it is the long pole. `seed/` is its first 11 entries.
+3. ~~**Start the starter recipe library**~~ **Done 2026-09-12 — `library/`**, 223 dishes and 36
+   preparations with confidence tiers (`library/README.md`). What remains is a chef's pass over the
+   `estimated` tier, which is the pilot restaurant's job during onboarding, not ours before it.
 4. **Draft pricing.** Anchor on savings: our seed data shows a ~6-point gap between theoretical and
    actual food cost — about ₹95,000/month on ₹15.5L revenue. ₹5,000–8,000/outlet/month prices
    comfortably against that.

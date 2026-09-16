@@ -1,0 +1,403 @@
+import type { ReactElement } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
+
+import { Permission } from '@shared/permissions';
+import { RequireAuth, RequirePermission } from '@staff/auth/guards';
+import { AppShell } from '@staff/components/AppShell';
+import EmployeeScreen from '@staff/screens/EmployeeScreen';
+import DishCostScreen from '@staff/screens/DishCostScreen';
+import GoodsReceiptScreen from '@staff/screens/GoodsReceiptScreen';
+import NewPurchaseOrderScreen from '@staff/screens/NewPurchaseOrderScreen';
+import PurchaseOrdersScreen from '@staff/screens/PurchaseOrdersScreen';
+import SuppliersScreen from '@staff/screens/SuppliersScreen';
+import SupplierVarianceScreen from '@staff/screens/SupplierVarianceScreen';
+import StockCountScreen from '@staff/screens/StockCountScreen';
+import StockOnHandScreen from '@staff/screens/StockOnHandScreen';
+import StockProduceScreen from '@staff/screens/StockProduceScreen';
+import StockReceiveScreen from '@staff/screens/StockReceiveScreen';
+import BillScreen from '@staff/screens/BillScreen';
+import BillsScreen from '@staff/screens/BillsScreen';
+import CashScreen from '@staff/screens/CashScreen';
+import InvoiceScreen from '@staff/screens/InvoiceScreen';
+import KitchenScreen from '@staff/screens/KitchenScreen';
+import KitchenTicketScreen from '@staff/screens/KitchenTicketScreen';
+import FloorPlanScreen from '@staff/screens/FloorPlanScreen';
+import OrderScreen from '@staff/screens/OrderScreen';
+import TableMapScreen from '@staff/screens/TableMapScreen';
+import MenuItemScreen from '@staff/screens/MenuItemScreen';
+import MenuScreen from '@staff/screens/MenuScreen';
+import ModifierGroupsScreen from '@staff/screens/ModifierGroupsScreen';
+import StockItemsScreen from '@staff/screens/StockItemsScreen';
+import HomeScreen from '@staff/screens/HomeScreen';
+import LoginScreen from '@staff/screens/LoginScreen';
+import NewEmployeeScreen from '@staff/screens/NewEmployeeScreen';
+import ProfileScreen from '@staff/screens/ProfileScreen';
+import RecipeScreen from '@staff/screens/RecipeScreen';
+import DesignGalleryScreen from '@staff/screens/DesignGalleryScreen';
+import RestaurantSettingsScreen from '@staff/screens/RestaurantSettingsScreen';
+import StaffListScreen from '@staff/screens/StaffListScreen';
+import StationsScreen from '@staff/screens/StationsScreen';
+import TaxRatesScreen from '@staff/screens/TaxRatesScreen';
+import ComplaintsScreen from '@staff/screens/ComplaintsScreen';
+import CustomerScreen from '@staff/screens/CustomerScreen';
+import CustomersScreen from '@staff/screens/CustomersScreen';
+import FeedbackScreen from '@staff/screens/FeedbackScreen';
+import WasteScreen from '@staff/screens/WasteScreen';
+import WasteSummaryScreen from '@staff/screens/WasteSummaryScreen';
+
+/**
+ * The staff application's routes.
+ *
+ * Every staff route sits inside `RequireAuth`, and the ones that need a permission additionally
+ * sit inside `RequirePermission`. Both are presentation: the server authorises every request on
+ * its own, so a route reachable by typing its URL is refused with a readable message rather than a
+ * blank screen (manual test C3).
+ */
+export default function App(): ReactElement {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginScreen />} />
+
+      <Route
+        element={
+          <RequireAuth>
+            <AppShell />
+          </RequireAuth>
+        }
+      >
+        <Route index element={<HomeScreen />} />
+        <Route path="profile" element={<ProfileScreen />} />
+        <Route
+          path="staff"
+          element={
+            <RequirePermission permission={Permission.EMPLOYEE_VIEW}>
+              <StaffListScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="staff/new"
+          element={
+            <RequirePermission permission={Permission.EMPLOYEE_CREATE}>
+              <NewEmployeeScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="staff/:employeeId"
+          element={
+            <RequirePermission permission={Permission.EMPLOYEE_VIEW}>
+              <EmployeeScreen />
+            </RequirePermission>
+          }
+        />
+
+        {/* Setup. One permission for the whole surface — owner and admin only, because a manager
+            runs a shift and changing what a day means or what tax is charged is not that. */}
+        <Route
+          path="settings"
+          element={
+            <RequirePermission permission={Permission.RESTAURANT_CONFIGURE}>
+              <RestaurantSettingsScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="settings/floor"
+          element={
+            <RequirePermission permission={Permission.RESTAURANT_CONFIGURE}>
+              <FloorPlanScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="settings/stations"
+          element={
+            <RequirePermission permission={Permission.RESTAURANT_CONFIGURE}>
+              <StationsScreen />
+            </RequirePermission>
+          }
+        />
+        {/* The menu. `menu.view` for reading, and the write routes guard themselves — a manager
+            holds `menu.manage` but not `menu.price`, so the screen renders the price control
+            conditionally rather than offering one that 403s. */}
+        <Route
+          path="menu"
+          element={
+            <RequirePermission permission={Permission.MENU_VIEW}>
+              <MenuScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="menu/options"
+          element={
+            <RequirePermission permission={Permission.MENU_VIEW}>
+              <ModifierGroupsScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="menu/:itemId"
+          element={
+            <RequirePermission permission={Permission.MENU_VIEW}>
+              <MenuItemScreen />
+            </RequirePermission>
+          }
+        />
+        {/* Stock and cost. Two permissions, because the P1 design separates them: a chef reads
+            recipes and may not see rupees, a manager sees rupees and may not change a recipe. */}
+        <Route
+          path="stock"
+          element={
+            <RequirePermission permission={Permission.RECIPE_VIEW}>
+              <StockItemsScreen />
+            </RequirePermission>
+          }
+        />
+        {/* The chef's editor, reached from a dish's variant and from the cost screen. Behind
+            `recipe.view`: reading a recipe is the kitchen's job, and the screen itself withholds
+            every write from anyone without `recipe.manage`. */}
+        <Route
+          path="recipes/:variantId"
+          element={
+            <RequirePermission permission={Permission.RECIPE_VIEW}>
+              <RecipeScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="costs"
+          element={
+            <RequirePermission permission={Permission.COST_VIEW}>
+              <DishCostScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="stock/on-hand"
+          element={
+            <RequirePermission permission={Permission.STOCK_VIEW}>
+              <StockOnHandScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="stock/receive"
+          element={
+            <RequirePermission permission={Permission.STOCK_RECEIVE}>
+              <StockReceiveScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="stock/produce"
+          element={
+            <RequirePermission permission={Permission.STOCK_PRODUCE}>
+              <StockProduceScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="stock/count"
+          element={
+            <RequirePermission permission={Permission.STOCK_COUNT}>
+              <StockCountScreen />
+            </RequirePermission>
+          }
+        />
+        {/* M06 procurement. Four permissions across five routes, and the split is the design's:
+            reading is `supplier.view`, changing a supplier is `supplier.manage`, raising an order
+            is `purchase.manage`, and **booking in a delivery is `stock.receive`** — because it
+            writes the stock ledger, so it keeps the ledger's permission. An accountant therefore
+            reaches the orders and never the receiving screen, which is separation of duties rather
+            than an oversight. */}
+        <Route
+          path="purchasing/suppliers"
+          element={
+            <RequirePermission permission={Permission.SUPPLIER_VIEW}>
+              <SuppliersScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="purchasing/suppliers/:supplierId/variance"
+          element={
+            <RequirePermission permission={Permission.SUPPLIER_VIEW}>
+              <SupplierVarianceScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="purchasing/orders"
+          element={
+            <RequirePermission permission={Permission.SUPPLIER_VIEW}>
+              <PurchaseOrdersScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="purchasing/orders/new"
+          element={
+            <RequirePermission permission={Permission.PURCHASE_MANAGE}>
+              <NewPurchaseOrderScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="purchasing/orders/:poId/receive"
+          element={
+            <RequirePermission permission={Permission.STOCK_RECEIVE}>
+              <GoodsReceiptScreen />
+            </RequirePermission>
+          }
+        />
+        {/* M07. The waiter's three screens: the floor behind order.view, taking an order behind
+            order.modify, and the bill behind order.settle — each the permission its first write
+            needs, so a role that cannot act never lands on a screen full of refusals. */}
+        <Route
+          path="floor"
+          element={
+            <RequirePermission permission={Permission.ORDER_VIEW}>
+              <TableMapScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="orders/:orderId"
+          element={
+            <RequirePermission permission={Permission.ORDER_MODIFY}>
+              <OrderScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="orders/:orderId/bill"
+          element={
+            <RequirePermission permission={Permission.ORDER_SETTLE}>
+              <BillScreen />
+            </RequirePermission>
+          }
+        />
+        {/* M08. The kitchen display, behind kot.view — which a waiter holds too, deliberately:
+            the floor watches the kitchen. The buttons that drive it need kot.update, and the rail
+            renders those conditionally rather than offering controls that 403. */}
+        <Route
+          path="kitchen"
+          element={
+            <RequirePermission permission={Permission.KOT_VIEW}>
+              <KitchenScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="kitchen/:ticketId"
+          element={
+            <RequirePermission permission={Permission.KOT_VIEW}>
+              <KitchenTicketScreen />
+            </RequirePermission>
+          }
+        />
+        {/* M09. Logging waste is a kitchen and storeroom act — a waiter holds neither permission.
+            The summary sits behind stock.view, which everyone in the kitchen has: seeing what was
+            thrown away is not the same power as throwing it away. */}
+        <Route
+          path="waste"
+          element={
+            <RequirePermission permission={Permission.WASTAGE_LOG}>
+              <WasteScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="waste/summary"
+          element={
+            <RequirePermission permission={Permission.STOCK_VIEW}>
+              <WasteSummaryScreen />
+            </RequirePermission>
+          }
+        />
+        {/* M10. A waiter reads a customer and reads feedback — `docs/customer-experience.md` puts
+            the regular's card on their screen, and a rating is about a table they served. Editing
+            somebody's details, erasing them at their request, and owning a complaint are a
+            manager's. What `customer.view` does *not* grant is the organisation: a person reads the
+            customers of the branch they are working in, and a second branch is an assignment. */}
+        <Route
+          path="customers"
+          element={
+            <RequirePermission permission={Permission.CUSTOMER_VIEW}>
+              <CustomersScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="customers/:customerId"
+          element={
+            <RequirePermission permission={Permission.CUSTOMER_VIEW}>
+              <CustomerScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="feedback"
+          element={
+            <RequirePermission permission={Permission.FEEDBACK_VIEW}>
+              <FeedbackScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="complaints"
+          element={
+            <RequirePermission permission={Permission.COMPLAINT_MANAGE}>
+              <ComplaintsScreen />
+            </RequirePermission>
+          }
+        />
+        {/* M07 chunk K. A settled bill behind order.void, the permission both of its writes need,
+            and the till behind cash.manage. A waiter holds neither, so reaches neither. */}
+        <Route
+          path="bills"
+          element={
+            <RequirePermission permission={Permission.ORDER_VOID}>
+              <BillsScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="bills/:orderId"
+          element={
+            <RequirePermission permission={Permission.ORDER_VOID}>
+              <InvoiceScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="cash"
+          element={
+            <RequirePermission permission={Permission.CASH_MANAGE}>
+              <CashScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="settings/tax"
+          element={
+            <RequirePermission permission={Permission.RESTAURANT_CONFIGURE}>
+              <TaxRatesScreen />
+            </RequirePermission>
+          }
+        />
+        {/* The design gallery (B11b, decision D4) is for developers, designers and reviewers,
+            not for staff, so it exists only in a development build — both the route and the link
+            in AppShell. Shipping the route to production without a link is precisely what
+            `reachability.test.ts` was added to catch. */}
+        {import.meta.env.DEV && <Route path="design" element={<DesignGalleryScreen />} />}
+      </Route>
+
+      {/* Anything unknown goes home rather than to a dead end; home is itself behind RequireAuth,
+          so a signed-out visitor still lands on the login screen. */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}

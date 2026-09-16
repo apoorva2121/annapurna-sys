@@ -1,0 +1,45 @@
+# The FAST subset only. CI runs everything (docs/engineering-standards.md §7).
+#
+# Deliberately NOT here: mypy, pytest, vitest, tsc, pip-audit, npm audit. They belong to
+# .github/workflows/ci.yml. A pre-commit hook that takes thirty seconds is a hook people bypass
+# with `--no-verify`, and a bypassed hook protects nothing. The budget for this file is a couple
+# of seconds; if a hook you are adding cannot meet that, it is a CI job.
+#
+# Install once per clone (pre-commit is not a backend dependency):
+#   pip install pre-commit && pre-commit install
+
+minimum_pre_commit_version: "3.5.0"
+
+repos:
+  # Ruff pinned to the same version backend/pyproject.toml resolves, so the hook and `make lint`
+  # can never disagree about formatting. Bump both together.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.6
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        # Scoped to backend/ because that is where the ruff config lives; scripts/ and seed/ are
+        # standalone utilities that `make lint` does not cover either.
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/
+
+  # Secrets never reach a commit, let alone a push (docs/security.md, M00 threat question).
+  # Scans the staged diff only, which is what keeps it fast.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+        # This hook is `language: golang` and pre-commit builds it on first run. If that fails on
+        # a machine with no Go toolchain, swap the id for `gitleaks-docker` (same scan, runs the
+        # published image instead).
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        # Media belongs in object storage (ADR 0005), not in git history where it is permanent.
+        args: [--maxkb=500]

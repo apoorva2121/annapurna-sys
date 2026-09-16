@@ -25,4 +25,4 @@ dashboard and touch-first waiter/kitchen screens.
 
 ## Consequences
 Two languages, two lint/test toolchains, one Makefile hiding both. Shared enums must be kept in sync
-between `app/core/enums.py` and `frontend/src/lib/enums.ts` — a test asserts they match.
+between `app/core/enums.py` and `frontend/src/shared/enums.ts` — a test asserts they match.

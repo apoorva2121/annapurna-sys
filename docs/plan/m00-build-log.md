@@ -25,20 +25,82 @@ Process: `docs/sdlc.md` · Spec: `docs/modules/M00-foundation-spec.md` · Tracke
 
 ## Chunks — tick only when committed
 
-- [ ] **A · Skeleton** — dirs, `pyproject.toml`, `package.json`, `Makefile`, `.env.example`, `.gitignore`
-- [ ] **B1 · Backend core** — `config.py`, `logging.py` (+ redaction), `errors.py`, `db.py`, health routes, staff/guest route-tree seams
-- [ ] **B2 · Backend tests** — the 7 tests in the spec + `assert_max_queries`
-- [ ] **B3 · Alembic** — wired, baseline revision, up→down→up
-- [ ] **C · Frontend shell** — Vite multi-entry, Tailwind, shadcn, TanStack Query, api client, one page rendering `/version`
-- [ ] **D · Infra** — `docker-compose.yml`, Dockerfiles, GitHub Actions CI, pre-commit + gitleaks
-- [ ] **E · Gate** — `make check` clean, zero warnings
-- [ ] **F · Adversarial review** — loop step 7, findings fixed before the user sees it
-- [ ] **G · Manual script** — `docs/manual-tests/M00-foundation.md`
-- [ ] **H · User manual pass** — *requires the user; the module is not done without it*
+- [x] **A · Skeleton** — dirs, `pyproject.toml`, `package.json`, `Makefile`, `.gitattributes`, `.env.example`
+- [x] **B1 · Backend core** — `config.py`, `logging.py` (+ redaction), `errors.py`, `db.py`, health routes, staff/guest route-tree seams
+- [x] **B2 · Backend tests** — 23 tests, all passing, including the 7 the spec names + `assert_max_queries`
+- [x] **B3 · Alembic** — async `env.py`, baseline `0001_baseline`, up→down→up green on real Postgres
+- [x] **C · Frontend shell** — Vite multi-entry with the guest seam, Tailwind tokens, TanStack Query, api client, `/version` page, 3 tests
+- [x] **D · Infra** — `docker-compose.yml`, both Dockerfiles, GitHub Actions CI, pre-commit + gitleaks
+- [x] **E · Gate** — `make check` clean
+- [x] **F · Adversarial review** — findings below, all fixed
+- [x] **G · Manual script** — `docs/manual-tests/M00-foundation.md`
+- [x] **H · User manual pass** — 24/24 steps passed, 2026-09-10, local Docker Compose. No failures.
+      `docs/manual-tests/M00-foundation.md` Result section filled in.
 
 ## Next action
 
-> Chunk A. Create the directory skeleton and lock the toolchain files.
+> M00's code, tests, gate, review and manual pass are all done. The **one item still open is the
+> staging deploy** (acceptance criterion 10), deferred to day 2 by agreement — see
+> `docs/decisions/0005-deployment-target.md` for the target (GCP Cloud Run + Neon + Cloudflare).
+> Do that, then M00's `D` (Done) column ticks and M01 Identity begins. M01's spec is already
+> written and awaiting approval: `docs/modules/M01-identity-spec.md`.
+
+## Verified — commands actually run, output actually seen
+
+| Check | Result |
+|---|---|
+| `ruff check` + `ruff format --check` | clean |
+| `mypy app tests` (strict) | clean, 28 files |
+| `pytest` | **34 passed**, **97% coverage** (floor of 95% enforced in the gate) |
+| `eslint --max-warnings 0` | clean |
+| `tsc --noEmit` | clean |
+| `vitest` | **10 passed** |
+| `vite build` | succeeds, 59.11 KB gzipped |
+| `make check` | clean |
+| `docker compose up` cold start | `db` healthy → `migrate` exits 0 → `api` healthy; `/ready` **200** with no manual step |
+| request id end to end | same id in the `X-Request-Id` header, the error body, and the log line |
+| `make smoke` | 9/9 checks pass against the running stack |
+| `scripts/audit_docs.py` | 0 issues |
+
+## Defects found and fixed during this module
+
+Each was a real bug caught by a test or by review, not a style change:
+
+1. **`request_id` missing from every 500 response.** The contextvar is reset as the exception
+   unwinds the middleware, which is *before* Starlette's ServerErrorMiddleware runs the handler —
+   so the one error the user is told to quote had no reference. Now carried on `request.state`.
+2. **Validation errors returned 500 instead of 422.** `status.HTTP_422_UNPROCESSABLE_ENTITY` is
+   deprecated in this Starlette version and `filterwarnings=error` turned the warning into a crash
+   inside the error handler. The zero-warnings gate caught it.
+3. **`+91 98765 43210` was not redacted.** The phone pattern assumed a 3-3-4 split and missed the
+   common 5-5 form — an under-redaction, the dangerous direction.
+4. **Log `route` was router-relative** (`/health`, not `/api/v1/health`), which renders a staff
+   route and a guest route identically — the one distinction this product cannot blur (ADR 0009).
+5. **Dockerfile stamped `BUILD_TIME`, Settings reads `BUILT_AT`** — `/version` would have reported
+   "unknown" in every built image.
+6. **CI exported a reachable `DATABASE_URL`** while conftest used `setdefault`, so the
+   "database unreachable" test would pass locally and fail in CI. conftest is now authoritative and
+   CI's redundant postgres service is gone.
+7. **`grid-cols-[auto,1fr]`** emits invalid CSS (Tailwind arbitrary values need `_`, not `,`).
+8. **4 moderate CVEs in react-router** — upgraded to v7 while nothing imports it yet.
+9. **`make dev` produced a stack that was never ready.** Nothing applied the migration, so a cold
+   start served `503 {"ready":false,...,"migrations_at_head":false}` — /ready doing its job while
+   the stack was unusable. A one-shot `migrate` service now runs between db-healthy and api-start.
+   Found only by actually running the containers, which no test does.
+10. **`make migrate`, `revision` and `seed` ran on the host**, where `db` does not resolve and
+    `backend/.env` does not exist — they would have failed the first time anyone used them. They
+    now run inside the compose network.
+11. **The UI returned HTTP 500 — reported by the user, not by any test.** `vite.config.ts`
+    hardcoded the proxy target to `http://localhost:8000`, but inside the compose network the dev
+    server is its own host, so `localhost` is the web container, where nothing listens. Confirmed
+    from inside the container: `localhost:8000` refused, `api:8000` returned `{"status":"ok"}`.
+    The target is now `VITE_API_PROXY_TARGET`, set to `http://api:8000` by compose.
+
+**The pattern behind 9, 10 and 11:** all three lived in the composed system, and all three were
+invisible to a fully green suite, because every test runs against testcontainers rather than against
+the stack a person opens. `scripts/smoke.py` (`make smoke`) now covers that gap — it checks the API
+directly, the error envelope, the request-id chain, and crucially the API *through* the web server,
+which is the path a browser actually takes.
 
 ## Blockers still open (do not silently work around)
 

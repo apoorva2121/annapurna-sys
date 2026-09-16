@@ -4,7 +4,7 @@ The concrete table specification. Conceptual model: `docs/domain-model.md`. Conv
 ADR 0004 (money/time/units), ADR 0006 (preparations), ADR 0007 (identity), ADR 0008 (keys, deletion,
 enums, numerics), ADR 0010 (idempotency, locking), ADR 0011 (performance).
 
-**63 tables in 13 domains.** Everything here is Phase 1 unless marked `[1.5]`.
+**77 tables in 13 domains.** Everything here is Phase 1 unless marked `[1.5]`.
 
 ## Reading this document
 
@@ -27,7 +27,7 @@ index seek and makes Row-Level Security a one-line policy per table when we enab
 
 ---
 
-## 1 · Tenancy & identity — 9 tables
+## 1 · Tenancy & identity — 11 tables
 
 ```
 organization
@@ -45,31 +45,53 @@ restaurant
   currency            char(3) NN default 'INR'
   business_day_start  time NN default '05:00'    -- ADR 0004; NOT midnight
   gstin               text
+  fssai_licence       text                       -- 0004 (S13): prints on every bill
+  fssai_licence_expires_on date                  -- B8: as declared; screens warn
+  gst_scheme          text NN check(regular|composition|unregistered) default 'regular'
+                                                 -- decides the DOCUMENT, not just the rate (M07)
+  service_charge_rate numeric(6,4)               -- NULL = disabled, the default (CCPA)
   address             jsonb
   settings            jsonb NN default '{}'      -- notification channels, feature toggles
+  settings_version    integer NN default 1       -- B6: a stale settings save is a 409, not an overwrite
   is_active           bool NN default true
   IX (organization_id)
 
 user_account                                     -- authentication ONLY. ADR 0007.
   organization_id     uuid NN FK→organization
-  email               text                       -- UQ (organization_id, email)
-  phone               text                       -- UQ (organization_id, phone)
+  email               text                       -- UQ (organization_id, email); stored lowercase (G-18)
+  phone               text                       -- UQ (organization_id, phone); stored E.164, +91 default
   password_hash       text                       -- null for invited-but-not-activated
   status              text NN check(invited|active|suspended|locked)
   mfa_secret          text
   last_login_at       timestamptz
-  failed_attempts     smallint NN default 0
-  locked_until        timestamptz
+  failed_attempts     smallint NN default 0     -- unused since B5: attempts live in login_attempt
+  locked_until        timestamptz                -- set only by a person since B5
   CHECK (email IS NOT NULL OR phone IS NOT NULL)
 
 user_session
   user_account_id     uuid NN FK→user_account
-  refresh_token_hash  text NN UQ
+  refresh_token_hash  text NN UQ                 -- hashed: a database dump yields no live session
+  family_id           uuid NN                    -- every rotation of one login's token shares this
   device_info         jsonb
   ip_address          inet
   expires_at          timestamptz NN
   revoked_at          timestamptz
   IX (user_account_id, expires_at)
+  IX (user_account_id) WHERE revoked_at IS NULL  -- the revocation sweep on deactivate
+
+sign_in_choice                                   -- B4: one password opens several organizations
+  token_hash          text NN UQ                 -- sha256 of the pass; the pass is never stored
+  account_ids         uuid[] NN                  -- the accounts the password opened, nothing else
+  expires_at          timestamptz NN             -- two minutes after it is issued
+  used_at             timestamptz                -- set by the one request that uses it
+  IX (expires_at)
+
+login_attempt                                    -- B5: remembered so the next attempt can wait
+  identifier_hash     text NN                    -- sha256 of the normalised login; never the login
+  ip_address          inet                       -- for the per-network budget
+  succeeded           bool NN
+  IX (identifier_hash, created_at)
+  IX (ip_address, created_at)
 
 employee                                         -- business profile. Login is optional.
   organization_id     uuid NN FK→organization
@@ -89,8 +111,16 @@ role
   code                text NN                    -- owner|admin|manager|chef|kitchen_staff|
                                                  -- waiter|store_manager|cleaner|accountant
   name                text NN
+  rank                smallint NN default 100    -- seniority, lower is more senior. Nobody may
+                                                 -- grant a role more senior than their own, and
+                                                 -- nobody may edit their own roles at all. This,
+                                                 -- not the permission set, is what stops a manager
+                                                 -- promoting themselves to owner.
+  description         text                       -- shown on the role-assignment screen
   is_system           bool NN default false      -- cannot be deleted
   UQ (organization_id, code)
+  UQ (code) WHERE organization_id IS NULL        -- NULL does not constrain in a UNIQUE, and the
+                                                 -- system templates are exactly the NULL rows
 
 permission                                       -- static catalogue, seeded by migration
   code                text NN UQ                 -- 'order.void', 'stock.adjust',
@@ -118,7 +148,7 @@ review rejection (ADR 0007).
 
 ---
 
-## 2 · Restaurant setup — 4 tables
+## 2 · Restaurant setup — 5 tables
 
 ```
 dining_area
@@ -129,21 +159,43 @@ restaurant_table
   code                text NN                    -- UQ (restaurant_id, code). "T4", not the PK.
   seats               smallint NN
   status              text NN check(free|occupied|reserved|cleaning|out_of_service)
+  cleaning_since      timestamptz                -- set exactly while status = cleaning (CHECK, 0022).
+                                                 -- The floor shows the table free once the
+                                                 -- restaurant's cleaning time has passed.
   is_active
   IX (restaurant_id, status)
+  UQ (id, restaurant_id)                         -- target of order_table's composite FK (M07)
 
 station                                          -- tandoor | main_kitchen | chinese | cold | bar
   restaurant_id, code NN, name NN, seq, is_active
   UQ (restaurant_id, code)
 
-tax_group                                        -- GST. Rates change; history must not move.
-  restaurant_id, name NN
+tax_group                                        -- the tax CLASS. One row, for as long as it is charged.
+  restaurant_id
+  code                text NN                    -- UQ (restaurant_id, code). "GST5". Immutable.
+  name                text NN                    -- a label; editable
+  is_active
+  regime              text NN check(gst|non_gst) default 'gst'
+                                                 -- non_gst: liquor, outside GST (Art. 366(12A))
+  UQ (id, restaurant_id)                         -- target of tax_rate's composite FK
+
+tax_rate                                         -- what that class charges, and between which dates
+  restaurant_id, tax_group_id NN FK→tax_group
   rate                numeric(6,4) NN            -- 0.0500 = 5%
   is_inclusive        bool NN default false
   effective_from      date NN
-  effective_to        date
-  IX (restaurant_id, effective_from)
+  effective_to        date                       -- NULL = still current
+  FK (tax_group_id, restaurant_id) → tax_group(id, restaurant_id)
+  EXCLUDE (tax_group_id WITH =, daterange(effective_from, effective_to, '[]') WITH &&)
+  IX (restaurant_id, effective_from), IX (tax_group_id, effective_from)
 ```
+
+**A tax group has an identity separate from its current rate** (M03 spec decision 1, migration 0008).
+`menu_item_variant.tax_group_id` below points at the **group**, so a GST change adds a `tax_rate`
+row and repoints nothing — the rate in force on a business date is resolved by date. M02 shipped one
+table doing both jobs, which meant every dish on the menu would have pointed at a closed period the
+first time a rate moved. The composite foreign key makes "a rate belongs to the same restaurant as
+its group" a database guarantee rather than a service convention.
 
 ---
 
@@ -152,6 +204,7 @@ tax_group                                        -- GST. Rates change; history m
 ```
 menu_category
   restaurant_id, name NN, seq smallint NN, is_active
+  code                text NN                    -- UQ (restaurant_id, code)
 
 menu_item
   restaurant_id, menu_category_id NN FK→menu_category
@@ -159,10 +212,15 @@ menu_item
   name                text NN
   description         text
   food_type           text NN check(veg|non_veg|egg)   -- legally required in India
+  allergen_statement  text                       -- B8: compliance §A2; NULL = never asked
+  calories_kcal       smallint CHECK >= 0        -- B8: compliance §B1
+  serving_size        text                       -- B8: compliance §B1
   station_id          uuid NN FK→station         -- routing: which KOT printer/screen
   image_url           text
+  seq                 smallint NN default 0      -- the order a category's dishes are listed in
   is_active
   IX (restaurant_id, menu_category_id, is_active)
+  IX (menu_category_id, is_active)               -- selectinload keys on this alone; no skip-scan
 
 menu_item_variant                                -- Half/Full/Per-piece. PRICE LIVES HERE.
   restaurant_id, menu_item_id NN FK→menu_item
@@ -171,28 +229,56 @@ menu_item_variant                                -- Half/Full/Per-piece. PRICE L
   price               numeric(12,2) NN
   tax_group_id        uuid NN FK→tax_group
   prep_minutes        smallint NN                -- standard; actuals come from kot_ticket
+  seq                 smallint NN default 0      -- Half before Full, as the menu reads
   is_active
   UQ (menu_item_id, code)
+  UQ (id, restaurant_id)                         -- target of order_line's composite FK (M07)
 
 modifier_group                                   -- "Choose spice level", "Add-ons"
   restaurant_id, name NN
+  code                text NN                    -- UQ (restaurant_id, code)
   min_select          smallint NN default 0
   max_select          smallint NN default 1
   is_required         bool NN default false
+  is_active
+  CHECK (max_select >= min_select)
+  CHECK (NOT is_required OR min_select >= 1)
 
 modifier
   restaurant_id, modifier_group_id NN FK→modifier_group
+  code                text NN                    -- UQ (modifier_group_id, code)
   name                text NN
   price_delta         numeric(12,2) NN default 0
+  seq                 smallint NN default 0
   is_active
+  IX (modifier_group_id, is_active)
+  UQ (id, restaurant_id)                         -- target of order_line_modifier's FK (M07)
 
 menu_item_modifier_group
   menu_item_id NN FK→menu_item, modifier_group_id NN FK→modifier_group, seq
   PK (menu_item_id, modifier_group_id)
+
+restaurant.menu_version                          -- bumped by every menu write; the guest ETag
 ```
 
 Price on the **variant**, never the item. A half plate is a different price, a different recipe and
 a different food cost.
+
+**Every one of these carries a `code`, and none of them lets it change.** The code is the join key:
+`seed/menu.yaml` and `seed/operations.yaml` reference each other by it, `library/dishes.yaml` matches
+on it, and every recipe M04 attaches finds its dish through it. Renaming one would break cost
+tracking while sales carried on — so the update schemas omit the field rather than validating it.
+
+**`restaurant.menu_version` is not decoration.** The guest menu is the highest-traffic read in the
+product and it is cached on an ETag; a counter the writes bump is what lets a diner's phone skip the
+whole tree on every load but the first. It lives on `restaurant` rather than per-category because a
+modifier group attached to forty dishes changes all of them at once.
+
+The M03 tables above shipped in migrations 0008-0010. The `ix_menu_item_category` index came later,
+in 0013: `selectinload` emits `WHERE menu_category_id IN (…)` with no tenant predicate, the existing
+index leads with `restaurant_id`, and Postgres has no index skip-scan — so the hottest query in the
+product was sequentially scanning `menu_item`. A query-count test cannot see that, because a
+sequential scan is one statement.
 
 ---
 
@@ -209,11 +295,13 @@ stock_item                                       -- ingredients AND preparations
   code                text NN                    -- UQ (restaurant_id, code)
   name                text NN
   base_unit           text NN check(g|ml|unit)   -- ADR 0004: one canonical unit, always
-  category            text                       -- meat|dairy|veg|grain|spice|oil
+  category            text                       -- meat|dairy|veg|grain|spice|oil|bakery|sweet
   storage_type        text check(ambient|chilled|frozen)
   current_unit_cost   numeric(14,6) NN default 0 -- cached weighted average; batches hold truth
+  cost_source         text NN default 'market_rate' check(market_rate|manual|purchase)
   is_active
   IX (restaurant_id, kind, is_active)
+  IX (restaurant_id) where cost_source = 'market_rate'   -- the un-confirmed prices
 
 ingredient_profile                               -- 1:1 where kind='ingredient'
   stock_item_id       uuid PK FK→stock_item
@@ -232,28 +320,79 @@ preparation_profile                              -- 1:1 where kind='preparation'
   station_id          uuid NN FK→station
   prep_minutes        smallint NN
 
-recipe                                           -- versioned; belongs to a dish OR a preparation
+recipe                                           -- versioned; a dish, a preparation OR a modifier
   restaurant_id
   menu_item_variant_id    uuid FK→menu_item_variant
   produces_stock_item_id  uuid FK→stock_item     -- the preparation this recipe makes
+  modifier_id             uuid FK→modifier       -- "extra cheese" is 40 g of cheese (M03 → M04)
   version             smallint NN
   is_current          bool NN
   effective_from      timestamptz NN
   notes               text
-  CHECK (num_nonnulls(menu_item_variant_id, produces_stock_item_id) = 1)
-  UQ (menu_item_variant_id, version), UQ (produces_stock_item_id, version)
-  partial UQ on is_current per owner
+  unit_cost           numeric(14,6) NN default 0 -- frozen when this version became current (X8)
+  source              text NN check(typed|seeded|library)
+  confirmed_at        timestamptz                -- NULL = nobody has checked these quantities
+  CHECK (num_nonnulls(menu_item_variant_id, produces_stock_item_id, modifier_id) = 1)
+  UQ (menu_item_variant_id, version), UQ (produces_stock_item_id, version), UQ (modifier_id, version)
+  UQ (id, restaurant_id)                         -- the target of recipe_line's composite FK
+  partial UQ on is_current per owner, SCOPED BY restaurant_id
 
 recipe_line
-  recipe_id           uuid NN FK→recipe
-  component_id        uuid NN FK→stock_item      -- ingredient OR preparation: recipes nest
+  restaurant_id       uuid NN FK→restaurant
+  recipe_id           uuid NN
+  component_id        uuid NN                    -- ingredient OR preparation: recipes nest
   quantity            numeric(14,4) NN           -- in the component's base_unit
   seq                 smallint NN
-  IX (recipe_id), IX (component_id)              -- second index answers "what uses paneer?"
+  PK (recipe_id, component_id)
+  FK (recipe_id, restaurant_id)    → recipe(id, restaurant_id)
+  FK (component_id, restaurant_id) → stock_item(id, restaurant_id)
+  IX (component_id)                              -- answers "what uses paneer?"
 ```
 
-Nesting depth is capped at 3 and enforced in the service layer plus `seed/validate.py`. Historical
-orders reference the recipe **version** live at the time, so food-cost history never rewrites itself.
+Nesting depth is capped at 3 and enforced in the service layer, at save time, and in
+`seed/validate.py`. All three count the same levels, which they did not until migration 0013's
+review: the save-time walk seeded its chain with the owner's code and then counted that code, so it
+refused at three what the other two allowed at three. Historical orders reference the recipe
+**version** live at the time, so food-cost history never rewrites itself.
+
+**`recipe_line` carries `restaurant_id` and `menu_item_modifier_group` does not**, and the
+difference is deliberate. The menu join is a pure pair with no second writer; this one has a planned
+second writer — M04 hands the `library/` matching flow to a later module — so the composite foreign
+keys above are what keep a line's component on the line's tenant, rather than a check in one service
+a second writer would never reach. There are no single-column foreign keys beside them: two paths
+between the same pair of tables is a join SQLAlchemy cannot resolve at all.
+
+The three `uq_recipe_current_*` partial indexes are scoped by `restaurant_id` for the same family of
+reason. Keyed on the owner alone, one restaurant could take another's slot and permanently prevent
+the owner from creating their own — a 500 with no recovery, on their own data.
+
+**`recipe.unit_cost` is the frozen answer; `stock_item.current_unit_cost` is a cache.** Finding X8
+asked for the first and finding S16 warns about the second: reading today's ingredient price to
+cost a March order reports the wrong number with no sign that it is wrong. M13 reads the version.
+
+**`cost_source` says how much that cache is worth trusting**, and exists because
+`docs/onboarding-cold-start.md` promises bootstrapped prices will be "visibly marked estimated"
+while nothing in the schema could express it. A restaurant that has recorded no purchases still
+sees a food cost on day one — that is the commercial pitch — so a price bootstrapped from
+`library/market-rates.yaml` must not read with the same authority as one off this restaurant's own
+supplier bill. The default is `market_rate`, the *least* confident value, on purpose: a price whose
+provenance nobody set is a price nobody vouched for, so the default fails toward honesty rather
+than toward a guess that gets believed. It is exposed on `PricedStockItemResponse` only — a chef
+who is not shown rupees has no use for where the rupees came from. Migration `0014`.
+
+**`yield_factor` is the fraction of what you buy that reaches the pan**, and it applies to every
+base unit. For a weight the loss is *inside* each unit — a kilo of chicken gives up 280 g of bone.
+For a count it is *between* units — an egg is fine or it is cracked, and buying 341 to use 300 is
+what a month actually looks like. Both divide identically, which is why one column covers both
+(M04 spec, open decision S15, resolved in favour of keeping the arithmetic). What the finding was
+pointing at is a data ambiguity rather than a code one: `LEMON 0.90` must mean "one lemon in ten is
+bad" and never "you only get 90% of the juice out", because a recipe calling for `0.25` lemons has
+already accounted for the second.
+
+**`source` and `confirmed_at` exist because of `library/`.** `library/PROVENANCE.md` states that
+most of the starter library is `estimated` — domain knowledge no chef has checked — so a recipe
+matched from it must be distinguishable from one a chef wrote, or the dish-cost screen states a
+number with confidence nobody has earned.
 
 ---
 
@@ -301,12 +440,47 @@ stock_count                                      -- physical count header
   IX (restaurant_id, business_date)
 
 stock_count_line
-  stock_count_id NN FK→stock_count, stock_item_id NN FK→stock_item
-  system_quantity     numeric(14,4) NN           -- what the ledger says
+  restaurant_id NN                               -- carried so the tenant-safe composite FKs work
+  stock_count_id NN FK→(stock_count.id, restaurant_id)
+  stock_item_id  NN FK→(stock_item.id, restaurant_id)
+  system_quantity     numeric(14,4) NN           -- what the ledger says, FROZEN when written
   counted_quantity    numeric(14,4) NN           -- what is on the shelf
   variance_value      numeric(12,2) NN           -- the leakage number, in rupees
   reason              text
+  UQ (stock_count_id, stock_item_id)             -- an item appears once on a sheet
 ```
+
+### What migration 0015 added beyond the sketch above
+
+The sketch is the design; these are the guarantees that turned out to be needed to make it true.
+All are in `0015_m05_inventory`, argued in `docs/modules/M05-inventory-spec.md`.
+
+**`stock_movement` refuses UPDATE and DELETE**, via a trigger. Invariant 2 as a repository
+convention is one careless `session.merge()` away from silent violation, and afterwards no test can
+see it — the row simply looks different. Corrections are new `adjustment` rows, which is what the
+invariant already prescribes.
+
+**Tenant-safe composite foreign keys.** `stock_batch`, `stock_movement` and `stock_count_line`
+reference their parents on `(id, restaurant_id)` rather than on `id` alone, against the
+`uq_*_id_restaurant` constraints. Attaching a batch to another restaurant's item is therefore
+refused by Postgres rather than by a repository remembering to filter — which is why
+`stock_count_line` carries a `restaurant_id` the original sketch did not give it.
+
+**CHECK constraints that catch nonsense:** `quantity_delta <> 0` (a zero movement is always a bug
+and pollutes every average after it), `(ref_type IS NULL) = (ref_id IS NULL)` (a dangling reference
+reads as a real link), non-negative `quantity_received`, `unit_cost` and `counted_quantity`, and
+`approved_by <> counted_by` on `stock_count` — separation of duties held by the database, not only
+by the service.
+
+**`supplier_id` and `goods_receipt_line_id` were columns without foreign keys** until M06 created
+the tables they point at. The migration-order note at the foot of this document anticipated exactly
+this; migration **0017** adds both constraints, composite and tenant-safe against
+`uq_supplier_id_restaurant` and `uq_gr_line_id_restaurant`. Nothing before 0017 wrote either column,
+and 0017 asserts that rather than assuming it - a migration that fails loudly beats one that
+silently validates nothing.
+
+**One index beyond the sketch:** `ix_stock_movement_batch` on `stock_batch_id`, because the FEFO
+selection's second statement aggregates movements grouped by batch.
 
 `basis` is load-bearing. Recipe-driven consumption is `theoretical`; a physical count is `actual`.
 Their difference is the product (invariant 7) — a query that sums both together is a bug.
@@ -322,7 +496,8 @@ the cheapest money in the product (`docs/waste-model.md` §1).
 supplier
   restaurant_id, name NN, contact_person, phone, email, gstin
   payment_terms_days  smallint
-  is_active
+  is_active, deactivated_at                      -- master data tier, ADR 0008
+  UQ (restaurant_id, name)                       -- two spellings of one supplier cannot be summed
   IX (restaurant_id, is_active)
 
 purchase_order
@@ -335,53 +510,131 @@ purchase_order
   IX (restaurant_id, status)
 
 purchase_order_line
-  purchase_order_id NN FK→purchase_order, stock_item_id NN FK→stock_item
+  restaurant_id NN                               -- carried so the tenant-safe composite FKs work
+  purchase_order_id NN FK→(purchase_order.id, restaurant_id)
+  stock_item_id     NN FK→(stock_item.id, restaurant_id)
   quantity_ordered    numeric(14,4) NN           -- base units
-  unit_price          numeric(14,6) NN
+  unit_price          numeric(14,6) NN           -- quoted, excluding tax
+  UQ (purchase_order_id, stock_item_id)          -- an item appears once on an order
 
-goods_receipt
+goods_receipt                                    -- APPEND-ONLY LEDGER. Never update, never delete.
   restaurant_id, purchase_order_id FK→purchase_order   -- nullable: ad-hoc market purchases
   supplier_id NN, received_at NN, business_date NN
   invoice_number      text
-  invoice_amount      numeric(12,2)              -- what they billed
+  invoice_amount      numeric(12,2)              -- the total payable, tax included
+  tax_amount          numeric(12,2)              -- how much of it was tax (compliance A6)
   received_by         uuid FK→employee
+  UQ (restaurant_id, supplier_id, invoice_number) WHERE invoice_number IS NOT NULL
   IX (restaurant_id, business_date)
+  IX (restaurant_id, supplier_id)
 
-goods_receipt_line
-  goods_receipt_id NN FK→goods_receipt, stock_item_id NN FK→stock_item
+goods_receipt_line                               -- APPEND-ONLY, with its parent
+  restaurant_id NN                               -- carried so the tenant-safe composite FKs work
+  goods_receipt_id NN FK→(goods_receipt.id, restaurant_id)
+  stock_item_id    NN FK→(stock_item.id, restaurant_id)
   quantity_invoiced   numeric(14,4) NN           -- what the bill says
   quantity_received   numeric(14,4) NN           -- what the scale says   <-- the variance
   quantity_rejected   numeric(14,4) NN default 0 -- quality rejection
-  unit_price          numeric(14,6) NN
+  unit_price          numeric(14,6) NN           -- excluding tax; landed cost adds it back
   rejection_reason    text
+  UQ (goods_receipt_id, stock_item_id)           -- an item appears once on a delivery
+  IX (restaurant_id, stock_item_id)
 ```
 
 Ordered / invoiced / received as three separate numbers is the whole point. Collapse them and
 "Supplier A short-delivered 4.2% this quarter — ₹18,400" becomes unanswerable.
 
+### What migration 0017 added beyond the sketch above
+
+The sketch is the design; these are the guarantees that turned out to be needed to make it true.
+All are in `0017_m06_procurement`, argued in `docs/modules/M06-procurement-spec.md`.
+
+**`goods_receipt` and `goods_receipt_line` refuse UPDATE and DELETE**, by the same trigger 0015 put
+on `stock_movement`. ADR 0008 does not assign these two a tier, so the M06 spec assigns them to
+*ledger* — for the threat rather than the taxonomy. A receipt writes stock movements the database
+already refuses to change, so an editable receipt is one `UPDATE` away from *"weigh 47, take 3 home,
+edit the receipt to say 50 so the invoice reconciles"*: two records that disagree, with nothing able
+to say which was altered. Corrections are `adjustment` movements carrying
+`ref_type='goods_receipt'` — a reference `stock_movement`'s CHECK constraint already permits.
+
+**Tenant-safe composite foreign keys, so `purchase_order_line` and `goods_receipt_line` carry a
+`restaurant_id` the sketch did not give them.** Identical reasoning to `stock_count_line`: every
+parent reference is on `(id, restaurant_id)`, so attaching a receipt line to another restaurant's
+stock item is refused by Postgres rather than by a repository remembering to filter.
+
+**`goods_receipt.tax_amount`.** `docs/compliance-rules.md` §A6 — a restaurant on the 5% composition
+scheme *bears* input GST and cannot reclaim it, so a quoted price is not a cost. Storing only
+`unit_price` understates food cost by the whole tax rate; storing only the tax-inclusive total makes
+"how much input GST did we bear last year" permanently unanswerable. Both are kept, and the landed
+cost frozen onto `stock_batch.unit_cost` apportions the tax pro rata by line value in the service.
+
+**One supplier invoice, booked once:** a partial unique index on
+`(restaurant_id, supplier_id, invoice_number)`. Double-booking is the most ordinary error in
+accounts payable and the most ordinary small fraud, and it silently doubles stock — which makes
+every food-cost figure built on it wrong by more than the money. Partial, because a market purchase
+has no invoice number at all.
+
+**CHECK constraints that catch nonsense:** `quantity_rejected <= quantity_received` (you cannot
+refuse more than arrived), a rejection with no `rejection_reason` refused, `quantity_ordered > 0`,
+non-negative everything else, and `(cancelled_at IS NULL) = (cancel_reason IS NULL)` — a
+cancellation with no reason is the one somebody would use to make an over-order disappear.
+
+**`purchase_order.status` is a stored derived value**, the only one in the module. A PO's state is a
+function of its receipts, which is cheap for one order and quadratic for the list screen a store
+manager lives on. The service maintains it and a test asserts the stored value equals a
+recomputation; a stored derived value with no test is a bug waiting.
+
 ---
 
-## 7 · Orders — 7 tables
+## 7 · Orders — 16 tables
+
+The order, the bill, the money and the till. Designed and argued in
+`docs/modules/M07-orders-spec.md`; built by migration 0019, except `kot_ticket` and
+`kot_ticket_line`, which are M08's. Every parent reference is composite on `(id, restaurant_id)`.
 
 ```
+cash_session                                     -- one till, float to count
+  restaurant_id
+  status              text NN check(open|closed)
+  opened_at           timestamptz NN
+  opened_by           uuid NN FK→employee
+  opening_float       numeric(12,2) NN           -- >= 0
+  business_date       date NN
+  closed_at           timestamptz
+  closed_by           uuid FK→employee
+  counted_cash        numeric(12,2)
+  variance            numeric(12,2)              -- counted − expected. Stored, never corrected away
+  shift_id            uuid                       -- no FK until M12 builds shift
+  CHECK (status = 'closed') = (closed_at, closed_by, counted_cash, variance all present)
+  UQ (restaurant_id) WHERE status = 'open'       -- one open till per restaurant
+  IX (restaurant_id, business_date)
+
 order
   restaurant_id
-  order_number        text NN                    -- UQ (restaurant_id, order_number). Human-facing.
+  order_number        text NN                    -- UQ (restaurant_id, business_date, order_number)
   type                text NN check(dine_in|takeaway|delivery)
+  channel             text NN check(pos|qr|aggregator) default 'pos'
+  external_order_id   text                       -- an aggregator's id: recorded, not integrated
   status              text NN check(open|sent|served|settled|cancelled|voided)
-  restaurant_table_id uuid FK→restaurant_table   -- null for takeaway
-  customer_id         uuid FK→customer
+  customer_id         uuid                       -- no FK until M10 builds customer
   waiter_employee_id  uuid FK→employee
   covers              smallint                   -- headcount; needed for per-cover metrics
+  parent_order_id     FK→(order.id, restaurant_id)   -- split lineage
   placed_at           timestamptz NN
+  first_sent_at       timestamptz
+  served_at           timestamptz
+  bill_requested_at   timestamptz
   settled_at          timestamptz
+  cancelled_at        timestamptz
   business_date       date NN                    -- ADR 0004. Group reports on THIS.
   subtotal            numeric(12,2) NN default 0
-  discount_total      numeric(12,2) NN default 0
+  discount_total      numeric(12,2) NN default 0 -- <= subtotal
+  charge_total        numeric(12,2) NN default 0
   tax_total           numeric(12,2) NN default 0
+  round_off           numeric(12,2) NN default 0 -- CGST Act s.170; between −0.50 and 0.50
   grand_total         numeric(12,2) NN default 0
-  theoretical_food_cost numeric(12,2)            -- frozen at settlement; prices move
-  cancel_reason       text
+  theoretical_food_cost numeric(12,2)            -- frozen at settlement from the cost engine
+  cancel_reason       text                       -- NN once cancelled or voided
   voided_by           uuid FK→employee
   version             integer NN default 1       -- optimistic lock (ADR 0010). Two waiters,
                                                  -- one table: last-write-wins loses a dish.
@@ -390,64 +643,305 @@ order
   IX (restaurant_id, customer_id)
   IX (restaurant_id, waiter_employee_id, business_date)
 
+order_table                                      -- which tables an order occupies
+  restaurant_id
+  order_id            NN FK→(order.id, restaurant_id)
+  restaurant_table_id NN FK→(restaurant_table.id, restaurant_id)
+  is_primary          bool NN default false
+  UQ (order_id, restaurant_table_id)
+  UQ (order_id) WHERE is_primary
+  IX (restaurant_id, restaurant_table_id)
+
 order_line
-  restaurant_id, order_id NN FK→order
-  menu_item_variant_id uuid NN FK→menu_item_variant
-  recipe_id           uuid FK→recipe             -- the VERSION used, frozen
-  quantity            smallint NN
+  restaurant_id
+  order_id            NN FK→(order.id, restaurant_id)
+  menu_item_variant_id NN FK→(menu_item_variant.id, restaurant_id)
+  recipe_id           FK→(recipe.id, restaurant_id)   -- the VERSION costed, frozen at settlement
+  quantity            smallint NN                -- > 0
   unit_price          numeric(12,2) NN           -- copied, not joined: menu prices change
-  line_discount       numeric(12,2) NN default 0
-  tax_rate            numeric(6,4) NN            -- copied from tax_group at order time
-  tax_amount          numeric(12,2) NN
-  line_total          numeric(12,2) NN
-  status              text NN check(pending|preparing|ready|served|cancelled|returned)
+  line_subtotal       numeric(12,2) NN           -- (unit_price + modifier deltas) × quantity
+  line_discount       numeric(12,2) NN default 0 -- this line's share of discounts; <= subtotal
+  tax_group_id        NN FK→(tax_group.id, restaurant_id)
+  tax_regime          text NN check(gst|non_gst) default 'gst'
+  tax_rate            numeric(6,4) NN            -- snapshot when added, re-frozen at settlement
+  tax_inclusive       bool NN default false      -- the rate's is_inclusive, copied with it
+  taxable_value       numeric(12,2) NN
+  cgst_amount         numeric(12,2) NN default 0
+  sgst_amount         numeric(12,2) NN default 0
+  tax_amount          numeric(12,2) NN default 0
+  line_total          numeric(12,2) NN           -- = taxable_value + tax_amount, by CHECK
+  theoretical_unit_cost numeric(14,6)
+  status              text NN check(pending|sent|preparing|ready|served|cancelled|returned)
+  sent_at             timestamptz
   special_instructions text
-  cancel_reason       text
+  cancel_reason       text                       -- NN once cancelled
+  seq                 smallint NN default 0
+  CHECK gst ⇒ cgst = sgst AND tax = cgst + sgst;  non_gst ⇒ cgst = sgst = 0
+  UQ (id, restaurant_id)
   IX (order_id), IX (restaurant_id, menu_item_variant_id)
 
 order_line_modifier
-  order_line_id NN FK→order_line, modifier_id NN FK→modifier
-  price_delta         numeric(12,2) NN           -- copied
+  restaurant_id
+  order_line_id       NN FK→(order_line.id, restaurant_id) ON DELETE CASCADE
+  modifier_id         NN FK→(modifier.id, restaurant_id)
+  price_delta         numeric(12,2) NN           -- copied; may be negative
+  recipe_id           FK→(recipe.id, restaurant_id)
+  UQ (order_line_id, modifier_id)
 
 order_discount
-  order_id NN FK→order
+  restaurant_id
+  order_id            NN FK→(order.id, restaurant_id)
+  order_line_id       FK→(order_line.id, restaurant_id)   -- NULL for an order-level discount
   type                text NN check(percentage|flat|comp)
-  value               numeric(12,2) NN
-  amount              numeric(12,2) NN
+  rate                numeric(6,4)               -- percentage and comp only
+  flat_amount         numeric(12,2)              -- flat only
+  amount              numeric(12,2) NN           -- the rupees actually taken off, frozen
+  authorised_amount   numeric(12,2) NN           -- what the authoriser approved; amount <= it, by CHECK
   reason              text NN
   authorised_by       uuid NN FK→employee        -- comps need a name. Always.
+  IX (order_id), IX (restaurant_id, authorised_by)
 
-payment
-  restaurant_id, order_id NN FK→order
+order_charge                                     -- packaging, delivery, an OPTIONAL service charge
+  restaurant_id
+  order_id            NN FK→(order.id, restaurant_id)
+  type                text NN check(packaging|service_charge|delivery)
+  amount              numeric(12,2) NN
+  tax_group_id        FK→(tax_group.id, restaurant_id)   -- nullable: GST on service charge unsettled
+  tax_rate            numeric(6,4)
+  cgst_amount         numeric(12,2) NN default 0
+  sgst_amount         numeric(12,2) NN default 0
+  tax_amount          numeric(12,2) NN default 0
+  is_optional         bool NN default false
+  CHECK type = 'service_charge' ⇒ is_optional    -- CCPA guidelines, upheld 28 Mar 2025
+
+invoice                                          -- THE LEGAL DOCUMENT. Cancel only. Never deleted.
+  restaurant_id
+  order_id            NN FK→(order.id, restaurant_id)   -- UQ (order_id): one invoice per order
+  document_type       text NN check(tax_invoice|bill_of_supply)
+  financial_year      text NN                    -- '2026-27', from the calendar date of issue
+  sequence            integer NN                 -- UQ (restaurant_id, financial_year, sequence)
+  invoice_number      text NN                    -- UQ (restaurant_id, invoice_number); <= 16 chars
+  status              text NN check(issued|cancelled)
+  issued_at           timestamptz NN
+  invoice_date        date NN                    -- calendar date in the restaurant's timezone
+  business_date       date NN
+  supplier_name       text NN                    -- supplier_* and fssai_licence are SNAPSHOTTED
+  supplier_address    jsonb
+  supplier_gstin      text                       -- NN on a tax_invoice, by CHECK (Rule 46(a))
+  fssai_licence       text
+  recipient_name      text
+  recipient_gstin     text
+  recipient_address   text
+  sac_code            text NN default '996331'
+  taxable_total       numeric(12,2) NN
+  cgst_total          numeric(12,2) NN default 0 -- zero on a bill_of_supply, by CHECK
+  sgst_total          numeric(12,2) NN default 0
+  non_gst_tax_total   numeric(12,2) NN default 0
+  discount_total      numeric(12,2) NN default 0
+  charge_total        numeric(12,2) NN default 0
+  round_off           numeric(12,2) NN default 0
+  grand_total         numeric(12,2) NN
+  cancelled_at        timestamptz
+  cancel_reason       text
+  cancelled_by        uuid FK→employee
+  irn                 text                       -- e-invoicing: modelled, not built
+  irn_ack_no          text
+  irn_ack_at          timestamptz
+  IX (restaurant_id, invoice_date)
+
+credit_note                                      -- CGST Act s.34, Rule 53. APPEND-ONLY. Own series.
+  restaurant_id
+  invoice_id          NN FK→(invoice.id, restaurant_id)
+  financial_year      text NN
+  sequence            integer NN                 -- UQ (restaurant_id, financial_year, sequence)
+  credit_note_number  text NN                    -- UQ (restaurant_id, credit_note_number); <= 16
+  issued_at           timestamptz NN
+  note_date           date NN
+  business_date       date NN
+  reason              text NN
+  issued_by           uuid NN FK→employee
+  taxable_total       numeric(12,2) NN
+  cgst_total          numeric(12,2) NN default 0
+  sgst_total          numeric(12,2) NN default 0
+  non_gst_tax_total   numeric(12,2) NN default 0
+  grand_total         numeric(12,2) NN           -- > 0
+  IX (invoice_id)
+
+credit_note_line                                 -- APPEND-ONLY, with its parent
+  restaurant_id
+  credit_note_id      NN FK→(credit_note.id, restaurant_id)
+  order_line_id       NN FK→(order_line.id, restaurant_id)
+  quantity            smallint NN
+  taxable_value       numeric(12,2) NN
+  cgst_amount         numeric(12,2) NN default 0
+  sgst_amount         numeric(12,2) NN default 0
+  tax_amount          numeric(12,2) NN default 0
+  line_total          numeric(12,2) NN           -- = taxable_value + tax_amount, by CHECK
+  UQ (credit_note_id, order_line_id)
+
+payment                                          -- APPEND-ONLY
+  restaurant_id
+  order_id            NN FK→(order.id, restaurant_id)
+  invoice_id          FK→(invoice.id, restaurant_id)
+  credit_note_id      FK→(credit_note.id, restaurant_id)   -- NN when amount < 0, by CHECK
+  cash_session_id     FK→(cash_session.id, restaurant_id)   -- an OPEN till only, by trigger (0021)
   method              text NN check(cash|card|upi|wallet|online|due)
   amount              numeric(12,2) NN           -- NEGATIVE for a refund. No separate table.
+  tip_amount          numeric(12,2) NN default 0 -- outside taxable value
   reference           text                       -- UPI txn / card auth
-  status              text NN check(pending|success|failed|refunded)
-  paid_at             timestamptz
-  IX (restaurant_id, business_date via order)
+  status              text NN check(success|failed)
+  paid_at             timestamptz NN
+  business_date       date NN
+  received_by         uuid FK→employee
+  IX (restaurant_id, business_date), IX (order_id), IX (restaurant_id, cash_session_id)
 
-kot_ticket                                       -- one per order per station
+cash_count                                       -- denominations counted at close. APPEND-ONLY.
+  restaurant_id
+  cash_session_id     NN FK→(cash_session.id, restaurant_id)
+  denomination        numeric(12,2) NN           -- UQ (cash_session_id, denomination)
+  quantity            integer NN
+
+cash_movement                                    -- cash out that is not a refund. APPEND-ONLY.
+  restaurant_id
+  cash_session_id     NN FK→(cash_session.id, restaurant_id)
+  type                text NN check(payout|adjustment)
+  amount              numeric(12,2) NN           -- a payout is positive; an adjustment either sign
+  reason              text NN
+  recorded_by         uuid NN FK→employee
+  occurred_at         timestamptz NN
+  business_date       date NN
+  IX (restaurant_id, cash_session_id)
+
+kot_ticket                                       -- one per SEND per station: a round, not an order
   restaurant_id, order_id NN FK→order, station_id NN FK→station
-  ticket_number       text NN
+  ticket_number       text NN                    -- restarts each business day, like order_number
+  sequence_in_order   smallint NN                -- round 1, 2, 3 of this order at this station
   status              text NN check(new|acknowledged|preparing|ready|served|cancelled)
+  is_remake           bool NN default false
+  target_minutes      smallint NN                -- max prep_minutes on the ticket, frozen here
+  business_date       date NN
+  revision            bigint NN                  -- the stream cursor; see kot_stream_cursor
   printed_at          timestamptz NN
   acknowledged_at     timestamptz
   started_at          timestamptz
   ready_at            timestamptz
   served_at           timestamptz
-  IX (restaurant_id, station_id, status)         -- the KDS query
+  acknowledged_by     uuid FK→employee
+  ready_by            uuid FK→employee
+  cancelled_at        timestamptz
+  UQ (restaurant_id, business_date, ticket_number)
+  UQ (order_id, station_id, sequence_in_order)
+  IX (restaurant_id, station_id, status)         -- the KDS query, 50 ms with 200 open tickets
   IX (restaurant_id, printed_at)
+  IX (restaurant_id, revision)                   -- the stream query
+  CHECK started_at ⇒ acknowledged_at, ready_at ⇒ started_at, served_at ⇒ ready_at
 
 kot_ticket_line
-  kot_ticket_id NN FK→kot_ticket, order_line_id NN FK→order_line
+  restaurant_id, kot_ticket_id NN FK→kot_ticket, order_line_id NN FK→order_line
   quantity            smallint NN
+  item_name           text NN                    -- copied at the send; a KOT is a printed
+  variant_name        text NN                    -- instruction and says what it said then
+  modifier_summary    text                       -- "No onion, Extra spicy"
+  special_instructions text
   status              text NN check(pending|preparing|ready|served|cancelled|remake)
-  remake_reason       text
+  remake_reason       text                       -- NOT NULL when status = 'remake' (CHECK)
+  started_at          timestamptz                -- S2: per-dish prep time
+  ready_at            timestamptz
+  served_at           timestamptz
+  UQ (kot_ticket_id, order_line_id)
+
+kot_stream_cursor                                -- one row per restaurant
+  restaurant_id       uuid PK FK→restaurant
+  last_revision       bigint NN default 0
 ```
 
 Those five `kot_ticket` timestamps are the entire kitchen-performance module and half of the CX
 module. They cost nothing to capture now and cannot be reconstructed later.
 
+### What migration 0030 changed about the sketch above
+
+Argued in `docs/modules/M08-kitchen-spec.md`; four things differ from what §7 said for a year.
+
+**A ticket is a round, not an order.** The sketch said "one per order per station". A table that
+orders starters and then mains twenty minutes later produces two pieces of paper in every real
+kitchen, and folding the second send into the first ticket means either dragging a ticket that was
+already `ready` back to `new` — destroying the `ready_at` this section calls the entire
+kitchen-performance module — or adding dishes to a ticket the chef has already cleared off the
+rail. So there is no unique constraint on `(order_id, station_id)`, and `sequence_in_order` says
+which round this is.
+
+**The line carries the words to cook from.** `item_name`, `variant_name` and `modifier_summary` are
+copied at the send, for the same reason `order_line.unit_price` is copied and for one more: a KOT
+is a printed instruction and must still read correctly after the dish is renamed or withdrawn. It
+also takes three joins off the only query in this module with a latency budget.
+
+**`kot_ticket_line` gained three timestamps** (external review S2). The ticket knows when its
+*slowest* dish finished; only these can say how long the dal took, and M13 and M17 both read them.
+
+**`kot_stream_cursor` is new.** Every kitchen write bumps a per-restaurant counter and stamps the
+tickets it touched, so `GET /kot/stream` replays from a dropped client's `Last-Event-ID` rather than
+from a queue nobody kept. Per restaurant rather than a global sequence: a global cursor handed to a
+client leaks the platform's cross-tenant write volume, since a kitchen screen can watch its own
+event ids jump by four hundred and learn how busy everyone else is.
+
+**No append-only trigger, deliberately.** A ticket is a live working row for the whole time a dish
+is being cooked. Its immutability is the service's state machine plus the CHECK constraints above,
+and the *order* side is already protected: 0019's trigger refuses every change to a settled order
+except its kitchen columns, which is exactly what this module writes.
+
+### What migration 0019 added beyond the sketch above
+
+The sketch above is now the built design; these are the decisions that changed it, each argued in
+`docs/modules/M07-orders-spec.md`.
+
+**A settled order does not change, and Postgres says so.** An open order is edited constantly, so it
+cannot take `stock_movement`'s blanket append-only trigger. Its trigger refuses DELETE always, any
+change to a cancelled or voided order, and on a settled order every change except voiding it and
+the kitchen timestamps a counter-service restaurant writes after taking the money. The comparison
+is *every column except the allowed ones*, so a money column a later migration adds is frozen
+without anybody remembering to list it. Lines, discounts, charges, tables and modifiers follow their
+order on INSERT as well as UPDATE and DELETE, because adding a line to a paid bill is the edit that
+matters most. A settled line may still move through the kitchen. A line is deleted only while
+unsent; afterwards it is cancelled with a reason, because deleting a sent line is how a served dish
+leaves a bill.
+
+**The invoice is a table, not a column on the order.** It is a legal document with its own life:
+numbered at settlement and never before, consecutive per restaurant per financial year, at most
+sixteen characters (Rule 46(b), a CHECK), and it survives cancellation because GSTR-1 Table 13
+reports cancelled documents. The financial year comes from the calendar date of issue, not
+`business_date`: a bill at 01:30 on 1 April belongs to business day 31 March and to the new year's
+series. Supplier name, address, GSTIN and FSSAI number are snapshotted at issue, so a reprint is the
+document as issued. A `tax_invoice` without a supplier GSTIN and a `bill_of_supply` carrying CGST or
+SGST are both refused by CHECK.
+
+**A refund is a negative payment that names a credit note.** The eliminated refund table stays
+eliminated — the cash is a `payment` row. `docs/security.md` says refunds are credit notes, and
+that holds too: the tax document is a `credit_note` (CGST Act s.34), and a CHECK refuses a negative
+payment that references none. `payment.status` loses `pending` and `refunded`: a status that has to
+change later cannot live on an append-only row.
+
+**GST is stored per line in two equal halves.** CGST and SGST are each computed on the taxable
+value, never one as the remainder of the other, so a CHECK holds them equal. `tax_regime` is
+`non_gst` for liquor, which is outside GST and never split. Where GST on a service charge is
+unsettled, `order_charge.tax_group_id` is nullable and the restaurant decides.
+
+**`restaurant.gst_scheme` decides the document, not just the rate.** A regular restaurant issues a
+tax invoice; a composition restaurant may not collect tax and issues a bill of supply. Both are
+called "5%", which is the trap.
+
+**`order_table` replaces `order.restaurant_table_id`.** A party of twelve pushes three tables
+together, and one column cannot say so.
+
+**`order_number` is unique per business day.** "Table 6, order 42" is what a waiter calls out, and
+a counter that never resets is not.
+
+**`cash_movement`, not a payout table.** `docs/modules.md` subtracted payouts from expected cash and
+nothing modelled one. A payout and a post-close correction have one shape, so they share a table
+with a `type`; two tables would be two places to sum. Expected cash stays derived.
+
+**`menu_item_variant`, `modifier` and `restaurant_table` gained `UNIQUE (id, restaurant_id)`**, the
+target every composite foreign key above needs. Safe on existing data by construction: `id` was
+already unique.
 ---
 
 ## 8 · Waste — 2 tables
@@ -463,31 +957,59 @@ wastage_reason                                   -- lookup: rows carry policy, s
 wastage_event
   restaurant_id, stock_item_id NN FK→stock_item, stock_batch_id FK→stock_batch
   wastage_reason_id   uuid NN FK→wastage_reason
-  quantity            numeric(14,4) NN
+  quantity            numeric(14,4) NN           -- base units (invariant 5); CHECK > 0
   cost_value          numeric(12,2) NN           -- computed; never asked of the person logging
   occurred_at NN, business_date NN
   reported_by         uuid NN FK→employee
-  shift_id            uuid FK→shift
+  shift_id            uuid                       -- NO FK: `shift` is M12's, like cash_session's
   station_id          uuid FK→station
   menu_item_variant_id uuid FK→menu_item_variant -- when a specific dish caused it
   order_line_id       uuid FK→order_line         -- returns / remakes
   approved_by         uuid FK→employee
+  approved_at         timestamptz                -- added by M09: an approval is a person AND a
+                                                 -- time, paired by CHECK, or it cannot be audited
   note                text
   IX (restaurant_id, business_date)
   IX (restaurant_id, stock_item_id, business_date)
+  IX (restaurant_id, order_line_id)              -- M10 reads this: a returned dish is a waste
+                                                 -- event and a CX signal at once
 ```
+
+### What migration 0033 added beyond the sketch above
+
+**`approved_at`, paired with `approved_by` by a CHECK.** The sketch recorded who approved and not
+when, and an approval with no time cannot be audited — approval is the control standing between an
+expensive reason code and somebody logging theft as waste.
+
+**`cost_value` is NOT NULL, and that is load-bearing rather than tidy.** `docs/waste-model.md` says
+never to ask the person logging what it cost, and to show the rupee value only *afterwards* because
+showing it first suppresses honest reporting. NOT NULL means no "fill the cost in later" path can
+exist, so the rule cannot be dropped by a future service method.
+
+**`shift_id` carries no foreign key.** `shift` is M12's table and nothing waits for a roster to
+record that something was thrown away — the same shape `cash_session.shift_id` has had since M07. A
+test asserts the absence, so the day M12 lands somebody is told to add the constraint.
+
+**`requires_photo` is stored and not enforced**, tagged `[planned: M11]`. `seed/operations.yaml`
+sets it on six of twelve reasons and is right to, but `attachment` is M11's table, and a flag
+nothing can satisfy would leave a cook unable to record the waste in front of them.
 
 Every `wastage_event` writes a paired `stock_movement` of type `wastage` in the same transaction.
 Never one without the other.
 
 ---
 
-## 9 · Customers & feedback — 5 tables
+## 9 · Customers & feedback — 6 tables
 
 ```
 customer                                         -- organization-scoped: a chain recognises the
   organization_id NN FK→organization             -- same diner across branches
   user_account_id     uuid UQ FK→user_account    -- nullable
+  home_restaurant_id  uuid FK→restaurant         -- M10: branch attribution. The organization owns
+                                                 -- the record; the branch owns the *view* — a
+                                                 -- manager reads the customers of the restaurant
+                                                 -- they are working in. Owner's decision,
+                                                 -- 2026-09-16.
   phone               text NN                    -- UQ (organization_id, phone)
   name                text
   email               text
@@ -495,25 +1017,43 @@ customer                                         -- organization-scoped: a chain
   visit_count         int NN default 0
   lifetime_value      numeric(12,2) NN default 0
   birthday, anniversary  date                    -- cheap, high-impact repeat driver
+  erased_at           timestamptz                -- M10: DPDP erasure. Set once, never cleared.
   is_active
-  IX (organization_id, phone), IX (organization_id, last_visit_at)
+  UQ (id, organization_id)                       -- the tenant-safe composite key
+  IX (organization_id, last_visit_at)
 
 customer_preference                              -- persists across visits. Jain, no onion, allergy.
-  customer_id NN FK→customer
+  organization_id NN, customer_id NN             -- composite FK → customer(id, organization_id)
   type                text NN check(dietary|allergy|spice_level|seating|other)
   value               text NN
   is_critical         bool NN default false      -- allergy: must surface to the kitchen
   UQ (customer_id, type, value)
+  IX (customer_id) WHERE is_critical
+
+customer_consent                                 -- M10. Append-only: a grant is a row, a
+  organization_id NN, customer_id NN             -- withdrawal is a row, and the current state of a
+  purpose  text NN check(order_contact|          -- purpose is the latest row for it.
+                         service_recognition|
+                         feedback_followup|marketing)
+  granted             bool NN
+  notice_version      text NN                    -- which words they were shown
+  notice_language     text NN                    -- and in which language
+  source              text NN check(qr|app|staff|call)
+  captured_by         uuid FK→employee           -- null when the guest ticked it themselves
+  occurred_at         timestamptz NN
+  IX (customer_id, purpose, occurred_at DESC)
 
 feedback
   restaurant_id, order_id FK→order               -- nullable but strongly nudged
   customer_id         uuid FK→customer
   overall_rating      smallint check(1..5)
   food_rating, service_rating, cleanliness_rating  smallint
+  would_return        bool                       -- M10: the third of the three questions
   waiter_employee_id  uuid FK→employee
   comment             text
   source              text NN check(qr|app|staff|call)
   submitted_at NN, business_date NN
+  UQ (order_id) WHERE order_id IS NOT NULL       -- "never ask twice in one visit", as an index
   IX (restaurant_id, business_date), IX (restaurant_id, waiter_employee_id)
 
 feedback_line                                    -- per-dish rating
@@ -531,13 +1071,30 @@ complaint                                        -- replaces the vision doc's se
   description         text NN
   reported_by         uuid FK→employee           -- null when the customer raised it directly
   assigned_to         uuid FK→employee
+  reference           text NN                    -- "complaint 47": what a manager says on the phone
+  financial_year      text NN                    -- UQ (restaurant_id, financial_year, reference)
   status              text NN check(open|investigating|resolved|closed)
   resolution          text
   compensation_amount numeric(12,2)
   resolved_at, closed_at  timestamptz
-  customer_returned   bool                       -- the only honest measure of recovery
+  business_date       date NN
   IX (restaurant_id, status), IX (restaurant_id, business_date)
 ```
+
+**`customer_returned` is not a column**, though this section listed one until M10. Whether the
+customer came back is derived at read time from the order ledger — is there an order for this
+customer after `resolved_at`? It is still "the only honest measure of recovery"; it is simply
+measured rather than typed. A column nothing writes, sitting beside a derivation that is always
+right, is an invitation for somebody to write it, and then the honest measure has a stale copy
+disagreeing with it. `docs/modules/M10-customers-spec.md` decision 8. If M13 ever needs a monthly
+figure frozen, that is when a column is the right answer.
+
+**The two QR codes live on tables M10 did not create** (spec decision 1):
+`restaurant_table.guest_slug` — a table's opaque, rotatable public id, unique across the product,
+which grants the menu and nothing else — and `order.guest_token_hash` + `guest_token_expires_at`,
+a per-order capability stored hashed like a refresh token, which grants that order's own bill and
+one feedback submission. M10 also adds the `order.customer_id → customer.id` foreign key that M07
+left as a bare column.
 
 ---
 
@@ -630,10 +1187,14 @@ shift_assignment
 
 ---
 
-## 12 · System — 3 tables
+## 12 · System — 4 tables
 
 ```
 audit_log                                        -- APPEND-ONLY. Written by a service decorator.
+                                                 -- Table created in M01, not M14: M01 introduces
+                                                 -- role grants, deactivations and password resets,
+                                                 -- which are exactly what an insider would use.
+                                                 -- M14 still owns the decorator, /audit and the UI.
   restaurant_id       uuid                       -- nullable: org-level actions exist
   actor_employee_id   uuid FK→employee
   action              text NN                    -- 'order.void', 'recipe.update', 'stock.adjust'
@@ -650,14 +1211,20 @@ audit_log                                        -- APPEND-ONLY. Written by a se
 
 idempotency_key                                  -- ADR 0010. The waiter double-tapped "Settle".
   restaurant_id
-  key                 text NN                    -- UQ (restaurant_id, key); client-generated
+  key                 text NN                    -- UQ (restaurant_id, key); client-generated; 16–128
   endpoint            text NN
   request_hash        text NN                    -- same key + different body = 409, a client bug
   response_status     smallint
   response_body       jsonb
   state               text NN check(in_progress|completed|failed)
   expires_at          timestamptz NN             -- 24h; swept by a nightly job
+  actor_employee_id   uuid FK→employee
   IX (expires_at)
+
+issue                                            -- B12 (D11, D12): the issue catalogue. Reference data.
+  number              integer NN                 -- UQ; what a person quotes: "Issue 1042"
+  code                text NN                    -- UQ; the stable code the frontend switches on, never shown
+  text                text NN                    -- plain words; seeded from app/core/issues.json by migration
 
 notification
   restaurant_id, recipient_employee_id NN FK→employee
@@ -742,7 +1309,7 @@ Cut, with the reason. Each of these is a table someone would reasonably have cre
 | `incident` (§21) | Structurally identical to `complaint` + `task` + `attachment`. Two tables for one concept diverge. | `complaint`, with `task` for follow-up |
 | `waiter_performance`, `chef_performance`, `dish_stats` | **These are queries, not tables.** Storing them creates a second source of truth that silently drifts. | Views now; materialised rollups only when a dashboard query is measured to be too slow |
 | `order_status_history` | `audit_log` already records every transition. | `audit_log` |
-| `refund` | A refund is a negative payment. A second table means two places to sum. | `payment.amount < 0` |
+| `refund` | A refund is a negative payment. A second table means two places to sum. | `payment.amount < 0`, which must reference a `credit_note` — the tax document |
 | `attendance` | Same rows as `shift_assignment` with a different name. | `shift_assignment.status` |
 | `cctv_*`, `video_retention` | Vision doc §22. Legal exposure, storage cost, sells nothing. | — |
 | `loyalty_*`, `quotation`, `delivery_platform_*` | Phase 2+. | — |
@@ -778,21 +1345,23 @@ that path, it is the wrong change.
 Dependencies force roughly this sequence:
 
 1. organization, restaurant
-2. permission, role, role_permission, user_account, user_session, employee, employee_role_assignment
-3. dining_area, restaurant_table, station, tax_group
+2. permission, role, role_permission, user_account, user_session, sign_in_choice, login_attempt, employee,
+   employee_role_assignment
+3. dining_area, restaurant_table, station, tax_group, tax_rate
 4. supplier, stock_item, ingredient_profile, preparation_profile
 5. menu_category, menu_item, menu_item_variant, modifier_group, modifier, menu_item_modifier_group
 6. recipe, recipe_line
 7. stock_batch, stock_movement, stock_count, stock_count_line
 8. purchase_order, purchase_order_line, goods_receipt, goods_receipt_line
-9. customer, customer_preference
-10. order, order_line, order_line_modifier, order_discount, payment
-11. kot_ticket, kot_ticket_line
+9. customer, customer_preference, customer_consent
+10. cash_session, order, order_table, order_line, order_line_modifier, order_discount, order_charge,
+    invoice, credit_note, credit_note_line, payment, cash_count, cash_movement
+11. kot_stream_cursor, kot_ticket, kot_ticket_line
 12. wastage_reason, wastage_event
 13. feedback, feedback_line, complaint
 14. shift, shift_assignment
 15. conversation, conversation_participant, message, task, task_event, attachment
-16. audit_log, notification, idempotency_key
+16. audit_log, notification, idempotency_key, issue
 17. incentive_scheme, performance_period, performance_score, performance_note, recognition_award
 
 `stock_batch.goods_receipt_line_id` and `conversation_participant.last_read_message_id` are circular

@@ -1,0 +1,362 @@
+{
+  "permissions": [
+    {
+      "code": "employee.view",
+      "resource": "employee",
+      "action": "view",
+      "description": "See the staff list and open an individual employee record."
+    },
+    {
+      "code": "employee.create",
+      "resource": "employee",
+      "action": "create",
+      "description": "Add a new employee, optionally with a login."
+    },
+    {
+      "code": "employee.edit",
+      "resource": "employee",
+      "action": "edit",
+      "description": "Change an employee's name, contact details or employment terms."
+    },
+    {
+      "code": "employee.deactivate",
+      "resource": "employee",
+      "action": "deactivate",
+      "description": "Deactivate or reactivate an employee. Deactivating ends every open session immediately."
+    },
+    {
+      "code": "employee.role.assign",
+      "resource": "employee.role",
+      "action": "assign",
+      "description": "Grant or remove an employee's roles at a restaurant. This is the privilege-escalation path — hold it narrowly."
+    },
+    {
+      "code": "employee.password.reset",
+      "resource": "employee.password",
+      "action": "reset",
+      "description": "Set a new password for another employee. Ends all of that person's other sessions."
+    },
+    {
+      "code": "role.view",
+      "resource": "role",
+      "action": "view",
+      "description": "Read the role and permission catalogue, for the role-assignment screen."
+    },
+    {
+      "code": "restaurant.configure",
+      "resource": "restaurant",
+      "action": "configure",
+      "description": "Change the restaurant's settings, floor plan, kitchen stations and tax rates."
+    },
+    {
+      "code": "menu.view",
+      "resource": "menu",
+      "action": "view",
+      "description": "Read the menu: categories, dishes, variants and modifiers. A waiter cannot take an order without it."
+    },
+    {
+      "code": "menu.manage",
+      "resource": "menu",
+      "action": "manage",
+      "description": "Create and change categories, dishes, variants and modifiers — everything about the menu except what it costs."
+    },
+    {
+      "code": "menu.price",
+      "resource": "menu",
+      "action": "price",
+      "description": "Set a variant's price and its tax group. Separate from menu.manage because it is the money path: seed/organization.yaml withholds it from a manager by name."
+    },
+    {
+      "code": "recipe.view",
+      "resource": "recipe",
+      "action": "view",
+      "description": "Read recipes and their quantities. A chef reads recipes — that is the job."
+    },
+    {
+      "code": "recipe.manage",
+      "resource": "recipe",
+      "action": "manage",
+      "description": "Create stock items and recipe versions. Held by the chef, who owns the recipe, and the owner."
+    },
+    {
+      "code": "cost.view",
+      "resource": "cost",
+      "action": "view",
+      "description": "See what a dish costs and what it earns. Deliberately not the chef's: seed/organization.yaml's design says a chef sees grams, not rupees."
+    },
+    {
+      "code": "stock.view",
+      "resource": "stock",
+      "action": "view",
+      "description": "See what is on hand, what is expiring, and the movements behind both. Read-only: it shows the position, it cannot change it."
+    },
+    {
+      "code": "stock.receive",
+      "resource": "stock",
+      "action": "receive",
+      "description": "Record a delivery arriving. Held by the store manager, who takes the delivery, and by the manager and owner above them."
+    },
+    {
+      "code": "stock.produce",
+      "resource": "stock",
+      "action": "produce",
+      "description": "Make a preparation batch, consuming its inputs. The chef holds this and not stock.receive: a kitchen turns ingredients into gravy, it does not sign for the sack."
+    },
+    {
+      "code": "stock.adjust",
+      "resource": "stock",
+      "action": "adjust",
+      "description": "Post a correction to the ledger. The one movement nobody observed, which makes it the one an insider would use to erase a shortfall — so it always carries a reason and always writes an audit row."
+    },
+    {
+      "code": "supplier.view",
+      "resource": "supplier",
+      "action": "view",
+      "description": "See the supplier list, purchase orders, goods receipts and the supplier variance report. Read-only, and commercially sensitive: it is who you buy from and what you pay."
+    },
+    {
+      "code": "supplier.manage",
+      "resource": "supplier",
+      "action": "manage",
+      "description": "Add or change a supplier. Not held by the kitchen: inventing a supplier is how purchases get laundered, so create and edit are audited with the actor and a supplier is deactivated, never deleted."
+    },
+    {
+      "code": "purchase.manage",
+      "resource": "purchase",
+      "action": "manage",
+      "description": "Raise, send and cancel purchase orders. Separate from stock.receive on purpose - posting a delivery writes the stock ledger, so it is the ledger's permission, and the accountant who reconciles invoices can raise an order without ever signing for one."
+    },
+    {
+      "code": "stock.count",
+      "resource": "stock",
+      "action": "count",
+      "description": "Open a count sheet, record what is on the shelf, and approve the result. Approval is what posts the corrections, and the service refuses an approver who is also the counter — a control carried by a CHECK constraint as well, so it holds for a path that forgets to ask."
+    },
+    {
+      "code": "order.view",
+      "resource": "order",
+      "action": "view",
+      "description": "See orders, bills, invoices and credit notes. The accountant holds this and nothing else on the order path: reconciling the day's takings means reading every bill and changing none."
+    },
+    {
+      "code": "order.create",
+      "resource": "order",
+      "action": "create",
+      "description": "Open an order for a table, a takeaway or a delivery."
+    },
+    {
+      "code": "order.modify",
+      "resource": "order",
+      "action": "modify",
+      "description": "Add, change and send dishes, mark them served, split a bill, add packaging or an optional service charge, and cancel an order that was never settled. The server recomputes every price and tax from the menu; the client sends only what was ordered."
+    },
+    {
+      "code": "order.settle",
+      "resource": "order",
+      "action": "settle",
+      "description": "Take payment and settle a bill, which numbers the invoice, posts the stock the dishes consumed and freezes their food cost. Held by a waiter, because the person at the table is the person who takes the money."
+    },
+    {
+      "code": "order.void",
+      "resource": "order",
+      "action": "void",
+      "description": "Cancel an invoice on its day of issue, or issue a credit note and refund against a settled bill. Not held by a waiter: cancelling a paid cash bill is how the cash disappears, so it needs a more senior person and a reason, and a cancelled invoice keeps its number."
+    },
+    {
+      "code": "order.discount",
+      "resource": "order",
+      "action": "discount",
+      "description": "Apply a discount or a comp, always with a reason and always with this person's name on it. Not held by a waiter: the P1 design names discounts one of the classic leakage vectors."
+    },
+    {
+      "code": "cash.manage",
+      "resource": "cash",
+      "action": "manage",
+      "description": "Open and close the till, count the cash, and record payouts and post-close adjustments. Added to the P1 design by the M07 spec: a waiter takes cash and never closes the till that cash went into."
+    },
+    {
+      "code": "floor.manage",
+      "resource": "floor",
+      "action": "manage",
+      "description": "Switch busy mode on or off for the floor, so a settled table is free at once instead of being cleared first. It switches itself off at the next business day. Held by owner and manager: it changes how the whole floor behaves, not one table."
+    },
+    {
+      "code": "order.assign",
+      "resource": "order",
+      "action": "assign",
+      "description": "Choose who serves a table when opening an order for someone else, and move an order from one waiter to another with a reason. Held by owner and manager: a waiter may claim an order nobody is serving, but taking a table somebody is serving would take its credit, which M17 turns into a performance score."
+    }
+  ],
+  "roles": [
+    {
+      "code": "owner",
+      "name": "Owner",
+      "rank": 0,
+      "description": "The person whose money is at risk. Holds everything, always.",
+      "permissions": [
+        "cash.manage",
+        "cost.view",
+        "employee.create",
+        "employee.deactivate",
+        "employee.edit",
+        "employee.password.reset",
+        "employee.role.assign",
+        "employee.view",
+        "menu.manage",
+        "menu.price",
+        "menu.view",
+        "order.create",
+        "order.discount",
+        "order.modify",
+        "order.settle",
+        "order.view",
+        "order.void",
+        "purchase.manage",
+        "recipe.manage",
+        "recipe.view",
+        "restaurant.configure",
+        "role.view",
+        "stock.adjust",
+        "stock.count",
+        "stock.produce",
+        "stock.receive",
+        "stock.view",
+        "supplier.manage",
+        "supplier.view",
+        "floor.manage",
+        "order.assign"
+      ]
+    },
+    {
+      "code": "admin",
+      "name": "Administrator",
+      "rank": 10,
+      "description": "The owner's delegate for system configuration. Trusted, not operational.",
+      "permissions": [
+        "employee.create",
+        "employee.deactivate",
+        "employee.edit",
+        "employee.password.reset",
+        "employee.role.assign",
+        "employee.view",
+        "menu.view",
+        "restaurant.configure",
+        "role.view",
+        "stock.adjust",
+        "stock.count",
+        "stock.produce",
+        "stock.receive",
+        "stock.view"
+      ]
+    },
+    {
+      "code": "manager",
+      "name": "Manager",
+      "rank": 20,
+      "description": "Runs the floor. Staffs a shift at 7am when the owner is not on site, and appoints junior roles and other managers — but can never promote anyone above manager, nor change their own roles. Every assignment is written to the audit trail.",
+      "permissions": [
+        "cash.manage",
+        "cost.view",
+        "employee.create",
+        "employee.deactivate",
+        "employee.edit",
+        "employee.password.reset",
+        "employee.role.assign",
+        "employee.view",
+        "menu.manage",
+        "menu.view",
+        "order.create",
+        "order.discount",
+        "order.modify",
+        "order.settle",
+        "order.view",
+        "order.void",
+        "purchase.manage",
+        "recipe.view",
+        "role.view",
+        "stock.adjust",
+        "stock.count",
+        "stock.produce",
+        "stock.receive",
+        "stock.view",
+        "supplier.manage",
+        "supplier.view",
+        "floor.manage",
+        "order.assign"
+      ]
+    },
+    {
+      "code": "chef",
+      "name": "Chef",
+      "rank": 30,
+      "description": "Runs the kitchen and needs to know who is on. Reads the staff list, changes nothing.",
+      "permissions": [
+        "employee.view",
+        "menu.view",
+        "recipe.manage",
+        "recipe.view",
+        "stock.produce",
+        "stock.view"
+      ]
+    },
+    {
+      "code": "kitchen_staff",
+      "name": "Kitchen Staff",
+      "rank": 40,
+      "description": "Cooks to tickets. Nothing in M01.",
+      "permissions": [
+        "recipe.view",
+        "stock.view"
+      ]
+    },
+    {
+      "code": "waiter",
+      "name": "Waiter",
+      "rank": 40,
+      "description": "Takes orders and takes the money: holds order.settle and NOT order.void, order.discount or cash.manage, which are the classic leakage vectors. Staff records carry phone numbers and dates of birth, so no access there.",
+      "permissions": [
+        "menu.view",
+        "order.create",
+        "order.modify",
+        "order.settle",
+        "order.view"
+      ]
+    },
+    {
+      "code": "store_manager",
+      "name": "Store Manager",
+      "rank": 30,
+      "description": "Runs the store room and supplier relationships. Manages stock, not people.",
+      "permissions": [
+        "purchase.manage",
+        "recipe.view",
+        "stock.adjust",
+        "stock.count",
+        "stock.produce",
+        "stock.receive",
+        "stock.view",
+        "supplier.manage",
+        "supplier.view"
+      ]
+    },
+    {
+      "code": "cleaner",
+      "name": "Cleaner",
+      "rank": 40,
+      "description": "Referenced by tasks and shifts. Frequently has no login at all.",
+      "permissions": []
+    },
+    {
+      "code": "accountant",
+      "name": "Accountant",
+      "rank": 30,
+      "description": "Reads the staff list because payroll needs to know who is employed, and reconciles what suppliers billed against what arrived. Holds purchase.manage and NOT stock.receive: an accountant may raise an order and may never sign for a delivery. Reads every order and changes none: order.view is the whole of its order path.",
+      "permissions": [
+        "employee.view",
+        "order.view",
+        "purchase.manage",
+        "supplier.view"
+      ]
+    }
+  ]
+}

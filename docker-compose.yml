@@ -1,0 +1,130 @@
+# Local development stack: api + db + web. `make dev` runs `docker compose up --build`.
+# Production does not use this file — ADR 0005 targets a single container image plus a managed
+# Postgres, so nothing here may become load-bearing for deploy.
+
+name: restaurant-os
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: restaurant
+      POSTGRES_PASSWORD: restaurant
+      POSTGRES_DB: restaurant_os
+      # Invariant 4: time is timestamptz stored UTC. Pin the server clock to UTC so a developer's
+      # local timezone can never make a test pass here and fail in staging. Display-side
+      # conversion is the application's job, never the database's.
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      # WINDOWS TRAP 1 — this is a NAMED VOLUME, not a bind mount. Postgres' data directory on a
+      # Windows bind mount (./postgres-data:/var/lib/postgresql/data) hits chmod/ownership
+      # failures on initdb and, when it does start, risks corruption because the 9p/virtiofs
+      # translation does not honour fsync ordering. Named volumes live inside the Linux VM.
+      - db-data:/var/lib/postgresql/data
+    ports:
+      # Exposed to the host so host-run pytest and `make migrate` can reach the same database the
+      # api container uses. Note that .env's DATABASE_URL points at host `db`, which only resolves
+      # inside the compose network — host-side tooling needs localhost:5432 instead.
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U restaurant -d restaurant_os"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  migrate:
+    # Runs once, to completion, then exits. api waits for it, so `make dev` yields a stack whose
+    # /ready is green rather than one that needs a remembered follow-up command. Production runs
+    # migrations as an explicit deploy step, not at container boot, so replicas cannot race.
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    volumes:
+      # The same live mount as api. Without it this service runs the migrations baked into its
+      # image at the last build, so a migration added since then is silently skipped: alembic
+      # reports "head" for the head it knows, api (mounted, so current) queries a column that
+      # does not exist, and make seed fails. That happened with 0022 on 2026-09-14.
+      - ./backend:/app
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime
+    depends_on:
+      db:
+        # Not `depends_on: [db]` — that waits for the container, not for Postgres to accept
+        # connections. The api asserts its config and migration state at boot and would exit.
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      # WINDOWS TRAP 2 — inotify events do not cross the Windows/WSL2 filesystem boundary, so
+      # uvicorn --reload sees nothing when you edit a file in your editor. watchfiles (shipped
+      # with uvicorn[standard]) falls back to polling when told to. Not application config: this
+      # variable is read by the file watcher, not by app/core/config.py.
+      WATCHFILES_FORCE_POLLING: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      # Live edits. The image's venv lives at /opt/venv, outside /app, precisely so this mount
+      # cannot shadow it with the host's Windows-built backend/.venv.
+      - ./backend:/app
+      # `make seed` reads the authoritative P1 dataset, which lives at the repository root while
+      # the build context is ./backend — so the image cannot contain it and the container has to be
+      # given it. Read-only: the seed loads this file and must never write it.
+      # Staging packaging is M15's problem, along with the generator (docs/backlog.md).
+      - ./seed:/app/seed:ro
+    # --reload-dir is not optional: without it the poller walks the mounted backend/.venv (tens
+    # of thousands of files) on every tick and pegs a core.
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --reload
+      - --reload-dir
+      - /app/app
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: dev
+    depends_on:
+      - api
+    environment:
+      # `localhost` inside this container is this container. The API is reachable only by its
+      # compose service name, exactly as `db` is for the api service.
+      VITE_API_PROXY_TARGET: http://api:8000
+      # WINDOWS TRAP 4 — inotify events do not cross the Windows/WSL2 boundary, and Vite has its
+      # own watcher, so the api service's WATCHFILES_FORCE_POLLING does not help here. Without
+      # this the dev server serves a stale file forever and the browser silently disagrees with
+      # the editor. See frontend/vite.config.ts.
+      VITE_FORCE_POLLING: "true"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      # WINDOWS TRAP 3 — an anonymous volume masks /app/node_modules so the host directory never
+      # shadows the container's. The host either has no node_modules at all, or has Windows
+      # binaries for esbuild/rollup that cannot execute in a Linux container. Docker seeds this
+      # volume from the image on first create; after changing package.json, `docker compose down
+      # -v` (or `up --build --force-recreate --renew-anon-volumes`) to refresh it.
+      - /app/node_modules
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+
+volumes:
+  db-data:

@@ -25,7 +25,7 @@ through — see *The non-code track* in `docs/plan/month-1.md`.
 
 ## P1 · Architecture & design — ✅ done
 
-**Done:** 58-table schema with keys and indexes; 10 ADRs; UI conventions for four surfaces;
+**Done:** 63-table schema with keys and indexes; 10 ADRs; UI conventions for four surfaces;
 engineering standards; security threat model; observability and operations; testing strategy;
 synthetic dataset authored and validated.
 
@@ -108,6 +108,12 @@ error and success states.
 ### 6 · Quality gate — automated, blocking
 `make check`: ruff, mypy strict, eslint, tsc, prettier, full test suite, migration up→down→up,
 query-count assertions, `pip-audit` + `npm audit`, secret scan. **Zero warnings.**
+
+It also runs `scripts/audit_guardrails.py`, which is where `docs/engineering-guardrails.md` stops
+being a document and becomes a gate (G-20, R9): it fails when a guardrail has quietly stopped being
+true, and when the guardrails table's own status column disagrees with
+`docs/audit/remediation-plan.md`. The Definition of Done below is extended by that file's
+§Definition of Done addendum; both lists must be true.
 
 ### 7 · My adversarial review
 I review my own diff against the checklist in `docs/testing-strategy.md` Part 1 — tenant leakage,

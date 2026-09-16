@@ -1,0 +1,200 @@
+/*
+ * Design tokens. The only place a colour, radius, duration or z-index is written down.
+ *
+ * ── Why these names ────────────────────────────────────────────────────────────────────────────
+ * The vocabulary is shadcn/ui's (`--background`, `--primary`, `--ring`, …) rather than a prettier
+ * one of our own. `docs/ui/frontend-architecture-and-ux-strategy.md` proposed renaming these to
+ * `--canvas` / `--ink` / `--line`; that reads better and costs more than it is worth. shadcn
+ * components are copied into this repo and read these exact names, so a rename means editing every
+ * component on arrival and again on every upgrade — a fork we maintain forever for naming taste.
+ * Two vocabularies for one set of values is also the "two catalogues" problem that finding M12
+ * records. One vocabulary, theirs, extended with what this product needs.
+ *
+ * ── The layers ─────────────────────────────────────────────────────────────────────────────────
+ * 1. Semantic tokens — the only thing a component may read.
+ * 2. The locked layer — alert colours, targets, the z-index ladder. A theme may not touch these
+ *    (docs/ui/frontend-architecture-and-ux-strategy.md §3.5). Red means "act now" in November too.
+ * 3. Per-surface tokens — set by `data-surface`, orthogonal to the theme.
+ *
+ * A theme is an entry in `themes.ts`. It overrides a few of layer 1's values at runtime and cannot
+ * add CSS, target a component, or reach layers 2 and 3 — `applyTheme` only writes the keys listed
+ * in `THEMEABLE`, so that is a structural limit rather than a convention.
+ *
+ * The light values below are the baseline every theme overrides, and choosing the default theme
+ * *clears* those overrides rather than re-applying a copy — which is why the default look is
+ * defined here and nowhere else.
+ *
+ * Values are bare HSL triples because Tailwind wraps them in `hsl(… / <alpha-value>)`, which is
+ * what keeps opacity utilities working.
+ */
+
+@layer base {
+  :root {
+    /* ── Surfaces ──────────────────────────────────────────────────────────────────────────── */
+    /* Near-white with a warm undertone, not cream and not pure white: pure white is reserved for
+       raised surfaces so cards separate from the page by tone rather than by shadow. The warmth is
+       the owner's brand decision (docs/ui/brand.md §2) and lives in the undertone, never in a cream
+       ground, which reads as a template and costs contrast at a dim table. */
+    --background: 30 20% 98%;
+    --foreground: 24 12% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 24 12% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 12% 10%;
+
+    /* Row hover, active tabs, sticky bars — a tonal step, never a shadow. */
+    --muted: 30 18% 95%;
+    --muted-foreground: 24 8% 36%;
+
+    /* ── Actions ───────────────────────────────────────────────────────────────────────────── */
+    /* Primary is ink, not the brand colour. Hue is reserved for status, so a page's one primary
+       button does not compete with a red that means someone must act now. */
+    --primary: 24 12% 10%;
+    --primary-foreground: 30 20% 98%;
+
+    --secondary: 30 18% 95%;
+    --secondary-foreground: 24 12% 10%;
+
+    /* ── Jamun: the interaction colour ─────────────────────────────────────────────────────── */
+    /* Deep plum. The one warm hue that is not already owned by an alert colour — red, amber,
+       yellow, blue and green are all spoken for, and an accent that collides with a status colour
+       makes the status colour mean less.
+       Two lightnesses on purpose. The fill is dark enough to carry white text; the ring is lighter
+       because a focus ring at the fill's lightness is nearly invisible on a phone in a dim dining
+       room, and focus that cannot be seen is not focus. */
+    --accent: 322 45% 95%; /* soft tint: selected rows, hover on interactive lists */
+    --accent-foreground: 322 45% 22%;
+    --brand: 322 40% 32%; /* fills: active nav, links, selected state */
+    --brand-foreground: 0 0% 100%;
+    --ring: 322 48% 45%; /* focus ring — lighter, so it is visible */
+
+    /* ── Lines ─────────────────────────────────────────────────────────────────────────────── */
+    --border: 30 14% 89%;
+    --input: 30 12% 80%; /* stronger than a hairline: an input must look enterable */
+
+    /* `destructive` is shadcn's name for what this product calls `critical`. Same value, so a
+       shadcn component and one of ours cannot disagree about what red means. */
+    --destructive: 0 72% 41%;
+    --destructive-foreground: 0 0% 100%;
+
+    --radius: 0.625rem; /* one step softer than a dashboard (brand §5) */
+
+    /* ── Type ──────────────────────────────────────────────────────────────────────────────── */
+    /* Plex carries Devanagari as a designed companion rather than a fallback, which is the whole
+       reason for it: Hindi and Marathi are a data change later, not a redesign. */
+    --font-sans: 'IBM Plex Sans', 'IBM Plex Sans Devanagari', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+
+    /* ── Motion ────────────────────────────────────────────────────────────────────────────── */
+    --duration-fast: 120ms;
+    --duration-base: 180ms;
+    --duration-slow: 240ms;
+    --easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+    /* Page rhythm, from the theme. Taste, not physics — kept separate from `--density`, which
+       the *surface* sets, so choosing a theme never discards a waiter's roomier spacing. Neither
+       touches `--target-min`: a touch target is a fact about a thumb. */
+    --theme-density: 1;
+  }
+
+  /*
+   * ── LOCKED ───────────────────────────────────────────────────────────────────────────────────
+   * Declared outside :root's themeable set and re-declared under every theme, so a theme file
+   * cannot change them even by accident.
+   *
+   * The six alert colours carry fixed meanings across all four surfaces (docs/ui/conventions.md).
+   * A festive theme that makes red decorative breaks the only promise the kitchen display makes.
+   */
+  :root,
+  [data-theme] {
+    --critical: 0 72% 41%;
+    --critical-soft: 0 80% 96%;
+    --warning: 25 90% 40%;
+    --warning-soft: 25 90% 95%;
+    --caution: 45 93% 33%;
+    --caution-soft: 45 93% 94%;
+    --info: 217 91% 42%;
+    --info-soft: 217 91% 96%;
+    --success: 142 72% 27%;
+    --success-soft: 142 60% 95%;
+    --neutral: 215 16% 38%;
+    --neutral-soft: 210 24% 96%;
+
+    /*
+     * The FSSAI food-type mark. Locked for a stronger reason than the alert set: these are not
+     * our colours to choose. The Food Safety and Standards (Labelling and Display) Regulations,
+     * 2020 prescribe a green mark for vegetarian and a BROWN one for non-vegetarian — the brown
+     * triangle replaced the older red circle. A theme that repainted these would not be ugly, it
+     * would be non-compliant, and on a menu that prints.
+     *
+     * They are their own tokens rather than borrowed alert colours because the mark and the alert
+     * set mean different things. `--critical` says "this has gone wrong" on all four surfaces; a
+     * chicken biryani has not gone wrong. Painting every non-veg ticket in the failure colour
+     * teaches a kitchen to read that colour as decoration, which is precisely what the locked
+     * alert set exists to prevent. The mark was painted `--critical` until this was caught by an
+     * audit against the 2020 regulations.
+     *
+     * Veg and egg keep the values they have always rendered at, so only the non-veg mark changes.
+     * Lightness is held near the alert set's so the marks survive the dark theme — a brown at the
+     * 30% a paint chart would suggest is barely a colour on a 9% ground (see themes.ts, Jamun).
+     */
+    --food-veg: 142 72% 27%;
+    --food-nonveg: 22 65% 38%;
+    --food-egg: 45 93% 33%;
+
+    /* The scrim behind a dialog or a sheet. Locked, and not merely for tidiness: it is the only
+       thing separating a modal from the live order behind it, and a festive theme that tinted it
+       or lightened it would turn "you must deal with this first" into decoration. Black, carried at
+       70% by the component (bg-scrim/70), because it has to read the same over every theme. */
+    --scrim: 0 0% 0%;
+
+    /* The z-index ladder. A raw `z-50` in a component is a bug waiting for a second raw `z-50`.
+       The offline banner is highest because it must never be covered — a waiter who cannot see
+       that they are offline will keep tapping. */
+    --z-sticky: 10;
+    --z-dropdown: 20;
+    --z-sheet: 30;
+    --z-dialog: 40;
+    --z-toast: 50;
+    --z-offline: 60;
+  }
+
+  /*
+   * ── PER SURFACE ──────────────────────────────────────────────────────────────────────────────
+   * Set by `data-surface` on <body>, orthogonal to the theme. This is the physical contract with a
+   * thumb, a glove and two metres of steam, so a theme cannot reach it.
+   */
+  /*
+   * `--page-gap` is redeclared in every block rather than once on :root, and that is not
+   * repetition — it is the only thing that works.
+   *
+   * A custom property containing var() is substituted at computed-value time **on the element
+   * where it is declared**. Declared once on :root, `--page-gap` bakes in :root's `--density` of 1
+   * and descendants inherit that already-resolved value; setting `--density: 1.25` on <body> then
+   * changes nothing. The symptom would have been half a working lever — `min-h-target` correct on
+   * the waiter surface because it reads its variable directly, `p-page` silently stuck at manager
+   * spacing — which reads as a Tailwind bug rather than a CSS scoping one.
+   */
+  :root,
+  [data-surface='manager'],
+  [data-surface='owner'] {
+    --target-min: 2.75rem; /* 44px — pointer-driven surfaces */
+    --density: 1;
+    --page-gap: calc(1rem * var(--density) * var(--theme-density));
+  }
+
+  [data-surface='waiter'] {
+    /* One hand, moving, in a dim room. */
+    --target-min: 3rem; /* 48px */
+    --density: 1.25;
+    --page-gap: calc(1rem * var(--density) * var(--theme-density));
+  }
+
+  [data-surface='kds'] {
+    /* Read at two metres, tapped with a glove. */
+    --target-min: 4rem; /* 64px */
+    --density: 1.5;
+    --page-gap: calc(1rem * var(--density) * var(--theme-density));
+  }
+}

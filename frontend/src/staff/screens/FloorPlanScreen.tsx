@@ -1,0 +1,427 @@
+import { type FormEvent, type ReactElement, useState } from 'react';
+
+import { Button } from '@shared/ui/button';
+import { Label } from '@shared/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select';
+import { Switch } from '@shared/ui/switch';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@shared/ui/table';
+import { Field } from '@staff/components/Field';
+import { Notice } from '@staff/components/Notice';
+import { QueryState } from '@staff/components/QueryState';
+import { errorProps } from '@staff/components/errorProps';
+import { strings } from '@staff/strings';
+import {
+  type DiningArea,
+  type RestaurantTable,
+  useCreateDiningArea,
+  useCreateTable,
+  useDiningAreas,
+  useTables,
+  useSetTableStatus,
+  useReorderDiningAreas,
+  useUpdateDiningArea,
+  useUpdateTable,
+} from '@staff/api/setup';
+
+const TABLE_STATUSES: RestaurantTable['status'][] = [
+  'free',
+  'occupied',
+  'reserved',
+  'cleaning',
+  'out_of_service',
+];
+
+/**
+ * The floor: dining areas, and the tables in them.
+ *
+ * **Reordering is buttons, not drag.** The spec says "drag to reorder" and this deliberately does
+ * not, for now — recorded in `docs/backlog.md` rather than done quietly. Drag needs a library, and
+ * needs a keyboard path built alongside it to be usable at all; buttons are that keyboard path,
+ * work with a glove and a steamed-up screen, and reorder the same `seq` the server already
+ * understands. Adding drag later is additive and changes no data.
+ *
+ * Areas are deactivated, never deleted (ADR 0008). The server refuses to deactivate one that still
+ * has tables and says how many, so this screen does not need to guess — it shows what came back.
+ */
+export default function FloorPlanScreen(): ReactElement {
+  const [showInactive, setShowInactive] = useState(false);
+  const areas = useDiningAreas(showInactive);
+  const [selectedArea, setSelectedArea] = useState<string | null>(null);
+  // Lifted to the screen, not per row: one in-flight reorder has to disable *every* row's arrows.
+  // Held per row, the neighbour's buttons stayed live and a second swap could interleave with the
+  // first.
+  const swap = useReorderDiningAreas();
+
+  const items = areas.data?.items ?? [];
+  // Reconciled against what is actually on screen. An area can leave this list while still being
+  // selected — deactivate it, or turn the filter off — and a selection pointing at a row nobody can
+  // see leaves the tables below attributed to an area the screen no longer shows.
+  const current = items.some((area) => area.id === selectedArea)
+    ? selectedArea
+    : (items[0]?.id ?? null);
+
+  return (
+    <div className="space-y-page">
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold">{strings.setup.floor.title}</h1>
+        <div className="flex items-center gap-2">
+          <Switch id="show-inactive" checked={showInactive} onCheckedChange={setShowInactive} />
+          <Label htmlFor="show-inactive">{strings.setup.floor.showInactive}</Label>
+        </div>
+      </div>
+
+      <p className="text-sm text-muted-foreground">{strings.setup.floor.neverDeleted}</p>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">{strings.setup.floor.areasTitle}</h2>
+        <QueryState
+          isPending={areas.isPending}
+          error={areas.error}
+          pendingLabel={strings.setup.floor.areasTitle}
+        >
+          {items.length === 0 ? (
+            <p className="text-muted-foreground">{strings.setup.floor.areasEmpty}</p>
+          ) : (
+            <ul className="divide-y rounded-md border">
+              {items.map((area, index) => (
+                <AreaRow
+                  key={area.id}
+                  area={area}
+                  isFirst={index === 0}
+                  isLast={index === items.length - 1}
+                  previous={items[index - 1]}
+                  next={items[index + 1]}
+                  isSelected={area.id === current}
+                  swap={swap}
+                  order={items.map((row) => row.id)}
+                  onSelect={() => {
+                    setSelectedArea(area.id);
+                  }}
+                />
+              ))}
+            </ul>
+          )}
+        </QueryState>
+        <AddArea />
+      </section>
+
+      {current !== null && (
+        <TablesSection areaId={current} areas={items} includeInactive={showInactive} />
+      )}
+    </div>
+  );
+}
+
+function AreaRow({
+  area,
+  isFirst,
+  isLast,
+  previous,
+  next,
+  isSelected,
+  swap,
+  order,
+  onSelect,
+}: {
+  area: DiningArea;
+  isFirst: boolean;
+  isLast: boolean;
+  previous: DiningArea | undefined;
+  next: DiningArea | undefined;
+  isSelected: boolean;
+  swap: ReturnType<typeof useReorderDiningAreas>;
+  /** The ids on screen, in order: a move sends the whole new order, not a pair. */
+  order: string[];
+  onSelect: () => void;
+}): ReactElement {
+  const update = useUpdateDiningArea();
+
+  /** One request carrying the whole new order. Two PATCHes could half-fail and leave both rows on
+   *  the same `seq` (backlog-issues B3); the server now saves it whole or refuses it whole. */
+  function swapWith(other: DiningArea | undefined): void {
+    if (other === undefined) {
+      return;
+    }
+    swap.mutate(order.map((id) => (id === area.id ? other.id : id === other.id ? area.id : id)));
+  }
+
+  return (
+    <li className="flex flex-wrap items-center gap-2 p-2">
+      <button
+        type="button"
+        onClick={onSelect}
+        // Colour is not the only signal: the selected row is also the one whose tables are shown
+        // below, and it is announced (restaurant-ui rule 5).
+        aria-current={isSelected ? 'true' : undefined}
+        className={`min-h-target flex-1 rounded-md px-2 text-left ${
+          isSelected ? 'bg-accent text-accent-foreground' : ''
+        }`}
+      >
+        {area.name}
+        {!area.is_active && (
+          <span className="ml-2 rounded-sm bg-neutral-soft px-1.5 py-0.5 text-xs text-neutral">
+            {strings.setup.floor.inactive}
+          </span>
+        )}
+      </button>
+
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={`${strings.setup.floor.moveUp}: ${area.name}`}
+        disabled={isFirst || swap.isPending}
+        onClick={() => {
+          swapWith(previous);
+        }}
+      >
+        ↑
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={`${strings.setup.floor.moveDown}: ${area.name}`}
+        disabled={isLast || swap.isPending}
+        onClick={() => {
+          swapWith(next);
+        }}
+      >
+        ↓
+      </Button>
+      <Button
+        variant="ghost"
+        onClick={() => {
+          update.mutate({ id: area.id, changes: { is_active: !area.is_active } });
+        }}
+        disabled={update.isPending}
+      >
+        {area.is_active ? strings.setup.floor.deactivate : strings.setup.floor.reactivate}
+      </Button>
+
+      {(update.isError || swap.isError) && (
+        <div className="w-full">
+          <Notice tone="critical" {...errorProps(update.error ?? swap.error)} />
+        </div>
+      )}
+    </li>
+  );
+}
+
+function AddArea(): ReactElement {
+  const create = useCreateDiningArea();
+  const [name, setName] = useState('');
+
+  function onSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    create.mutate(
+      { name },
+      {
+        onSuccess: () => {
+          setName('');
+        },
+      },
+    );
+  }
+
+  // No `noValidate`: `required` below is this form's only validation, and suppressing the
+  // browser's check makes it decorative.
+  return (
+    <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
+      <Field
+        label={strings.setup.floor.areaName}
+        placeholder={strings.setup.floor.areaNamePlaceholder}
+        value={name}
+        onChange={(event) => {
+          setName(event.target.value);
+        }}
+        required
+      />
+      <Button type="submit" disabled={create.isPending || name.trim() === ''}>
+        {create.isPending ? strings.setup.floor.creating : strings.setup.floor.addArea}
+      </Button>
+      {create.isError && (
+        <div className="w-full">
+          <Notice tone="critical" {...errorProps(create.error)} />
+        </div>
+      )}
+    </form>
+  );
+}
+
+function TablesSection({
+  areaId,
+  areas,
+  includeInactive,
+}: {
+  areaId: string;
+  areas: DiningArea[];
+  includeInactive: boolean;
+}): ReactElement {
+  const tables = useTables(areaId, includeInactive);
+  const items = tables.data?.items ?? [];
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-lg font-semibold">{strings.setup.floor.tablesTitle}</h2>
+      <QueryState
+        isPending={tables.isPending}
+        error={tables.error}
+        pendingLabel={strings.setup.floor.tablesTitle}
+      >
+        {items.length === 0 ? (
+          <p className="text-muted-foreground">{strings.setup.floor.tablesEmpty}</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{strings.setup.floor.tableCode}</TableHead>
+                {/* Numbers right-aligned and tabular, so a column of them can be read down. */}
+                <TableHead className="text-right">{strings.setup.floor.seats}</TableHead>
+                <TableHead>{strings.setup.floor.status}</TableHead>
+                <TableHead>{strings.setup.floor.inArea}</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((table) => (
+                <TableRowEditor key={table.id} table={table} areas={areas} />
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </QueryState>
+      <AddTable areaId={areaId} />
+    </section>
+  );
+}
+
+function TableRowEditor({
+  table,
+  areas,
+}: {
+  table: RestaurantTable;
+  areas: DiningArea[];
+}): ReactElement {
+  const update = useUpdateTable();
+  const setStatus = useSetTableStatus();
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{table.code}</TableCell>
+      <TableCell className="text-right font-mono">{table.seats}</TableCell>
+      <TableCell>
+        <Select
+          value={table.status}
+          onValueChange={(status) => {
+            setStatus.mutate({ id: table.id, status: status as RestaurantTable['status'] });
+          }}
+        >
+          <SelectTrigger aria-label={`${strings.setup.floor.status}: ${table.code}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TABLE_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                {status.replace(/_/g, ' ')}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {setStatus.isError && <Notice tone="critical" {...errorProps(setStatus.error)} />}
+      </TableCell>
+      <TableCell>
+        <Select
+          value={table.dining_area_id}
+          onValueChange={(dining_area_id) => {
+            update.mutate({ id: table.id, changes: { dining_area_id } });
+          }}
+        >
+          <SelectTrigger aria-label={`${strings.setup.floor.inArea}: ${table.code}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {areas.map((area) => (
+              <SelectItem key={area.id} value={area.id}>
+                {area.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {update.isError && <Notice tone="critical" {...errorProps(update.error)} />}
+      </TableCell>
+      <TableCell>
+        {/* A table is never deleted (ADR 0008); deactivating it is what lets its area be
+            deactivated too (defect sheet row 7). */}
+        <Button
+          variant="ghost"
+          disabled={update.isPending}
+          aria-label={strings.setup.floor.tableAction(
+            table.is_active ? strings.setup.floor.deactivate : strings.setup.floor.reactivate,
+            table.code,
+          )}
+          onClick={() => {
+            update.mutate({ id: table.id, changes: { is_active: !table.is_active } });
+          }}
+        >
+          {table.is_active ? strings.setup.floor.deactivate : strings.setup.floor.reactivate}
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function AddTable({ areaId }: { areaId: string }): ReactElement {
+  const create = useCreateTable();
+  const [code, setCode] = useState('');
+  const [seats, setSeats] = useState('4');
+
+  function onSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    // Parsed, not trusted. `Number("")` is 0 and `Number("x")` is NaN, which `JSON.stringify`
+    // turns into `null` — so an empty seats box used to post a table with 0 or null seats.
+    const parsed = Number(seats);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
+      return;
+    }
+    create.mutate(
+      { dining_area_id: areaId, code, seats: parsed },
+      {
+        onSuccess: () => {
+          setCode('');
+        },
+      },
+    );
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
+      <Field
+        label={strings.setup.floor.tableCode}
+        placeholder={strings.setup.floor.tableCodePlaceholder}
+        value={code}
+        onChange={(event) => {
+          setCode(event.target.value);
+        }}
+        required
+      />
+      <Field
+        label={strings.setup.floor.seats}
+        type="number"
+        min={1}
+        max={100}
+        value={seats}
+        onChange={(event) => {
+          setSeats(event.target.value);
+        }}
+        required
+      />
+      <Button type="submit" disabled={create.isPending || code.trim() === ''}>
+        {create.isPending ? strings.setup.floor.creating : strings.setup.floor.addTable}
+      </Button>
+      {create.isError && (
+        <div className="w-full">
+          <Notice tone="critical" {...errorProps(create.error)} />
+        </div>
+      )}
+    </form>
+  );
+}

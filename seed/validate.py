@@ -102,6 +102,16 @@ for emp in org["employees"]:
         errors.append("employee %s -> unknown role %s" % (emp["code"], emp["role"]))
     if emp["restaurant"] not in rest_codes:
         errors.append("employee %s -> unknown restaurant %s" % (emp["code"], emp["restaurant"]))
+    # A second posting at another branch (M02, finding S12). Validated like the first: an unknown
+    # code here would otherwise surface as a seeding crash rather than as a dataset error.
+    also = emp.get("also_at")
+    if also is not None:
+        if also["restaurant"] not in rest_codes:
+            errors.append("employee %s -> also_at unknown restaurant %s" % (emp["code"], also["restaurant"]))
+        if also["role"] not in role_codes:
+            errors.append("employee %s -> also_at unknown role %s" % (emp["code"], also["role"]))
+        if also["restaurant"] == emp["restaurant"]:
+            errors.append("employee %s -> also_at repeats their own restaurant" % emp["code"])
 
 if len(org["organizations"]) < 2:
     errors.append("need >=2 organizations: tenant-isolation tests require a second tenant to fail against")

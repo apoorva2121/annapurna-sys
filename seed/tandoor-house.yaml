@@ -1,0 +1,211 @@
+# Tandoor House — Baner. The second tenant, and until now a tenant with nothing in it.
+#
+# `organization.yaml` said of it: "Second tenant. Minimal on purpose - it exists to be denied
+# access to the first." That was the right call while only isolation needed proving. It is the
+# wrong call now, for two reasons:
+#
+#   1. An empty tenant is a WEAKER isolation test, not a stronger one. A cross-tenant read that
+#      returns nothing proves nothing — the query could be broken and look identical. Leaks are
+#      visible only when there is something to leak.
+#   2. Every screen in this product is a function of menu, recipe and price. With one populated
+#      restaurant there is no way to see whether a dashboard reflects the tenant you are in or the
+#      last one seeded.
+#
+# WHAT MAKES IT DIFFERENT — a copy with different names would test nothing. Tandoor House is
+# deliberately the opposite shape to Spice Garden on every axis the product measures:
+#
+#   |                  | Spice Garden          | Tandoor House            |
+#   |------------------|-----------------------|--------------------------|
+#   | menu size        | 32 dishes             | 49 dishes, narrower mix  |
+#   | cuisine          | multi (incl. Chinese) | North Indian only        |
+#   | stations         | tandoor/main/chinese  | tandoor/main/cold        |
+#   | price point      | 380 for PBM           | 320 for PBM (~15% below) |
+#   | covers           | 48 seats, dine-in     | 32 seats, takeaway-heavy |
+#   | theoretical cost | ~25.6%                | ~30%+, thinner margins   |
+#   | plan             | active                | trial                    |
+#
+# That last row is the point. Tandoor House should show a VISIBLY worse food cost than Spice
+# Garden, because it charges less for the same recipes. A demo where both restaurants look the
+# same teaches nobody anything; a demo where one is clearly leaking margin is the product working.
+#
+# COMPOSED FROM `library/`, NOT HAND-WRITTEN. Every `menu[].ref` is a dish code in
+# `library/dishes.yaml`, and the recipe comes from there. This is deliberate: it is the same path
+# `docs/onboarding-cold-start.md` describes for a real restaurant ("match the printed menu against
+# the library, chef corrects"), so seeding this tenant exercises the cold-start mechanism instead
+# of bypassing it. It also means the recipes carry their library confidence tier, and most of them
+# are `estimated` — which is exactly what a freshly-onboarded restaurant looks like.
+#
+# COST SOURCE. Every stock item here is seeded `cost_source: market_rate` (migration 0014) —
+# bootstrapped from `library/market-rates.yaml`, confirmed by nobody. Spice Garden's are
+# `purchase`, because in the fiction it has been trading for years. The two tenants therefore
+# demonstrate the two ends of the price-confidence story.
+#
+# ---------------------------------------------------------------------------------------------
+# STATUS — this file is DATA, and nothing loads it yet.
+#
+# `seed/validate.py` checks it (every `ref` resolves to a library dish, every variant exists on
+# that dish, stations and tax codes are real), so it cannot rot silently. But `backend/app/seed/`
+# does not read it: `menu.py` and `setup.py` hold `_MENU_FILE` / `_FOR_RESTAURANT` as module
+# constants pinned to Spice Garden, and there is no path yet that composes a restaurant's recipes
+# from `library/` rather than from a hand-written `menu.yaml`.
+#
+# Wiring it is one unit of work with three parts, and they should land together:
+#   1. parameterise the three seeders over a list of restaurants instead of one constant
+#   2. a library-composition path: resolve `ref` + `variant` into recipe / recipe_line rows,
+#      carrying the library `confidence` tier through to the row
+#   3. Tandoor House's staff — it has two employees (TH001, TH002) and needs a chef, kitchen
+#      hands and waiters. Deliberately NOT added yet: "19 employees" is asserted in
+#      docs/seed-data.md, docs/manual-tests/M01-identity.md, docs/plan/m01-build-log.md,
+#      backend/app/seed/__main__.py and two tests, so the roster and the loader that needs it
+#      should change in one commit rather than leaving the tree half-consistent.
+# ---------------------------------------------------------------------------------------------
+
+meta:
+  restaurant: TH_BANER
+  currency: INR
+  gst_default: 5
+  price_effective: 2026-09-01
+  recipe_source: library          # dish recipes resolve against library/dishes.yaml
+  cost_source: market_rate        # see migration 0014
+  city: PUNE                      # for library/city-index.yaml — multiplier 1.00
+
+# ---------------------------------------------------------------- floor
+# Half Spice Garden's seats and no terrace. A value tandoor joint turns tables fast and sends a
+# large share out of the door — the takeaway counter is a "dining area" with no tables against it,
+# which is the honest way to model orders that never occupy a seat.
+dining_areas:
+  - {code: MAIN_HALL, name: Main Hall, seq: 1}
+  - {code: TAKEAWAY,  name: Takeaway Counter, seq: 2}
+
+restaurant_tables:
+  - {code: A1, area: MAIN_HALL, seats: 2}
+  - {code: A2, area: MAIN_HALL, seats: 2}
+  - {code: A3, area: MAIN_HALL, seats: 4}
+  - {code: A4, area: MAIN_HALL, seats: 4}
+  - {code: A5, area: MAIN_HALL, seats: 4}
+  - {code: A6, area: MAIN_HALL, seats: 4}
+  - {code: A7, area: MAIN_HALL, seats: 6}
+  - {code: A8, area: MAIN_HALL, seats: 6}
+  # 8 tables, 32 seats. Takeaway carries no tables by design.
+
+# ---------------------------------------------------------------- stations
+# Three, like Spice Garden — but `cold` where Spice Garden has `chinese`, which is the real
+# difference. A station nobody cooks at is a lie M08's kitchen display would happily render, so
+# `cold` is here because salads, raita, sirka pyaz and kulfi have to be made somewhere; the first
+# draft of this file omitted it and `validate_tandoor_house.py` caught four orphaned dishes.
+stations:
+  - {code: tandoor,      name: Tandoor,      seq: 1}
+  - {code: main_kitchen, name: Main Kitchen, seq: 2}
+  - {code: cold,         name: Cold Section, seq: 3}
+
+# ---------------------------------------------------------------- tax
+# Same rates as Spice Garden — GST is national, and a per-restaurant difference here would be a
+# bug, not a feature. Effective-dated, never edited in place.
+tax_groups:
+  - {code: GST5,  name: "GST 5% (restaurant, no ITC)", rate: 0.0500, is_inclusive: false, effective_from: 2025-04-01}
+  - {code: GST18, name: "GST 18% (packaged/beverage)", rate: 0.1800, is_inclusive: false, effective_from: 2025-04-01}
+
+# ---------------------------------------------------------------- shifts
+shifts:
+  - {code: MORNING, name: Morning, start: "11:00", end: "16:00"}
+  - {code: EVENING, name: Evening, start: "18:00", end: "23:30"}
+
+# ---------------------------------------------------------------- menu
+# `ref` is a library dish code; `variant` is the variant within it. Price is per-restaurant and
+# excludes GST. `popularity` is a relative demand weight for the order generator — the tandoor
+# items and the breads carry it, which is what makes this a tandoor house rather than a curry
+# house with a tandoor in the corner.
+#
+# Prices sit ~15% under Spice Garden's for comparable dishes. Since the recipes are identical
+# library recipes, that difference lands directly on food cost %, which is the intended signal.
+
+menu:
+
+  # ==== Veg Starters (6) ====
+  - {ref: PANEER_TIKKA,          variant: FULL, price: 270, gst: 5, popularity: 58}
+  - {ref: TANDOORI_ALOO,         variant: FULL, price: 190, gst: 5, popularity: 31}
+  - {ref: HARA_BHARA_KABAB,      variant: FULL, price: 210, gst: 5, popularity: 27}
+  - {ref: VEG_SEEKH_KABAB,       variant: FULL, price: 220, gst: 5, popularity: 24}
+  - {ref: TANDOORI_SOYA_CHAAP,   variant: FULL, price: 230, gst: 5, popularity: 44}
+  - {ref: ONION_PAKODA,          variant: FULL, price: 130, gst: 5, popularity: 37}
+
+  # ==== Non-Veg Starters (8) — the section this restaurant is named for ====
+  #
+  # PLANTED SIGNAL — Tandoori Chicken is this restaurant's single most popular dish AND its worst
+  # margin: 420 against 248.73 of ingredients is 59.2% food cost, where the menu as a whole runs
+  # 30.5%. The half plate is no better at 54.7%.
+  #
+  # This is the day-1 finding the product exists to deliver. `docs/onboarding-cold-start.md` says
+  # the first meeting opens with "here are the dishes on your menu that lose money on every plate",
+  # and it has to be true of data a real owner would recognise. A value tandoor joint anchoring its
+  # whole menu on a signature bird it underprices is the most ordinary version of that mistake
+  # there is — nobody costs the thing they are famous for.
+  #
+  # It is also honest: the 248.73 is computed from researched market rates, not chosen. Chicken at
+  # 0.278/g and the tandoori marinade are what they are; the price is what makes it bleed. Anyone
+  # re-pricing this dish upward should know they are deleting the demo's sharpest moment.
+  - {ref: TANDOORI_CHICKEN,      variant: FULL, price: 420, gst: 5, popularity: 96}
+  - {ref: TANDOORI_CHICKEN,      variant: HALF, price: 230, gst: 5, popularity: 96}
+  - {ref: CHICKEN_TIKKA,         variant: FULL, price: 360, gst: 5, popularity: 88}
+  - {ref: CHICKEN_MALAI_TIKKA,   variant: FULL, price: 380, gst: 5, popularity: 61}
+  - {ref: CHICKEN_SEEKH_KABAB,   variant: FULL, price: 340, gst: 5, popularity: 57}
+  - {ref: TANGDI_KABAB,          variant: FULL, price: 350, gst: 5, popularity: 49}
+  # Not CHICKEN_65 — that cooks at `chinese` in the library, and this restaurant has no Chinese
+  # section. An achari tikka is the tandoor-side dish a place like this would actually run.
+  - {ref: CHICKEN_ACHARI_TIKKA,  variant: FULL, price: 350, gst: 5, popularity: 46}
+  - {ref: MUTTON_SEEKH_KABAB,    variant: FULL, price: 420, gst: 5, popularity: 22}
+
+  # ==== Veg Main Course (10) ====
+  - {ref: PANEER_BUTTER_MASALA,  variant: FULL, price: 320, gst: 5, popularity: 84}
+  - {ref: DAL_MAKHANI,           variant: FULL, price: 270, gst: 5, popularity: 76}
+  - {ref: DAL_TADKA,             variant: FULL, price: 190, gst: 5, popularity: 62}
+  - {ref: KADAI_PANEER,          variant: FULL, price: 310, gst: 5, popularity: 51}
+  - {ref: PALAK_PANEER,          variant: FULL, price: 290, gst: 5, popularity: 43}
+  - {ref: MATAR_PANEER,          variant: FULL, price: 280, gst: 5, popularity: 34}
+  - {ref: CHANA_MASALA,          variant: FULL, price: 220, gst: 5, popularity: 29}
+  - {ref: MIX_VEG,               variant: FULL, price: 240, gst: 5, popularity: 26}
+  - {ref: ALOO_GOBI,             variant: FULL, price: 210, gst: 5, popularity: 23}
+  - {ref: BHINDI_MASALA,         variant: FULL, price: 230, gst: 5, popularity: 19}
+
+  # ==== Non-Veg Main Course (9) ====
+  - {ref: BUTTER_CHICKEN,        variant: FULL, price: 400, gst: 5, popularity: 100}
+  - {ref: BUTTER_CHICKEN,        variant: HALF, price: 270, gst: 5, popularity: 100}
+  - {ref: KADAI_CHICKEN,         variant: FULL, price: 370, gst: 5, popularity: 64}
+  - {ref: CHICKEN_CURRY,         variant: FULL, price: 330, gst: 5, popularity: 58}
+  - {ref: CHICKEN_TIKKA_MASALA,  variant: FULL, price: 390, gst: 5, popularity: 54}
+  - {ref: CHICKEN_BHUNA,         variant: FULL, price: 360, gst: 5, popularity: 33}
+  - {ref: MUTTON_CURRY,          variant: FULL, price: 520, gst: 5, popularity: 28}
+  - {ref: KEEMA_MATAR,           variant: FULL, price: 420, gst: 5, popularity: 21}
+  - {ref: EGG_CURRY,             variant: FULL, price: 230, gst: 5, popularity: 25}
+
+  # ==== Rice & Breads (10) — high popularity, thin absolute margin, huge volume ====
+  - {ref: TANDOORI_ROTI,         variant: PIECE, price: 30,  gst: 5, popularity: 100}
+  - {ref: BUTTER_ROTI,           variant: PIECE, price: 35,  gst: 5, popularity: 88}
+  - {ref: BUTTER_NAAN,           variant: PIECE, price: 55,  gst: 5, popularity: 94}
+  - {ref: GARLIC_NAAN,           variant: PIECE, price: 65,  gst: 5, popularity: 71}
+  - {ref: PLAIN_NAAN,            variant: PIECE, price: 45,  gst: 5, popularity: 52}
+  - {ref: LACHHA_PARATHA,        variant: PIECE, price: 60,  gst: 5, popularity: 41}
+  - {ref: JEERA_RICE,            variant: FULL,  price: 160, gst: 5, popularity: 47}
+  - {ref: STEAMED_RICE,          variant: FULL,  price: 120, gst: 5, popularity: 39}
+  - {ref: CHICKEN_BIRYANI,       variant: FULL,  price: 360, gst: 5, popularity: 85}
+  - {ref: VEG_PULAO,             variant: FULL,  price: 210, gst: 5, popularity: 24}
+
+  # ==== Accompaniments (4) ====
+  - {ref: GREEN_SALAD,           variant: FULL,  price: 90,  gst: 5, popularity: 43}
+  - {ref: BOONDI_RAITA,          variant: FULL,  price: 90,  gst: 5, popularity: 51}
+  - {ref: ROASTED_PAPAD,         variant: PIECE, price: 30,  gst: 5, popularity: 36}
+  - {ref: SIRKA_PYAZ,            variant: FULL,  price: 40,  gst: 5, popularity: 28}
+
+  # ==== Desserts (2) — a tandoor joint does not run a dessert kitchen ====
+  - {ref: GULAB_JAMUN,           variant: FULL,  price: 90,  gst: 5, popularity: 34}
+  - {ref: MALAI_KULFI,           variant: FULL,  price: 80,  gst: 5, popularity: 22}
+
+# ---------------------------------------------------------------- wastage reasons
+# Same catalogue as Spice Garden. These are domain constants, not a per-restaurant choice.
+wastage_reasons:
+  - {code: SPOILAGE,     name: Spoilage}
+  - {code: OVERPREP,     name: Over-preparation}
+  - {code: BURNT,        name: Burnt / cooking error}
+  - {code: CUSTOMER_RET, name: Customer return}
+  - {code: SPILLAGE,     name: Spillage}
+  - {code: EXPIRY,       name: Past shelf life}

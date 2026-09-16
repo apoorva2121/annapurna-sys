@@ -1,0 +1,132 @@
+[project]
+name = "restaurant-os-backend"
+version = "0.1.0"
+description = "Restaurant Management & Intelligence Platform — backend"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "sentry-sdk[fastapi]>=2.19",
+    # argon2id is the M01 spec's requirement and OWASP's current recommendation for password
+    # storage. The reference implementation, rather than a hand-rolled KDF.
+    "argon2-cffi>=23.1",
+    "pyjwt>=2.10",
+    # `make seed` reads seed/*.yaml, which is the authoritative P1 dataset (docs/seed-data.md).
+    # It was previously needed only by seed/validate.py, which CI installs separately; as of M01
+    # the application itself loads it, so it is a real dependency rather than a CI extra.
+    "pyyaml>=6.0",
+    # The IANA timezone database, as a dependency rather than something the host happens to have.
+    #
+    # `zoneinfo` reads the operating system's copy and falls back to this package when there is
+    # none. Debian slim ships one; Windows has no equivalent at all, so without this the business
+    # day calculation — which decides what day every order's takings belong to — is correct or
+    # raises `ZoneInfo("Asia/Kolkata")` depending on whose machine it runs on.
+    #
+    # Paired with `ENV PYTHONTZPATH=""` in the Dockerfile, which clears the system search path so
+    # the container reads this copy too. Only the two together make the tz database version a
+    # locked, identical input everywhere; this line alone would leave Debian and Windows free to
+    # disagree about a rule. See tests/test_business_day.py::TestTheDatabaseItself.
+    "tzdata>=2024.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "pytest-cov>=6.0",
+    "httpx>=0.28",
+    "testcontainers[postgres]>=4.9",
+    "mypy>=1.14",
+    # Pinned exactly, not floored. ruff's rule set changes between minor versions, so a floor means
+    # `make lint` and the pre-commit hook can disagree about whether the same file is clean — and
+    # the one that runs on the developer's machine is not the one that gates CI. The pin must equal
+    # the `rev` in .pre-commit-config.yaml; `tests/test_toolchain_pins.py` fails when they drift.
+    "ruff==0.16.6",
+    "pip-audit>=2.7",
+    "types-PyYAML>=6.0",
+    # Property-based testing, committed to by docs/testing-strategy.md for money and units. Its
+    # first use is the business-day boundary, which is the same class of problem: the failure mode
+    # is a wrong answer that looks entirely normal, and three hand-picked examples cannot rule out
+    # the family of inputs that breaks it.
+    "hypothesis>=6.100",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+# Rulesets fixed by docs/engineering-standards.md §7. S = bandit security rules.
+# DTZ (backlog-issues B10): a datetime without a timezone is caught at lint, not at runtime.
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "ARG", "PTH", "RUF", "S", "DTZ"]
+
+[tool.ruff.lint.isort]
+# Without this, `app` sorts as a third-party package.
+known-first-party = ["app", "tests"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+# assert is the mechanism of a test, not a security finding
+"tests/**" = ["S101"]
+# alembic's generated scaffolding owns its own style
+"alembic/versions/**" = ["E501"]
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+warn_unused_ignores = true
+disallow_any_generics = true
+show_error_codes = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["testcontainers.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------- coverage
+[tool.coverage.report]
+# **This line is what makes --cov-fail-under actually fail.** Without it, pytest-cov compares
+# `round(total, precision) < fail_under` with precision 0 while *printing* the verdict from the
+# unrounded `total < fail_under` — so anything in (94.5, 95.0) prints
+# "FAIL Required test coverage of 95% not reached" and exits 0. The gate said `make check: clean`
+# at 94.83% on 2026-09-13, which is how this was found; both obvious causes (pytest not failing,
+# make not propagating) had already been ruled out by measurement. Two decimals makes the
+# comparison and the message agree, and makes the TOTAL row show the number the verdict used.
+precision = 2
+
+[tool.coverage.run]
+# Without this, code executed inside the ASGI application is not traced: httpx's ASGI transport
+# runs handlers under anyio, and SQLAlchemy's async layer runs under greenlet, neither of which
+# coverage follows by default. The symptom is an endpoint test that passes while the service it
+# exercises reports 0% — which quietly pushes people to write service-level tests instead of the
+# endpoint tests the Definition of Done actually asks for.
+concurrency = ["thread", "greenlet"]
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+# Coverage is part of the gate, not a report nobody reads. The floor rises as modules land; the
+# Definition of Done requires 100% on money, stock and permission paths once they exist.
+addopts = "--cov=app --cov-report=term-missing --cov-fail-under=95"
+# Zero warnings is a gate, not an aspiration (docs/engineering-standards.md §7).
+filterwarnings = ["error"]

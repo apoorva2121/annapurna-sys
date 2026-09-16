@@ -177,6 +177,56 @@ data, so a manager can coach on service quality without seeing compensation.
 
 ---
 
+## Open design questions — answer in the M17 spec before building
+
+Raised in an ethics review on 2026-09-13. The principles above hold; these are the places a real
+restaurant, where the owner holds far more power than a waiter, could still turn the feature against
+the people it measures. Each needs a written answer in the M17 spec, even when the answer is "no".
+
+1. **An employee cannot dispute a score.** Visibility (§5) lets them see it; nothing lets them
+   challenge it. The manager can annotate a period (§7), the employee cannot. Proposed: an
+   employee-raised correction request that must be answered — accepted or declined with a reason —
+   before the period can be published.
+
+2. **Punitive use is not ruled out.** "No automatic payouts" stops the system *rewarding* on its own;
+   nothing stops a score being used to cut pay or dismiss. Software cannot fully prevent that, but it
+   can decline to build it and say so. Proposed: no deduction, penalty or warning feature consumes
+   these scores, and the stated purpose shown to staff is *rewards and fairer rosters*.
+
+3. **"Top contributors" leaks the bottom in a small team.** With three waiters, naming the top two
+   names the third, which defeats §6. Proposed: below a minimum group size, only the team score is
+   shown to the team. The size is a decision for the spec.
+
+4. **Attendance can score protected reasons.** Attendance and punctuality carry weight. Approved
+   leave, sickness, maternity, religious observance, and shifts a person is not rostered for (for
+   example, late nights) must be excluded from the denominator, or the score quietly disadvantages
+   particular groups. Proposed: a unit-tested exclusion list, like the volume-weight rule.
+
+5. **Attribution is the weakest link.** "Every metric already exists in the schema" is true of the
+   columns, not of their accuracy. A shared login, a captain entering orders for others, or a
+   complaint or waste entry recorded against the wrong person makes the score unfair however good
+   the formula is. Proposed: the spec states, per scored metric, how the actor is recorded and what
+   happens when it is known to be wrong.
+
+6. **Visible is not the same as understandable.** A points breakdown in English does not satisfy §5
+   for someone who reads Hindi or Marathi. Proposed: the employee's own view is in their language and
+   in plain sentences, not formulas.
+
+7. **The legal basis is unverified.** §Privacy calls this personal data under DPDP 2023, but
+   `docs/compliance-rules.md` §B2 records DPDP only for customer data (M10). Whether processing
+   employee performance data needs consent, or falls under a use that does not, is **unverified** —
+   research it at M17 start and cite the instrument; do not fill it from memory (CLAUDE.md standing
+   rule 1; `docs/compliance-rules.md` §Why this file exists). §B2 records the core obligations as commencing
+   **13 May 2027**, so this is *notified but not in force* today — but consent cannot be retrofitted.
+   Retention is also unset: how long a frozen score is kept, including after the employee leaves.
+
+8. **There is no stop rule.** §"How we will know it worked" says to change the weights if assists or
+   accuracy fall. It does not say when to switch scoring off entirely. Proposed: a stated condition —
+   for example, retention worsening over two consecutive periods after launch — at which the owner
+   is prompted to suspend points and keep only the workload-distribution view.
+
+---
+
 ## How we will know it worked
 
 Not by whether scores go up — scores going up is exactly what gaming looks like. Instead:

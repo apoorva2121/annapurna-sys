@@ -34,6 +34,20 @@ restaurants:
     address: {line1: "Lane 5, Koregaon Park", city: Pune, state: Maharashtra, pincode: "411001"}
     fssai_licence: "11522998000123"
 
+  # A second branch of Spice Garden, and the only reason it exists: without two restaurants in one
+  # organization, `POST /auth/switch` (finding S12) cannot be exercised by hand at all — the
+  # switcher renders nothing for someone who works at one place. A feature nobody can see is a
+  # feature nobody can check.
+  - code: SG_BANER
+    organization: SPICEGARDEN
+    name: Spice Garden - Baner
+    timezone: Asia/Kolkata
+    currency: INR
+    business_day_start: "05:00"
+    gstin: 27AABCS1429B1ZX
+    address: {line1: "Baner Road", city: Pune, state: Maharashtra, pincode: "411045"}
+    fssai_licence: "11522998000789"
+
   - code: TH_BANER
     organization: TANDOORHOUSE
     name: Tandoor House - Baner
@@ -54,6 +68,16 @@ permissions:
   - {code: order.settle,            resource: order,       action: settle}
   - {code: order.void,              resource: order,       action: void}
   - {code: order.discount,          resource: order,       action: discount}
+  # till - AMENDED by docs/modules/M07-orders-spec.md. The P1 design had no cash permission, and
+  # a waiter holding order.settle takes cash but must not close the till it went into.
+  - {code: cash.manage,             resource: cash,        action: manage}
+  # floor - ADDED by the backlog-issues run (B2, 2026-09-13). Busy mode: a settled table is free
+  # at once instead of being cleared first. It changes every table, so it is not a waiter's switch.
+  - {code: floor.manage,            resource: floor,       action: manage}
+  # orders - ADDED 2026-09-14 (waiter assignment). Who serves a table: chosen when someone else
+  # opens the order, and moved from one waiter to another with a reason. A waiter claims only an
+  # order nobody is serving - taking a busy table would take its credit (ADR 0011).
+  - {code: order.assign,            resource: order,       action: assign}
   # kitchen
   - {code: kot.view,                resource: kot,         action: view}
   - {code: kot.update,              resource: kot,         action: update}
@@ -77,8 +101,17 @@ permissions:
   - {code: supplier.manage,         resource: supplier,    action: manage}
   - {code: purchase.manage,         resource: purchase,    action: manage}
   # people
+  # M01 split `employee.manage` into the five below. A single `manage` could not express the
+  # seniority ladder — a manager may create staff and reset a junior's password but must never
+  # assign a role above their own — and the ladder is what stops self-promotion. `employee.manage`
+  # is kept for the later modules whose roles still reference it.
   - {code: employee.view,           resource: employee,    action: view}
   - {code: employee.manage,         resource: employee,    action: manage}
+  - {code: employee.create,         resource: employee,    action: create}
+  - {code: employee.edit,           resource: employee,    action: edit}
+  - {code: employee.deactivate,     resource: employee,    action: deactivate}
+  - {code: employee.role.assign,    resource: employee.role,    action: assign}
+  - {code: employee.password.reset, resource: employee.password, action: reset}
   - {code: employee.wage.view,      resource: employee,    action: wage_view}   # separately gated
   - {code: shift.view,              resource: shift,       action: view}
   - {code: shift.manage,            resource: shift,       action: manage}
@@ -104,6 +137,7 @@ permissions:
   - {code: recognition.award,       resource: recognition, action: award}
   # admin
   - {code: restaurant.configure,    resource: restaurant,  action: configure}
+  - {code: role.view,               resource: role,        action: view}     # read the catalogue
   - {code: role.manage,             resource: role,        action: manage}
 
 # ---------------------------------------------------------------- roles
@@ -132,6 +166,9 @@ roles:
     is_system: true
     permissions:
       - order.view, order.create, order.modify, order.settle, order.void, order.discount
+      - cash.manage                    # M07 amendment
+      - floor.manage                   # busy mode on the floor (backlog-issues B2)
+      - order.assign                   # who serves a table (waiter assignment, 2026-09-14)
       - kot.view, kot.update
       - menu.view, menu.manage
       - recipe.view, cost.view
@@ -176,6 +213,7 @@ roles:
       - message.send, task.view, task.complete
       - performance.view.own
     # NOT granted: order.void, order.discount, cost.view - the classic leakage vectors.
+    # Nor cash.manage (M07): a waiter takes cash and never closes the till it went into.
 
   - code: store_manager
     name: Inventory / Store Manager
@@ -211,7 +249,9 @@ roles:
 employees:
   - {code: EMP001, name: Rajesh Mehta,    role: owner,         restaurant: SG_KOREGAON, login: owner@spicegarden.test,     phone: "9820011001", joined: 2019-04-01, type: full_time}
   - {code: EMP002, name: Priya Nair,      role: admin,         restaurant: SG_KOREGAON, login: admin@spicegarden.test,     phone: "9820011002", joined: 2021-06-15, type: full_time}
-  - {code: EMP003, name: Vikram Deshmukh, role: manager,       restaurant: SG_KOREGAON, login: manager@spicegarden.test,   phone: "9820011003", joined: 2020-01-10, type: full_time}
+  # Also a waiter at Baner. Junior there on purpose: switching branch must change what he can do,
+  # and a fixture where he held the same role at both would hide it (G-17, and defect P1-2).
+  - {code: EMP003, name: Vikram Deshmukh, role: manager,       restaurant: SG_KOREGAON, login: manager@spicegarden.test,   phone: "9820011003", joined: 2020-01-10, type: full_time, also_at: {restaurant: SG_BANER, role: waiter}}
   - {code: EMP004, name: Arun Kulkarni,   role: chef,          restaurant: SG_KOREGAON, login: chef@spicegarden.test,      phone: "9820011004", joined: 2019-08-20, type: full_time}
   - {code: EMP005, name: Imran Shaikh,    role: kitchen_staff, restaurant: SG_KOREGAON, login: kitchen1@spicegarden.test,  phone: "9820011005", joined: 2022-02-01, type: full_time}
   - {code: EMP006, name: Santosh Pawar,   role: kitchen_staff, restaurant: SG_KOREGAON, login: null,                       phone: "9820011006", joined: 2022-07-11, type: full_time}

@@ -1,0 +1,110 @@
+{
+  "_readme": "Business-day cases both implementations must agree on (ADR 0004, backlog-issues B10). Read by backend/tests/test_business_day_vectors.py and frontend/src/shared/businessDay.vectors.test.ts. instant is UTC; day_starts_at is the restaurant's local HH:MM; business_date is the answer.",
+  "cases": [
+    {
+      "name": "01:30 IST is still the previous day",
+      "instant": "2026-03-09T20:00:00Z",
+      "timezone": "Asia/Kolkata",
+      "day_starts_at": "05:00",
+      "business_date": "2026-03-09"
+    },
+    {
+      "name": "05:01 IST is the new day",
+      "instant": "2026-03-09T23:31:00Z",
+      "timezone": "Asia/Kolkata",
+      "day_starts_at": "05:00",
+      "business_date": "2026-03-10"
+    },
+    {
+      "name": "exactly 05:00 IST is the new day",
+      "instant": "2026-03-09T23:30:00Z",
+      "timezone": "Asia/Kolkata",
+      "day_starts_at": "05:00",
+      "business_date": "2026-03-10"
+    },
+    {
+      "name": "midday is uninteresting",
+      "instant": "2026-03-10T07:00:00Z",
+      "timezone": "Asia/Kolkata",
+      "day_starts_at": "05:00",
+      "business_date": "2026-03-10"
+    },
+    {
+      "name": "a midnight start is the local date",
+      "instant": "2026-03-09T20:00:00Z",
+      "timezone": "Asia/Kolkata",
+      "day_starts_at": "00:00",
+      "business_date": "2026-03-10"
+    },
+    {
+      "name": "not the UTC date",
+      "instant": "2026-03-10T23:45:00Z",
+      "timezone": "Asia/Kolkata",
+      "day_starts_at": "05:00",
+      "business_date": "2026-03-11"
+    },
+    {
+      "name": "not the local calendar date",
+      "instant": "2026-03-10T19:00:00Z",
+      "timezone": "Asia/Kolkata",
+      "day_starts_at": "05:00",
+      "business_date": "2026-03-10"
+    },
+    {
+      "name": "00:15 IST with a midnight start",
+      "instant": "2026-03-10T18:45:00Z",
+      "timezone": "Asia/Kolkata",
+      "day_starts_at": "00:00",
+      "business_date": "2026-03-11"
+    },
+    {
+      "name": "the night UK clocks go forward",
+      "instant": "2026-03-29T00:30:00Z",
+      "timezone": "Europe/London",
+      "day_starts_at": "05:00",
+      "business_date": "2026-03-28"
+    },
+    {
+      "name": "the new offset after the clocks go forward",
+      "instant": "2026-03-29T05:00:00Z",
+      "timezone": "Europe/London",
+      "day_starts_at": "05:00",
+      "business_date": "2026-03-29"
+    },
+    {
+      "name": "the first repeated autumn hour",
+      "instant": "2026-10-25T00:30:00Z",
+      "timezone": "Europe/London",
+      "day_starts_at": "05:00",
+      "business_date": "2026-10-24"
+    },
+    {
+      "name": "the second repeated autumn hour",
+      "instant": "2026-10-25T01:30:00Z",
+      "timezone": "Europe/London",
+      "day_starts_at": "05:00",
+      "business_date": "2026-10-24"
+    },
+    {
+      "name": "rolls back into the previous month",
+      "instant": "2026-02-28T20:00:00Z",
+      "timezone": "Asia/Kolkata",
+      "day_starts_at": "05:00",
+      "business_date": "2026-02-28"
+    },
+    {
+      "name": "rolls back into the previous year",
+      "instant": "2025-12-31T20:30:00Z",
+      "timezone": "Asia/Kolkata",
+      "day_starts_at": "05:00",
+      "business_date": "2025-12-31"
+    },
+    {
+      "name": "rolls back across a leap day",
+      "instant": "2024-02-29T19:30:00Z",
+      "timezone": "Asia/Kolkata",
+      "day_starts_at": "05:00",
+      "business_date": "2024-02-29"
+    }
+  ]
+}

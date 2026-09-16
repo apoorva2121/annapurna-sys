@@ -23,10 +23,10 @@ tenants is the worst bug this product can have.
 | Monthly revenue | ~₹15.5 lakh |
 | Staff | 17 at Spice Garden: owner, admin, manager, chef, 4 kitchen, 5 waiters, store, 2 cleaners, accountant. **4 have no login** — an employee without a user account must work (ADR 0007). |
 | Menu | 32 items / 36 variants, 6 categories |
-| Ingredients | 61 |
-| Preparations | 11 base gravies and preps |
+| Ingredients | 62 |
+| Preparations | 12 base gravies and preps |
 
-Recipe-only (**theoretical**) food cost across the sales mix works out at **25.6%** — verified by
+Recipe-only (**theoretical**) food cost across the sales mix works out at **25.7%** — verified by
 `seed/validate.py`, not asserted. The generator then makes **actual** food cost land at ~32%, because
 of planted waste, portion drift, comps and staff meals.
 
@@ -79,12 +79,17 @@ that explanation from this data unaided. That is the Phase 3 acceptance test, pl
 - **Static content** — hand-authored, schema-independent, already written. This is the slow part
   and it is done:
   `seed/ingredients.yaml` (61) · `seed/preparations.yaml` (11) · `seed/menu.yaml` (32 items) ·
-  `seed/organization.yaml` (2 orgs, 2 restaurants, 47 permissions, 9 roles, 19 employees) ·
+  `seed/organization.yaml` (2 orgs, 3 restaurants, 53 permissions, 9 roles, 19 employees) ·
   `seed/operations.yaml` (14 tables, 3 stations, 2 tax groups, 2 shifts, 5 suppliers,
-  12 wastage reasons, 4 modifier groups, the M17 incentive scheme)
+  12 wastage reasons, 4 modifier groups, the M17 incentive scheme) ·
+  `seed/tandoor-house.yaml` (the second tenant — 49 menu rows over 47 library dishes, 8 tables,
+  3 stations; **data only, no loader reads it yet** — see the STATUS block in that file)
 - **Validator** — `seed/validate.py`. Checks every recipe reference resolves, that preparation
   nesting has no cycles and stays within depth 3, and prints per-dish and blended food cost. Run it
   after any edit to the YAML; it runs in CI. It has already caught three errors in this data.
+  `seed/validate_tandoor_house.py` does the same for the second tenant and additionally proves
+  every dish cooks at a station that restaurant actually has — it caught four orphaned dishes and a
+  non-existent variant on its first run.
 - **Generator** — `backend/app/seed/generate.py`, written in week 1 once the schema exists.
   Deterministic (fixed seed) so every developer and every demo sees identical numbers, and so a
   regression in an analytics query is visible as a changed figure.

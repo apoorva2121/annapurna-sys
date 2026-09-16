@@ -1,0 +1,155 @@
+# Ingredient master for the starter recipe library. See README.md.
+#
+# base_unit: g | ml | unit  - all recipe quantities are in base_unit (CLAUDE.md invariant 5).
+# yield_factor: usable fraction after trim/cleaning loss (1.0 = no loss).
+# shelf_life_days: at normal storage for that item.
+# There is NO price column. Prices are per-restaurant and bootstrap from a market-rate table.
+#
+# The first block is copied from seed/ingredients.yaml by `python library/from_seed.py ingredients`
+# and validate.py asserts it still matches. The second block is library-only; its yield factors and
+# shelf lives are estimated and await a chef.
+
+meta:
+  base_units: [g, ml, unit]
+
+ingredients:
+
+  # ==== seed_calibrated: identical to seed/ingredients.yaml minus price. Do not edit here. ====
+  - {code: CHKN_BONELESS, name: Chicken boneless,      base_unit: g,    yield_factor: 0.95, shelf_life_days: 2,   storage: chilled, category: meat}
+  - {code: CHKN_CURRCUT,  name: Chicken curry cut,     base_unit: g,    yield_factor: 0.72, shelf_life_days: 2,   storage: chilled, category: meat}
+  - {code: MUTTON,        name: Mutton curry cut,      base_unit: g,    yield_factor: 0.78, shelf_life_days: 2,   storage: chilled, category: meat}
+  - {code: PRAWN,         name: Prawns medium,         base_unit: g,    yield_factor: 0.65, shelf_life_days: 1,   storage: frozen,  category: meat}
+  - {code: EGG,           name: Egg,                   base_unit: unit, yield_factor: 0.88, shelf_life_days: 14,  storage: chilled, category: meat}
+  - {code: PANEER,        name: Paneer,                base_unit: g,    yield_factor: 0.98, shelf_life_days: 4,   storage: chilled, category: dairy}
+  - {code: CREAM,         name: Fresh cream 25pc,      base_unit: ml,   yield_factor: 1.00, shelf_life_days: 7,   storage: chilled, category: dairy}
+  - {code: MILK,          name: Milk toned,            base_unit: ml,   yield_factor: 1.00, shelf_life_days: 3,   storage: chilled, category: dairy}
+  - {code: CURD,          name: Curd,                  base_unit: g,    yield_factor: 1.00, shelf_life_days: 5,   storage: chilled, category: dairy}
+  - {code: BUTTER,        name: Butter salted,         base_unit: g,    yield_factor: 1.00, shelf_life_days: 90,  storage: chilled, category: dairy}
+  - {code: GHEE,          name: Ghee,                  base_unit: g,    yield_factor: 1.00, shelf_life_days: 180, storage: ambient, category: dairy}
+  - {code: CHEESE,        name: Processed cheese,      base_unit: g,    yield_factor: 1.00, shelf_life_days: 45,  storage: chilled, category: dairy}
+  - {code: KHOYA,         name: Khoya mawa,            base_unit: g,    yield_factor: 1.00, shelf_life_days: 4,   storage: chilled, category: dairy}
+  - {code: ONION,         name: Onion,                 base_unit: g,    yield_factor: 0.82, shelf_life_days: 14,  storage: ambient, category: veg}
+  - {code: TOMATO,        name: Tomato,                base_unit: g,    yield_factor: 0.90, shelf_life_days: 5,   storage: chilled, category: veg}
+  - {code: POTATO,        name: Potato,                base_unit: g,    yield_factor: 0.80, shelf_life_days: 21,  storage: ambient, category: veg}
+  - {code: CAPSICUM,      name: Capsicum green,        base_unit: g,    yield_factor: 0.78, shelf_life_days: 7,   storage: chilled, category: veg}
+  - {code: GINGER,        name: Ginger,                base_unit: g,    yield_factor: 0.80, shelf_life_days: 12,  storage: chilled, category: veg}
+  - {code: GARLIC,        name: Garlic,                base_unit: g,    yield_factor: 0.72, shelf_life_days: 20,  storage: ambient, category: veg}
+  - {code: GRNCHILLI,     name: Green chilli,          base_unit: g,    yield_factor: 0.92, shelf_life_days: 6,   storage: chilled, category: veg}
+  - {code: CORIANDER,     name: Coriander leaves,      base_unit: g,    yield_factor: 0.65, shelf_life_days: 3,   storage: chilled, category: veg}
+  - {code: SPINACH,       name: Spinach (palak),       base_unit: g,    yield_factor: 0.70, shelf_life_days: 2,   storage: chilled, category: veg}
+  - {code: MINT,          name: Mint leaves,           base_unit: g,    yield_factor: 0.60, shelf_life_days: 3,   storage: chilled, category: veg}
+  - {code: CABBAGE,       name: Cabbage,               base_unit: g,    yield_factor: 0.85, shelf_life_days: 10,  storage: chilled, category: veg}
+  - {code: CARROT,        name: Carrot,                base_unit: g,    yield_factor: 0.82, shelf_life_days: 12,  storage: chilled, category: veg}
+  - {code: SPRONION,      name: Spring onion,          base_unit: g,    yield_factor: 0.75, shelf_life_days: 4,   storage: chilled, category: veg}
+  - {code: MUSHROOM,      name: Button mushroom,       base_unit: g,    yield_factor: 0.90, shelf_life_days: 4,   storage: chilled, category: veg}
+  - {code: PEAS,          name: Green peas frozen,     base_unit: g,    yield_factor: 1.00, shelf_life_days: 120, storage: frozen,  category: veg}
+  - {code: CAULI,         name: Cauliflower,           base_unit: g,    yield_factor: 0.68, shelf_life_days: 7,   storage: chilled, category: veg}
+  - {code: BEANS,         name: French beans,          base_unit: g,    yield_factor: 0.85, shelf_life_days: 6,   storage: chilled, category: veg}
+  - {code: LEMON,         name: Lemon,                 base_unit: unit, yield_factor: 0.90, shelf_life_days: 12,  storage: chilled, category: veg}
+  - {code: BASMATI,       name: Basmati rice,          base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: grain}
+  - {code: ATTA,          name: Wheat atta,            base_unit: g,    yield_factor: 1.00, shelf_life_days: 120, storage: ambient, category: grain}
+  - {code: MAIDA,         name: Maida,                 base_unit: g,    yield_factor: 1.00, shelf_life_days: 120, storage: ambient, category: grain}
+  - {code: CORNFLOUR,     name: Cornflour,             base_unit: g,    yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: grain}
+  - {code: DAL_TOOR,      name: Toor dal,              base_unit: g,    yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: grain}
+  - {code: DAL_URAD,      name: Urad dal whole,        base_unit: g,    yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: grain}
+  - {code: RAJMA,         name: Rajma,                 base_unit: g,    yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: grain}
+  - {code: CHANA,         name: Kabuli chana,          base_unit: g,    yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: grain}
+  - {code: NOODLES,       name: Hakka noodles,         base_unit: g,    yield_factor: 1.00, shelf_life_days: 180, storage: ambient, category: grain}
+  - {code: OIL,           name: Refined oil,           base_unit: ml,   yield_factor: 1.00, shelf_life_days: 180, storage: ambient, category: oil}
+  - {code: SALT,          name: Salt,                  base_unit: g,    yield_factor: 1.00, shelf_life_days: 720, storage: ambient, category: spice}
+  - {code: SUGAR,         name: Sugar,                 base_unit: g,    yield_factor: 1.00, shelf_life_days: 720, storage: ambient, category: spice}
+  - {code: TURMERIC,      name: Turmeric powder,       base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: CHILLIPWD,     name: Red chilli powder,     base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: CORIANDPWD,    name: Coriander powder,      base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: GARAMMSL,      name: Garam masala,          base_unit: g,    yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: KASURI,        name: Kasuri methi,          base_unit: g,    yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: CUMIN,         name: Cumin seed,            base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: CARDAMOM,      name: Green cardamom,        base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: BAYLEAF,       name: Bay leaf,              base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: CINNAMON,      name: Cinnamon,              base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: CLOVE,         name: Clove,                 base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: TANDMSL,       name: Tandoori masala,       base_unit: g,    yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: CASHEW,        name: Cashew,                base_unit: g,    yield_factor: 1.00, shelf_life_days: 120, storage: ambient, category: spice}
+  - {code: SAFFRON,       name: Saffron,               base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: BIRYANIMSL,    name: Biryani masala,        base_unit: g,    yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: SOYSAUCE,      name: Soy sauce,             base_unit: ml,   yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: VINEGAR,       name: Vinegar,               base_unit: ml,   yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: CHILLISAUCE,   name: Red chilli sauce,      base_unit: ml,   yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: spice}
+  - {code: SCHEZWAN,      name: Schezwan paste,        base_unit: g,    yield_factor: 1.00, shelf_life_days: 180, storage: chilled, category: spice}
+  - {code: YEAST,         name: Yeast,                 base_unit: g,    yield_factor: 1.00, shelf_life_days: 120, storage: chilled, category: spice}
+
+  # ==== library-only: metadata estimated, confirm with the kitchen ====
+
+  # ---- Meat, poultry, fish ----
+  - {code: CHKN_WHOLE,    name: Chicken whole skinless, base_unit: g,   yield_factor: 0.70, shelf_life_days: 2,   storage: chilled, category: meat}
+  - {code: CHKN_WINGS,    name: Chicken wings / lollipop, base_unit: g, yield_factor: 0.90, shelf_life_days: 2,   storage: chilled, category: meat}
+  - {code: MUTTON_KEEMA,  name: Mutton mince,          base_unit: g,    yield_factor: 0.96, shelf_life_days: 1,   storage: chilled, category: meat}
+  - {code: FISH_SURMAI,   name: Surmai (kingfish) steak, base_unit: g,  yield_factor: 0.80, shelf_life_days: 1,   storage: chilled, category: meat}
+  - {code: FISH_BASA,     name: Basa fillet boneless,  base_unit: g,    yield_factor: 0.95, shelf_life_days: 90,  storage: frozen,  category: meat}
+
+  # ---- Vegetables & fresh ----
+  - {code: BHINDI,        name: Okra (bhindi),         base_unit: g,    yield_factor: 0.88, shelf_life_days: 4,   storage: chilled, category: veg}
+  - {code: BAINGAN,       name: Brinjal large (bharta), base_unit: g,   yield_factor: 0.75, shelf_life_days: 6,   storage: chilled, category: veg}
+  - {code: BROCCOLI,      name: Broccoli,              base_unit: g,    yield_factor: 0.70, shelf_life_days: 5,   storage: chilled, category: veg}
+  - {code: CUCUMBER,      name: Cucumber,              base_unit: g,    yield_factor: 0.85, shelf_life_days: 6,   storage: chilled, category: veg}
+  - {code: CORN_KERNELS,  name: Sweet corn kernels frozen, base_unit: g, yield_factor: 1.00, shelf_life_days: 120, storage: frozen, category: veg}
+  - {code: SOYA_CHAAP,    name: Soya chaap sticks,     base_unit: g,    yield_factor: 0.95, shelf_life_days: 5,   storage: chilled, category: veg}
+  - {code: COCONUT,       name: Coconut fresh grated,  base_unit: g,    yield_factor: 1.00, shelf_life_days: 2,   storage: chilled, category: veg}
+  - {code: TAMARIND,      name: Tamarind (dried block), base_unit: g,   yield_factor: 0.80, shelf_life_days: 365, storage: ambient, category: veg}
+  - {code: CURRY_LEAF,    name: Curry leaves,          base_unit: g,    yield_factor: 0.85, shelf_life_days: 4,   storage: chilled, category: veg}
+  - {code: PINEAPPLE,     name: Pineapple (tinned slices), base_unit: g, yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: veg}
+  - {code: MOTH,          name: Moth beans (matki),    base_unit: g,    yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: grain}
+
+  # ---- Grains, pulses, flours ----
+  - {code: RICE_SONA,     name: Sona masoori rice,     base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: grain}
+  - {code: IDLI_RICE,     name: Idli rice (parboiled), base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: grain}
+  - {code: DAL_URAD_WHITE, name: Urad dal white split, base_unit: g,    yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: grain}
+  - {code: DAL_MOONG,     name: Moong dal yellow,      base_unit: g,    yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: grain}
+  - {code: DAL_CHANA,     name: Chana dal,             base_unit: g,    yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: grain}
+  - {code: RAVA,          name: Rava (semolina),       base_unit: g,    yield_factor: 1.00, shelf_life_days: 120, storage: ambient, category: grain}
+  - {code: BESAN,         name: Besan (gram flour),    base_unit: g,    yield_factor: 1.00, shelf_life_days: 120, storage: ambient, category: grain}
+  - {code: POHA,          name: Poha (flattened rice), base_unit: g,    yield_factor: 1.00, shelf_life_days: 180, storage: ambient, category: grain}
+  - {code: BREAD_CRUMBS,  name: Bread crumbs,          base_unit: g,    yield_factor: 1.00, shelf_life_days: 60,  storage: ambient, category: grain}
+  - {code: SEV,           name: Sev / farsan,          base_unit: g,    yield_factor: 1.00, shelf_life_days: 30,  storage: ambient, category: grain}
+  - {code: BOONDI,        name: Boondi (for raita),    base_unit: g,    yield_factor: 1.00, shelf_life_days: 30,  storage: ambient, category: grain}
+
+  # ---- Bakery & bought-in ----
+  - {code: PAV,           name: Pav (bun),             base_unit: unit, yield_factor: 1.00, shelf_life_days: 2,   storage: ambient, category: bakery}
+  - {code: BREAD_SLICE,   name: Bread slice,           base_unit: unit, yield_factor: 1.00, shelf_life_days: 3,   storage: ambient, category: bakery}
+  - {code: SPRINGROLL_SHEET, name: Spring roll sheet,  base_unit: unit, yield_factor: 1.00, shelf_life_days: 180, storage: frozen,  category: bakery}
+  - {code: PAPAD,         name: Papad (raw),           base_unit: unit, yield_factor: 1.00, shelf_life_days: 180, storage: ambient, category: bakery}
+  - {code: BROWNIE,       name: Chocolate brownie (bought in), base_unit: unit, yield_factor: 1.00, shelf_life_days: 5, storage: chilled, category: bakery}
+
+  # ---- Dairy & sweets ----
+  - {code: MILK_POWDER,   name: Milk powder full cream, base_unit: g,   yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: dairy}
+  - {code: ICE_CREAM,     name: Vanilla ice cream,     base_unit: ml,   yield_factor: 1.00, shelf_life_days: 180, storage: frozen,  category: dairy}
+  - {code: CHOC_SAUCE,    name: Chocolate sauce,       base_unit: ml,   yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: sweet}
+  - {code: HONEY,         name: Honey,                 base_unit: ml,   yield_factor: 1.00, shelf_life_days: 720, storage: ambient, category: sweet}
+  - {code: JAGGERY,       name: Jaggery,               base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: sweet}
+
+  # ---- Nuts & dry fruit ----
+  - {code: ALMOND,        name: Almond,                base_unit: g,    yield_factor: 1.00, shelf_life_days: 180, storage: ambient, category: spice}
+  - {code: PISTA,         name: Pistachio,             base_unit: g,    yield_factor: 1.00, shelf_life_days: 180, storage: ambient, category: spice}
+  - {code: RAISIN,        name: Raisin,                base_unit: g,    yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: spice}
+  - {code: PEANUT,        name: Peanut,                base_unit: g,    yield_factor: 1.00, shelf_life_days: 180, storage: ambient, category: spice}
+  - {code: SESAME,        name: Sesame seed,           base_unit: g,    yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: spice}
+
+  # ---- Spices, condiments, leavening ----
+  - {code: MUSTARD_SEED,  name: Mustard seed,          base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: DRY_CHILLI,    name: Dry red chilli whole,  base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: BLACK_PEPPER,  name: Black pepper,          base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: METHI_SEED,    name: Fenugreek seed,        base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: AJWAIN,        name: Ajwain (carom),        base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: HING,          name: Asafoetida (hing),     base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: AMCHUR,        name: Amchur (dry mango powder), base_unit: g, yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: CHAAT_MSL,     name: Chaat masala,          base_unit: g,    yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: PAVBHAJI_MSL,  name: Pav bhaji masala,      base_unit: g,    yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: SAMBAR_PWD,    name: Sambar powder,         base_unit: g,    yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: MALVANI_MSL,   name: Malvani masala,        base_unit: g,    yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: GODA_MSL,      name: Goda masala,           base_unit: g,    yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: PICKLE_MSL,    name: Achari (pickle) masala, base_unit: g,   yield_factor: 1.00, shelf_life_days: 300, storage: ambient, category: spice}
+  - {code: KETCHUP,       name: Tomato ketchup,        base_unit: ml,   yield_factor: 1.00, shelf_life_days: 240, storage: ambient, category: spice}
+  - {code: MAYO,          name: Mayonnaise,            base_unit: g,    yield_factor: 1.00, shelf_life_days: 90,  storage: chilled, category: spice}
+  - {code: BAKING_SODA,   name: Baking soda,           base_unit: g,    yield_factor: 1.00, shelf_life_days: 720, storage: ambient, category: spice}
+  - {code: BAKING_PWD,    name: Baking powder,         base_unit: g,    yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}
+  - {code: ROSE_WATER,    name: Rose water,            base_unit: ml,   yield_factor: 1.00, shelf_life_days: 365, storage: ambient, category: spice}

@@ -8,8 +8,22 @@ Read before working on the matching area:
 `docs/domain-model.md` (concepts) · `docs/schema.md` (tables, columns, indexes) ·
 `docs/waste-model.md` · `docs/customer-experience.md` ·
 `docs/onboarding-cold-start.md` · `docs/seed-data.md` · `docs/ui/conventions.md` ·
+`docs/ui/design-system.md` (tokens, theming, components — and the `restaurant-ui` skill, which
+is offered automatically to any session touching `frontend/`) ·
 `docs/engineering-standards.md` · `docs/security.md` · `docs/observability.md` ·
 `docs/testing-strategy.md`
+
+**Read before touching menus, restaurant identity, tax, pricing or customer data:**
+`docs/compliance-rules.md` — the Indian rules that actually bind this product, each with its
+instrument, commencement date and enforcing test. It also lists what does *not* apply (aggregator
+duties) and the open gaps. Its first rule: **never fill an Indian rate, threshold or commencement
+date from memory** — research returned stale-but-confident law three times in one session.
+
+**Read before ANY code change:** `docs/engineering-guardrails.md` (rules from the 2026-09-11
+audit; extends the Definition of Done) and `docs/audit/remediation-plan.md` (open findings —
+**M02 does not start until R1, R2 and R8a are ticked**; the plan's state table is the source of
+truth). `docs/audit/external-review.md` records why the rest was deferred, what un-defers each, and
+how external review works here — read it before filing or acting on new findings.
 
 ## Stack
 
@@ -23,7 +37,7 @@ Read before working on the matching area:
 
 ```
 backend/    app/{api,models,schemas,services,repositories,core}  alembic/  tests/
-frontend/   src/{routes,components,features,lib,hooks}
+frontend/   src/{shared,staff,guest}   # shared/ = api, theme, ui; staff|guest = ADR 0009 bundles
 docs/       product/ decisions/ ui/ plan/
 ```
 
@@ -33,12 +47,30 @@ docs/       product/ decisions/ ui/ plan/
 make dev            # docker compose up: api, db, frontend
 make test           # pytest + vitest
 make lint           # ruff + mypy + eslint + tsc
+make check          # the blocking gate: lint + test + docs/seed audits + dep audits
 make migrate        # alembic upgrade head
 make revision m="…" # alembic autogenerate
 make seed           # demo restaurant with menu, recipes, stock, orders
 ```
 
-Run `make lint` before saying work is done. Never edit a migration that has been applied on staging — write a new one.
+Run `make check` before saying work is done — it is the blocking gate (lint + tests + audits).
+`make lint` is the fast subset for use while working.
+
+**Read its exit code, not its last lines.** `make check | tail` reports `tail`'s status, so a failing
+gate looks like a passing one — `make: *** [lint-api] Error 1` scrolls past and the command still
+"succeeds". This has produced a false "clean" claim twice. Use `make check > check.log 2>&1; echo $?`
+and check the number. Note also that `make lint` runs `ruff format --check`, which *fails* on
+unformatted files — running `ruff format` yourself rewrites them and reports nothing.
+
+**And read the red lines even when the exit code is 0.** The coverage floor had a second, separate
+way of reporting clean while breached: pytest-cov prints its verdict from `total < fail_under` and
+sets the *exit status* from `round(total, precision) < fail_under`, so at the default precision of
+0 anything from ~94.5% to 95% printed `FAIL Required test coverage of 95% not reached` in red and
+exited 0. Closed on 2026-09-13 by `[tool.coverage.report] precision = 2`, guarded by
+`tests/test_toolchain_pins.py`. The general rule it leaves behind: **if a red line and the exit
+code disagree, one of them is a bug and it is worth an hour.**
+
+Never edit a migration that has been applied on staging — write a new one.
 
 ## Invariants — violating any of these is a bug, not a style choice
 
@@ -54,19 +86,31 @@ Run `make lint` before saying work is done. Never edit a migration that has been
 
 - Layering is `api → service → repository → model`. Routes contain no business logic; repositories contain no business rules.
 - Pydantic schemas are the API contract; SQLAlchemy models never cross the API boundary.
-- Enums live in `app/core/enums.py` and are mirrored in `frontend/src/lib/enums.ts`.
+- Enums live in `app/core/enums.py` and are mirrored in `frontend/src/shared/enums.ts`.
 - Tests: every service gets a test; every endpoint gets a tenant-isolation test proving restaurant A cannot read restaurant B.
 - Frontend data access is TanStack Query only — no `fetch` in components.
-- Errors surface as `{code, message, details}`; `code` is a stable string the frontend switches on.
+- Errors surface as `{code, message, details, issue}`; `code` is a stable string the frontend switches on
+  and is **never shown** — a person reads `message` and "Issue N" from `app/core/issues.json` (D11, D12).
 
 ## Non-negotiable process rules
 
 - Work the module loop in `docs/sdlc.md`. A module is done only when its Definition of Done is fully
   met, including the manual pass by the user.
 - `make check` clean, zero warnings, before claiming anything is finished.
-- Every bug gets a regression test written **before** the fix.
+- Every bug gets a regression test written **before** the fix, and its failing output goes in the
+  commit body.
+- The Definition of Done in `docs/sdlc.md` is extended by `docs/engineering-guardrails.md`
+  §Definition of Done addendum. Both lists must be true.
 - Ideas that arrive mid-module go to `docs/backlog.md`. They never become scope.
 - Docs are updated in the same PR as the code.
+- **`docs/compliance-rules.md` binds every module from here on.** A change touching menus,
+  restaurant identity, tax, pricing or customer data is not done until it is checked against that
+  file. Its rules are not preferences — a breach is a licence risk for a real restaurant, which is
+  why M18 exists to surface them. Two standing rules, both learned the hard way:
+  **(1) never fill an Indian rate, threshold or commencement date from memory** — research returned
+  stale-but-confident law three times in one session; look it up and cite the instrument.
+  **(2) never conflate *in force* with *notified but not in force* with *unsettled* with
+  *unverified*.** Only the first is safe to build on, and only the first may block a user.
 
 ## Deliberately out of scope for month 1
 

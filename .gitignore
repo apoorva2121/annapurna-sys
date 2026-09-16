@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
+*.egg-info/
 .venv/
 venv/
 .pytest_cache/
@@ -32,3 +33,24 @@ Thumbs.db
 *.sqlite3
 postgres-data/
 uploads/
+
+# Personal working files kept in the working copy but never committed (finding D9).
+/Apoorva-Tasks.xlsx
+
+# Microsoft Office lock files. Created while a document is open, deleted when it closes — they are
+# never content, and one was committed by accident in M02.
+~$*
+
+# CLAUDE.md tells you to run the gate as `make check > check.log 2>&1; echo $?`, because reading
+# the exit code is the only way to know it passed. That leaves this file behind every time.
+/check.log
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# graft (owner decision 2026-09-14): wired into this working copy only. Its hooks live in the
+# untracked local settings, so a clone without graft installed is not affected.
+/.claude/settings.local.json
+/.claude/helpers/graft-*.cjs
+/.claude/skills/graft/
+/.mcp.json

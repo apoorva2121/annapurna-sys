@@ -1,0 +1,64 @@
+# Per-city price multipliers applied to `market-rates.yaml`, whose values are the PUNE baseline.
+#
+#   effective_price = market_rates[code].inr_per_base_unit * cities[city].multiplier
+#
+# HOW THESE WERE DERIVED — this is not a guess, and the method is reproducible:
+# a 13-commodity basket (onion, tomato, potato, capsicum, carrot, cabbage, cauliflower, green
+# chilli, garlic, ginger, green peas, okra, spinach) was priced in 11 cities from ONE source on
+# ONE day — market.todaypricerates.com, wholesale column, 12 Sep 2026. The multiplier is the
+# MEDIAN of the 13 per-commodity ratios against Pune.
+#
+# Median, not mean, on purpose: leafy greens travel badly and blow out the mean. Spinach alone
+# ranges 10-21 INR/kg across these cities (2.10x) while potato ranges 25-33 (1.32x). One
+# commodity should not set a city's multiplier.
+#
+# Re-derive with the basket above whenever this is refreshed. Same source, same day, or the
+# comparison means nothing — a multiplier built from prices gathered on different days measures
+# the calendar, not the city.
+#
+# WHAT THIS DOES NOT COVER: the basket is vegetables only. Dairy, meat and staples are priced by
+# different mechanisms (branded MRP, poultry boards, PDS-adjacent grain) and travel differently.
+# Applying a vegetable-derived multiplier to ghee is an approximation, and a knowingly rough one.
+# See `exceptions` for the cases where it is known to be wrong.
+
+meta:
+  baseline_city: PUNE
+  basis: "median of 13-commodity per-item ratio vs Pune"
+  source: "https://market.todaypricerates.com/<City>-vegetables-price-in-<State>"
+  derived_on: 2026-09-12
+  # A city not listed here falls back to 1.00 rather than to nothing. Wrong-but-close beats an
+  # empty field (docs/onboarding-cold-start.md), and a new city must never block onboarding.
+  unknown_city_multiplier: 1.00
+
+cities:
+  - {code: MUMBAI,    name: Mumbai,     state: Maharashtra,   multiplier: 1.14, samples: 13, note: "Dearest in the set. Island city — almost everything is trucked in, and mandi land is the costliest in India."}
+  - {code: BENGALURU, name: Bengaluru,  state: Karnataka,     multiplier: 1.07, samples: 13, note: ""}
+  - {code: PUNE,      name: Pune,       state: Maharashtra,   multiplier: 1.00, samples: 13, note: "Baseline. seed/ and library/ price against this city."}
+  - {code: DELHI,     name: New Delhi,  state: Delhi,         multiplier: 1.00, samples: 13, note: "Azadpur is the largest wholesale market in Asia, which keeps a metro's prices at par with Pune rather than above it."}
+  - {code: NAGPUR,    name: Nagpur,     state: Maharashtra,   multiplier: 1.00, samples: 13, note: ""}
+  - {code: JAIPUR,    name: Jaipur,     state: Rajasthan,     multiplier: 0.96, samples: 13, note: ""}
+  - {code: CHENNAI,   name: Chennai,    state: "Tamil Nadu",  multiplier: 0.92, samples: 13, note: ""}
+  - {code: AHMEDABAD, name: Ahmedabad,  state: Gujarat,       multiplier: 0.92, samples: 13, note: ""}
+  - {code: HYDERABAD, name: Hyderabad,  state: Telangana,     multiplier: 0.88, samples: 13, note: ""}
+  - {code: KOLKATA,   name: Kolkata,    state: "West Bengal", multiplier: 0.83, samples: 13, note: "West Bengal is a major producing state for potato and leafy vegetables."}
+  - {code: LUCKNOW,   name: Lucknow,    state: "Uttar Pradesh", multiplier: 0.79, samples: 13, note: "Cheapest in the set. UP is the largest producing state for potato and several vegetables — a restaurant here genuinely buys cheaper than one in Mumbai, by about 45%."}
+
+# Commodities where the city multiplier is known to be the wrong shape. These are NOT yet applied
+# by the loader — they are recorded so the gap is visible rather than silently wrong, and so the
+# first person to hit one knows it was foreseen.
+exceptions:
+  - code: PRAWN
+    applies_to: [MUMBAI, CHENNAI, KOLKATA]
+    expected_direction: below_baseline
+    confirmed: false
+    note: "Coastal cities land seafood locally; Pune is inland and pays freight. The multiplier as derived pushes Mumbai prawn UP 14%, which is backwards. No seafood city-comparison data was gathered — flagged, not fixed."
+  - code: FISH_SURMAI
+    applies_to: [MUMBAI, CHENNAI, KOLKATA]
+    expected_direction: below_baseline
+    confirmed: false
+    note: "Same as PRAWN."
+  - code: COCONUT
+    applies_to: [CHENNAI, BENGALURU]
+    expected_direction: below_baseline
+    confirmed: false
+    note: "Southern coastal states are the producing region; the northward freight is real."

@@ -94,13 +94,25 @@ query. We do not rely on unguessable UUIDs for authorisation.
   every registered route declares one.
 
 ### A06 Vulnerable Components
-- Locked dependencies (`uv.lock`, `package-lock.json`), committed.
+- Locked dependencies (`backend/uv.lock`, `frontend/package-lock.json`), committed, and
+  installed **frozen** — `uv sync --frozen` and `npm ci` in CI and in the image, so a build can
+  never resolve a version the tests never saw. `backend/tests/test_toolchain_pins.py` fails when a
+  lockfile is missing or older than `pyproject.toml`. [built: M01-R]
 - `pip-audit` and `npm audit` in CI; a high/critical finding fails the build.
 - Renovate for scheduled updates. Minimal dependency count — every library is attack surface.
+  [planned: M16]
 
 ### A07 Identification & Authentication Failures
 - Short-lived access JWT (15 min) + rotating refresh token (30 days), revocable server-side.
-- Rate limiting on login; lockout after 5 failures with exponential backoff.
+- **No automatic lock** (backlog-issues B5, G-15). Each wrong password for one login waits longer
+  than the last — 1s, 2s, 4s… from the third, capped at 30s — and a network with 30 failures in
+  ten minutes is refused for a while. Both are the same for a login nobody holds, so neither says
+  whether a login exists. An account is locked only by a person, and that is revealed only to
+  someone who typed the right password. Attempts are remembered by a hash of the login
+  (`login_attempt`), never the login itself.
+- The network is the address the server sees. Behind the production proxy that means trusting
+  its forwarded address, which waits for the deploy (R7): trusting it with no proxy in front would
+  let anyone choose their own address and walk around the budget.
 - Session invalidation on password change, on role change, and on employee deactivation.
 - **Offboarding is one action:** deactivating an employee revokes every session immediately. Attacker
   #4 in the threat model exists because most systems make this three separate steps.
