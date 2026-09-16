@@ -2,7 +2,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 // ADR 0009 — staff and guest are two applications, not two roles. They are separate Rollup entry
 // points so the guest bundle can never contain staff code: no admin routes to discover, no
@@ -52,5 +52,9 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/shared/test-setup.ts',
+    // The visual-regression specs need a real browser and Linux pixels, so they run from
+    // vitest.visual.config.ts instead (backlog-issues B11b, decision D4). Excluded here because
+    // `make check` must stay runnable on a machine with nothing installed but Node.
+    exclude: [...configDefaults.exclude, '**/*.visual.test.tsx'],
   },
 });

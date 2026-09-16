@@ -143,7 +143,6 @@ matrix (`docs/ui/frontend-architecture-and-ux-strategy.md` §2.3 B), then move o
 
 Do not cite these as if they exist, and do not add a rule that depends on them:
 
-- the `/design` gallery route and its screenshot tests — planned with M07
 - scheduling a festive theme by business date, and a restaurant-wide default — planned with M02's
   settings screen. Themes themselves, the per-device picker and contrast validation exist.
 - hue-distance validation (an accent ≥25° from every alert hue) — designed, not implemented; today

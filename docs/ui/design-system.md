@@ -199,6 +199,13 @@ strategy document §3.5 and not implemented; today it is a review question.
 `src/shared/ui/` holds vendored shadcn/ui components, adapted to our tokens.
 `src/staff/components/` holds compositions specific to the staff app.
 
+**Seeing them rather than reading about them:** `/design` renders every component below in the
+states it ships, in a development build only (backlog-issues B11b, decision D4). Each specimen is
+photographed by `npm run test:visual`, so a token change that moves a button by a pixel becomes a
+diff a reviewer looks at instead of a surprise on a waiter's phone. The pictures are Linux pixels
+and are only ever taken inside the Playwright image `make visual` and CI share — `make
+visual-update` re-takes them, and they are committed with whatever change moved them.
+
 | Component | Where | Notes |
 |---|---|---|
 | `Button` | `shared/ui/button.tsx` | variants `primary` `secondary` `brand` `ghost` `destructive` `link`; sizes `md` `lg` `icon`. **No `sm`** — there is no surface on which a button below the touch target is correct. `asChild` renders a Link with a button's appearance |

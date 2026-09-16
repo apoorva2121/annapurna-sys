@@ -31,6 +31,7 @@ import LoginScreen from '@staff/screens/LoginScreen';
 import NewEmployeeScreen from '@staff/screens/NewEmployeeScreen';
 import ProfileScreen from '@staff/screens/ProfileScreen';
 import RecipeScreen from '@staff/screens/RecipeScreen';
+import DesignGalleryScreen from '@staff/screens/DesignGalleryScreen';
 import RestaurantSettingsScreen from '@staff/screens/RestaurantSettingsScreen';
 import StaffListScreen from '@staff/screens/StaffListScreen';
 import StationsScreen from '@staff/screens/StationsScreen';
@@ -304,6 +305,11 @@ export default function App(): ReactElement {
             </RequirePermission>
           }
         />
+        {/* The design gallery (B11b, decision D4) is for developers, designers and reviewers,
+            not for staff, so it exists only in a development build — both the route and the link
+            in AppShell. Shipping the route to production without a link is precisely what
+            `reachability.test.ts` was added to catch. */}
+        {import.meta.env.DEV && <Route path="design" element={<DesignGalleryScreen />} />}
       </Route>
 
       {/* Anything unknown goes home rather than to a dead end; home is itself behind RequireAuth,

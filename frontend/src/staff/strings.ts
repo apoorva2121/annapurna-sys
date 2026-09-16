@@ -33,6 +33,8 @@ export const strings = {
     staff: 'Staff',
     branch: 'Restaurant',
     profile: 'Your profile',
+    // Backlog-issues B11b: the component gallery, shown only in a development build.
+    design: 'Design gallery',
     signOut: 'Sign out',
     signingOut: 'Signing out…',
     // M03 and M04 shipped their screens behind routes with nothing linking to them, so each was
@@ -905,6 +907,19 @@ export const strings = {
       `${payments === 1 ? 'One payment was' : `${String(payments)} payments were`} settled in cash while no till was open. No count expects it, so check it reached the drawer.`,
   },
   // Backlog-issues B8: the licence number printed on every bill.
+  // Backlog-issues B11b: the component gallery at /design, a development-only screen for
+  // developers, designers and reviewers. Its words are here rather than inline because every
+  // other screen's are, and a gallery that breaks the project's own rule is poor evidence.
+  gallery: {
+    title: 'Design gallery',
+    intro:
+      'Every component this product is built from, in the states it actually ships. The pictures ' +
+      'in __screenshots__ are taken from this page, so a token that moves a button by a pixel ' +
+      'becomes a diff somebody reads.',
+    components: 'Components',
+    waiterPatterns: 'Waiter patterns',
+  },
+
   licence: {
     expired: (date: string) => `The FSSAI licence ran out on ${date}`,
     expiredHint:

@@ -12,7 +12,8 @@ NPM := npm --prefix frontend
 
 .DEFAULT_GOAL := help
 .PHONY: help setup dev down logs test test-api test-web lint lint-api lint-web fmt check \
-	    migrate revision seed audit-docs audit-guardrails audit-deps lock clean
+	    migrate revision seed audit-docs audit-guardrails audit-deps lock clean \
+	    visual visual-update
 
 help:
 	@echo "setup    install backend venv + frontend deps"
@@ -113,6 +114,28 @@ seed:
 # ADR 0010: expired idempotency keys. Run nightly by the host until the project has a scheduler.
 sweep-keys:
 	docker compose run --rm api python -m app.jobs.sweep_idempotency_keys
+
+# The image CI's visual job runs in, pinned to the version in package.json (backlog-issues
+# B11b, decision D4). Screenshots are Linux pixels: a Windows or macOS run differs in font
+# hinting alone, so baselines are only ever taken in here. A named volume shadows node_modules,
+# because the host's are built for the host and a bind mount would drop Linux binaries into a
+# developer's tree.
+PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.63.0-noble
+# MSYS_NO_PATHCONV: on Windows, Git Bash rewrites a leading "/" in an argument into its own
+# installation path, so `-w /work` reached the daemon as "C:/Program Files/Git/work" and the
+# run died with an unhelpful "invalid working directory". The variable is meaningless on
+# Linux and macOS, where it is simply an unread environment variable.
+VISUAL_RUN := MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR)/frontend:/work" -w /work \
+	    -v restaurant-os-visual-modules:/work/node_modules $(PLAYWRIGHT_IMAGE) sh -c
+
+# Deliberately not part of `check`: it needs a browser, and `check` must stay runnable on a
+# machine with nothing installed but Node.
+visual:
+	$(VISUAL_RUN) "npm ci && npm run test:visual"
+
+# Re-take the baselines, then commit the pictures with the change that moved them.
+visual-update:
+	$(VISUAL_RUN) "npm ci && npm run test:visual:update"
 
 clean:
 	rm -rf $(VENV) frontend/node_modules frontend/dist backend/.pytest_cache backend/.mypy_cache backend/.ruff_cache

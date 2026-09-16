@@ -39,6 +39,7 @@
   "include": [
     "src",
     "vite.config.ts",
+    "vitest.visual.config.ts",
     "tailwind.config.ts",
     "eslint.config.js"
   ]

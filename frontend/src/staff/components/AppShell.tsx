@@ -15,6 +15,17 @@ import { strings } from '@staff/strings';
  * `employee.view` (manual test C2). The server refuses the route regardless; this only avoids
  * showing a door that will not open.
  */
+/** The design gallery, linked only in a development build (backlog-issues B11b).
+ *
+ * Its own component rather than a conditional in the nav: the gallery is for developers and
+ * reviewers, and the shell is already at the complexity the lint rule allows. */
+function DesignGalleryLink(): ReactElement | null {
+  if (!import.meta.env.DEV) {
+    return null;
+  }
+  return <Link to="/design">{strings.nav.design}</Link>;
+}
+
 export function AppShell(): ReactElement {
   const { session, signOut, can } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
@@ -65,6 +76,7 @@ export function AppShell(): ReactElement {
             </>
           )}
           <Link to="/profile">{strings.nav.profile}</Link>
+          <DesignGalleryLink />
         </nav>
         {/* Renders nothing for the great majority of staff, who work at one restaurant. */}
         <BranchSwitcher />
