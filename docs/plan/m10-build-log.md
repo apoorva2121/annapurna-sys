@@ -12,13 +12,13 @@ Spec: `docs/modules/M10-customers-spec.md`. **Resume from the State table below.
 
 | PR | Chunk | What | State | Commit |
 |---|---|---|---|---|
-| — | — | Research + spec | ☐ | — |
-| 1 | A | Migration 0036 + models + repositories + `docs/schema.md` §9 | ☐ | — |
-| 1 | B | Migration 0037 permissions; customer service, staff CRUD, history, preferences, the order attach and the frozen allergy note | ☐ | — |
-| 1 | C | Consent, DPDP export and erasure — and their tests, which are the compliance evidence | ☐ | — |
+| — | — | Research + spec | ☑ done | `a8d0da2` |
+| 1 | A | Migration 0036 + models + repositories + `docs/schema.md` §9 | ☑ done | `33b8a99` |
+| 1 | B | Migration 0037 permissions; customer service, staff CRUD, preferences, the order attach and the frozen allergy note | ☑ done | `f3310ea` |
+| 1 | C | Consent and erasure — and their tests, which are the compliance evidence. **History and export moved to E**, where the feedback and complaints they list exist | ☑ done | `128602f` |
 | 1 | — | **PR 1 gate: full `make check`** | ☐ | — |
-| 2 | D | The guest realm: `guest_token.py`, `guest_deps.py`, `schemas/guest.py`, the rate limiter, the five guest routes, suite 5 | ☐ | — |
-| 2 | E | Feedback and complaints | ☐ | — |
+| 2 | D | The guest realm: `guest_token.py`, `guest_deps.py`, `schemas/guest.py`, the rate limiter, the five guest routes, suite 5 | ☑ done | `206966e` |
+| 2 | E | Feedback and complaints, plus the customer history and the DPDP export | ☐ | — |
 | 2 | F | Staff screens | ☐ | — |
 | 2 | G | The guest bundle: vite entry, eslint boundary, three screens, `brand.md` §7.1 | ☐ | — |
 | 2 | H | Seed, adversarial review, manual script | ☐ | — |
