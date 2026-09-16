@@ -26,7 +26,9 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 from typing import Any, cast
 
 from sqlalchemy import ColumnElement, CursorResult, delete, exists, func, select
@@ -39,12 +41,27 @@ from app.models.customers import (
     CustomerPreference,
     Feedback,
 )
-from app.models.orders import Order
+from app.models.menu import MenuItem, MenuItemVariant
+from app.models.orders import Order, OrderLine
 from app.repositories.base import (
     OrgScopedRepository,
     RestaurantScopedRepository,
     page_size,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class Visit:
+    """One visit, as a customer's history shows it: when, what it came to, and what they had.
+
+    Not the waiter who served it. A customer's history is about the customer; a person's work is
+    looked at in M17, with the fairness rules that come with it.
+    """
+
+    order_id: uuid.UUID
+    business_date: date
+    total: Decimal
+    items: list[str]
 
 
 class CustomerRepository(OrgScopedRepository[Customer]):
@@ -100,6 +117,42 @@ class CustomerRepository(OrgScopedRepository[Customer]):
                 )
             )
         ).all()
+
+    async def visits(self, customer_id: uuid.UUID, restaurant_id: uuid.UUID) -> Sequence[Visit]:
+        """This branch's visits, newest first, with what was eaten.
+
+        Two queries rather than one per visit: the orders, then their dish names in one statement.
+        A customer with forty visits is a customer worth having and must not cost forty round trips.
+        """
+        orders = (
+            await self.session.execute(
+                select(Order.id, Order.business_date, Order.grand_total)
+                .where(Order.customer_id == customer_id, Order.restaurant_id == restaurant_id)
+                .order_by(Order.business_date.desc(), Order.id.desc())
+            )
+        ).all()
+        if not orders:
+            return []
+
+        rows = await self.session.execute(
+            select(OrderLine.order_id, MenuItem.name)
+            .join(MenuItemVariant, MenuItemVariant.id == OrderLine.menu_item_variant_id)
+            .join(MenuItem, MenuItem.id == MenuItemVariant.menu_item_id)
+            .where(OrderLine.order_id.in_([order_id for order_id, _, _ in orders]))
+        )
+        items: dict[uuid.UUID, list[str]] = {}
+        for order_id, name in rows.all():
+            items.setdefault(order_id, []).append(str(name))
+
+        return [
+            Visit(
+                order_id=order_id,
+                business_date=business_date,
+                total=Decimal(str(total)),
+                items=sorted(set(items.get(order_id, []))),
+            )
+            for order_id, business_date, total in orders
+        ]
 
     async def order_count(self, customer_id: uuid.UUID) -> int:
         """What erasure must not change. Counted before and asserted after."""
@@ -206,6 +259,23 @@ class FeedbackRepository(RestaurantScopedRepository[Feedback]):
             )
         ).all()
 
+    async def get_with_lines(self, feedback_id: uuid.UUID) -> Feedback | None:
+        result = await self.session.scalars(
+            self.scoped().where(Feedback.id == feedback_id).options(selectinload(Feedback.lines))
+        )
+        return result.first()
+
+    async def for_customer(self, customer_id: uuid.UUID) -> Sequence[Feedback]:
+        """Everything this person ever said, newest first. Part of the DPDP access right."""
+        return (
+            await self.session.scalars(
+                self.scoped()
+                .where(Feedback.customer_id == customer_id)
+                .order_by(Feedback.submitted_at.desc())
+                .options(selectinload(Feedback.lines))
+            )
+        ).all()
+
 
 class ComplaintRepository(RestaurantScopedRepository[Complaint]):
     model = Complaint
@@ -218,6 +288,32 @@ class ComplaintRepository(RestaurantScopedRepository[Complaint]):
                 .order_by(Complaint.severity, Complaint.created_at)
             )
         ).all()
+
+    async def for_customer(self, customer_id: uuid.UUID) -> Sequence[Complaint]:
+        """Every complaint this person raised, newest first. Part of the DPDP access right."""
+        return (
+            await self.session.scalars(
+                self.scoped()
+                .where(Complaint.customer_id == customer_id)
+                .order_by(Complaint.created_at.desc())
+            )
+        ).all()
+
+    async def highest_reference(self, financial_year: str) -> int:
+        """The largest reference this restaurant has used this financial year, as a number.
+
+        Numeric rather than lexicographic, so "10" follows "9" rather than "1". A reference that
+        somebody wrote by hand and is not a number is skipped rather than fatal: the unique
+        constraint is what guarantees uniqueness, and this only has to produce a sensible next one.
+        """
+        rows = await self.session.scalars(
+            select(Complaint.reference).where(
+                Complaint.restaurant_id == self.scope.restaurant_id,
+                Complaint.financial_year == financial_year,
+            )
+        )
+        numbers = [int(value) for value in rows.all() if str(value).isdigit()]
+        return max(numbers, default=0)
 
     async def returned_after(self, customer_id: uuid.UUID, resolved_at: object) -> bool:
         """The only honest measure of recovery, derived rather than stored (spec decision 8).

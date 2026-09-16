@@ -32,25 +32,30 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import UTC, datetime
+from collections.abc import Sequence
+from datetime import UTC, date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.business_day import business_date_of
 from app.core.consent import (
     CURRENT_NOTICE_VERSION,
     DEFAULT_NOTICE_LANGUAGE,
     GUEST_OFFERABLE,
 )
 from app.core.enums import ConsentPurpose, ContactSource
-from app.core.errors import AppError, NotFoundError
+from app.core.errors import AppError, ConflictError, NotFoundError
 from app.core.guest_token import GuestScope
 from app.core.phone import normalise_phone
+from app.core.tenancy import TenantScope
 from app.models.customers import CustomerConsent, Feedback
+from app.repositories.customers import FeedbackRepository
 from app.repositories.guest import (
     GuestCustomerRepository,
     GuestFeedbackRepository,
     GuestOrderRepository,
 )
+from app.repositories.setup import RestaurantRepository
 
 logger = logging.getLogger(__name__)
 
@@ -246,3 +251,85 @@ class GuestFeedbackService:
         await self.session.flush()
         logger.info("consent.withdrawn", extra={"purpose": str(purpose)})
         return consent
+
+
+class StaffFeedbackService:
+    """A manager writing down a conversation.
+
+    A separate class from `GuestFeedbackService` deliberately: a diner tapping three buttons on a
+    bill QR and a manager recording a phone call share a table and almost nothing else. The guest
+    path is anonymous, order-scoped and rate-limited; this one is authenticated, may name a customer
+    directly, and carries a different `source` — which every view shows, because a manager filling
+    the form for a customer is legitimate and hiding that it happened is not.
+    """
+
+    def __init__(self, session: AsyncSession, scope: TenantScope) -> None:
+        self.session = session
+        self.scope = scope
+        self._feedback = FeedbackRepository(session, scope)
+        self._restaurants = RestaurantRepository(session, scope)
+
+    async def get(self, feedback_id: uuid.UUID) -> Feedback:
+        found = await self._feedback.get_with_lines(feedback_id)
+        if found is None:
+            raise NotFoundError("feedback.not_found", "That feedback no longer exists.")
+        return found
+
+    async def list_day(
+        self, *, business_date: date, waiter_employee_id: uuid.UUID | None = None
+    ) -> Sequence[Feedback]:
+        return await self._feedback.list_day(
+            business_date=business_date, waiter_employee_id=waiter_employee_id
+        )
+
+    async def for_customer(self, customer_id: uuid.UUID) -> Sequence[Feedback]:
+        return await self._feedback.for_customer(customer_id)
+
+    async def record(
+        self,
+        *,
+        order_id: uuid.UUID | None,
+        customer_id: uuid.UUID | None,
+        overall_rating: int | None,
+        food_rating: int | None,
+        service_rating: int | None,
+        cleanliness_rating: int | None,
+        would_return: bool | None,
+        comment: str | None,
+    ) -> Feedback:
+        """Feedback that did not come through a QR code.
+
+        The one-per-order index applies here too, so a manager cannot record a second rating over a
+        guest's own — which is the right answer: the guest already said what they thought.
+        """
+        if order_id is not None:
+            existing = await self._feedback.for_order(order_id)
+            if existing is not None:
+                raise ConflictError(
+                    "feedback.already_recorded",
+                    "This order already has feedback against it.",
+                )
+
+        restaurant = await self._restaurants.get()
+        if restaurant is None:
+            raise NotFoundError("restaurant.not_found", "That restaurant does not exist.")
+        now = datetime.now(UTC)
+
+        feedback = Feedback(
+            restaurant_id=self.scope.restaurant_id,
+            order_id=order_id,
+            customer_id=customer_id,
+            overall_rating=overall_rating,
+            food_rating=food_rating,
+            service_rating=service_rating,
+            cleanliness_rating=cleanliness_rating,
+            would_return=would_return,
+            comment=comment,
+            source=ContactSource.STAFF,
+            submitted_at=now,
+            business_date=business_date_of(now, restaurant.timezone, restaurant.business_day_start),
+        )
+        self.session.add(feedback)
+        await self.session.flush()
+        logger.info("feedback.recorded_by_staff", extra={"has_order": order_id is not None})
+        return feedback

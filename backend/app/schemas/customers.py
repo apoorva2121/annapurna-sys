@@ -215,6 +215,8 @@ class StaffFeedbackCreateRequest(_Schema):
 
 class ComplaintResponse(_Schema):
     id: uuid.UUID
+    # What a manager says on the phone. "Complaint 47", not thirty-six hex characters.
+    reference: str
     customer_id: uuid.UUID | None
     order_id: uuid.UUID | None
     order_line_id: uuid.UUID | None

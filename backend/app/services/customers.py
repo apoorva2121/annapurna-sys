@@ -41,11 +41,20 @@ from app.core.errors import ConflictError, NotFoundError
 from app.core.phone import normalise_phone
 from app.core.tenancy import TenantScope
 from app.models.audit import AuditLog
-from app.models.customers import Customer, CustomerConsent, CustomerPreference
+from app.models.customers import (
+    Complaint,
+    Customer,
+    CustomerConsent,
+    CustomerPreference,
+    Feedback,
+)
 from app.repositories.customers import (
+    ComplaintRepository,
     ConsentRepository,
     CustomerPreferenceRepository,
     CustomerRepository,
+    FeedbackRepository,
+    Visit,
 )
 from app.repositories.orders import OrderRepository
 
@@ -55,6 +64,25 @@ logger = logging.getLogger(__name__)
 # — and not blank, because two erased customers would then collide on the unique constraint. It is
 # deliberately not a number: nothing should ever be able to dial it.
 _ERASED_PHONE = "erased:{customer_id}"
+
+
+@dataclass(frozen=True, slots=True)
+class CustomerHistory:
+    """What this branch has seen of one person."""
+
+    visits: list[Visit]
+    feedback: list[Feedback]
+    complaints: list[Complaint]
+
+
+@dataclass(frozen=True, slots=True)
+class CustomerExport:
+    """The DPDP access right, assembled. The consent *history* rather than its current state: what
+    somebody agreed to and when is the part that is evidence."""
+
+    customer: Customer
+    consents: list[CustomerConsent]
+    history: CustomerHistory
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +108,8 @@ class CustomerService:
         self._preferences = CustomerPreferenceRepository(session, scope)
         self._consents = ConsentRepository(session, scope)
         self._orders = OrderRepository(session, scope)
+        self._feedback = FeedbackRepository(session, scope)
+        self._complaints = ComplaintRepository(session, scope)
 
     # ------------------------------------------------------------------ reading
 
@@ -275,7 +305,42 @@ class CustomerService:
         asked" and "they said no" are different facts and a screen should show them differently."""
         return await self._consents.latest_per_purpose(customer_id)
 
+    # ------------------------------------------------------------------ history
+
+    async def history(self, customer_id: uuid.UUID) -> CustomerHistory:
+        """Every visit, every rating, every complaint — for this branch.
+
+        The branch filter is not an afterthought here either: a manager reading a customer's history
+        reads what happened at their own restaurant. The record is the organization's so the person
+        is recognised across branches; what each branch shows is its own.
+        """
+        customer = await self.get(customer_id)
+        return CustomerHistory(
+            visits=list(await self._customers.visits(customer.id, self.scope.restaurant_id)),
+            feedback=list(await self._feedback.for_customer(customer.id)),
+            complaints=list(await self._complaints.for_customer(customer.id)),
+        )
+
     # ------------------------------------------------------------------ the two DPDP rights
+
+    async def export(self, customer_id: uuid.UUID) -> CustomerExport:
+        """Everything this product holds about one person, in one response — the DPDP access right.
+
+        **Per customer, and there is no bulk version, in any role.** A customer list is a
+        competitor's most valuable asset and the P1 design hands `customer.view` to waiters on
+        purpose, so the control is the shape of the surface rather than the permission. Nothing here
+        stops a determined person with an evening and a phone camera; it makes the fast version not
+        exist.
+
+        Audited, because a person reading out everything held about somebody is an event worth being
+        able to ask about afterwards.
+        """
+        customer = await self.get(customer_id)
+        return CustomerExport(
+            customer=customer,
+            consents=list(await self._consents.history(customer.id)),
+            history=await self.history(customer.id),
+        )
 
     async def erase(self, actor: Actor, customer_id: uuid.UUID) -> ErasureResult:
         """Destroy everything that names a person; keep everything that is a financial record.

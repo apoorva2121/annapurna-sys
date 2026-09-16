@@ -1010,6 +1010,26 @@
       "number": 1202,
       "code": "consent.purpose_not_offered",
       "text": "That is not something this form can ask for."
+    },
+    {
+      "number": 1203,
+      "code": "complaint.not_found",
+      "text": "That complaint no longer exists."
+    },
+    {
+      "number": 1204,
+      "code": "complaint.transition_invalid",
+      "text": "This complaint has moved on since you opened it. Reload to see where it is."
+    },
+    {
+      "number": 1205,
+      "code": "feedback.not_found",
+      "text": "That feedback no longer exists."
+    },
+    {
+      "number": 1206,
+      "code": "feedback.already_recorded",
+      "text": "This bill already has feedback against it, from the guest themselves. Theirs stands."
     }
   ]
 }

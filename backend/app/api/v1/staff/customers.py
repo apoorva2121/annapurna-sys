@@ -34,11 +34,13 @@ it, because inside one transaction the write is visible to the code that made it
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import SessionDep, require_permission
+from app.api.v1.staff.complaints import _complaint_response, _feedback_response
 from app.core.actor import Actor
 from app.core.permissions import PermissionCode
 from app.core.tenancy import TenantScope
@@ -48,16 +50,19 @@ from app.schemas.customers import (
     ConsentStateResponse,
     ConsentWriteRequest,
     CustomerCreateRequest,
+    CustomerExportResponse,
+    CustomerHistoryResponse,
     CustomerListItem,
     CustomerListResponse,
     CustomerPreferenceResponse,
     CustomerResponse,
     CustomerUpdateRequest,
+    CustomerVisitLine,
     ErasureResponse,
     OrderCustomerResponse,
     PreferenceCreateRequest,
 )
-from app.services.customers import CustomerService
+from app.services.customers import CustomerHistory, CustomerService
 
 router = APIRouter()
 
@@ -86,6 +91,22 @@ def _consent_state(rows: list[CustomerConsent]) -> list[ConsentStateResponse]:
         )
         for row in rows
     ]
+
+
+def _history_response(history: CustomerHistory) -> CustomerHistoryResponse:
+    return CustomerHistoryResponse(
+        visits=[
+            CustomerVisitLine(
+                order_id=visit.order_id,
+                business_date=visit.business_date,
+                total=visit.total,
+                items=visit.items,
+            )
+            for visit in history.visits
+        ],
+        feedback=[_feedback_response(row) for row in history.feedback],
+        complaints=[_complaint_response(row, returned=None) for row in history.complaints],
+    )
 
 
 def _detail(customer: Customer, consents: list[CustomerConsent]) -> CustomerResponse:
@@ -155,6 +176,39 @@ async def get_customer(
     service = _service(session, actor)
     customer = await service.get(customer_id)
     return _detail(customer, list(await service.consent_state(customer_id)))
+
+
+@router.get("/customers/{customer_id}/history", response_model=CustomerHistoryResponse)
+async def customer_history(
+    actor: _ViewDep, session: SessionDep, customer_id: uuid.UUID
+) -> CustomerHistoryResponse:
+    """Every visit, rating and complaint — **at this branch**.
+
+    The record is the organization's so the same person is recognised wherever they walk in; what
+    each branch shows is its own.
+    """
+    history = await _service(session, actor).history(customer_id)
+    return _history_response(history)
+
+
+@router.get("/customers/{customer_id}/export", response_model=CustomerExportResponse)
+async def export_customer(
+    actor: _ManageDep, session: SessionDep, customer_id: uuid.UUID
+) -> CustomerExportResponse:
+    """The DPDP access right: everything this product holds about one person, in one response.
+
+    **Per customer, and there is no bulk version in any role.** Audited, because reading out
+    everything held about somebody is an event worth being able to ask about afterwards.
+    """
+    service = _service(session, actor)
+    export = await service.export(customer_id)
+    await session.commit()
+    return CustomerExportResponse(
+        exported_at=datetime.now(UTC),
+        customer=_detail(export.customer, list(await service.consent_state(customer_id))),
+        consent_history=_consent_state(export.consents),
+        history=_history_response(export.history),
+    )
 
 
 # --------------------------------------------------------------------------- writing

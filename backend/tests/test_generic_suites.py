@@ -36,7 +36,7 @@ from app.core.enums import EmploymentType, TableStatus, UserAccountStatus
 from app.core.permissions import CATALOGUE, permissions_for_role
 from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
-from app.models.customers import Customer, CustomerPreference
+from app.models.customers import Complaint, Customer, CustomerPreference
 from app.models.identity import Employee, UserAccount
 from app.models.inventory import StockCount, StockCountLine
 from app.models.kitchen import KotTicket, KotTicketLine
@@ -558,6 +558,10 @@ _VICTIM_PARAMETERS = frozenset(
         # `tests/test_customer_endpoints.py`.
         "customer_id",
         "preference_id",
+        # A complaint is what a restaurant got wrong and what it paid to put right. Reading another
+        # tenant's is a commercial leak; a cross-tenant *resolve* would close somebody else's
+        # complaint, which is the one write in this module that exists to be a record.
+        "complaint_id",
     }
 )
 
@@ -957,7 +961,22 @@ async def _victim_resources(
     session.add(victim_preference)
     await session.flush()
 
+    victim_complaint = Complaint(
+        restaurant_id=tenant.restaurant.id,
+        customer_id=victim_customer.id,
+        reference="1",
+        category="food_quality",
+        severity="high",
+        description="Victim complaint.",
+        status="open",
+        business_date=date(2026, 9, 13),
+        financial_year="2026-27",
+    )
+    session.add(victim_complaint)
+    await session.flush()
+
     return {
+        "complaint_id": str(victim_complaint.id),
         "customer_id": str(victim_customer.id),
         "preference_id": str(victim_preference.id),
         "order_id": str(victim_order.id),
