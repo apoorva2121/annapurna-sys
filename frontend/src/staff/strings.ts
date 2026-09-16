@@ -993,6 +993,53 @@ export const strings = {
       'Its number still prints on every bill. An owner renews it, then updates the date in Settings.',
     expiring: (date: string) => `The FSSAI licence runs out on ${date}. Renew it before then.`,
   },
+  // The kitchen display, read at two metres by somebody wearing a glove. Every word here is short
+  // on purpose: at that distance a sentence is a paragraph, and a chef reads a screen the way a
+  // driver reads a road sign.
+  //
+  // There is deliberately no "Served". A dish is served when it reaches a table, which this screen
+  // cannot see — the waiter marks it from the order (M08 spec decision 5).
+  kitchen: {
+    title: 'Kitchen',
+    loading: 'Loading the rail…',
+    stationLabel: 'Station',
+    allStations: 'All stations',
+    empty: 'Nothing to cook. New tickets appear here as orders are sent.',
+    takeaway: 'Takeaway',
+    minutesShort: 'min',
+    late: 'LATE',
+    remake: 'REMAKE',
+    round: (n: number) => `Round ${String(n)}`,
+    openTicket: 'Open',
+    connecting: 'Connecting to the kitchen…',
+    // A banner, not a toast: it stays up until the screen is live again, because a display that
+    // has quietly stopped updating is worse than one that is obviously broken.
+    reconnecting: 'Not live — reconnecting. What is on screen may be out of date.',
+    // Named for the outcome, not the state it moves to.
+    step: {
+      acknowledged: 'Seen it',
+      preparing: 'Start cooking',
+      ready: 'Ready',
+      // Present so the map is total; neither is ever offered as a next step.
+      new: 'New',
+      served: 'Served',
+      cancelled: 'Cancelled',
+    },
+    ticket: {
+      back: 'Back to the rail',
+      title: (number: string) => `Order ${number}`,
+      lineReady: 'This dish is ready',
+      lineStart: 'Start this dish',
+      remakeTitle: 'Send it back',
+      remakeReason: 'Why is it being remade?',
+      // Free text, not a dropdown. A remake reason is how a kitchen learns which dishes come back
+      // and why; five fixed options is how it stops writing them down.
+      remakeHint: 'A few words. It goes on the record and nobody is blamed for it.',
+      remakeSubmit: 'Remake it',
+      remade: (reason: string) => `Being remade: ${reason}`,
+    },
+  },
+
   errors: {
     // Backlog-issues B12 (D12): what a person quotes when they report a problem.
     issue: (number: number) => `Issue ${String(number)}`,

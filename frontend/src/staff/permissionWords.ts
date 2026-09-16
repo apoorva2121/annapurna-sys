@@ -37,6 +37,8 @@ export const PERMISSION_WORDS: Record<Permission, string> = {
   'cash.manage': 'Open and close the till, count the cash, and record payouts',
   'floor.manage': 'Switch busy mode on or off for the floor',
   'order.assign': 'Choose or change who serves a table',
+  'kot.view': 'See the kitchen display: what each station is cooking and what is late',
+  'kot.update': 'Move a ticket through the kitchen and ask for a dish to be remade',
 };
 
 export function wordsFor(code: string): string | null {

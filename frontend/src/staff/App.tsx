@@ -19,6 +19,8 @@ import BillScreen from '@staff/screens/BillScreen';
 import BillsScreen from '@staff/screens/BillsScreen';
 import CashScreen from '@staff/screens/CashScreen';
 import InvoiceScreen from '@staff/screens/InvoiceScreen';
+import KitchenScreen from '@staff/screens/KitchenScreen';
+import KitchenTicketScreen from '@staff/screens/KitchenTicketScreen';
 import FloorPlanScreen from '@staff/screens/FloorPlanScreen';
 import OrderScreen from '@staff/screens/OrderScreen';
 import TableMapScreen from '@staff/screens/TableMapScreen';
@@ -268,6 +270,25 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.ORDER_SETTLE}>
               <BillScreen />
+            </RequirePermission>
+          }
+        />
+        {/* M08. The kitchen display, behind kot.view — which a waiter holds too, deliberately:
+            the floor watches the kitchen. The buttons that drive it need kot.update, and the rail
+            renders those conditionally rather than offering controls that 403. */}
+        <Route
+          path="kitchen"
+          element={
+            <RequirePermission permission={Permission.KOT_VIEW}>
+              <KitchenScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="kitchen/:ticketId"
+          element={
+            <RequirePermission permission={Permission.KOT_VIEW}>
+              <KitchenTicketScreen />
             </RequirePermission>
           }
         />

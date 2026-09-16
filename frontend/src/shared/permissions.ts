@@ -67,6 +67,12 @@ export const Permission = {
   // Waiter assignment (2026-09-14). Choosing who serves a table when opening it for someone else,
   // and moving an order between waiters. Owner and manager; a waiter claims only an unserved order.
   ORDER_ASSIGN: 'order.assign',
+  // M08. The kitchen display. A waiter holds KOT_VIEW and not KOT_UPDATE, which is the P1 design's
+  // own line — the floor watches the kitchen and does not drive it — so the rail renders its
+  // buttons only for the second. Neither marks anything served: a dish is served when it reaches a
+  // table, which the kitchen cannot see, so that stays on the order screen.
+  KOT_VIEW: 'kot.view',
+  KOT_UPDATE: 'kot.update',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
