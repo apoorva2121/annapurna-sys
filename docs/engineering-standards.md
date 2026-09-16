@@ -149,7 +149,7 @@ Correctness rules, not aspirations. Violations fail CI where a test can express 
 
 ## 7 · Tooling gates
 
-**Python** — `ruff` (lint + format), `mypy --strict`, `pytest`. Ruff rulesets: `E,F,W,I,N,UP,B,C4,SIM,ARG,PTH,RUF,S` (`S` = bandit security rules).
+**Python** — `ruff` (lint + format), `mypy --strict`, `pytest`. Ruff rulesets: `E,F,W,I,N,UP,B,C4,SIM,ARG,PTH,RUF,S,DTZ` (`S` = bandit security rules; `DTZ` = no datetime without a timezone, CLAUDE.md invariant 4).
 **TypeScript** — `eslint` (typescript-eslint strict + react-hooks), `prettier`, `tsc --noEmit`, `vitest`.
 **Both** — `pre-commit` runs the fast subset locally; CI runs everything.
 

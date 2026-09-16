@@ -110,5 +110,9 @@ revision:
 seed:
 	docker compose run --rm api python -m app.seed
 
+# ADR 0010: expired idempotency keys. Run nightly by the host until the project has a scheduler.
+sweep-keys:
+	docker compose run --rm api python -m app.jobs.sweep_idempotency_keys
+
 clean:
 	rm -rf $(VENV) frontend/node_modules frontend/dist backend/.pytest_cache backend/.mypy_cache backend/.ruff_cache

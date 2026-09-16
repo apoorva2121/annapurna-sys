@@ -111,18 +111,47 @@ if stated and int(stated.group(1)) != sum(estimates):
     flag("HIGH", "modules.md", "states %s days, estimates sum to %d" % (stated.group(1), sum(estimates)))
 
 # ---------------------------------------------------------------- 5. eliminated tables
-eliminated = ["message_read_receipt", "unit_conversion", "order_status_history",
-              "waiter_performance", "chef_performance", "dish_stats"]
+# Parsed from schema.md's own table rather than hard-coded (backlog-issues B10): the list named 6 of
+# the tables schema.md eliminates, and `refund`, the one M07 had to argue about, was not among them.
+_NOT_TABLES = {
+    # Named in the eliminated table, but also a word the product legitimately uses.
+    "unit": "a base_unit value (g / ml / unit), not only the eliminated table's name",
+    "deleted_at": "a column, eliminated from transactional tables only (ADR 0008 keeps it on message)",
+}
+_SAYS_IT_IS_GONE = ("eliminat", "no `", "replaces", "instead of", "not a table", "is not built")
+eliminated_section = schema_full.split("## What was deliberately eliminated")[1].split("\n---")[0]
+eliminated = []
+for line in eliminated_section.split("\n"):
+    if line.startswith("| `"):
+        for token in re.findall(r"`([^`]+)`", line.split("|")[1]):
+            if re.fullmatch(r"[a-z][a-z0-9_]*\*?", token) and token not in _NOT_TABLES:
+                eliminated.append(token)
 print("\n=== ELIMINATED TABLES ===")
+print("  parsed from schema.md:", len(eliminated))
+if len(eliminated) < 10:
+    flag("HIGH", "docs/schema.md", "the eliminated-tables table parsed to only %d names" % len(eliminated))
 for name in eliminated:
+    stem = name.rstrip("*")
+    tail = r"[a-z0-9_]*" if name.endswith("*") else ""
+    quoted = re.compile("`" + re.escape(stem) + tail + "`")
+    # An underscored name is distinctive enough to catch unquoted too, as the old check did.
+    bare = re.compile(r"\b" + re.escape(stem) + tail + r"\b") if "_" in stem else None
     for path in glob.glob("docs/**/*.md", recursive=True) + ["CLAUDE.md"]:
         # schema.md documents these in its eliminated table; that is the one legitimate mention
         if path.replace("\\", "/") == "docs/schema.md":
             continue
         for line in read(path).split("\n"):
-            if name in line and "eliminat" not in line.lower():
+            lowered = line.lower()
+            mentioned = quoted.search(line) or (bare is not None and bare.search(line))
+            if mentioned and not any(marker in lowered for marker in _SAYS_IT_IS_GONE):
                 flag("HIGH", path, "eliminated table %s referenced as if it exists: %s"
                      % (name, ascii_safe(line.strip()[:80])))
+# The stronger half: no model declares one.
+models_text = "".join(read(path) for path in glob.glob("backend/app/models/*.py"))
+for name in eliminated:
+    tail = r"[a-z0-9_]*" if name.endswith("*") else ""
+    if re.search(r'__tablename__\s*=\s*"%s%s"' % (re.escape(name.rstrip("*")), tail), models_text):
+        flag("HIGH", "backend/app/models", "a model declares the eliminated table %s" % name)
 print("  reintroductions:", len([i for i in issues if "eliminated table" in i[2]]) or "none")
 
 # ---------------------------------------------------------------- 6. numeric claims

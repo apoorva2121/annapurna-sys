@@ -21,7 +21,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import GoodsReceiptScreen from './GoodsReceiptScreen';
 
@@ -85,7 +85,15 @@ function json(body: unknown, status = 200): Response {
   } as unknown as Response;
 }
 
-function renderScreen(): ReturnType<typeof vi.fn> {
+/** The shape `fetch` is actually mocked with.
+ *
+ * `ReturnType<typeof vi.fn>` was enough under vitest 3. Vitest 5 types a bare `vi.fn` as a
+ * procedure returning `void`, so handing `mockImplementation` a function that returns a
+ * `Promise<Response>` became a `no-misused-promises` error rather than the ordinary thing it
+ * is. Naming the real signature once is the honest fix; widening the lint rule would not be. */
+type FetchMock = Mock<(input: unknown, init?: RequestInit) => Promise<Response>>;
+
+function renderScreen(): FetchMock {
   const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
     const url = String(input);
     if (init?.method === 'POST') return Promise.resolve(json(POSTED, 201));
@@ -112,9 +120,9 @@ function renderScreen(): ReturnType<typeof vi.fn> {
  * eslint's `no-base-to-string` is right to refuse the shorter version: `RequestInit['body']` is a
  * union including `FormData` and `Blob`, and `String()` on either yields "[object Object]" — an
  * assertion that would then pass or fail for reasons unrelated to what was sent. */
-function postedBody(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown> {
+function postedBody(fetchMock: FetchMock): Record<string, unknown> {
   const post = fetchMock.mock.calls.find(
-    ([, init]) => (init as RequestInit | undefined)?.method === 'POST',
+    ([, init]) => init?.method === 'POST',
   );
   expect(post).toBeDefined();
   const raw = (post?.[1] as RequestInit).body;
@@ -191,7 +199,7 @@ describe('booking in a delivery', () => {
     });
 
     const keys = fetchMock.mock.calls
-      .filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST')
+      .filter(([, init]) => init?.method === 'POST')
       .map(([, init]) => ((init as RequestInit).headers as Record<string, string>)['Idempotency-Key']);
     expect(keys).toHaveLength(2);
     expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
@@ -232,7 +240,7 @@ describe('booking in a delivery', () => {
 
     expect(await screen.findByText(/Enter a quantity/)).toBeInTheDocument();
     expect(
-      fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'POST'),
+      fetchMock.mock.calls.some(([, init]) => init?.method === 'POST'),
     ).toBe(false);
   });
 

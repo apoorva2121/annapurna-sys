@@ -43,7 +43,12 @@ depends_on: str | None = None
 # tests/test_permission_seed.py — see that file for how to produce a new one.
 CATALOGUE_FINGERPRINT = "sha256:04dc58278470725d3cc164710696025e7a4d2b50fb0116f41203e57b0db46753"
 
-_CATALOGUE_PATH = Path(__file__).resolve().parents[2] / "app" / "core" / "permissions.json"
+# The catalogue as it stood when this migration was written, frozen (backlog-issues B10). It used to
+# read app/core/permissions.json when it ran, so a database upgraded later applied a catalogue from
+# the future. Migration 0028 brings every name and description up to date.
+_CATALOGUE_PATH = (
+    Path(__file__).resolve().parents[1] / "catalogues" / "0005_m02_restaurant_configure.json"
+)
 
 
 def _catalogue() -> dict[str, Any]:

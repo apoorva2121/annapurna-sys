@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, func, select, update
+from sqlalchemy import CursorResult, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.identifiers import normalise_identifier
@@ -244,6 +244,17 @@ class LoginAttemptRepository:
             )
         )
         return int(count or 0)
+
+    async def sweep_older_than(self, cutoff: datetime) -> int:
+        """Forget attempts made before `cutoff`; returns how many (backlog-issues B10). Unscoped by
+        design, like the rest of this repository: an attempt belongs to no tenant."""
+        result = cast(
+            CursorResult[Any],
+            await self.session.execute(
+                delete(LoginAttempt).where(LoginAttempt.created_at < cutoff)
+            ),
+        )
+        return int(result.rowcount or 0)
 
     async def failures_from(self, ip_address: str, *, since: datetime) -> int:
         """Wrong passwords from one network inside the window, whatever login they named."""

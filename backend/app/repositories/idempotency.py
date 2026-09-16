@@ -14,9 +14,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import delete, update
+from sqlalchemy import CursorResult, delete, update
 from sqlalchemy.dialects.postgresql import insert
 
 from app.core.enums import IdempotencyState
@@ -61,6 +61,23 @@ class IdempotencyKeyRepository(RestaurantScopedRepository[IdempotencyKey]):
             self.scoped().where(IdempotencyKey.key == key).execution_options(populate_existing=True)
         )
         return (await self.session.scalars(query)).first()
+
+    async def sweep_expired(self, now: datetime) -> int:
+        """Delete this restaurant's keys that expired at or before `now`; returns how many.
+
+        ADR 0010's nightly sweep (backlog-issues B10). An expired key can already be claimed again,
+        so this changes no behaviour; it stops the table growing by a row per write for ever.
+        Bounded by `ix_idempotency_key_expires`."""
+        result = cast(
+            CursorResult[Any],
+            await self.session.execute(
+                delete(IdempotencyKey).where(
+                    IdempotencyKey.restaurant_id == self.scope.restaurant_id,
+                    IdempotencyKey.expires_at <= now,
+                )
+            ),
+        )
+        return int(result.rowcount or 0)
 
     async def discard_expired(self, key: str, now: datetime) -> None:
         """Forget an expired key so it can be claimed again. Scoped, and only an expired row."""

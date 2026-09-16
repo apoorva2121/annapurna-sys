@@ -378,6 +378,26 @@ for rule, _text, _why, enforced_by, status in rows:
         )
 
 
+# ---------------------------------------------------------------- ADR 0004 · no date_trunc on time
+#
+# `date_trunc('day', created_at)` groups by the UTC or the local calendar date, never by the business
+# day that starts at `restaurant.business_day_start`, and tests/test_business_day.py shows the two
+# disagree. Documentation forbade it; this stops it (backlog-issues B10). Prose that quotes the mistake
+# in backticks, or a comment, is not a call.
+print("\n=== ADR 0004: DATE_TRUNC ===")
+_DATE_TRUNC = re.compile(r"(?<![`\w])date_trunc\s*\(")
+trunc_hits = []
+for path in walk("backend/app"):
+    for number, line in enumerate(read(path).split("\n"), 1):
+        if line.strip().startswith("#"):
+            continue
+        if _DATE_TRUNC.search(line):
+            trunc_hits.append("%s:%d" % (path, number))
+print("  date_trunc calls:", trunc_hits or "none")
+for hit in trunc_hits:
+    flag("HIGH", "ADR 0004", "date_trunc groups by calendar date, not business date: %s" % hit)
+
+
 # ---------------------------------------------------------------- deferrals whose trigger fired
 #
 # Every deferral in the remediation plan carries a trigger — "when a public URL exists", "when real

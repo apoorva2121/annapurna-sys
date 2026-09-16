@@ -160,8 +160,8 @@ class TestProperties:
 
     @given(
         moment=st.datetimes(
-            min_value=datetime(2024, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2024, 1, 1),  # noqa: DTZ001 - hypothesis bounds are naive
+            max_value=datetime(2030, 12, 31),  # noqa: DTZ001 - hypothesis bounds are naive
             timezones=st.just(UTC),
         ),
         start_hour=st.integers(min_value=0, max_value=23),
@@ -187,8 +187,8 @@ class TestProperties:
 
     @given(
         moment=st.datetimes(
-            min_value=datetime(2024, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2024, 1, 1),  # noqa: DTZ001 - hypothesis bounds are naive
+            max_value=datetime(2030, 12, 31),  # noqa: DTZ001 - hypothesis bounds are naive
             timezones=st.just(UTC),
         ),
         zone=st.sampled_from([KOLKATA, LONDON, "America/New_York"]),
@@ -206,8 +206,8 @@ class TestProperties:
 
     @given(
         moment=st.datetimes(
-            min_value=datetime(2024, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2024, 1, 1),  # noqa: DTZ001 - hypothesis bounds are naive
+            max_value=datetime(2030, 12, 31),  # noqa: DTZ001 - hypothesis bounds are naive
             timezones=st.just(UTC),
         ),
         start_hour=st.integers(min_value=0, max_value=23),
@@ -275,7 +275,7 @@ class TestBadInput:
         """An instant without a timezone is not an instant. Assuming UTC here is how a local
         `datetime.now()` silently becomes a five-and-a-half-hour error."""
         with pytest.raises(ValueError, match="aware"):
-            business_date_of(datetime(2026, 3, 10, 12, 0), KOLKATA, FIVE_AM)
+            business_date_of(datetime(2026, 3, 10, 12, 0), KOLKATA, FIVE_AM)  # noqa: DTZ001
 
 
 class TestTheDatabaseItself:
@@ -362,4 +362,4 @@ class TestTheFinancialYear:
 
     def test_a_naive_datetime_is_refused(self) -> None:
         with pytest.raises(ValueError):
-            calendar_date_of(datetime(2027, 3, 31, 20, 0), KOLKATA)
+            calendar_date_of(datetime(2027, 3, 31, 20, 0), KOLKATA)  # noqa: DTZ001 - naive on purpose

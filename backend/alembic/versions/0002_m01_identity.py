@@ -33,8 +33,11 @@ down_revision: str | None = "0001_baseline"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-# Resolved relative to this file so the migration works from the repo, the container and CI alike.
-_CATALOGUE_PATH = Path(__file__).resolve().parents[2] / "app" / "core" / "permissions.json"
+# The catalogue as it stood when this migration was written, frozen (backlog-issues B10). It used to
+# read app/core/permissions.json when it ran, so a database upgraded later applied a catalogue from
+# the future. Migration 0028 brings every name and description up to date.
+_CATALOGUE_PATH = Path(__file__).resolve().parents[1] / "catalogues" / "0002_m01_identity.json"
+CATALOGUE_FINGERPRINT = "sha256:59e993836240c9de3158c99e67d68ff97a80673bc685cf59a8b3e702000e375e"
 
 
 def _catalogue() -> dict[str, Any]:

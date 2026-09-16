@@ -1,0 +1,147 @@
+{
+  "permissions": [
+    {
+      "code": "employee.view",
+      "resource": "employee",
+      "action": "view",
+      "description": "See the staff list and open an individual employee record."
+    },
+    {
+      "code": "employee.create",
+      "resource": "employee",
+      "action": "create",
+      "description": "Add a new employee, optionally with a login."
+    },
+    {
+      "code": "employee.edit",
+      "resource": "employee",
+      "action": "edit",
+      "description": "Change an employee's name, contact details or employment terms."
+    },
+    {
+      "code": "employee.deactivate",
+      "resource": "employee",
+      "action": "deactivate",
+      "description": "Deactivate or reactivate an employee. Deactivating ends every open session immediately."
+    },
+    {
+      "code": "employee.role.assign",
+      "resource": "employee.role",
+      "action": "assign",
+      "description": "Grant or remove an employee's roles at a restaurant. This is the privilege-escalation path — hold it narrowly."
+    },
+    {
+      "code": "employee.password.reset",
+      "resource": "employee.password",
+      "action": "reset",
+      "description": "Set a new password for another employee. Ends all of that person's other sessions."
+    },
+    {
+      "code": "role.view",
+      "resource": "role",
+      "action": "view",
+      "description": "Read the role and permission catalogue, for the role-assignment screen."
+    },
+    {
+      "code": "restaurant.configure",
+      "resource": "restaurant",
+      "action": "configure",
+      "description": "Change the restaurant's settings, floor plan, kitchen stations and tax rates."
+    }
+  ],
+  "roles": [
+    {
+      "code": "owner",
+      "name": "Owner",
+      "rank": 0,
+      "description": "The person whose money is at risk. Holds everything, always.",
+      "permissions": [
+        "employee.view",
+        "employee.create",
+        "employee.edit",
+        "employee.deactivate",
+        "employee.role.assign",
+        "employee.password.reset",
+        "role.view",
+        "restaurant.configure"
+      ]
+    },
+    {
+      "code": "admin",
+      "name": "Administrator",
+      "rank": 10,
+      "description": "The owner's delegate for system configuration. Trusted, not operational.",
+      "permissions": [
+        "employee.view",
+        "employee.create",
+        "employee.edit",
+        "employee.deactivate",
+        "employee.role.assign",
+        "employee.password.reset",
+        "role.view",
+        "restaurant.configure"
+      ]
+    },
+    {
+      "code": "manager",
+      "name": "Manager",
+      "rank": 20,
+      "description": "Runs the floor. Staffs a shift at 7am when the owner is not on site, and appoints junior roles and other managers — but can never promote anyone above manager, nor change their own roles. Every assignment is written to the audit trail.",
+      "permissions": [
+        "employee.view",
+        "employee.create",
+        "employee.edit",
+        "employee.deactivate",
+        "employee.role.assign",
+        "employee.password.reset",
+        "role.view"
+      ]
+    },
+    {
+      "code": "chef",
+      "name": "Chef",
+      "rank": 30,
+      "description": "Runs the kitchen and needs to know who is on. Reads the staff list, changes nothing.",
+      "permissions": [
+        "employee.view"
+      ]
+    },
+    {
+      "code": "kitchen_staff",
+      "name": "Kitchen Staff",
+      "rank": 40,
+      "description": "Cooks to tickets. Nothing in M01.",
+      "permissions": []
+    },
+    {
+      "code": "waiter",
+      "name": "Waiter",
+      "rank": 40,
+      "description": "Takes orders. Staff records carry phone numbers and dates of birth, so no access here.",
+      "permissions": []
+    },
+    {
+      "code": "store_manager",
+      "name": "Store Manager",
+      "rank": 30,
+      "description": "Runs the store room and supplier relationships. Manages stock, not people.",
+      "permissions": []
+    },
+    {
+      "code": "cleaner",
+      "name": "Cleaner",
+      "rank": 40,
+      "description": "Referenced by tasks and shifts. Frequently has no login at all.",
+      "permissions": []
+    },
+    {
+      "code": "accountant",
+      "name": "Accountant",
+      "rank": 30,
+      "description": "Reads the staff list because payroll needs to know who is employed. Changes nothing about them.",
+      "permissions": [
+        "employee.view"
+      ]
+    }
+  ]
+}

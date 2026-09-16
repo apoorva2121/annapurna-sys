@@ -148,7 +148,7 @@ class TestSection14:
         assert rate_date(served, invoiced, paid) < self.BOUNDARY
 
     def test_a_naive_datetime_is_refused(self) -> None:
-        naive = datetime(2025, 9, 21, 23, 55)
+        naive = datetime(2025, 9, 21, 23, 55)  # noqa: DTZ001 - naive on purpose
         with pytest.raises(ValueError, match="timezone-aware"):
             rate_date(naive, self.BOUNDARY, self.BOUNDARY)
 
