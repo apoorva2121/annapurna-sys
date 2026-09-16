@@ -16,37 +16,55 @@ Spec: `docs/modules/M10-customers-spec.md`. **Resume from the State table below.
 | 1 | A | Migration 0036 + models + repositories + `docs/schema.md` §9 | ☑ done | `33b8a99` |
 | 1 | B | Migration 0037 permissions; customer service, staff CRUD, preferences, the order attach and the frozen allergy note | ☑ done | `f3310ea` |
 | 1 | C | Consent and erasure — and their tests, which are the compliance evidence. **History and export moved to E**, where the feedback and complaints they list exist | ☑ done | `128602f` |
-| 1 | — | **PR 1 gate: full `make check`** | ☐ | — |
+| 1 | — | **PR 1 gate: full `make check`** | ☑ done | `75f06dc` |
 | 2 | D | The guest realm: `guest_token.py`, `guest_deps.py`, `schemas/guest.py`, the rate limiter, the five guest routes, suite 5 | ☑ done | `206966e` |
 | 2 | E | Feedback and complaints, plus the customer history and the DPDP export | ☑ done | `701770b` |
 | 2 | F | Staff screens | ☑ done | `c97f1a8` |
 | 2 | G | The guest bundle: vite entry, eslint boundary, three screens, `brand.md` §7.1 | ☑ done | `94c753b` |
 | 2 | H | Seed, adversarial review, manual script | ☑ done | `d6843a9` |
-| 2 | — | **PR 2 gate: full `make check`** | ☐ **not yet run to completion** | — |
+| 2 | — | **PR 2 gate: full `make check`** | ☑ **clean, exit 0** — 1437 backend + 396 frontend, coverage 96.24%, 0 guardrail issues | `75f06dc` |
 | — | — | **Your manual pass** — `docs/manual-tests/M10-customers.md` | ☐ | — |
 
 ---
 
 ## Resume here
 
-**Every chunk A–H is written, committed and individually green.** What is outstanding is one thing:
-the module gate has not run to completion.
+**The gate is green.** Run 5 completed on 2026-09-17 with **exit code 0** and `make check: clean`:
+1437 backend tests, 396 frontend, coverage 96.24%, 0 guardrail issues, both dependency audits clean.
 
 | Run | What happened |
 |---|---|
 | 1 | Failed at `lint-api` in ~1 minute: one line over 100 characters in `tests/test_seed_customers.py`. Fixed. |
-| 2 | **Killed by the harness for low memory**, about 5% into the test phase. Not a failure — the machine had 1.5 GB free of 13 GB, and `make check` starts a Postgres testcontainer on top of whatever is already running. |
-| 3 | Stopped by the owner, who is restarting the machine. |
+| 2 | **Killed by the harness for low memory**, about 5% into the test phase. Not a failure — the machine had 1.5 GB free of 13 GB. |
+| 3 | Stopped by the owner, who was restarting the machine. |
+| 4 | **Ran to completion and failed**, 35m30s, exit 2: one test of 1437 — the permission-description drift, finding 5 below. |
+| 5 | **Clean**, 36m16s, exit 0. |
 
-**Before the next attempt:** `docker compose stop` (the dev stack had been up fifteen hours and was
-holding the memory the testcontainer needed — it is stopped now, and `make dev` brings it back).
-Then the usual: `make check > check.log 2>&1; echo $?` and **read the number, not the last lines**.
+**Eighteen warnings survive a clean gate**, all from `library/validate_rates.py`: market rates whose
+`as_of` is past the 90-day freshness threshold. They are calendar-driven, no M10 commit touches
+`library/`, and they will appear on any branch until the rates are re-scraped. Named here because
+the Definition of Done says *zero warnings* and this is the gap between that sentence and what a
+clean run actually prints.
 
-Everything below the gate line is already true: lint, mypy, eslint, tsc and every suite in this
-module were run and green as each chunk landed — 24 customer and complaint tests, 17 endpoint tests,
-16 consent and erasure tests, 19 guest-surface tests, 10 seed tests, 29 generic suites including
-suite 5, and 396 frontend tests. What the gate adds is *all of them at once*, which is exactly the
-thing that has caught the last two modules out.
+**What is left is not mine.** Every remaining Definition of Done line needs either the owner or an
+environment that does not exist yet:
+
+- **The owner's manual pass** — `docs/manual-tests/M10-customers.md`, and the exploratory charter.
+- **Staging**, which two lines require: the module must be *on* staging before the manual pass, and
+  latency budgets are explicitly measured there with seeded data, not on a laptop.
+- **`make smoke-prod` (G-14) names a Makefile target that does not exist.** There is a `smoke`
+  target; `smoke-prod` has never been written, so that line cannot honestly be ticked by anybody
+  until it is. Recorded rather than quietly skipped.
+
+If staging is still not real, the pragmatic path is a manual pass against local `make dev` with the
+staging-dependent lines deferred under a named trigger, the way `docs/audit/external-review.md`
+handles deferred findings. That is the owner's call and has not been made.
+
+**On memory, because three of five runs were lost to it:** the gate needs roughly 3 GB free on a
+13.35 GB machine. `~/.wslconfig` now caps Docker's VM at 5 GB with `autoMemoryReclaim`, which must
+sit under `[experimental]` on WSL 2.7.13 — under `[wsl2]` it is rejected with a warning that is easy
+to miss. `~/bin/free-mem.ps1` sweeps before a long run and refuses to touch Docker while a container
+is live.
 
 ---
 
@@ -149,6 +167,35 @@ with the orders seeder between them.
 **What to take from it:** the invariant was enforced at the database and nowhere else, so the first
 code path to meet it was a seeder rather than a person. An invariant with a trigger behind it and no
 service check in front of it is a good error waiting to reach somebody as a bad one.
+
+---
+
+### 5 · The same words in two files, and only one test comparing them (PR 2 gate)
+
+The gate's first complete run failed on one test of 1437:
+`test_every_name_and_description_in_the_file_reached_the_database`. All four of M10's permission
+descriptions had drifted between `app/core/permissions.json`, which the application reads, and
+migration 0037, which puts them in the database — `afterwards`/`after it`, `QR code`/`QR form`,
+`give it an owner`/`assign it an owner`, and one whole sentence present in the file and absent from
+the migration: *"A person sees the customers of the restaurant they are working in, not the whole
+organization's."*
+
+The file won: it is what the app reads, what the test asserts against, and the later text. Migration
+0037 was edited rather than superseded, allowed only because `feat/m10-customers` has no upstream
+and no other branch contains the commit, so 0037 has never been applied on staging.
+
+**What to take from it.** The prose was copy-pasted into two files and then improved in one. This
+codebase already *solved* that class once: migrations 0002 and 0005 read frozen catalogues whose
+hash must match a `CATALOGUE_FINGERPRINT` they declare, precisely so the two cannot drift silently.
+A new permission migration carries the words inline and gets none of that, so the guard degrades
+from *cannot drift* to *one end-to-end test notices, thirty-six minutes in*. `docs/backlog.md`
+carries the two candidate fixes.
+
+**And a second lesson, about reading results.** This run reported success three different ways while
+failing: the harness said "exit code 0" (it was reading the wrapper's `echo`, not `make`), the last
+lines of the log read `Required test coverage of 95% reached` in green, and the failure itself was a
+single `F` among 1437 dots. Only `echo $?` told the truth. That is the third time this specific
+confusion has cost this project a run, which is why CLAUDE.md says to read the number.
 
 ---
 
