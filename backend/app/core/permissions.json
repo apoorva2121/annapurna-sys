@@ -233,6 +233,18 @@
       "resource": "kot",
       "action": "update",
       "description": "Move a ticket through the kitchen - acknowledge it, start it, mark it ready - and ask for a remake with a reason. It never marks anything served: a dish is served when it reaches a table, which the kitchen cannot see, so that is written from the order screen by whoever carried it."
+    },
+    {
+      "code": "wastage.log",
+      "resource": "wastage",
+      "action": "log",
+      "description": "Record something thrown away: what, how much and why. The cost is computed by the server from the batches the stock actually came out of and is never asked of the person logging - a cook does not know what a kilo of paneer cost on the day it was delivered, and asking would either get a guess or stop them logging at all. Held by the chef, the kitchen staff, the manager and the store manager; a waiter does not hold it."
+    },
+    {
+      "code": "wastage.approve",
+      "resource": "wastage",
+      "action": "approve",
+      "description": "Sign off waste logged against a reason the restaurant marked as needing approval - the expensive ones, such as expiry and quality rejection. It is the control standing between a reason code and somebody logging theft as waste, which is why the manager and the store manager hold it and the people who log most of the waste do not."
     }
   ],
   "roles": [
@@ -274,7 +286,9 @@
         "floor.manage",
         "order.assign",
         "kot.view",
-        "kot.update"
+        "kot.update",
+        "wastage.log",
+        "wastage.approve"
       ]
     },
     {
@@ -334,7 +348,9 @@
         "floor.manage",
         "order.assign",
         "kot.view",
-        "kot.update"
+        "kot.update",
+        "wastage.log",
+        "wastage.approve"
       ]
     },
     {
@@ -350,7 +366,8 @@
         "stock.produce",
         "stock.view",
         "kot.view",
-        "kot.update"
+        "kot.update",
+        "wastage.log"
       ]
     },
     {
@@ -362,7 +379,8 @@
         "recipe.view",
         "stock.view",
         "kot.view",
-        "kot.update"
+        "kot.update",
+        "wastage.log"
       ]
     },
     {
@@ -393,7 +411,9 @@
         "stock.receive",
         "stock.view",
         "supplier.manage",
-        "supplier.view"
+        "supplier.view",
+        "wastage.log",
+        "wastage.approve"
       ]
     },
     {

@@ -119,6 +119,20 @@ class PermissionCode(StrEnum):
     KOT_VIEW = "kot.view"
     KOT_UPDATE = "kot.update"
 
+    # M09. Both already in `seed/organization.yaml`, so this module amends the design not at all —
+    # the second in a row, after M08.
+    #
+    # The split is a separation of duties rather than a convenience: the people who log most of the
+    # waste, the chef and the kitchen staff, hold `wastage.log` and **not** `wastage.approve`.
+    # Logging theft as waste is the one thing this module cannot prevent, only make visible and
+    # expensive, and an approver who is never the person logging is what makes the expensive
+    # reasons — expiry, quality rejection — cost somebody a conversation.
+    #
+    # A waiter holds neither. Waste is a kitchen and storeroom event; a dish a customer sent back is
+    # recorded by whoever takes it off the bill.
+    WASTAGE_LOG = "wastage.log"
+    WASTAGE_APPROVE = "wastage.approve"
+
 
 class PermissionSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
