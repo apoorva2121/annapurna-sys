@@ -16,12 +16,34 @@ Spec: `docs/modules/M09-waste-spec.md`. **Resume from the State table below.**
 | 1 | B | Migration 0034: `wastage.log` / `wastage.approve` | ☑ done | `7d7c44a` |
 | 1 | C | Reasons CRUD + seeded reasons per stage | ☑ done | `8a79094`, `0e2812b` |
 | 1 | D | `POST /wastage`: the paired write, the cost, idempotency | ☑ done | `0e2812b`, `0af0749` |
-| 1 | — | **PR 1 gate: full `make check`** | ☐ | — |
+| 1 | — | **PR 1 gate: full `make check`** | ☑ clean | `a941a05` |
 | 2 | E | `GET /wastage` and the summary by stage and reason | ☑ done | `0e2812b` |
 | 2 | F | The ten-second screen and the summary screen | ☑ done | `0abad84` |
-| 2 | G | Seed, review, manual script | ☐ | — |
-| 2 | — | **PR 2 gate: full `make check`** | ☐ | — |
+| 2 | G | Seed, review, manual script | ☑ done | `d828604` |
+| 2 | — | **PR 2 gate: full `make check`** | ☑ clean | `a941a05` |
 | — | — | **Your manual pass** — `docs/manual-tests/M09-waste.md` | ☐ | — |
+
+---
+
+## The gate, and what it caught
+
+`make check` clean at `a941a05`, 2026-09-16 — 1,316 tests, zero warnings, guardrail issues 0, no
+dependency advisories. The run before it failed on exactly one test, and the test was right:
+
+    FAILED tests/test_issue_catalogue.py::test_every_raised_code_has_an_issue
+    AssertionError: assert ['stock.no_purchase_unit'] == []
+
+`InventoryService.quantity_in_base_units` — this module's unit conversion, the one that keeps a
+cook's "half a kilo" out of a browser's arithmetic — raised a code with no entry in `issues.json`.
+A cook meeting that refusal would have read a sentence with no number to quote on the phone (D11,
+D12). Issue 1191, and deliberately **not** the existing 1170 (`stock_receipt.no_purchase_unit`): the
+condition is the same, the sentence is not. 1170 tells somebody about "a delivery", which is the
+wrong thing to say to a person standing at a bin.
+
+**This is lesson 3 below, written down at the start of this module and then not followed.** A
+lesson in a build log is worth nothing unless something enforces it; what saved it was the test, at
+the gate, thirty-two minutes into a run. The cost of learning it this way is an hour. Worth saying
+plainly rather than quietly fixing.
 
 ---
 
