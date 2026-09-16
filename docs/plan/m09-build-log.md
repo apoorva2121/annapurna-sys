@@ -12,13 +12,13 @@ Spec: `docs/modules/M09-waste-spec.md`. **Resume from the State table below.**
 | PR | Chunk | What | State | Commit |
 |---|---|---|---|---|
 | — | — | Research + spec | ☑ done | — |
-| 1 | A | Migration 0033 + models + schema doc check | ☐ | — |
-| 1 | B | Migration 0034: `wastage.log` / `wastage.approve` | ☐ | — |
-| 1 | C | Reasons CRUD + seeded reasons per stage | ☐ | — |
-| 1 | D | `POST /wastage`: the paired write, the cost, idempotency | ☐ | — |
+| 1 | A | Migration 0033 + models + schema doc check | ☑ done | `b0fd9c9` |
+| 1 | B | Migration 0034: `wastage.log` / `wastage.approve` | ☑ done | `7d7c44a` |
+| 1 | C | Reasons CRUD + seeded reasons per stage | ☑ done | `8a79094`, `0e2812b` |
+| 1 | D | `POST /wastage`: the paired write, the cost, idempotency | ☑ done | `0e2812b`, `0af0749` |
 | 1 | — | **PR 1 gate: full `make check`** | ☐ | — |
-| 2 | E | `GET /wastage` and the summary by stage and reason | ☐ | — |
-| 2 | F | The ten-second screen and the summary screen | ☐ | — |
+| 2 | E | `GET /wastage` and the summary by stage and reason | ☑ done | `0e2812b` |
+| 2 | F | The ten-second screen and the summary screen | ☑ done | `0abad84` |
 | 2 | G | Seed, review, manual script | ☐ | — |
 | 2 | — | **PR 2 gate: full `make check`** | ☐ | — |
 | — | — | **Your manual pass** — `docs/manual-tests/M09-waste.md` | ☐ | — |
@@ -62,3 +62,34 @@ member now exist, and a future module adding a second stream is covered.
 **6 · Run the gate on a finished tree, not a moving one.** Two of M08's gate runs were abandoned
 because the tree had changed underneath them. It takes about thirty-five minutes on this machine and
 it blocks editing while it runs, so it is worth queueing properly rather than starting hopefully.
+
+---
+
+## Adversarial review — step 7 of the module loop
+
+Checklist from `docs/testing-strategy.md` Part 1, walked over the whole M09 diff.
+
+| Check | Result |
+|---|---|
+| Tenant leakage in a hand-written query | Clean — see below |
+| Permission check in the route rather than the service | Clean; the generic matrix walks all seven routes |
+| N+1 behind a lazy relationship | Clean — `WastageEvent.reason` is `lazy="raise"` and eager-loaded where the response needs it |
+| Money touching a float | Clean — no `float(` anywhere in the module; `cost_value` is `Decimal` end to end and a string on the wire |
+| Naive datetime | Clean — no bare `datetime.now()` |
+| **Unit assumed rather than converted** | **Found and fixed** — see the commit `0af0749`. The API took base units, which would have forced the browser to convert |
+| Unbounded query | Clean — the log pages, the summary is bounded by a date range, the reasons list is a restaurant's own dozen |
+| Missing index for a new filter | Clean — `ix_wastage_event_restaurant_date` covers the summary and the log's date filter |
+| Client-supplied cost trusted | **Structurally impossible**: there is no field for one, and `extra="forbid"` refuses a request carrying it |
+| PII in a log line | Clean — ids, codes, stages and amounts |
+| Error message leaking internals | Clean; and `wastage.approver_is_reporter` was written to avoid reading as an accusation |
+
+**The summary's join is safe by construction, and it is worth contrasting with M08's.** The query
+joins `wastage_reason` without a second tenant filter, exactly as M08's `routing_for` joins the
+menu. The difference is the key: `wastage_event.wastage_reason_id` carries a **composite** foreign
+key to `(wastage_reason.id, restaurant_id)`, which migration 0033 added, so a reason reached from a
+scoped event cannot belong to another restaurant. M08's equivalent runs through
+`menu_item_variant.menu_item_id`, which is a **plain** key from M03 — the backlog row that came out
+of that review. Same shape of query, two different guarantees, and only one of them is airtight.
+
+**No finding was left unfixed.** The unit-conversion one is the only thing this pass found, and it
+was found before the screen that would have been wrong existed.

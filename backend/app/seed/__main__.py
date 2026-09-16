@@ -27,6 +27,7 @@ from app.seed.orders import seed_orders
 from app.seed.procurement import seed_procurement
 from app.seed.setup import seed_setup
 from app.seed.stock import seed_stock
+from app.seed.waste import seed_waste
 
 logger = logging.getLogger("app.seed")
 
@@ -61,6 +62,10 @@ async def seed() -> None:
             # An open order, a sent one, a settled bill with a credit note, and a till closed ₹50
             # short. After procurement: settlement writes the stock ledger too.
             orders = await seed_orders(session)
+            # The twelve wastage reasons, and a few days of waste across all four stages. Last,
+            # because logging waste consumes stock: it needs the opening batches and it must not
+            # run before the ledger the inventory seeder refuses to open twice.
+            waste = await seed_waste(session)
             # The single commit. Everything above it is provisional until this line.
             await session.commit()
     finally:
@@ -75,6 +80,8 @@ async def seed() -> None:
         and inventory.created_nothing
         and procurement.created_nothing
         and orders.created_nothing
+        and waste.reasons_created == 0
+        and waste.events_created == 0
     ):
         logger.info("Seed data already present; nothing to do.")
         return
@@ -100,6 +107,11 @@ async def seed() -> None:
         menu.variants_created,
         menu.modifier_groups_created,
         menu.attachments_created,
+    )
+    logger.info(
+        "Seeded %d wastage reasons and %d wastage events across the four stages.",
+        waste.reasons_created,
+        waste.events_created,
     )
     logger.info(
         "Seeded %d ingredients, %d preparations, %d recipes.",

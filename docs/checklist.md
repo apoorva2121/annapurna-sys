@@ -45,7 +45,7 @@ Legend: **S**pec approved · **M**igration · **B**ackend · **T**ests green · 
 | M06 Procurement `[1.5]` | 3d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [ ] |
 | M07 Orders / POS | 7d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M08 Kitchen / KOT | 4d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [~] | [ ] |
-| M09 Waste | 2d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
+| M09 Waste | 2d | [x] | [x] | [x] | [x] | [x] | [ ] | [x] | [x] | [ ] | [ ] |
 | M10 Customers, Feedback & Guest App | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M11 Communication & Tasks | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M12 Shifts | 2d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
