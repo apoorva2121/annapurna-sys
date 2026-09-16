@@ -341,23 +341,30 @@ function orderIdOf(variables: unknown): string | null {
 
 /** What a line is called, from the menu the screen already loaded: a dish, its variant when the
  *  dish has more than one, and its options. Built once per menu, not per line. */
-export type DishNames = { dishes: Map<string, string>; options: Map<string, string> };
+export type DishNames = {
+  dishes: Map<string, string>;
+  options: Map<string, string>;
+  /** Veg, non-veg or egg, per variant (brand.md §8.8). A bill names dishes to a guest. */
+  foodTypes: Map<string, FoodType>;
+};
 
 export function dishNames(menu: OrderingMenu | undefined): DishNames {
   const dishes = new Map<string, string>();
   const options = new Map<string, string>();
+  const foodTypes = new Map<string, FoodType>();
   for (const item of (menu?.categories ?? []).flatMap((category) => category.items)) {
     for (const variant of item.variants) {
       dishes.set(
         variant.id,
         item.variants.length > 1 ? `${item.name} · ${variant.name}` : item.name,
       );
+      foodTypes.set(variant.id, item.food_type);
     }
     for (const modifier of item.modifier_groups.flatMap((group) => group.modifiers)) {
       options.set(modifier.id, modifier.name);
     }
   }
-  return { dishes, options };
+  return { dishes, options, foodTypes };
 }
 
 export type OpenOrderInput = {

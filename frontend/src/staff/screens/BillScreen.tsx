@@ -5,6 +5,7 @@ import type { PaymentMethod } from '@shared/enums';
 import { formatDelta, formatINR, parseAmount, percentToFraction } from '@shared/money';
 import { Permission } from '@shared/permissions';
 import { Button } from '@shared/ui/button';
+import { FoodTypeMark } from '@shared/ui/foodTypeMark';
 import { useIdempotencyKey } from '@shared/useIdempotencyKey';
 import { useAuth } from '@staff/auth/AuthContext';
 import { Field } from '@staff/components/Field';
@@ -129,7 +130,7 @@ function Bill({ order }: { order: Order }): ReactElement {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
-        <Link to={`/orders/${order.id}`} className="min-h-target underline">
+        <Link data-back to={`/orders/${order.id}`} className="min-h-target underline">
           {strings.orders.orderLabel(order.order_number)}
         </Link>
         <h1 className="text-2xl font-semibold">{strings.orders.billTitle}</h1>
@@ -325,7 +326,9 @@ function SplitByDishes({ order }: { order: Order }): ReactElement | null {
               toggle(line.id);
             }}
           />
-          <span className="flex-1">
+          <span className="flex flex-1 items-center gap-2">
+            {/* brand.md §8.8 - a bill is read by the person eating from it. */}
+            <FoodTypeMark foodType={names.foodTypes.get(line.menu_item_variant_id) ?? 'veg'} />
             {`${String(line.quantity)} × ${names.dishes.get(line.menu_item_variant_id) ?? ''}`}
           </span>
           <span className="font-mono tabular-nums">{formatINR(line.line_total)}</span>

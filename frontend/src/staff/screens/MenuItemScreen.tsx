@@ -57,6 +57,9 @@ export default function MenuItemScreen(): ReactElement {
           <p className="text-muted-foreground">{strings.menu.dishesEmpty}</p>
         ) : (
           <>
+            <Link data-back to="/menu" className="text-info underline underline-offset-4">
+              {strings.menu.backToMenu}
+            </Link>
             <header className="flex flex-wrap items-center gap-3">
               <FoodTypeMark foodType={dish.food_type} />
               <h1 className="text-2xl font-semibold">{dish.name}</h1>

@@ -303,6 +303,8 @@ export const strings = {
 
   menu: {
     title: 'Menu',
+    // brand.md §8.7: a dish page is reached by its id, so it carries the way back.
+    backToMenu: 'Menu',
     showInactive: 'Show deactivated',
     inactive: 'Deactivated',
     neverDeleted:
@@ -665,6 +667,7 @@ export const strings = {
     acceptedValue: 'Value booked into stock',
     invoiceLineTotal: 'Invoice lines add up to',
     backToOrders: 'Back to orders',
+    backToSuppliers: 'Suppliers',
 
     varianceTitle: 'Delivery record',
     varianceIntro:

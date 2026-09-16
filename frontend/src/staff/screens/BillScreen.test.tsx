@@ -83,12 +83,14 @@ const MENU = {
         {
           id: 'i1',
           name: 'Dal Makhani',
+          food_type: 'veg',
           variants: [{ id: 'v1', name: 'Full' }],
           modifier_groups: [],
         },
         {
           id: 'i2',
           name: 'Butter Naan',
+          food_type: 'egg',
           variants: [{ id: 'v2', name: 'One' }],
           modifier_groups: [],
         },
@@ -316,3 +318,4 @@ describe('discounts and comps', () => {
     expect(sent(fetchMock, '/orders/o1/charges')).toEqual({ version: 6, type: 'service_charge' });
   });
 });
+

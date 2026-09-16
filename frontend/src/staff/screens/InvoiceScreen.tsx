@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { PaymentMethod } from '@shared/enums';
 import { formatDelta, formatINR, parseAmount } from '@shared/money';
 import { Button } from '@shared/ui/button';
+import { FoodTypeMark } from '@shared/ui/foodTypeMark';
 import { useIdempotencyKey } from '@shared/useIdempotencyKey';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
@@ -51,7 +52,7 @@ export default function InvoiceScreen(): ReactElement {
   const invoiceId = order.data?.invoice_id ?? undefined;
   return (
     <div className="flex max-w-2xl flex-col gap-4">
-      <Link to="/bills" className="min-h-target underline">
+      <Link data-back to="/bills" className="min-h-target underline">
         {strings.bills.backToBills}
       </Link>
       <QueryState
@@ -271,7 +272,13 @@ function CreditNoteForm({
               className="flex items-center justify-between gap-3 border-b border-border py-2"
             >
               <span>
-                <span className="block">{dish}</span>
+                <span className="flex items-center gap-2">
+                  {/* brand.md §8.8 - named to a guest, so it carries the mark. */}
+                  <FoodTypeMark
+                    foodType={names.foodTypes.get(line.menu_item_variant_id) ?? 'veg'}
+                  />
+                  {dish}
+                </span>
                 <span className="text-sm text-muted-foreground">
                   {strings.bills.billedCount(line.quantity, formatINR(line.line_total))}
                 </span>

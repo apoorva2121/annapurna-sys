@@ -137,12 +137,14 @@ const MENU = {
         {
           id: 'i1',
           name: 'Dal Makhani',
+          food_type: 'veg',
           variants: [{ id: 'v1', name: 'Full' }],
           modifier_groups: [],
         },
         {
           id: 'i2',
           name: 'Butter Naan',
+          food_type: 'egg',
           variants: [{ id: 'v2', name: 'One' }],
           modifier_groups: [],
         },
@@ -357,5 +359,19 @@ describe('credit notes already issued', () => {
     await user.click(print_button);
 
     expect(print).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('what a guest can tell from the invoice', () => {
+  // brand.md §8.8. An invoice is the most guest-facing surface in this product, and in India the
+  // veg / egg / non-veg mark is the first thing a person looks for on it. An order line carries
+  // only a variant id, so the mark comes from the same menu lookup that resolves the dish's name -
+  // no new field on the wire and no second request.
+  it('marks each dish veg, egg or non-veg beside its name', async () => {
+    renderScreen();
+
+    const marks = await screen.findAllByRole('img', { name: /vegetarian|egg|non-veg/i });
+
+    expect(marks.length).toBeGreaterThanOrEqual(2);
   });
 });

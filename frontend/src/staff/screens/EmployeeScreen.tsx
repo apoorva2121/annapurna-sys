@@ -264,7 +264,7 @@ function AddedOrBack({ employee }: { employee: Employee }): ReactElement {
   const roles = useRoles();
   if (params.get('added') !== '1') {
     return (
-      <Link to="/staff" className="text-info underline underline-offset-4">
+      <Link data-back to="/staff" className="text-info underline underline-offset-4">
         {strings.employee.backToStaff}
       </Link>
     );

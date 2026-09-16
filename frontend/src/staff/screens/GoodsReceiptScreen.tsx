@@ -356,7 +356,7 @@ function PostedPanel({
         <dd className="font-mono tabular-nums">{formatINR(posted.receipt.invoice_amount)}</dd>
       </dl>
 
-      <Link to="/purchasing/orders" className="underline underline-offset-4">
+      <Link data-back to="/purchasing/orders" className="underline underline-offset-4">
         {strings.procurement.backToOrders}
       </Link>
     </div>

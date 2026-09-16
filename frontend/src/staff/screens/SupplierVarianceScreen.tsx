@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 
 import { formatINR } from '@shared/money';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@shared/ui/table';
@@ -42,6 +42,9 @@ export default function SupplierVarianceScreen(): ReactElement {
 
   return (
     <div className="space-y-page">
+      <Link data-back to="/purchasing/suppliers" className="text-info underline underline-offset-4">
+        {strings.procurement.backToSuppliers}
+      </Link>
       <h1 className="text-2xl font-semibold">{strings.procurement.varianceTitle}</h1>
       <p className="text-sm text-muted-foreground">{strings.procurement.varianceIntro}</p>
 

@@ -203,6 +203,7 @@ function BackButton({
 }): ReactElement {
   return (
     <Button
+      data-back
       variant="ghost"
       onClick={() => {
         if (dirty) {

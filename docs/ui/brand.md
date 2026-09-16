@@ -145,7 +145,9 @@ A page is not finished until every line is true. The `restaurant-ui` skill requi
 4. Status as a soft badge with a word; colour never alone.
 5. Money through `formatINR` / `formatDelta`, tabular, right-aligned, never wrapped, never added up.
 6. Pending, error, empty and success states all rendered; errors in plain language with no code.
-7. A Back link to where the person came from; nothing forces Save to leave.
+7. A Back link to where the person came from; nothing forces Save to leave. On a screen reached
+   by an id, mark it `data-back` — the label is named for its destination ("Tables", "Bills",
+   an order's own number), so the marker is what `brandChecklist.test.ts` can hold.
 8. Food-type mark wherever a dish is named to a guest or a cook.
 9. Phone width checked: headings may step down, controls and amounts never shrink.
 10. A test for the page's one important rule, and — once B11's gallery exists — a gallery entry with
@@ -156,5 +158,11 @@ A page is not finished until every line is true. The `restaurant-ui` skill requi
 1. **Tokens** (this change): the Warm baseline in `tokens.css`, `themes.ts`'s `light` entry renamed
    and described, contrast guard green.
 2. **Per screen, when a backlog chunk touches it** (B6–B12), against §6 and §8.
-3. **The rest after B11**, when the `/design` gallery and its screenshot tests can show a regression.
+3. ~~**The rest after B11**, when the `/design` gallery and its screenshot tests can show a
+   regression.~~ **Done 2026-09-16.** The mechanical lines of §8 are now a test —
+   `frontend/src/staff/brandChecklist.test.ts` — rather than a sweep somebody repeats: tokens
+   over hex and inline style, no error code on a screen, and a way back out of every screen
+   reached by an id. The audit found the screens already clean on tokens and money; what it
+   found missing was the way back (three screens) and the food-type mark on the invoice.
+   Lines 1, 3 and 9 stay human judgements and are still checked by eye at review.
 4. **Every new page from M08 on** is built to §8 from its first commit.
