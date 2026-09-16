@@ -515,6 +515,14 @@ class OrderService:
                     "reason": reason,
                 },
             )
+            # And the kitchen stops cooking it, in this transaction. A kitchen that carries on
+            # with a cancelled dish is the exact operational failure a KOT system exists to
+            # prevent, and the gap between "off the bill" and "off the rail" is measured in the
+            # minutes it takes somebody to walk round and say so (M08 spec decision 7).
+            #
+            # Only here, and only this way: a ticket going `ready` can never cancel an order line.
+            # The kitchen never writes money.
+            await KitchenService(self.session, self.scope).cancel_order_lines([line.id])
         await self._reprice(order.id)
 
     @staticmethod
@@ -563,10 +571,16 @@ class OrderService:
         )
 
     async def mark_served(self, order_id: uuid.UUID, *, version: int) -> None:
-        """Until M08's kitchen display exists, serving the order serves everything the kitchen has.
+        """Serving the order serves everything the kitchen has, and stamps the kitchen's paper.
 
         `served_at` is overwritten on every serve, because Section 14's time of supply is when the
         supply completes — the last dish, not the first.
+
+        **This is the only path that writes `served`, anywhere.** The KOT routes refuse it: a dish
+        is served when it reaches a table, which the kitchen cannot see. That separation is M08's
+        main internal control rather than a division of labour — a cook who clears a rail of food
+        that never left the pass settles nothing and hides nothing, because the service completion
+        is stamped here, by somebody else, on a different screen (M08 spec decision 5).
         """
         order = await self._locked(order_id, version)
         if order.first_sent_at is None:
@@ -574,12 +588,15 @@ class OrderService:
                 "order.not_sent", f"Nothing on order {order.order_number} has gone to the kitchen."
             )
         now = datetime.now(UTC)
-        for line in order.lines:
-            if line.status in _IN_THE_KITCHEN:
-                line.status = OrderLineStatus.SERVED
+        served = [line for line in order.lines if line.status in _IN_THE_KITCHEN]
+        for line in served:
+            line.status = OrderLineStatus.SERVED
         order.status = OrderStatus.SERVED
         order.served_at = now
         order.updated_at = now
+        await KitchenService(self.session, self.scope).serve_order_lines(
+            [line.id for line in served]
+        )
         await self.session.flush()
 
     async def request_bill(self, order_id: uuid.UUID, *, version: int) -> None:

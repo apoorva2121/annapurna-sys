@@ -78,3 +78,91 @@ migration 0032 had been added and the run was measuring something that no longer
 walks the syntax tree of `app/` and fails on any `raise ConflictError("x.y", …)` whose code has no
 entry in `app/core/issues.json`. Ten new kitchen codes had none. Migration 0032 gives them numbers
 1173–1182, so a chef who meets a refusal has something to read out on the phone (D11, D12).
+
+---
+
+## The owner's verdict on section B — two metres
+
+**2026-09-16, owner, asked directly: "chef can do it".**
+
+Recorded against **section B of `docs/manual-tests/M08-kitchen.md` only** — the two-metre
+readability question — and not as the module's manual pass. The distinction is the same one M05's
+row in `docs/checklist.md` makes, and for the same reason: the column means "you have run it and
+every step passes", and a checklist that overstates what was checked is the exact failure R9 built
+a gate against.
+
+What this settles, and it is the thing I could not settle myself: a chef can work from the rail.
+Section B is the only part of this module that no test can reach — a test asserts a font is 40px; it
+cannot say that somebody looks up mid-service and knows what to cook. That question is now answered
+yes.
+
+**Still open, and still the owner's:** sections A, C, D, E, F, G and the H charter. Two of them
+matter more than the rest and neither is a check:
+
+- **D2** — whether `ready` belonging to the kitchen and `served` belonging to the floor is right in
+  a real kitchen. It is the module's main internal control and it is cheap to change today.
+- **H** — at what point the rail stops being readable as tickets pile up, and whether the elapsed
+  clock makes somebody act or becomes wallpaper.
+
+---
+
+## Adversarial review — step 7 of the module loop
+
+Checklist from `docs/testing-strategy.md` Part 1, walked over the whole M08 diff.
+
+| Check | Result |
+|---|---|
+| Tenant leakage in a hand-written query | See finding 1 |
+| Permission check in the route rather than the service | Clean — every route declares one; the generic suite walks them |
+| N+1 behind a lazy relationship | Clean — every relationship is `lazy="raise"`, and two tests assert flat query counts |
+| Money touching a float | **Nothing in the module touches money at all**, asserted by a test over `information_schema` |
+| Naive datetime | Clean — no bare `datetime.now()` anywhere in the module |
+| Unit assumed rather than converted | N/A — the kitchen handles no quantities in stock units |
+| Unbounded query | Clean — `rail` and `since` page; the rest are bounded by an order's own line ids |
+| Missing index for a new filter | Clean — `ix_kot_ticket_rail` and `ix_kot_ticket_revision` cover both |
+| Client-supplied price or total trusted | N/A, and structurally impossible: no money column exists here |
+| PII in a log line | Clean — ids, ticket numbers and counts only |
+| Error message leaking internals | Clean — messages name a ticket number and a status |
+
+## 1 · `routing_for` joins the menu without a tenant filter on the joined tables
+
+`OrderLine` is scoped, and `order_line.menu_item_variant_id` carries a **composite** foreign key to
+`(menu_item_variant.id, restaurant_id)`, so the variant is guaranteed same-tenant. But
+`menu_item_variant.menu_item_id` is a **plain** foreign key to `menu_item.id` — M03's schema, not
+M08's — so nothing in the database forbids a variant pointing at another restaurant's item.
+
+**It fails closed rather than leaking**, which is why it is a note and not a fix. If such a row
+existed, `routing_for` would return the other restaurant's `station_id`, and `kot_ticket`'s own
+composite foreign key on `(station_id, restaurant_id)` would refuse the insert: the send fails
+loudly instead of routing a dish onto a stranger's rail.
+
+**Do not "fix" it by adding a filter to the join.** That would convert a refused send into a
+silently missing dish, which is strictly worse. The real fix is `UNIQUE (id, restaurant_id)` on
+`menu_item` plus a composite key from the variant — M03's to make, and a backlog row.
+
+## 2 · The concurrent-stream cap in the spec was not built
+
+The spec's threat question proposed "a per-token concurrent-stream cap". It is not implemented, and
+on reflection it should not be, in this shape:
+
+- A cap enforced per worker is not a cap. With `max-instances=3` a client opens three times the
+  limit by reconnecting, and the number in the code would read as a control while being a
+  suggestion.
+- The two things actually holding this down are built: a stream ends on its own deadline
+  (`MAX_SECONDS`), and it re-checks the session every tick, so a revoked token cannot hold one open.
+- The remaining exposure is an authenticated member of staff opening many streams on purpose. That
+  is a person with a login doing something visible, not an anonymous attacker.
+
+Recorded in `docs/backlog.md` with the condition that would make it worth building: a real
+deployment where connection-pool pressure from displays is measured rather than imagined.
+
+## 3 · `served` arriving before `ready` is repaired, not refused
+
+`serve_order_lines` fills in `ready_at` when a counter-service order is served off the pass without
+anybody pressing Ready. Worth naming because it is a service quietly satisfying a CHECK constraint,
+which is usually a smell.
+
+It is right here: the constraint exists so a prep time is never unanswerable, and "the pass and the
+handover happened at the same instant" is the true answer for counter service, not a fabrication.
+The alternative — refusing the serve — would make the product unusable for exactly the restaurants
+that take money before they cook. Tested explicitly.

@@ -41,6 +41,25 @@ class RouteInfo:
     def is_guest(self) -> bool:
         return self.path.startswith("/api/v1/guest")
 
+    @property
+    def is_stream(self) -> bool:
+        """A route that holds its connection open instead of answering and closing.
+
+        **A suite that walks every route must skip these, or it hangs on them.** M08's
+        `GET /kot/stream` is the first: it keeps a kitchen display updated for a whole service, so
+        a plain GET does not return until its deadline — fifty-five minutes later. Suite 1b, which
+        probes every id-less GET for another tenant's rows, stopped the entire build dead on it.
+        That is not the suite being wrong; it is a route whose contract is "never returns" meeting
+        a loop whose contract is "call everything".
+
+        A streaming route still needs every guarantee the suites give the others, so skipping one
+        here is a debt, not an exemption: it is paid in `tests/test_kitchen_endpoints.py` (the
+        permission, and the headers) and `tests/test_kitchen_stream.py` (tenant isolation, including
+        a cursor lifted from another restaurant's stream). Anything added to this list without that
+        cover is a route with no tenant test at all.
+        """
+        return self.path.endswith("/stream")
+
     def __str__(self) -> str:
         return self.key
 

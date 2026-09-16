@@ -36,6 +36,7 @@ from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
 from app.models.identity import Employee, UserAccount
 from app.models.inventory import StockCount, StockCountLine
+from app.models.kitchen import KotTicket, KotTicketLine
 from app.models.menu import (
     MenuCategory,
     MenuItem,
@@ -384,6 +385,11 @@ _VICTIM_PARAMETERS = frozenset(
         "charge_id",
         "invoice_id",
         "session_id",
+        # M08. It refused the build the moment the KOT routes registered, which is the fourth
+        # module in a row it has done that for. A kitchen ticket names a table, an order number and
+        # what is being cooked on it — reading another restaurant's is a live picture of their
+        # service, and a cross-tenant *write* would move food through somebody else's kitchen.
+        "ticket_id",
     }
 )
 
@@ -710,9 +716,40 @@ async def _victim_resources(
     session.add(victim_till)
     await session.flush()
 
+    # A ticket the victim's kitchen is cooking, and a line on it (M08). `{line_id}` is shared with
+    # the order routes above and that is deliberate: a probe presenting *any* foreign id must be
+    # refused, and an id that is real somewhere else is the strongest form of that probe.
+    victim_ticket = KotTicket(
+        restaurant_id=restaurant_id,
+        order_id=victim_order.id,
+        station_id=station.id,
+        ticket_number="1",
+        sequence_in_order=1,
+        status="new",
+        target_minutes=12,
+        business_date=date(2026, 9, 13),
+        revision=1,
+        printed_at=datetime.now(UTC),
+    )
+    session.add(victim_ticket)
+    await session.flush()
+    session.add(
+        KotTicketLine(
+            restaurant_id=restaurant_id,
+            kot_ticket_id=victim_ticket.id,
+            order_line_id=victim_line.id,
+            quantity=1,
+            item_name="Victim Dal",
+            variant_name="Full",
+            status="pending",
+        )
+    )
+    await session.flush()
+
     return {
         "order_id": str(victim_order.id),
         "line_id": str(victim_line.id),
+        "ticket_id": str(victim_ticket.id),
         "discount_id": str(victim_discount.id),
         "charge_id": str(victim_charge.id),
         "invoice_id": str(victim_invoice.id),
@@ -802,6 +839,30 @@ class TestTenantIsolationAcrossEveryStaffRoute:
         # the failure mode suite 0 exists to prevent and this is its per-suite half.
         assert probed >= 10, f"suite 1 only probed {probed} routes; it should cover every id route"
 
+    async def test_every_streaming_route_is_named_and_covered_elsewhere(self, api: FastAPI) -> None:
+        """The exclusion above is a debt, so it is written down and kept small.
+
+        Three loops in these suites skip a route that holds its connection open, because a loop
+        whose contract is "call everything" hangs on a route whose contract is "never returns" —
+        M08's stream stopped an entire `make check` dead before this existed. A skipped route still
+        needs every guarantee the suites give, so each one is listed here beside the file that gives
+        it, and a new stream added without that cover fails this test rather than quietly opting out
+        of tenant isolation.
+        """
+        covered = {
+            # tests/test_kitchen_stream.py — tenant isolation, including a cursor lifted from
+            # another restaurant's stream; tests/test_kitchen_endpoints.py — the permission both
+            # ways, and the no-buffering headers.
+            "GET /api/v1/staff/kot/stream",
+        }
+        streaming = {route.key for route in staff_routes(api) if route.is_stream}
+
+        assert streaming == covered, (
+            "a streaming route was added or removed. A stream is skipped by three of the generic "
+            "suites, so it must carry its own tenant-isolation and permission tests: "
+            f"{streaming ^ covered}"
+        )
+
     async def test_no_list_route_returns_another_tenants_rows(
         self, db_session: AsyncSession, api: FastAPI, api_client: AsyncClient
     ) -> None:
@@ -833,7 +894,7 @@ class TestTenantIsolationAcrossEveryStaffRoute:
         failures: list[str] = []
         probed = 0
         for route in staff_routes(api):
-            if "{" in route.path or route.method != "GET":
+            if "{" in route.path or route.method != "GET" or route.is_stream:
                 continue
             probed += 1
             response = await api_client.get(
@@ -853,7 +914,7 @@ class TestTenantIsolationAcrossEveryStaffRoute:
         owner = await _login(api_client, "owner@spice-garden.test")
         seen: set[str] = set()
         for route in staff_routes(api):
-            if "{" in route.path or route.method != "GET":
+            if "{" in route.path or route.method != "GET" or route.is_stream:
                 continue
             response = await api_client.get(
                 route.path, headers={"Authorization": f"Bearer {owner}"}
@@ -963,7 +1024,11 @@ class TestThePermissionMatrix:
         token = await _login(api_client, f"{role_code}@org-{role_code}.test")
         mismatches: list[str] = []
         for route in staff_routes(api):
-            if not route.permissions:
+            # A streaming route is skipped here for the reason `RouteInfo.is_stream` gives: this
+            # loop probes with a token that may *hold* the permission, and the success case of
+            # `GET /kot/stream` is a connection that stays open for fifty-five minutes. Its
+            # permission is covered by name in `tests/test_kitchen_endpoints.py`, both ways.
+            if not route.permissions or route.is_stream:
                 continue
             url = route.path.replace("{employee_id}", "00000000-0000-0000-0000-000000000002")
             response = await api_client.request(
