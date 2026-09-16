@@ -910,6 +910,46 @@
       "number": 1182,
       "code": "kot.unroutable",
       "text": "One of these dishes has no kitchen station any more. Reload the menu and try again."
+    },
+    {
+      "number": 1183,
+      "code": "wastage.not_found",
+      "text": "That waste record does not exist."
+    },
+    {
+      "number": 1184,
+      "code": "wastage.reason_not_found",
+      "text": "That reason does not exist. Pick one from the list, or ask an owner to add it."
+    },
+    {
+      "number": 1185,
+      "code": "wastage.reason_inactive",
+      "text": "… is no longer offered. Pick another reason."
+    },
+    {
+      "number": 1186,
+      "code": "wastage.reason_code_taken",
+      "text": "A reason with code … already exists. Codes are permanent, so pick another — or reactivate the existing one."
+    },
+    {
+      "number": 1187,
+      "code": "wastage.quantity_invalid",
+      "text": "Say how much was thrown away."
+    },
+    {
+      "number": 1188,
+      "code": "wastage.already_approved",
+      "text": "That has already been approved."
+    },
+    {
+      "number": 1189,
+      "code": "wastage.approver_is_reporter",
+      "text": "Somebody else has to approve waste you logged yourself. That is the point of approval: a second person looked."
+    },
+    {
+      "number": 1190,
+      "code": "wastage.range_invalid",
+      "text": "That date range runs backwards. Check the two dates."
     }
   ]
 }

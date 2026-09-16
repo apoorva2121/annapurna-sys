@@ -25,6 +25,10 @@ const IDEMPOTENT_ENDPOINTS: readonly RegExp[] = [
   /^\/staff\/invoices\/[^/]+\/credit-notes$/,
   /^\/staff\/cash\/sessions\/[^/]+\/payouts$/,
   /^\/staff\/cash\/sessions\/[^/]+\/adjustments$/,
+  // M09. Logging waste writes the stock ledger, and a double-tapped Log on a phone in a kitchen is
+  // exactly what the key exists for — double-booked waste is not a duplicate row, it is a second
+  // consumption and a food-cost figure that is wrong all month.
+  /^\/staff\/wastage$/,
 ];
 
 export type RequestOptions = { idempotencyKey?: string };

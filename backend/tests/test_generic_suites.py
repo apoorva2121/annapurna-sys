@@ -55,6 +55,7 @@ from app.models.procurement import (
 from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, TaxRate
 from app.models.stock import IngredientProfile, Recipe, RecipeLine, StockItem
 from app.models.tenancy import Organization, Restaurant
+from app.models.waste import WastageEvent, WastageReason
 from tests.helpers.routes import RouteInfo, all_routes, staff_routes
 
 PASSWORD = "Staging#2026"  # noqa: S105
@@ -390,6 +391,11 @@ _VICTIM_PARAMETERS = frozenset(
         # what is being cooked on it — reading another restaurant's is a live picture of their
         # service, and a cross-tenant *write* would move food through somebody else's kitchen.
         "ticket_id",
+        # M09, and the fifth. A waste record is what a restaurant threw away and what it cost —
+        # commercially sensitive in itself — and a cross-tenant *approve* would sign off somebody
+        # else's waste, which is the one write in that module that exists to be a control.
+        "reason_id",
+        "event_id",
     }
 )
 
@@ -716,6 +722,31 @@ async def _victim_resources(
     session.add(victim_till)
     await session.flush()
 
+    # A reason the victim configured, and waste logged against it (M09). The reason carries the
+    # *stage* every waste report groups by, so reading another restaurant's is reading how they
+    # classify their own losses.
+    victim_reason = WastageReason(
+        restaurant_id=restaurant_id,
+        code="VICTIM_EXPIRED",
+        name="Victim expired",
+        stage="storage",
+        requires_approval=True,
+    )
+    session.add(victim_reason)
+    await session.flush()
+    victim_wastage = WastageEvent(
+        restaurant_id=restaurant_id,
+        stock_item_id=paneer.id,
+        wastage_reason_id=victim_reason.id,
+        quantity=Decimal("100.0000"),
+        cost_value=Decimal("36.00"),
+        occurred_at=datetime.now(UTC),
+        business_date=date(2026, 9, 13),
+        reported_by=employee,
+    )
+    session.add(victim_wastage)
+    await session.flush()
+
     # A ticket the victim's kitchen is cooking, and a line on it (M08). `{line_id}` is shared with
     # the order routes above and that is deliberate: a probe presenting *any* foreign id must be
     # refused, and an id that is real somewhere else is the strongest form of that probe.
@@ -750,6 +781,8 @@ async def _victim_resources(
         "order_id": str(victim_order.id),
         "line_id": str(victim_line.id),
         "ticket_id": str(victim_ticket.id),
+        "reason_id": str(victim_reason.id),
+        "event_id": str(victim_wastage.id),
         "discount_id": str(victim_discount.id),
         "charge_id": str(victim_charge.id),
         "invoice_id": str(victim_invoice.id),

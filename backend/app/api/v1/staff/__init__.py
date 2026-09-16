@@ -20,6 +20,7 @@ from app.api.v1.staff import (
     roles,
     setup,
     stock,
+    wastage,
 )
 
 router = APIRouter()
@@ -33,3 +34,4 @@ router.include_router(procurement.router)
 router.include_router(roles.router)
 router.include_router(setup.router)
 router.include_router(stock.router)
+router.include_router(wastage.router)

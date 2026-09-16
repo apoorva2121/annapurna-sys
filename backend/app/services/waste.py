@@ -64,6 +64,71 @@ class WastageService:
     async def reasons(self, *, include_inactive: bool = False) -> Sequence[WastageReason]:
         return await self._reasons.list_all(include_inactive=include_inactive)
 
+    async def create_reason(
+        self,
+        *,
+        code: str,
+        name: str,
+        stage: str,
+        requires_photo: bool = False,
+        requires_approval: bool = False,
+    ) -> WastageReason:
+        """A new reason. The code is normalised and permanent.
+
+        Permanent because every report groups by it: renaming a code would split one reason into
+        two across the date it changed, and a waste report that does that is worse than none. The
+        uniqueness is a database constraint as well, because a check-then-insert is never the only
+        guard (G-18).
+        """
+        normalised = code.strip().upper()
+        if await self._reasons.by_code(normalised) is not None:
+            raise ConflictError(
+                "wastage.reason_code_taken",
+                f"A reason with code {normalised} already exists. Codes are permanent, so pick "
+                "another — or reactivate the existing one.",
+            )
+        reason = WastageReason(
+            restaurant_id=self.scope.restaurant_id,
+            code=normalised,
+            name=name.strip(),
+            stage=stage,
+            requires_photo=requires_photo,
+            requires_approval=requires_approval,
+        )
+        self.session.add(reason)
+        await self.session.flush()
+        return reason
+
+    async def update_reason(
+        self,
+        reason_id: uuid.UUID,
+        *,
+        name: str | None = None,
+        requires_photo: bool | None = None,
+        requires_approval: bool | None = None,
+        is_active: bool | None = None,
+    ) -> WastageReason:
+        """Change what a reason is called and what it demands — never its code or its stage.
+
+        The stage is what every report groups by. Changing it would move last quarter's waste
+        between stages retrospectively, which is the one thing a waste report must never do; the
+        request schema has no field for it, and this method has no parameter for it either.
+        """
+        reason = await self._reasons.get(reason_id)
+        if reason is None:
+            raise NotFoundError("wastage.reason_not_found", "That reason does not exist.")
+        if name is not None:
+            reason.name = name.strip()
+        if requires_photo is not None:
+            reason.requires_photo = requires_photo
+        if requires_approval is not None:
+            reason.requires_approval = requires_approval
+        if is_active is not None:
+            # Deactivated, never deleted (ADR 0008): historical events point here for ever.
+            reason.is_active = is_active
+        await self.session.flush()
+        return reason
+
     # ------------------------------------------------------------------ the log
 
     async def log(
@@ -188,6 +253,24 @@ class WastageService:
         return event
 
     # ------------------------------------------------------------------ reads
+
+    async def get(self, event_id: uuid.UUID) -> WastageEvent:
+        """One event with its reason loaded — what every route hands back.
+
+        The reason is eager-loaded because the response carries its code, name and stage: the
+        relationship is `lazy="raise"`, so a caller that wants them says so and an N+1 cannot
+        appear by accident.
+        """
+        event = await self._events.with_reason(event_id)
+        if event is None:
+            raise NotFoundError("wastage.not_found", "That waste record does not exist.")
+        return event
+
+    async def business_date_now(self) -> date:
+        """Today, in the restaurant's terms. A 01:30 entry belongs to the previous business day
+        (invariant 4), and a summary defaulting to "the last seven days" has to agree with the
+        rows it is summing."""
+        return await self._inventory.business_date_now()
 
     async def list_events(
         self,
