@@ -1,6 +1,6 @@
 """m10 - an issue number for every error complaints and feedback can raise
 
-Four codes, 1203 to 1206. Backlog-issues B12 and owner decisions D11 and D12: a code such as
+Five codes, 1203 to 1207. Backlog-issues B12 and owner decisions D11 and D12: a code such as
 `customer.already_erased` never appears on a screen. A person reads the error's own sentence and
 "Issue 1195", which is a number they can read out on the phone.
 
@@ -8,6 +8,11 @@ Four codes, 1203 to 1206. Backlog-issues B12 and owner decisions D11 and D12: a 
 meets it when they try to write down a rating for a bill a guest already rated themselves, and the
 right thing to tell them is that the guest's own answer is the one on the record. "Already exists"
 would read as a system refusing a legitimate act; this reads as the system being right.
+
+**`order.settled` says where the customer goes instead.** It is met by a waiter attaching somebody
+to a bill that was settled a moment ago — CLAUDE.md invariant 6, enforced by a trigger — and without
+it the database's own refusal would reach them as "Something went wrong". What they need to be told
+is not that orders are immutable; it is to put the customer on the next one.
 
 **`complaint.transition_invalid` does not explain the state machine.** A complaint that has moved on
 since somebody opened the screen is a stale screen, and the useful instruction is to reload — not a
@@ -40,7 +45,7 @@ down_revision: str | None = "0039_m10_guest_issues"
 branch_labels: str | None = None
 depends_on: str | None = None
 
-ISSUES_FINGERPRINT = "sha256:c4343ab6f6b1e57a6d5bac62d70ef86d2185057ee9f0089014903e17e2540c0c"
+ISSUES_FINGERPRINT = "sha256:321f24003825967f064b7bdd4dbce1c260b709c08fcd47151a20232a9990e047"
 
 _CATALOGUE_PATH = (
     Path(__file__).resolve().parents[1] / "catalogues" / "0040_m10_complaint_issues.json"
@@ -53,6 +58,7 @@ _ADDED = (
     "complaint.transition_invalid",
     "feedback.not_found",
     "feedback.already_recorded",
+    "order.settled",
 )
 
 

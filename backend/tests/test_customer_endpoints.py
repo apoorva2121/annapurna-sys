@@ -503,3 +503,33 @@ class TestTheAllergyReachesTheKitchen:
 
         assert attached.status_code == 200, attached.text
         assert attached.json()["allergy_note"] is None
+
+    async def test_attaching_to_a_settled_bill_is_refused_readably(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The M10 review's second finding, and its regression test.
+
+        A settled order is immutable (CLAUDE.md invariant 6) and a **database trigger** enforces it
+        — which the seeder discovered by being refused. Without this check a waiter attaching
+        somebody to a bill settled a second ago would meet the trigger's own refusal rendered as
+        "Something went wrong", and the thing they actually need to be told is that the bill is
+        finished and the customer goes on the next one.
+        """
+        world = await _world(db_session)
+        token = await _sign_in(db_session, api_client, world, role="manager", branches=("main",))
+        customer = await _create(api_client, token, "9876543240")
+        order_id = await _open_order(db_session, world.restaurants["main"])
+        await db_session.execute(
+            text("UPDATE \"order\" SET status = 'settled', settled_at = now() WHERE id = :id"),
+            {"id": uuid.UUID(order_id)},
+        )
+
+        response = await api_client.post(
+            f"/api/v1/staff/orders/{order_id}/customer",
+            json={"customer_id": customer["id"]},
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 409, response.text
+        assert response.json()["code"] == "order.settled"
+        assert "next order" in response.json()["message"]

@@ -438,3 +438,121 @@ class TestTheRecordOfAPerson:
 
         # Routed as a customer id, which this is not — there is no bulk endpoint to reach.
         assert response.status_code in {404, 422}, response.text
+
+
+# --------------------------------------------------------------------------- the review's finding
+
+
+class TestVisitsAreCountedNotRemembered:
+    """The M10 adversarial review's finding, and its regression test.
+
+    `customer.visit_count`, `lifetime_value`, `first_visit_at` and `last_visit_at` are columns in
+    `docs/schema.md` §9 that **nothing in this product writes**. A waiter's screen read them, so it
+    would have shown "7th visit" frozen at whatever the seed put there, for ever.
+
+    That is exactly the failure `customer_returned` was removed to avoid — a stored value beside a
+    derivation that is always right — and it shipped anyway until somebody read the screen back.
+    They are derived now, and these tests are what stop the columns creeping back into a response.
+    """
+
+    async def test_a_new_customer_has_no_visits(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        world = await _world(db_session)
+        token = await _sign_in(db_session, api_client, world, role="manager", branches=("main",))
+
+        created = await _create(api_client, token, "9876546001")
+
+        assert created["visit_count"] == 0
+        assert created["lifetime_value"] == "0.00"
+        assert created["last_visit_at"] is None
+
+    async def test_a_settled_bill_makes_it_a_visit(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        world = await _world(db_session)
+        token = await _sign_in(db_session, api_client, world, role="manager", branches=("main",))
+        customer = await _create(api_client, token, "9876546002")
+        for _ in range(3):
+            await _settled_order_for(
+                db_session, world.restaurants["main"], customer["id"], day=date(2026, 9, 16)
+            )
+        await db_session.flush()
+
+        profile = await api_client.get(f"{CUSTOMERS}/{customer['id']}", headers=_auth(token))
+
+        assert profile.json()["visit_count"] == 3
+        assert profile.json()["lifetime_value"] == "1575.00"
+
+    async def test_visits_count_across_branches_even_though_the_list_does_not(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """ "Seventh visit" is a fact about the relationship, and the record is the organisation's
+        precisely so a chain recognises one diner across its branches. What each branch *shows* of
+        their history is still its own — which is why this asserts both halves."""
+        world = await _world(db_session, branches=("koregaon", "baner"))
+        koregaon = await _sign_in(
+            db_session, api_client, world, role="manager", branches=("koregaon",)
+        )
+        customer = await _create(api_client, koregaon, "9876546003")
+        await _settled_order_for(
+            db_session, world.restaurants["koregaon"], customer["id"], day=date(2026, 9, 16)
+        )
+        await _settled_order_for(
+            db_session, world.restaurants["baner"], customer["id"], day=date(2026, 9, 16)
+        )
+        await db_session.flush()
+
+        profile = await api_client.get(f"{CUSTOMERS}/{customer['id']}", headers=_auth(koregaon))
+        history = await api_client.get(
+            f"{CUSTOMERS}/{customer['id']}/history", headers=_auth(koregaon)
+        )
+
+        assert profile.json()["visit_count"] == 2
+        assert len(history.json()["visits"]) == 1
+
+    async def test_the_list_counts_every_row_in_one_query(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """A list of forty customers must cost one round trip for the counts, not forty. This
+        asserts the figures are right for several rows at once, which is what the grouped query is
+        for — the query count itself is held by the generic suites."""
+        world = await _world(db_session)
+        token = await _sign_in(db_session, api_client, world, role="manager", branches=("main",))
+        first = await _create(api_client, token, "9876546004")
+        second = await _create(api_client, token, "9876546005")
+        await _settled_order_for(
+            db_session, world.restaurants["main"], first["id"], day=date(2026, 9, 16)
+        )
+        await _settled_order_for(
+            db_session, world.restaurants["main"], second["id"], day=date(2026, 9, 16)
+        )
+        await _settled_order_for(
+            db_session, world.restaurants["main"], second["id"], day=date(2026, 9, 17)
+        )
+        await db_session.flush()
+
+        listed = await api_client.get(CUSTOMERS, headers=_auth(token))
+
+        counts = {row["id"]: row["visit_count"] for row in listed.json()["items"]}
+        assert counts[first["id"]] == 1
+        assert counts[second["id"]] == 2
+
+    async def test_an_open_bill_is_not_a_visit_yet(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """Counting an unsettled bill would make the number jump back down when a table walks out
+        without paying, which is a worse lie than counting late."""
+        world = await _world(db_session)
+        token = await _sign_in(db_session, api_client, world, role="manager", branches=("main",))
+        customer = await _create(api_client, token, "9876546006")
+        order_id = await _open_order(db_session, world.restaurants["main"])
+        await api_client.post(
+            f"/api/v1/staff/orders/{order_id}/customer",
+            json={"customer_id": customer["id"]},
+            headers=_auth(token),
+        )
+
+        profile = await api_client.get(f"{CUSTOMERS}/{customer['id']}", headers=_auth(token))
+
+        assert profile.json()["visit_count"] == 0

@@ -55,6 +55,7 @@ from app.repositories.customers import (
     CustomerRepository,
     FeedbackRepository,
     Visit,
+    Visits,
 )
 from app.repositories.orders import OrderRepository
 
@@ -118,6 +119,16 @@ class CustomerService:
         if customer is None:
             raise NotFoundError("customer.not_found", "That customer no longer exists.")
         return customer
+
+    async def relationship(self, customer_ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, Visits]:
+        """How often each of them has been, and what they have spent — counted, not remembered.
+
+        The `customer` row has `visit_count` and `lifetime_value` columns and **nothing in this
+        product writes them**. A screen reading those would show whatever the seed put there, for
+        ever. So they are derived here and the columns are left alone until something exists that
+        maintains or freezes them (`docs/backlog.md`).
+        """
+        return await self._customers.relationship(customer_ids)
 
     async def search(
         self, *, term: str | None = None, limit: int | None = None, after: uuid.UUID | None = None
@@ -243,6 +254,16 @@ class CustomerService:
         order = await self._orders.get(order_id)
         if order is None:
             raise NotFoundError("order.not_found", "That order no longer exists.")
+        if order.settled_at is not None:
+            # CLAUDE.md invariant 6, and a trigger enforces it at the database. Without this check a
+            # waiter attaching somebody to a bill that was settled a second ago would meet a raw
+            # database refusal rendered as "Something went wrong" — and the thing they actually need
+            # to be told is that the bill is finished and the customer goes on the next one.
+            raise ConflictError(
+                "order.settled",
+                "This bill has been settled, so it cannot be changed. "
+                "Put the customer on their next order.",
+            )
 
         allergies = await self._customers.critical_preferences(customer.id)
         note = ", ".join(allergies) or None

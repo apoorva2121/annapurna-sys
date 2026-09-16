@@ -37,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.actor import Actor
 from app.core.enums import KotTicketStatus, OrderChannel, OrderType, PaymentMethod
 from app.core.tenancy import TenantScope
+from app.models.customers import Customer
 from app.models.identity import Employee
 from app.models.kitchen import KotTicket
 from app.models.menu import MenuItem, MenuItemVariant
@@ -180,6 +181,14 @@ async def _seed_one(
     if settled_id is None:
         return created, 0, 0, 0
     created += 1
+    # M10. The regular goes on the bill **before** it is settled, which is when it happens in life
+    # and is the only time it is possible: a settled order is immutable (CLAUDE.md invariant 6) and
+    # a trigger enforces it. Attaching afterwards is what the seeder tried first, and the database
+    # was right to refuse.
+    #
+    # This is also what makes "seventh visit" true rather than typed. The screens count settled
+    # bills, so a regular is somebody who has eaten here.
+    await _attach_regular(session, restaurant, settled_id)
     for step in (orders.send, orders.mark_served, orders.request_bill):
         await step(settled_id, version=await _version(orders, settled_id))
 
@@ -318,3 +327,25 @@ def _notes_for(amount: Decimal) -> list[tuple[Decimal, int]]:
             counts.append((denomination, quantity))
             remaining -= denomination * quantity
     return counts
+
+
+async def _attach_regular(
+    session: AsyncSession, restaurant: Restaurant, order_id: uuid.UUID
+) -> None:
+    """Put a seeded regular on this bill, if the customer seeder has run.
+
+    Written as a lookup rather than a parameter so the two seeders stay independent: a seed run
+    without customers still produces an order, and this simply finds nobody.
+    """
+    customer_id = await session.scalar(
+        select(Customer.id)
+        .where(Customer.organization_id == restaurant.organization_id)
+        .order_by(Customer.phone)
+        .limit(1)
+    )
+    if customer_id is None:
+        return
+    order = await session.get(Order, order_id)
+    if order is not None:
+        order.customer_id = customer_id
+        await session.flush()

@@ -27,7 +27,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, cast
 
@@ -43,11 +43,22 @@ from app.models.customers import (
 )
 from app.models.menu import MenuItem, MenuItemVariant
 from app.models.orders import Order, OrderLine
+from app.models.tenancy import Restaurant
 from app.repositories.base import (
     OrgScopedRepository,
     RestaurantScopedRepository,
     page_size,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class Visits:
+    """A person's whole relationship with this business, counted rather than remembered."""
+
+    count: int
+    spent: Decimal
+    first_at: datetime | None
+    last_at: datetime | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,6 +164,52 @@ class CustomerRepository(OrgScopedRepository[Customer]):
             )
             for order_id, business_date, total in orders
         ]
+
+    async def relationship(self, customer_ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, Visits]:
+        """How often each of these people has eaten here, and what they have spent.
+
+        **Derived, not read off the customer row.** `customer.visit_count`, `lifetime_value`,
+        `first_visit_at` and `last_visit_at` exist in `docs/schema.md` §9 and nothing in this
+        product maintains them — so a waiter's screen would have shown "7th visit" frozen at
+        whatever the seed wrote, for ever. That is exactly the failure `customer_returned` was
+        removed to avoid, and it was shipped anyway until the M10 review read the screen back.
+
+        **Organisation-wide, unlike the visit *list*.** "Seventh visit" is a fact about the
+        relationship, and the record is the organisation's precisely so a chain recognises one
+        diner across branches. What each branch *shows* of their history is still its own.
+
+        One grouped query for any number of people, so a list of forty customers costs one round
+        trip rather than forty.
+        """
+        if not customer_ids:
+            return {}
+        rows = await self.session.execute(
+            select(
+                Order.customer_id,
+                func.count(Order.id),
+                func.coalesce(func.sum(Order.grand_total), 0),
+                func.min(Order.placed_at),
+                func.max(Order.placed_at),
+            )
+            .join(Restaurant, Restaurant.id == Order.restaurant_id)
+            .where(
+                Order.customer_id.in_(customer_ids),
+                Restaurant.organization_id == self.scope.organization_id,
+                # Settled only. An open bill is not a visit yet, and counting it would make the
+                # number jump back down when a table walks out without paying.
+                Order.settled_at.is_not(None),
+            )
+            .group_by(Order.customer_id)
+        )
+        return {
+            customer_id: Visits(
+                count=count,
+                spent=Decimal(str(spent)),
+                first_at=first_at,
+                last_at=last_at,
+            )
+            for customer_id, count, spent, first_at, last_at in rows.all()
+        }
 
     async def order_count(self, customer_id: uuid.UUID) -> int:
         """What erasure must not change. Counted before and asserted after."""

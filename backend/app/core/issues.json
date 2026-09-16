@@ -1030,6 +1030,11 @@
       "number": 1206,
       "code": "feedback.already_recorded",
       "text": "This bill already has feedback against it, from the guest themselves. Theirs stands."
+    },
+    {
+      "number": 1207,
+      "code": "order.settled",
+      "text": "This bill has been settled, so it cannot be changed. Put the customer on their next order."
     }
   ]
 }

@@ -18,9 +18,9 @@ Spec: `docs/modules/M10-customers-spec.md`. **Resume from the State table below.
 | 1 | C | Consent and erasure — and their tests, which are the compliance evidence. **History and export moved to E**, where the feedback and complaints they list exist | ☑ done | `128602f` |
 | 1 | — | **PR 1 gate: full `make check`** | ☐ | — |
 | 2 | D | The guest realm: `guest_token.py`, `guest_deps.py`, `schemas/guest.py`, the rate limiter, the five guest routes, suite 5 | ☑ done | `206966e` |
-| 2 | E | Feedback and complaints, plus the customer history and the DPDP export | ☐ | — |
-| 2 | F | Staff screens | ☐ | — |
-| 2 | G | The guest bundle: vite entry, eslint boundary, three screens, `brand.md` §7.1 | ☐ | — |
+| 2 | E | Feedback and complaints, plus the customer history and the DPDP export | ☑ done | `701770b` |
+| 2 | F | Staff screens | ☑ done | `c97f1a8` |
+| 2 | G | The guest bundle: vite entry, eslint boundary, three screens, `brand.md` §7.1 | ☑ done | `94c753b` |
 | 2 | H | Seed, adversarial review, manual script | ☐ | — |
 | 2 | — | **PR 2 gate: full `make check`** | ☐ | — |
 | — | — | **Your manual pass** — `docs/manual-tests/M10-customers.md` | ☐ | — |
@@ -68,7 +68,64 @@ goes on that list with its cover named.
 
 ## Findings
 
-*(appended as they happen — a finding recorded after the fact is a finding nobody learns from)*
+### 1 · Two internal codes were reaching a guest, three levels down (chunk D)
+
+Writing suite 5's reachability rule found them. `GuestItem.modifier_groups` was the *staff*
+`ModifierGroupResponse`, which carries `code` and `is_active` on the group and on every modifier
+inside it; and `GuestVariant` carried a `code` of its own. A menu that carefully withheld
+`BUTTER_CHICKEN` handed over `EXTRA_CHEESE`.
+
+Nothing shipped them — there has been no guest route until this module — but routing M03's tree is
+exactly what would have, and they had been in the schema since M03.
+`tests/test_menu_tree_guest.py` missed both for ten modules because it asserts about the fields
+somebody thought to check: the *dish*.
+
+**The lesson is about the shape of the rule, not the bug.** A field blocklist needs a person to
+think of `code` on a modifier three levels down. A rule that walks the model graph does not have
+that failure mode, which is why suite 5's second rule — *every model reachable from a guest response
+is defined in the guest module* — is the one that matters.
+
+### 2 · A guardrail cried wolf, and tightening it found something real (chunk D)
+
+G-8 flagged `async def update(` in a service as "a service builds SQL directly". It is a method
+*name*. A guardrail that reports a false positive is one somebody starts skipping, so the check now
+excludes `def` — and running it again surfaced a true finding underneath: the guest bill route was
+reaching a repository directly, bypassing its service.
+
+Both are in `scripts/audit_guardrails.py` with the reasoning, and G-8's row in
+`docs/engineering-guardrails.md` names its two exemptions rather than leaving them in the script.
+
+### 3 · Visit counts were a column nothing wrote (chunk H, adversarial review)
+
+`customer.visit_count`, `lifetime_value`, `first_visit_at` and `last_visit_at` are columns in
+`docs/schema.md` §9 and **nothing in this product maintains them**. The profile screen read them, so
+a waiter would have seen "7th visit" frozen at whatever the seed wrote, for ever.
+
+That is precisely the failure `customer_returned` was *removed* to avoid — a stored value sitting
+beside a derivation that is always right — and it shipped anyway. Decision 8 argued the case in
+writing and chunk B did the opposite four files away.
+
+Derived now, in one grouped query so a list of forty customers costs one round trip. The columns are
+left alone and `docs/backlog.md` carries what should happen to them.
+
+**What to take from it:** the review that caught this was reading the *screen* back, not the code. A
+number on a screen is a claim, and "what keeps this true?" is a question worth asking of every one.
+
+### 4 · A settled bill cannot take a customer, and the database said so (chunk H)
+
+The seeder tried to attach a regular to a settled order and Postgres refused: *"A settled order is
+immutable (invariant 6). Void it or credit-note it."* The trigger was right, and the seeder was
+wrong — but so was `POST /staff/orders/{id}/customer`, which had no such check and would have
+rendered that refusal to a waiter as "Something went wrong".
+
+Two fixes. The service refuses first, with a sentence that says where the customer goes instead
+(*"Put the customer on their next order"*, issue 1207). And the seeder now attaches the regular
+**while the bill is still open**, which is when it happens in life — so the seed runs in two passes
+with the orders seeder between them.
+
+**What to take from it:** the invariant was enforced at the database and nowhere else, so the first
+code path to meet it was a seeder rather than a person. An invariant with a trigger behind it and no
+service check in front of it is a good error waiting to reach somebody as a bad one.
 
 ---
 

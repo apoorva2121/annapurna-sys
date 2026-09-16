@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
@@ -45,6 +46,7 @@ from app.core.actor import Actor
 from app.core.permissions import PermissionCode
 from app.core.tenancy import TenantScope
 from app.models.customers import Customer, CustomerConsent
+from app.repositories.customers import Visits
 from app.schemas.customers import (
     AttachCustomerRequest,
     ConsentStateResponse,
@@ -65,6 +67,10 @@ from app.schemas.customers import (
 from app.services.customers import CustomerHistory, CustomerService
 
 router = APIRouter()
+
+# Somebody who has never settled a bill here. Counted as nothing rather than absent, so a brand-new
+# customer's screen reads "First visit not recorded yet" instead of breaking.
+_NO_VISITS = Visits(count=0, spent=Decimal("0.00"), first_at=None, last_at=None)
 
 _ViewDep = Annotated[Actor, Depends(require_permission(PermissionCode.CUSTOMER_VIEW))]
 _ManageDep = Annotated[Actor, Depends(require_permission(PermissionCode.CUSTOMER_MANAGE))]
@@ -109,16 +115,24 @@ def _history_response(history: CustomerHistory) -> CustomerHistoryResponse:
     )
 
 
-def _detail(customer: Customer, consents: list[CustomerConsent]) -> CustomerResponse:
+def _detail(
+    customer: Customer, consents: list[CustomerConsent], visits: Visits | None
+) -> CustomerResponse:
+    """The profile.
+
+    `visit_count` and `lifetime_value` come from `visits` — counted from the order ledger — and not
+    from the columns of the same name, which nothing maintains. A number that cannot go stale is
+    worth more than one that is cheaper to read.
+    """
     return CustomerResponse(
         id=customer.id,
         phone=customer.phone,
         name=customer.name,
         email=customer.email,
-        first_visit_at=customer.first_visit_at,
-        last_visit_at=customer.last_visit_at,
-        visit_count=customer.visit_count,
-        lifetime_value=customer.lifetime_value,
+        first_visit_at=None if visits is None else visits.first_at,
+        last_visit_at=None if visits is None else visits.last_at,
+        visit_count=0 if visits is None else visits.count,
+        lifetime_value=Decimal("0.00") if visits is None else visits.spent,
         birthday=customer.birthday,
         anniversary=customer.anniversary,
         is_erased=customer.is_erased,
@@ -153,14 +167,17 @@ async def list_customers(
     preferences, not lifetime value. A screen showing every customer's birthday is a screen somebody
     photographs.
     """
-    rows = await _service(session, actor).search(term=search, limit=limit, after=cursor)
+    service = _service(session, actor)
+    rows = await service.search(term=search, limit=limit, after=cursor)
+    # One grouped query for the whole page, not one per row.
+    counts = await service.relationship([row.id for row in rows])
     items = [
         CustomerListItem(
             id=row.id,
             phone=row.phone,
             name=row.name,
-            visit_count=row.visit_count,
-            last_visit_at=row.last_visit_at,
+            visit_count=counts.get(row.id, _NO_VISITS).count,
+            last_visit_at=counts.get(row.id, _NO_VISITS).last_at,
             is_erased=row.is_erased,
         )
         for row in rows
@@ -175,7 +192,11 @@ async def get_customer(
 ) -> CustomerResponse:
     service = _service(session, actor)
     customer = await service.get(customer_id)
-    return _detail(customer, list(await service.consent_state(customer_id)))
+    return _detail(
+        customer,
+        list(await service.consent_state(customer_id)),
+        (await service.relationship([customer.id])).get(customer.id),
+    )
 
 
 @router.get("/customers/{customer_id}/history", response_model=CustomerHistoryResponse)
@@ -205,7 +226,11 @@ async def export_customer(
     await session.commit()
     return CustomerExportResponse(
         exported_at=datetime.now(UTC),
-        customer=_detail(export.customer, list(await service.consent_state(customer_id))),
+        customer=_detail(
+            export.customer,
+            list(await service.consent_state(customer_id)),
+            (await service.relationship([export.customer.id])).get(export.customer.id),
+        ),
         consent_history=_consent_state(export.consents),
         history=_history_response(export.history),
     )
@@ -227,7 +252,8 @@ async def create_customer(
         anniversary=request.anniversary,
     )
     await session.commit()
-    return _detail(await service.get(customer.id), [])
+    # A customer created a moment ago has settled nothing, so there is no relationship yet.
+    return _detail(await service.get(customer.id), [], None)
 
 
 @router.patch("/customers/{customer_id}", response_model=CustomerResponse)
@@ -241,7 +267,11 @@ async def update_customer(
     await service.update(customer_id, **request.model_dump(exclude_unset=True))
     await session.commit()
     customer = await service.get(customer_id)
-    return _detail(customer, list(await service.consent_state(customer_id)))
+    return _detail(
+        customer,
+        list(await service.consent_state(customer_id)),
+        (await service.relationship([customer.id])).get(customer.id),
+    )
 
 
 @router.post(
@@ -261,7 +291,11 @@ async def add_preference(
     )
     await session.commit()
     customer = await service.get(customer_id)
-    return _detail(customer, list(await service.consent_state(customer_id)))
+    return _detail(
+        customer,
+        list(await service.consent_state(customer_id)),
+        (await service.relationship([customer.id])).get(customer.id),
+    )
 
 
 @router.delete(
