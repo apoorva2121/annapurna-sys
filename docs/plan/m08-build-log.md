@@ -166,3 +166,34 @@ It is right here: the constraint exists so a prep time is never unanswerable, an
 handover happened at the same instant" is the true answer for counter service, not a fabrication.
 The alternative — refusing the serve — would make the product unusable for exactly the restaurants
 that take money before they cook. Tested explicitly.
+
+---
+
+## PR 3 gate — and the latency budget, which is not met yet
+
+**`make check`: 1 failed, 1266 passed, coverage 96.83%, 29 minutes.** Exit 2.
+
+The failure was mine and it was a badly-shaped test rather than a defect:
+
+```
+AssertionError: the rail took 63.0 ms with 200 open tickets, against a 50 ms budget
+```
+
+It passed on its own and failed inside the full run, which is the tell: **a wall-clock assertion
+inside a test suite measures the suite.** Measured afterwards on an idle machine, the same query
+over the same 200 tickets runs in a **median of 28.4 ms** (min 24.8, max 36.6 over seven runs).
+Nothing was wrong with the query.
+
+`docs/sdlc.md`'s Definition of Done already says where the number belongs — *"latency budgets met
+**on staging** with seeded data"* — so the first version was asserting the right number in the wrong
+place.
+
+**So the 50 ms budget is NOT verified, and M08's DoD line for it stays unticked.** Staging does not
+exist yet; `docs/checklist.md` still lists the cloud accounts as an open blocker. What is known is
+"median 28 ms on a development laptop", which is encouraging and is not the same claim.
+
+What the suite holds instead is the part that is load-independent and is the real regression risk:
+the **query count, flat between two tickets and sixty**, and a catastrophe bound of 250 ms — about
+eight times the measured median, far enough above a busy CI box that a red means the query changed,
+and far enough below a pathological regression to catch one. The median of five runs, not one
+sample, because a flaky performance test gets deleted rather than investigated.

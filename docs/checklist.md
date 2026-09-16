@@ -6,7 +6,7 @@ Marking rules — a box is ticked only when the thing is **actually true**, neve
 true. `[~]` means in progress. A module's box is ticked only when its full Definition of Done is
 met, **including your manual pass**.
 
-Last updated: 2026-09-12
+Last updated: 2026-09-16
 
 ---
 
@@ -44,7 +44,7 @@ Legend: **S**pec approved · **M**igration · **B**ackend · **T**ests green · 
 | M05 Inventory Ledger | 4d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x]† | [ ] |
 | M06 Procurement `[1.5]` | 3d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [ ] | [ ] |
 | M07 Orders / POS | 7d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
-| M08 Kitchen / KOT | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
+| M08 Kitchen / KOT | 4d | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [x] | [~] | [ ] |
 | M09 Waste | 2d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M10 Customers, Feedback & Guest App | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M11 Communication & Tasks | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -55,6 +55,22 @@ Legend: **S**pec approved · **M**igration · **B**ackend · **T**ests green · 
 | M17 Workload Fairness & Recognition | 5d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M18 Compliance Risk Alarms | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | M16 Hardening & Production | 4d | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
+
+‡ **M08's user pass is partial, not accepted.** The owner answered the one question no test
+can reach — section B of `docs/manual-tests/M08-kitchen.md`, the two-metre readability: *"chef can
+do it"* (2026-09-16). That closes the section this module lived or died by. Sections A, C, D, E, F,
+G and the H charter are unrun, so the column is `[~]` rather than `[x]`: the mark means "you have
+run it and every step passes", and this is one section of eight.
+
+**Its `S` column is ticked by delegation, not by a spec review.** The owner's instruction was
+"continue with m08, m09, run autonomously", which is approval to proceed without the per-module
+sign-off `docs/sdlc.md` step 1 asks for. Recorded here rather than left to look like a review that
+happened.
+
+**One Definition-of-Done line is knowingly unmet even with `G` ticked:** "latency budgets met on
+staging with seeded data". Staging does not exist — the cloud-account blocker above is still open —
+so the KDS's 50 ms budget is measured at a median of 28 ms on a development laptop and verified
+nowhere. `docs/plan/m08-build-log.md` has the numbers.
 
 † **M05's user pass was *accepted*, not run.** The owner approved it on 2026-09-13 without
 working through `docs/manual-tests/M05-inventory.md`, to unblock M07's settlement path. Recorded
