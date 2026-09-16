@@ -24,12 +24,7 @@ beside a UUID is still redacted, and a test says so.
 
 from __future__ import annotations
 
-import io
-import json
 import logging
-from collections.abc import Iterator
-from contextlib import contextmanager
-from typing import Any
 
 from fastapi import FastAPI
 from httpx import AsyncClient
@@ -37,35 +32,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import ActorDep
-from app.core.logging import JsonFormatter, RedactingFilter, redact_text, redact_value
+from app.core.logging import redact_text, redact_value
 from app.models.identity import Employee
+from tests.helpers.logs import captured_lines as _captured_lines
 from tests.test_setup_endpoints import _auth, _token, _world
 
 # A UUIDv7-shaped identifier whose last group holds a bounded ten-digit run starting with 9 — the
 # exact shape the phone pattern used to match.
 _UNLUCKY_UUID = "01a0975a-bdb5-7534-b137-9876543210ab"
 _PROBE_EVENT = "probe.business_event"
-
-
-@contextmanager
-def _captured_lines() -> Iterator[list[dict[str, Any]]]:
-    """Every JSON line the application writes while the block runs, parsed.
-
-    Installed on the root logger with the production formatter and filter, so what is asserted is
-    what production would emit — not pytest's own record format, which never sees the context vars.
-    """
-    stream = io.StringIO()
-    handler = logging.StreamHandler(stream)
-    handler.setFormatter(JsonFormatter())
-    handler.addFilter(RedactingFilter())
-    root = logging.getLogger()
-    root.addHandler(handler)
-    lines: list[dict[str, Any]] = []
-    try:
-        yield lines
-    finally:
-        root.removeHandler(handler)
-        lines.extend(json.loads(raw) for raw in stream.getvalue().splitlines() if raw.strip())
 
 
 def _add_probe_route(app: FastAPI) -> None:

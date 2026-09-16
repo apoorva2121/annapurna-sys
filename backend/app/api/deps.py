@@ -16,7 +16,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
-from fastapi import Depends, Request
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -57,7 +57,6 @@ def _session_id(value: str | None) -> uuid.UUID | None:
 
 
 async def current_actor(
-    request: Request,
     session: SessionDep,
     credentials: _CredentialsDep,
 ) -> Actor:
@@ -93,14 +92,17 @@ async def current_actor(
         raise _unauthenticated()
 
     resolved = await AccessRepository(session).resolve(employee.id, restaurant_id)
-    request.state.actor_employee_id = str(employee.id)
-    request.state.restaurant_id = str(restaurant_id)
     # **Set here, and never anywhere before 2026-09-13.** `app/core/logging.py` declared these two
     # variables and its formatter reads them, but nothing ever set them — so every business event
     # and security warning was written with no tenant, while `docs/observability.md` said every line
     # carried one "automatically". This is the one place both facts become known, so it is the one
-    # place they are set. They live in this request's task context and die with it; the middleware
-    # copies them onto the access line from `request.state`, which is what survives the handler.
+    # place they are set.
+    #
+    # They used to be copied onto `request.state` as well, because `BaseHTTPMiddleware` ran the
+    # handler in a child task whose context the access line could not see. M08 replaced that
+    # middleware with a pure-ASGI one sharing this context (external review M4), so the copy is
+    # gone: these two `set` calls are what the access line reads, and the middleware resets them
+    # when the request ends.
     restaurant_id_var.set(str(restaurant_id))
     actor_id_var.set(str(employee.id))
     return Actor(

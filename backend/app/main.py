@@ -8,12 +8,13 @@ from __future__ import annotations
 import logging
 import re
 import time
-from collections.abc import Awaitable, Callable
 from uuid import uuid4
 
 import sentry_sdk
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.datastructures import MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.api import health
 from app.api.v1 import auth
@@ -42,56 +43,115 @@ def _resolve_request_id(incoming: str | None) -> str:
     return uuid4().hex
 
 
-def route_template(request: Request) -> str:
+def route_template(scope: Scope) -> str:
     """The full path with parameter values replaced by their names.
 
     scope["route"].path is relative to the router it was registered on, so it renders a staff route
     and a guest route identically — the one distinction this product cannot afford to blur
     (ADR 0009). Rebuilding from the concrete path keeps the prefix and keeps cardinality low.
     """
-    path = request.url.path
-    for name, value in (request.scope.get("path_params") or {}).items():
+    path = str(scope.get("path", ""))
+    for name, value in (scope.get("path_params") or {}).items():
         path = path.replace(str(value), "{" + name + "}", 1)
     return path
 
 
-async def request_context_middleware(
-    request: Request,
-    call_next: Callable[[Request], Awaitable[Response]],
-) -> Response:
+class RequestContextMiddleware:
     """Generate the request id at the edge, thread it through every log line, return it in the
-    response header. When a bug is reported, this one value finds everything."""
-    request_id = _resolve_request_id(request.headers.get(REQUEST_ID_HEADER))
-    # The contextvar is reset as this middleware unwinds, which is too early for the 500 handler
-    # running above us in ServerErrorMiddleware. request.state lives in the ASGI scope and survives.
-    request.state.request_id = request_id
-    token = request_id_var.set(request_id)
-    started = time.perf_counter()
-    try:
-        response = await call_next(request)
-    finally:
-        duration_ms = round((time.perf_counter() - started) * 1000, 2)
-        # **The handler's context does not reach this line.** `call_next` runs the application in a
-        # child task, so the tenant `current_actor` set is gone by the time the access line is
-        # written. `request.state` lives in the ASGI scope and survives, so it is read back here and
-        # set for this one call only. Through the context variables rather than `extra`, so the ids
-        # go through the formatter's own fields instead of the PII pattern scan.
-        tenant = restaurant_id_var.set(getattr(request.state, "restaurant_id", None))
-        actor = actor_id_var.set(getattr(request.state, "actor_employee_id", None))
+    response header. When a bug is reported, this one value finds everything.
+
+    **Pure ASGI, not `BaseHTTPMiddleware`** (external review M4, done for M08). The class-based
+    helper runs the application in a child task and returns from `call_next` when the response
+    *starts*. For every module up to M07 that was a distinction without a difference. M08 holds a
+    connection open for a whole service, and under the old shape its access line was written at
+    second zero, reporting a duration that excluded the entire response, with the handler's context
+    variables already gone — the tenant had to be smuggled back through `request.state`.
+
+    Here there is no child task. `send` is wrapped, the status is remembered from
+    `http.response.start`, and the access line is written when the last body message goes out. A
+    context variable set inside the handler is therefore still set when the line is written, which
+    is why `current_actor` no longer copies the tenant anywhere.
+
+    The cost of one shared context is that a `set()` inside the handler would outlive the request,
+    so all three variables are set here with tokens and reset in `finally`. `tests/
+    test_request_context.py` holds both halves: the line carries the tenant, and the next request
+    does not.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request_id = _resolve_request_id(_header(scope, REQUEST_ID_HEADER))
+        # The context variables are reset as this middleware unwinds, which is too early for the
+        # 500 handler running above us in ServerErrorMiddleware. The ASGI scope's state survives.
+        scope.setdefault("state", {})["request_id"] = request_id
+
+        started = time.perf_counter()
+        status_code = 500
+        written = False
+
+        async def send_wrapper(message: Message) -> None:
+            nonlocal status_code, written
+            if message["type"] == "http.response.start":
+                status_code = int(message["status"])
+                MutableHeaders(scope=message)[REQUEST_ID_HEADER] = request_id
+            elif message["type"] == "http.response.body" and not message.get("more_body", False):
+                # The last byte of the body. Logged here rather than after `self.app` returns so a
+                # stream is measured to its end, and logged before the message is forwarded so an
+                # abandoned connection still leaves a line.
+                written = True
+                _access_line(scope, status_code, started)
+            await send(message)
+
+        tokens = (
+            request_id_var.set(request_id),
+            restaurant_id_var.set(None),
+            actor_id_var.set(None),
+        )
         try:
-            logger.info(
-                "http.request",
-                extra={
-                    "route": f"{request.method} {route_template(request)}",
-                    "duration_ms": duration_ms,
-                },
-            )
+            await self.app(scope, receive, send_wrapper)
+        except Exception:
+            # An unhandled error, a client that hung up mid-stream, a cancelled task: every one of
+            # them is a request that happened and must appear in the log exactly once.
+            if not written:
+                written = True
+                _access_line(scope, status_code, started)
+            raise
         finally:
-            actor_id_var.reset(actor)
-            restaurant_id_var.reset(tenant)
-            request_id_var.reset(token)
-    response.headers[REQUEST_ID_HEADER] = request_id
-    return response
+            if not written:
+                _access_line(scope, status_code, started)
+            actor_id_var.reset(tokens[2])
+            restaurant_id_var.reset(tokens[1])
+            request_id_var.reset(tokens[0])
+
+
+def _header(scope: Scope, name: str) -> str | None:
+    """`scope["headers"]` is untyped in the ASGI spec, so the bytes are narrowed here rather than
+    trusted — this value is echoed into every log line of the request."""
+    wanted = name.lower().encode()
+    for key, value in scope.get("headers", ()):
+        if key == wanted:
+            decoded: str = bytes(value).decode("latin-1")
+            return decoded
+    return None
+
+
+def _access_line(scope: Scope, status_code: int, started: float) -> None:
+    """The one line per request. Ids travel on the context variables rather than in `extra`, so
+    they go through the formatter's own fields instead of the PII pattern scan."""
+    logger.info(
+        "http.request",
+        extra={
+            "route": f"{scope.get('method', '')} {route_template(scope)}",
+            "status_code": status_code,
+            "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+        },
+    )
 
 
 def configure_sentry(settings: Settings) -> None:
@@ -129,7 +189,8 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         expose_headers=[REQUEST_ID_HEADER],
     )
-    app.middleware("http")(request_context_middleware)
+    # Added after CORS, so it wraps it: a rejected pre-flight is still a request that happened.
+    app.add_middleware(RequestContextMiddleware)
     register_error_handlers(app)
 
     app.include_router(health.router, prefix="/api/v1")
