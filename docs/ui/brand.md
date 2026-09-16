@@ -134,6 +134,74 @@ first and a design rule second.
 - **No photo is the normal case** (strategy §1.6): the row is complete without one, and a stock photo
   of another kitchen's food is never used.
 
+### 7.1 · What the apps a diner already uses do — researched 2026-09-16
+
+`docs/backlog.md` carried this as a prerequisite for M10: §7 above was written from this project's
+own material because the session that wrote it had no search budget left. This is that research.
+
+**What kind of evidence this is, stated first.** These are *secondary* sources — published UX
+teardowns and vendor guides — not primary observation of the apps. They are good enough to settle
+questions of convention ("what will a diner expect to find") and not good enough to settle questions
+of fact about any company's current build. Nothing below is cited as a requirement; each is a
+convention, and each is followed or rejected with a reason.
+
+**1 · A veg filter is a control, not only a mark.** Both major Indian delivery apps give the diner a
+way to *filter*, not merely to see: Zomato with tab/chip selection, Swiggy with a "veg only" toggle
+([Jaiswal](https://medium.com/@contactsaumyajaiswal/everyday-ux-swiggy-vs-zomato-tiny-toggles-or-tabs-110a9d8cc2a1),
+[Jambwani](https://medium.com/@kunaljambwani/comparison-ui-ux-swiggy-and-zomato-12137917e73)).
+
+**Adopted.** §7 already requires the food-type mark beside every dish (`docs/compliance-rules.md`
+§A1), which is the legal minimum and is about *labelling*. A vegetarian diner scrolling a long menu
+is doing something else: looking for what they can eat. The guest menu gets a veg-only filter, and
+it is the only filter on the screen — a filter row is where a three-tap surface turns into an app.
+
+**2 · Single-select uses radio buttons.** The teardowns note Zomato using radio buttons where only
+one choice is allowed and Swiggy using checkboxes for the same thing, and call the latter the
+mistake ([ProductOS](https://the-product-os.medium.com/ui-ux-excellence-in-food-delivery-a-competitive-analysis-1cad00225599)).
+
+**Adopted, and it is a rule rather than a preference.** `modifier_group.min_select` / `max_select`
+already carry the arity, so the control follows from the data: `max_select == 1` is a radio group,
+anything else is checkboxes. A checkbox that silently deselects its neighbour is the kind of thing a
+guest reads as a bug in the restaurant.
+
+**3 · The QR must say what it is for.** A bare code scans worse than one captioned "Scan to view
+the menu"; table tents scan better than anything else; the code needs contrast, a minimum printed
+size of about 2.5 cm, and a surface that survives being wiped
+([OrderOut](https://www.orderout.co/blog/qr-codes-in-restaurants/),
+[DineCard](https://www.dinecard.in/blog/digital-menu-qr-code-placement-location-restaurant)).
+
+**Adopted for the printed asset.** The two QR codes this module mints (spec decision 1) are
+generated with a caption each — *Scan for the menu* on the table, *Scan to rate your meal* on the
+bill — because a code that needs explaining gets explained by a waiter, and that is the waiter's
+time.
+
+**4 · Dynamic codes: the destination changes, the print does not.** Every guide says the same thing
+and for the same commercial reason — a static code encoding a menu is a reprint every time the menu
+moves.
+
+**Already the design, arrived at from the other direction.** `restaurant_table.guest_slug` is an
+opaque id resolved server-side, so the sticker never encodes a menu, a version or a URL that can go
+stale. We designed it that way for rotation after a photograph; it happens to be the same answer.
+
+**5 · Load fast, and never ask for an app.** Both the conventions and the security posture agree: a
+guest on a hostile mobile network abandons in seconds, and an app download at a dinner table is not
+a thing that happens.
+
+**Already the design** (ADR 0009: "a small, fast, mostly-anonymous PWA" shipping none of the staff
+code) and now with a number attached: the guest bundle is budgeted and the budget is checked, the
+same way `kdsReadability.test.ts` checks a rule that would otherwise live only in prose.
+
+**6 · Language is the gap, and it is ours.** Indian platforms in this space advertise support for
+Hindi, Tamil, Telugu, Marathi, Bengali, Kannada and more
+([MenuManager](https://menumanager.in/qr-ordering-system/)). **This product ships English only.**
+
+**Not adopted, and recorded rather than hidden.** Translation is not something to generate: a menu's
+allergen line and a consent notice are texts somebody is held to, and both want a native speaker
+before they ship (`docs/consent-notices.md`). The mechanism is built — the consent notice records
+its language — and the content is a backlog entry with a person-shaped dependency, not a technical
+one. A pilot restaurant in Pune whose guests read English is inside the honest boundary of what this
+ships; a claim of multilingual support would not be.
+
 ## 8 · Every new page — the checklist
 
 A page is not finished until every line is true. The `restaurant-ui` skill requires this list.

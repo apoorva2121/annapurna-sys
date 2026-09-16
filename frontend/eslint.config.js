@@ -46,9 +46,44 @@ export default tseslint.config(
     },
   },
   {
-    // The API client is the one place allowed to call fetch — it is what everything else uses.
-    files: ['src/shared/api.ts'],
+    // The two API clients are the only places allowed to call fetch.
+    //
+    // `shared/api.ts` is the staff one. `guest/api.ts` is the second, and it is a second rather
+    // than a reuse because ADR 0009 ships the guest bundle without the staff session: no refresh
+    // cookie, no cross-tab lock, no single-flight refresh, no idempotency allow-list. A guest token
+    // comes from a QR code and, when it dies, the answer is to scan again.
+    files: ['src/shared/api.ts', 'src/guest/api.ts'],
     rules: { 'no-restricted-globals': 'off' },
+  },
+  {
+    // ADR 0009's boundary, as a build failure rather than a promise.
+    //
+    // `src/guest/README.md` has carried this rule since M00: "No staff code may ever be imported
+    // into `guest/`. Not a component, not a hook, not a type, not a constant." If the guest bundle
+    // contains staff code, it ships admin routes to discover and permission strings to enumerate to
+    // thousands of strangers on a hostile network — precisely the failure ADR 0009 exists to
+    // prevent. Shared, persona-neutral code lives in `src/shared/`; anything that knows about staff
+    // stays in `src/staff/`.
+    //
+    // The mirror rule is deliberately absent: staff importing from `guest/` would be odd and
+    // harmless, and a rule nobody can violate is a rule nobody reads.
+    files: ['src/guest/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@staff/*', '**/staff/*'],
+              message:
+                'ADR 0009: the guest bundle ships none of the staff code. Persona-neutral code ' +
+                'lives in src/shared/; anything that knows about staff stays in src/staff/. The ' +
+                'duplication between the two personas is the feature, not a smell.',
+            },
+          ],
+        },
+      ],
+    },
   },
   {
     // Vendored shadcn/ui components. They are copied into this repository rather than installed,

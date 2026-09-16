@@ -6,7 +6,9 @@ import { configDefaults, defineConfig } from 'vitest/config';
 
 // ADR 0009 — staff and guest are two applications, not two roles. They are separate Rollup entry
 // points so the guest bundle can never contain staff code: no admin routes to discover, no
-// permission strings to enumerate. The guest entry arrives in M10 and is one line here, by design.
+// permission strings to enumerate. The guest entry arrived in M10 and was one line here, as
+// designed — the boundary itself is an eslint rule, because a build that merely *can* keep the two
+// apart is not the same as one that refuses to put them together.
 const API_PROXY_TARGET = process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8000';
 
 export default defineConfig({
@@ -15,13 +17,15 @@ export default defineConfig({
     alias: {
       '@shared': path.resolve(__dirname, 'src/shared'),
       '@staff': path.resolve(__dirname, 'src/staff'),
+      '@guest': path.resolve(__dirname, 'src/guest'),
     },
   },
   build: {
     rollupOptions: {
       input: {
         staff: path.resolve(__dirname, 'index.html'),
-        // guest: path.resolve(__dirname, 'guest.html'),  ← M10, ADR 0009
+        // M10. The one line this seam was held open for since M00.
+        guest: path.resolve(__dirname, 'guest.html'),
       },
     },
   },

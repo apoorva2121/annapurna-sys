@@ -1,13 +1,17 @@
 # guest/
 
-This directory is the ADR 0009 seam, held open on purpose. It is empty until M10.
+This directory is the ADR 0009 seam. It was held open from M00 and filled in M10.
 
 ADR 0009 (`docs/decisions/0009-two-personas-two-applications.md`) separates employee and customer
 **structurally**, not with a `role` check. The customer PWA is therefore a second Rollup entry
-point, not a route inside the staff app - the commented-out `guest:` line in `frontend/vite.config.ts`
-is the whole change, and it lands in M10.
+point, not a route inside the staff app - the `guest:` line in `frontend/vite.config.ts` was
+the whole build change, as designed. The result: a staff bundle of ~466 kB and a guest bundle of
+~14 kB, which is what "a small, fast, mostly-anonymous PWA" has to mean on a diner's phone.
 
-The rule that makes the seam worth anything:
+The rule that makes the seam worth anything, **and which is now a build failure rather than a
+promise** — an eslint `no-restricted-imports` boundary on this directory, plus
+`guestDiscipline.test.ts` checking the same thing over the source so that turning the eslint rule
+off does not quietly turn the guarantee off:
 
 > **No staff code may ever be imported into `guest/`.** Not a component, not a hook, not a type, not
 > a constant.
