@@ -1,6 +1,6 @@
 """m09 - an issue number for every error waste can raise
 
-Eight codes, 1183 to 1190. Backlog-issues B12 and owner decisions D11 and D12: a code such as
+Nine codes, 1183 to 1191. Backlog-issues B12 and owner decisions D11 and D12: a code such as
 `wastage.approver_is_reporter` never appears on a screen. A person reads the error's own sentence
 and "Issue 1189", which is a number they can read out on the phone.
 
@@ -33,7 +33,7 @@ down_revision: str | None = "0034_m09_waste_permissions"
 branch_labels: str | None = None
 depends_on: str | None = None
 
-ISSUES_FINGERPRINT = "sha256:674eb17a7428cfc83b09609bce0ba5b8d8cec7e389d2676a40a892c974b8890f"
+ISSUES_FINGERPRINT = "sha256:2fda61f365ead831296d4252d2c59fe8a33014eb7c28503c7912b2686c478c33"
 
 _CATALOGUE_PATH = Path(__file__).resolve().parents[1] / "catalogues" / "0035_m09_waste_issues.json"
 
@@ -48,6 +48,11 @@ _ADDED = (
     "wastage.already_approved",
     "wastage.approver_is_reporter",
     "wastage.range_invalid",
+    # Not a waste code, and it belongs here anyway. `InventoryService.quantity_in_base_units` is
+    # M09's - the waste screen sends half a kilo and the server converts - and it raises when the
+    # item has no purchase unit to convert from. It went in without an issue number and the
+    # catalogue test found it at the module gate, which is exactly what that test is for.
+    "stock.no_purchase_unit",
 )
 
 

@@ -950,6 +950,11 @@
       "number": 1190,
       "code": "wastage.range_invalid",
       "text": "That date range runs backwards. Check the two dates."
+    },
+    {
+      "number": 1191,
+      "code": "stock.no_purchase_unit",
+      "text": "This item is not bought by a separate unit, so it is counted in the unit the ledger holds."
     }
   ]
 }
