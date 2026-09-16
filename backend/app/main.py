@@ -29,6 +29,7 @@ from app.core.logging import (
     request_id_var,
     restaurant_id_var,
 )
+from app.core.spa import mount_spa
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +200,12 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api/v1/auth")
     app.include_router(staff_router, prefix="/api/v1/staff")
     app.include_router(guest_router, prefix="/api/v1/guest")
+
+    # Last, deliberately. The catch-all in mount_spa would shadow any route registered after it,
+    # and the guard that keeps unknown /api paths answering JSON depends on the real routes having
+    # had their chance first. Empty STATIC_DIR (local development) mounts nothing at all.
+    if settings.static_dir:
+        mount_spa(app, settings.static_dir)
     return app
 
 

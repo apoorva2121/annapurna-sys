@@ -54,3 +54,7 @@ uploads/
 /.claude/helpers/graft-*.cjs
 /.claude/skills/graft/
 /.mcp.json
+
+# The deploy image is built with the frontend bundle copied here (R4 one origin); see
+# .github/workflows/deploy-staging.yml. Never committed - it is a build output.
+backend/static/
