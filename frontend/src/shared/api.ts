@@ -339,3 +339,158 @@ export function apiPatch<T>(path: string, body: unknown): Promise<T> {
 export function apiPut<T>(path: string, body: unknown): Promise<T> {
   return request<T>('PUT', path, body);
 }
+
+// ---------------------------------------------------------------- server-sent events (M08)
+
+/** One parsed event off a `text/event-stream` body. */
+export type StreamEvent = { id: string | null; event: string; data: string };
+
+export type StreamOptions = {
+  signal: AbortSignal;
+  /** The highest id this client has already applied. Replayed from, inclusively, by the server. */
+  lastEventId?: string | null;
+  onEvent: (event: StreamEvent) => void;
+  /** The server's own `retry:` value, in milliseconds. The caller backs off by it. */
+  onRetryInterval?: (milliseconds: number) => void;
+};
+
+/**
+ * Read a Server-Sent Events stream, with this client's access token on it.
+ *
+ * **Why not `EventSource`.** The browser's own implementation cannot set a request header, and this
+ * application's access token lives in memory rather than in a cookie (see `setAccessToken` above).
+ * The usual workaround — putting the token in the query string — writes a live credential into
+ * every proxy log, load balancer log and browser history entry it passes. So the stream is read
+ * from a `fetch` body instead, which costs this parser and buys the same `Authorization` header,
+ * the same single-flight refresh, and control over the backoff.
+ *
+ * Resolves when the server closes the stream or the caller aborts. Reconnection is the caller's:
+ * this function does one connection, so the retry policy lives with the screen that knows what a
+ * gap means.
+ */
+export async function openEventStream(path: string, options: StreamOptions): Promise<void> {
+  const body = await connectStream(path, options);
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      // `stream: true` matters: a multi-byte character can straddle two chunks, and decoding each
+      // chunk independently would corrupt a dish name at the boundary.
+      buffer += decoder.decode(value, { stream: true });
+      // An event ends at a blank line. Anything after the last one is a partial event and stays in
+      // the buffer until the rest of it arrives.
+      const blocks = buffer.split(/\r\n\r\n|\n\n|\r\r/);
+      buffer = blocks.pop() ?? '';
+      blocks.forEach((block) => { dispatchBlock(block, options); });
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+/** The handshake: one attempt, one refresh-and-retry, and a readable body or an error. */
+async function connectStream(
+  path: string,
+  { signal, lastEventId }: StreamOptions,
+): Promise<ReadableStream<Uint8Array>> {
+  let response = await sendStream(path, lastEventId, signal);
+  if (response.status === 401) {
+    const token = await refreshOnce();
+    if (token !== null) {
+      response = await sendStream(path, lastEventId, signal);
+    }
+  }
+  if (!response.ok) {
+    throw await errorFrom(response);
+  }
+  if (response.body === null) {
+    throw unreachable();
+  }
+  return response.body;
+}
+
+function dispatchBlock(block: string, { onEvent, onRetryInterval }: StreamOptions): void {
+  const { event, retry } = parseEventBlock(block);
+  if (retry !== null) {
+    onRetryInterval?.(retry);
+  }
+  if (event !== null) {
+    onEvent(event);
+  }
+}
+
+function unreachable(): ApiClientError {
+  return new ApiClientError({
+    code: 'network.unreachable',
+    message: 'Could not reach the server. Check the connection and try again.',
+    issue: FRONTEND_ISSUES['network.unreachable'],
+  });
+}
+
+function sendStream(
+  path: string,
+  lastEventId: string | null | undefined,
+  signal: AbortSignal,
+): Promise<Response> {
+  const headers: Record<string, string> = { Accept: 'text/event-stream' };
+  if (accessToken !== null) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+  if (lastEventId !== null && lastEventId !== undefined) {
+    headers['Last-Event-ID'] = lastEventId;
+  }
+  try {
+    return fetch(`${API_BASE}${path}`, { method: 'GET', headers, signal });
+  } catch {
+    throw unreachable();
+  }
+}
+
+/**
+ * One event block, per the HTML spec's event-stream parser.
+ *
+ * A block carrying only a comment (`: heartbeat`) yields no event, which is the point of a
+ * heartbeat: it proves the connection is alive without pretending anything happened.
+ */
+function parseEventBlock(block: string): { event: StreamEvent | null; retry: number | null } {
+  const fields = { id: null as string | null, event: 'message', data: [] as string[], retry: null as number | null };
+
+  for (const rawLine of block.split(/\r\n|\n|\r/)) {
+    // A blank line is framing and a line beginning with a colon is a comment — the heartbeat.
+    if (rawLine !== '' && !rawLine.startsWith(':')) {
+      applyField(fields, rawLine);
+    }
+  }
+
+  const event =
+    fields.data.length === 0
+      ? null
+      : { id: fields.id, event: fields.event, data: fields.data.join('\n') };
+  return { event, retry: fields.retry };
+}
+
+type EventFields = { id: string | null; event: string; data: string[]; retry: number | null };
+
+function applyField(fields: EventFields, rawLine: string): void {
+  const colon = rawLine.indexOf(':');
+  const field = colon === -1 ? rawLine : rawLine.slice(0, colon);
+  // One leading space after the colon is part of the framing, not of the value.
+  const value = colon === -1 ? '' : rawLine.slice(colon + 1).replace(/^ /, '');
+
+  if (field === 'id') {
+    fields.id = value;
+  } else if (field === 'event') {
+    fields.event = value;
+  } else if (field === 'data') {
+    fields.data.push(value);
+  } else if (field === 'retry' && /^\d+$/.test(value)) {
+    fields.retry = Number(value);
+  }
+  // Any other field name is ignored, which the wire format requires: it is how a server adds one
+  // without breaking every client that predates it.
+}
