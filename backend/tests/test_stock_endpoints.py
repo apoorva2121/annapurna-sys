@@ -436,8 +436,8 @@ class TestStockItems:
             )
         ).json()
 
-        assert len(ingredients["items"]) == 61
-        assert len(preparations["items"]) == 11
+        assert len(ingredients["items"]) == 62
+        assert len(preparations["items"]) == 12
         # Every preparation was costed by the freezing pass. A zero here means the pass ran before
         # the graph was complete — which is exactly what a per-row pass would have done.
         assert all(Decimal(row["current_unit_cost"]) > 0 for row in preparations["items"]), [

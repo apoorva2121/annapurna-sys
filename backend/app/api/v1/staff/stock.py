@@ -269,7 +269,7 @@ async def menu_costs(actor: _CostDep, session: SessionDep) -> MenuCostResponse:
     costed: list[Decimal] = [
         row["food_cost_percent"] for row in rows if row["food_cost_percent"] is not None
     ]
-    # A plain average across costed dishes, and labelled as one in the schema. The seed's 25.6%
+    # A plain average across costed dishes, and labelled as one in the schema. The seed's 25.7%
     # figure is weighted by popularity; this cannot be, because popularity is observed demand and
     # no orders exist until M07. Two different numbers that must not be confused for each other.
     average = (sum(costed, Decimal(0)) / len(costed)).quantize(Decimal("0.1")) if costed else None

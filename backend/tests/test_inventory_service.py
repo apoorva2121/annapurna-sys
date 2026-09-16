@@ -163,6 +163,27 @@ class TestReceiving:
                 unit_cost=Decimal("1"),
             )
 
+    async def test_another_restaurants_item_cannot_be_passed_in_as_a_shortcut(
+        self, db_session: AsyncSession
+    ) -> None:
+        """The shortcut that saves a read must not become a way around the tenant check.
+
+        `receive_stock` accepts an already-loaded item so a delivery reads each one once rather
+        than twice (backlog-issues B9). Matching ids is not enough to trust it: the item has to
+        belong to this restaurant, or the scoped lookup has to happen anyway and refuse it.
+        """
+        mine = await _world(db_session, "recv-shortcut-mine")
+        theirs = await _world(db_session, "recv-shortcut-theirs")
+
+        with pytest.raises(NotFoundError):
+            await mine.service.receive_stock(
+                mine.actor,
+                stock_item_id=theirs.item.id,
+                quantity=Decimal("10"),
+                unit_cost=Decimal("1"),
+                item=theirs.item,
+            )
+
     async def test_the_business_date_is_the_restaurants_not_the_servers(
         self, db_session: AsyncSession
     ) -> None:

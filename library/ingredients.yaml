@@ -36,6 +36,7 @@ ingredients:
   - {code: GARLIC,        name: Garlic,                base_unit: g,    yield_factor: 0.72, shelf_life_days: 20,  storage: ambient, category: veg}
   - {code: GRNCHILLI,     name: Green chilli,          base_unit: g,    yield_factor: 0.92, shelf_life_days: 6,   storage: chilled, category: veg}
   - {code: CORIANDER,     name: Coriander leaves,      base_unit: g,    yield_factor: 0.65, shelf_life_days: 3,   storage: chilled, category: veg}
+  - {code: SPINACH,       name: Spinach (palak),       base_unit: g,    yield_factor: 0.70, shelf_life_days: 2,   storage: chilled, category: veg}
   - {code: MINT,          name: Mint leaves,           base_unit: g,    yield_factor: 0.60, shelf_life_days: 3,   storage: chilled, category: veg}
   - {code: CABBAGE,       name: Cabbage,               base_unit: g,    yield_factor: 0.85, shelf_life_days: 10,  storage: chilled, category: veg}
   - {code: CARROT,        name: Carrot,                base_unit: g,    yield_factor: 0.82, shelf_life_days: 12,  storage: chilled, category: veg}
@@ -87,7 +88,6 @@ ingredients:
   - {code: FISH_BASA,     name: Basa fillet boneless,  base_unit: g,    yield_factor: 0.95, shelf_life_days: 90,  storage: frozen,  category: meat}
 
   # ---- Vegetables & fresh ----
-  - {code: SPINACH,       name: Spinach (palak),       base_unit: g,    yield_factor: 0.70, shelf_life_days: 2,   storage: chilled, category: veg}
   - {code: BHINDI,        name: Okra (bhindi),         base_unit: g,    yield_factor: 0.88, shelf_life_days: 4,   storage: chilled, category: veg}
   - {code: BAINGAN,       name: Brinjal large (bharta), base_unit: g,   yield_factor: 0.75, shelf_life_days: 6,   storage: chilled, category: veg}
   - {code: BROCCOLI,      name: Broccoli,              base_unit: g,    yield_factor: 0.70, shelf_life_days: 5,   storage: chilled, category: veg}

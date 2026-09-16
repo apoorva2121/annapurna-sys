@@ -16,7 +16,7 @@ What it checks, in rough order of how much it would hurt to get wrong:
   3. **Floor and tax.** Tables point at declared areas; `gst` values resolve to declared groups.
   4. **Food cost.** Costs the whole menu through `library/market-rates.yaml` and reports the
      popularity-weighted theoretical food cost. Tandoor House is *designed* to come out worse than
-     Spice Garden's ~25.6% — it charges ~15% less for the same library recipes — so a figure that
+     Spice Garden's ~25.7% — it charges ~15% less for the same library recipes — so a figure that
      lands near Spice Garden's means the price list stopped being a contrast and the demo lost the
      thing it exists to show.
 """
@@ -194,7 +194,7 @@ else:
     weighted_l = sum(r[1] * r[5] for r in rows) / den * 100
     print("\nPopularity-weighted THEORETICAL food cost: %.1f%% ex-GST, %.1f%% landed"
           % (weighted, weighted_l))
-    print("(Spice Garden runs ~25.6%, computed from seed/ prices which carry no tax treatment, so")
+    print("(Spice Garden runs ~25.7%, computed from seed/ prices which carry no tax treatment, so")
     print(" the EX-GST number is the one that compares. Tandoor House is designed to be visibly")
     print(" worse - it charges ~15% less for the same library recipes. If the two converge, the")
     print(" contrast the second tenant exists to demonstrate has been priced away.")

@@ -3,7 +3,7 @@
 **This module must agree with `seed/validate.py` to the paisa.** Two implementations of one
 arithmetic now exist: the validator that has guarded the seed since M00, and this. `docs/modules.md`
 names the figures that prove they agree — Butter Chicken Full at **₹126.70**, makhani gravy at
-**₹0.1489 per ml**, and a popularity-weighted menu food cost of **25.6%** — and
+**₹0.1489 per ml**, and a popularity-weighted menu food cost of **25.7%** — and
 `tests/test_costing.py` asserts all three against the running service. If they ever disagree, one of
 them is lying about the only number this product sells.
 

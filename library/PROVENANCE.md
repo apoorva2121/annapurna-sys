@@ -11,9 +11,9 @@ has not confirmed. See README.md § Confidence.
 
 | Tier | Count | Share |
 |---|---|---|
-| `seed_calibrated` | 11 | 30.6% |
+| `seed_calibrated` | 12 | 33.3% |
 | `derived` | 5 | 13.9% |
-| `estimated` | 20 | 55.6% |
+| `estimated` | 19 | 52.8% |
 
 ## Dishes — 223
 
@@ -25,7 +25,7 @@ has not confirmed. See README.md § Confidence.
 
 ## Ingredients — 122
 
-61 share a code with `seed/` and match its metadata field for field. The remaining 61 are
+62 share a code with `seed/` and match its metadata field for field. The remaining 60 are
 estimated: `yield_factor`, `shelf_life_days` and `storage` await a chef.
 
 ## Dish variants — 242

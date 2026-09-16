@@ -6,7 +6,7 @@ one arithmetic now exist — the validator that guards the seed, and `app/servic
 
     Butter Chicken Full      ₹126.70
     makhani gravy            ₹0.1489 per ml
-    weighted food cost       25.6%
+    weighted food cost       25.7%
 
 If those two implementations drift, this product's headline number depends on which one you ask,
 and nobody would notice until an owner compared a screen to a spreadsheet.
@@ -145,7 +145,7 @@ class TestTheGoldenFigures:
         birista = seed.engine().unit_cost(seed.id("PREP_BIRISTA"))
         assert birista > onion * 3
 
-    def test_the_weighted_menu_food_cost_is_25_6_percent(self, seed: _Seed) -> None:
+    def test_the_weighted_menu_food_cost_is_25_7_percent(self, seed: _Seed) -> None:
         """The number `docs/seed-data.md` targets and the demo is built around.
 
         Weighted by popularity, because a menu's food cost is its *sales mix*'s food cost — a
@@ -162,7 +162,7 @@ class TestTheGoldenFigures:
                 denominator += popularity * Decimal(str(variant["price"]))
 
         weighted = (numerator / denominator * 100).quantize(Decimal("0.1"))
-        assert weighted == Decimal("25.6")
+        assert weighted == Decimal("25.7")
 
     def test_every_seed_dish_costs_something_and_nothing_absurd(self, seed: _Seed) -> None:
         """A sweep, because the three figures above could all be right while one dish is nonsense.

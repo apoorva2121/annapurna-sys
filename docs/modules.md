@@ -285,7 +285,7 @@ Where the product finally shows its face.
 - **Rules** — deterministic (fixed seed); seeded orgs carry `is_demo=true` and are excluded from
   reporting; plausible-not-perfect (include a skipped waste log, two voided orders, missing feedback);
   batched inserts of 1,000
-- **Tests** — same seed produces identical figures; blended food cost lands at the documented ~25.6%
+- **Tests** — same seed produces identical figures; blended food cost lands at the documented ~25.7%
   theoretical / ~32% actual
 - **Est.** 3 days
 

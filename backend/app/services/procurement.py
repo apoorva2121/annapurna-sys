@@ -795,6 +795,7 @@ class ProcurementService:
                     unit_cost=variance.landed_unit_cost,
                     source="purchase",
                     occurred_at=moment,
+                    item=item,
                 )
                 batch.supplier_id = receipt.supplier_id
                 batch.goods_receipt_line_id = line.id

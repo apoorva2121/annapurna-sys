@@ -204,6 +204,7 @@ class InventoryService:
         storage_location: str | None = None,
         source: str = "purchase",
         occurred_at: datetime | None = None,
+        item: Any = None,
     ) -> StockBatch:
         """Stock arrives: one batch and its receipt movement, in one transaction.
 
@@ -219,7 +220,16 @@ class InventoryService:
         if unit_cost < 0:
             raise AppError("invalid_cost", "A unit cost cannot be negative.")
 
-        await self._require_item(stock_item_id)
+        # A caller that already loaded the item under this scope passes it, so a delivery reads each
+        # item once rather than twice (backlog-issues B9). The shortcut is trusted only for this
+        # restaurant's own item: matching ids alone would let a caller hand over another tenant's
+        # row and skip the scoped lookup entirely (invariant 1). Anything else is looked up here.
+        if (
+            item is None
+            or item.id != stock_item_id
+            or item.restaurant_id != self.scope.restaurant_id
+        ):
+            await self._require_item(stock_item_id)
         moment = occurred_at or datetime.now(UTC)
         business_date = await self.business_date_now(moment)
 

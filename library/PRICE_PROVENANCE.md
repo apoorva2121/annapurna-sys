@@ -45,7 +45,7 @@ multiplier would apply geography twice.
 
 - 32 of 122 rows are priced on a non-Pune basis: `AJWAIN`, `ALMOND`, `AMCHUR`, `BAKING_SODA`, `BASMATI`, `BIRYANIMSL`, `BLACK_PEPPER`, `CARDAMOM`, `CASHEW`, `CHAAT_MSL`, `CHANA`, `CHILLISAUCE`, `CHOC_SAUCE`, `CINNAMON`, `CLOVE`, `CORNFLOUR`, `CORN_KERNELS`, `DRY_CHILLI`, `HING`, `MALVANI_MSL`, `METHI_SEED`, `MOTH`, `PAV`, `PICKLE_MSL`, `PINEAPPLE`, `PISTA`, `RAVA`, `ROSE_WATER`, `SAFFRON`, `SAMBAR_PWD`, `TAMARIND`, `YEAST`
 
-## Seed cross-check - 61 shared codes
+## Seed cross-check - 62 shared codes
 
 `seed/ingredients.yaml` prices were set by hand for Pune and pass the golden food-cost
 tests. The research never saw them, so agreement here is independent evidence. Values are
@@ -114,6 +114,7 @@ Pune-normalised; ratios are researched / seed.
 | `GRNCHILLI` | 0.07 | 0.0680 | 0.97 |
 | `CHKN_BONELESS` | 0.28 | 0.2780 | 0.99 |
 | `OIL` | 0.135 | 0.1350 | 1.00 |
+| `SPINACH` | 0.013 | 0.0130 | 1.00 |
 
 ## Cities - 11
 

@@ -3,7 +3,7 @@
 **Status:** **APPROVED.** S15 was the one open question and it is answered: **(a)**, keep the
 arithmetic and fix the ambiguity in the data. `docs/schema.md` §4 now carries the defining sentence.
 Every golden figure stands as `docs/modules.md` names it — Butter Chicken Full ₹126.70, makhani
-gravy ₹0.1489/ml, weighted food cost 25.6%.
+gravy ₹0.1489/ml, weighted food cost 25.7%.
 **Estimate:** 5 days · **Depends on:** M03 (built; manual pass pending)
 `docs/modules.md` calls this "the heart of the product. Everything commercially interesting depends
 on this being right."
@@ -20,7 +20,7 @@ never had. Three things here are not CRUD:
    implementations of one calculation exist the moment this module ships — the validator that has
    guarded the seed since M00, and the service. `docs/modules.md` names the golden figures:
    Butter Chicken Full = **₹126.70**, makhani gravy = **₹0.1489/ml**, popularity-weighted food cost
-   = **25.6%**. A test asserts all three against the running service. If they ever disagree, one of
+   = **25.7%**. A test asserts all three against the running service. If they ever disagree, one of
    them is lying about the number this product sells.
 2. **An ingredient and a preparation are the same kind of thing.** ADR 0006's central move: both
    hold stock, both expire, both have a cost, so they share one `stock_item` identity and
@@ -281,7 +281,7 @@ on first load. `docs/schema.md` §4's comment is corrected rather than the libra
 | # | Content | Ends with |
 |---|---|---|
 | **A** | Migration + models: 5 tables, the three-column CHECK, `recipe.unit_cost`, `source`, `confirmed_at` | up→down→up with data |
-| **B** | `costing.py` + its tests **against the golden figures**, before any endpoint exists | ₹126.70, ₹0.1489/ml and 25.6% asserted |
+| **B** | `costing.py` + its tests **against the golden figures**, before any endpoint exists | ₹126.70, ₹0.1489/ml and 25.7% asserted |
 | **C** | Repositories + service: stock items, profiles, `used-by` | Generic suites pass |
 | **D** | Recipes: create, version, depth and cycle refusal at save time | A depth-4 recipe and a cycle both refused, by test |
 | **E** | Cost endpoints + the menu-wide cost screen's query-count test | Cost of 400 dishes costs the same queries as 12 |
@@ -293,7 +293,7 @@ on first load. `docs/schema.md` §4's comment is corrected rather than the libra
 
 1. `prep_unit_cost('PREP_MAKHANI')` returns `0.1489` per ml, matching `seed/validate.py`
 2. Butter Chicken Full costs **₹126.70** through the API
-3. The popularity-weighted menu food cost is **25.6%**
+3. The popularity-weighted menu food cost is **25.7%**
 4. A recipe nested four deep is refused at save time *and* by the service
 5. A cycle is refused, and the refusal names the chain
 6. Changing a recipe creates a version; the old version's lines are unchanged and still resolve

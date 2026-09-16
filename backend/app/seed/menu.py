@@ -352,27 +352,34 @@ async def _attachments(
                 "which the menu does not define."
             )
         wanted = [groups[code] for code in record.get("groups", [])]
-        for category_code in record.get("categories", []):
-            for item in counts.by_category[category_code]:
-                present = {
-                    link.modifier_group_id
-                    for link in await session.scalars(
-                        select(MenuItemModifierGroup).where(
-                            MenuItemModifierGroup.menu_item_id == item.id
-                        )
+        targets = [
+            item
+            for category_code in record.get("categories", [])
+            for item in counts.by_category[category_code]
+        ]
+        # One read of the links already there for every dish this rule touches, not one per dish
+        # (backlog-issues B9): a 400-dish menu with four rules was ~1600 statements.
+        present_by_item: dict[Any, set[Any]] = {item.id: set() for item in targets}
+        if targets:
+            for link in await session.scalars(
+                select(MenuItemModifierGroup).where(
+                    MenuItemModifierGroup.menu_item_id.in_(list(present_by_item))
+                )
+            ):
+                present_by_item[link.menu_item_id].add(link.modifier_group_id)
+        for item in targets:
+            present = present_by_item[item.id]
+            for seq, group in enumerate(wanted):
+                if group.id in present:
+                    continue
+                session.add(
+                    MenuItemModifierGroup(
+                        menu_item_id=item.id,
+                        modifier_group_id=group.id,
+                        seq=len(present) + seq,
                     )
-                }
-                for seq, group in enumerate(wanted):
-                    if group.id in present:
-                        continue
-                    session.add(
-                        MenuItemModifierGroup(
-                            menu_item_id=item.id,
-                            modifier_group_id=group.id,
-                            seq=len(present) + seq,
-                        )
-                    )
-                    counts.attachments += 1
+                )
+                counts.attachments += 1
 
 
 def _slug(name: str) -> str:

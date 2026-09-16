@@ -23,10 +23,10 @@ tenants is the worst bug this product can have.
 | Monthly revenue | ~₹15.5 lakh |
 | Staff | 17 at Spice Garden: owner, admin, manager, chef, 4 kitchen, 5 waiters, store, 2 cleaners, accountant. **4 have no login** — an employee without a user account must work (ADR 0007). |
 | Menu | 32 items / 36 variants, 6 categories |
-| Ingredients | 61 |
-| Preparations | 11 base gravies and preps |
+| Ingredients | 62 |
+| Preparations | 12 base gravies and preps |
 
-Recipe-only (**theoretical**) food cost across the sales mix works out at **25.6%** — verified by
+Recipe-only (**theoretical**) food cost across the sales mix works out at **25.7%** — verified by
 `seed/validate.py`, not asserted. The generator then makes **actual** food cost land at ~32%, because
 of planted waste, portion drift, comps and staff meals.
 

@@ -29,6 +29,20 @@ preparations:
       - {ref: ONION,           qty: 4000,  unit: g}
       - {ref: OIL,             qty: 700,   unit: ml}
 
+  - code: PREP_PALAK_PUREE
+    name: Blanched spinach puree
+    station: main_kitchen
+    batch_yield: 3000
+    yield_unit: g
+    shelf_life_hours: 24
+    prep_minutes: 30
+    confidence: seed_calibrated
+    lines:
+      - {ref: SPINACH,         qty: 4000,  unit: g}
+      - {ref: GRNCHILLI,       qty: 60,    unit: g}
+      - {ref: GARLIC,          qty: 60,    unit: g}
+      - {ref: SALT,            qty: 20,    unit: g}
+
   - code: PREP_GINGARLIC
     name: Ginger garlic paste
     station: main_kitchen
@@ -346,20 +360,6 @@ preparations:
       - {ref: TURMERIC,        qty: 30,    unit: g}
       - {ref: OIL,             qty: 60,    unit: ml}
       - {ref: SALT,            qty: 90,    unit: g}
-
-  - code: PREP_PALAK_PUREE
-    name: Blanched spinach puree
-    station: main_kitchen
-    batch_yield: 3000
-    yield_unit: g
-    shelf_life_hours: 24
-    prep_minutes: 30
-    confidence: estimated
-    lines:
-      - {ref: SPINACH,         qty: 4000,  unit: g}
-      - {ref: GRNCHILLI,       qty: 60,    unit: g}
-      - {ref: GARLIC,          qty: 60,    unit: g}
-      - {ref: SALT,            qty: 20,    unit: g}
 
   - code: PREP_KADAI_MSL
     name: Kadai masala (coarse dry mix)

@@ -195,7 +195,7 @@ class MenuCostRow(_Schema):
 class MenuCostResponse(_Schema):
     rows: list[MenuCostRow]
     # Popularity is not known here (it is observed demand, M07), so this is the plain average
-    # across costed dishes — clearly labelled, because the seed's 25.6% figure is weighted and the
+    # across costed dishes — clearly labelled, because the seed's 25.7% figure is weighted and the
     # two numbers must not be confused.
     average_food_cost_percent: Decimal | None
     uncosted: int

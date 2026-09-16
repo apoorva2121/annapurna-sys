@@ -128,7 +128,7 @@ print("  reintroductions:", len([i for i in issues if "eliminated table" in i[2]
 # ---------------------------------------------------------------- 6. numeric claims
 print("\n=== NUMERIC CLAIMS ===")
 claims = {
-    "25.6%": ["docs/seed-data.md", "docs/modules.md"],
+    "25.7%": ["docs/seed-data.md", "docs/modules.md"],
     "126.70": ["docs/modules.md", "docs/plan/month-1.md"],
     "0.1489": ["docs/modules.md", "docs/plan/month-1.md"],
     "14 planted": ["docs/sdlc.md", "docs/modules.md", "docs/testing-strategy.md"],

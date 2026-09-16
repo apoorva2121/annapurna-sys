@@ -158,7 +158,7 @@ items:
     confidence: seed_calibrated
     variants:
       - {code: FULL, name: Full, prep_minutes: 10,
-         recipe: [{ref: PANEER, qty: 150}, {ref: CREAM, qty: 30}, {ref: PREP_GINGARLIC, qty: 15}, {ref: ONION, qty: 60}, {ref: BUTTER, qty: 15}, {ref: GRNCHILLI, qty: 6}, {ref: GARAMMSL, qty: 3}, {ref: SALT, qty: 4}]}
+         recipe: [{ref: PREP_PALAK_PUREE, qty: 200}, {ref: PANEER, qty: 150}, {ref: CREAM, qty: 30}, {ref: PREP_GINGARLIC, qty: 15}, {ref: ONION, qty: 60}, {ref: BUTTER, qty: 15}, {ref: GRNCHILLI, qty: 6}, {ref: GARAMMSL, qty: 3}, {ref: SALT, qty: 4}]}
 
   - code: BUTTER_CHICKEN
     name: Butter Chicken
