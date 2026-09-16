@@ -172,9 +172,11 @@ Largest module. Split the PR.
 ## M08 · Kitchen / KOT
 
 - **Depends on** — M07
-- **Tables** — kot_ticket, kot_ticket_line
-- **Endpoints** — `GET /kot/tickets` (by station), `PATCH /kot/tickets/{id}/status`,
-  `GET /kot/stream` (SSE)
+- **Tables** — kot_ticket, kot_ticket_line, kot_stream_cursor (added by the M08 spec: the
+  per-restaurant revision a dropped display replays from, decision 3)
+- **Endpoints** — `GET /kot/tickets` (by station), `GET /kot/tickets/{id}`,
+  `PATCH /kot/tickets/{id}/status`, `PATCH /kot/tickets/{id}/lines/{line_id}/status`,
+  `POST /kot/tickets/{id}/lines/{line_id}/remake`, `GET /kot/stream` (SSE)
 - **Screens** — KDS per station, ticket detail, remake request
 - **Rules** — read at **two metres**: ≥20px base, ≥40px order numbers, no modals, no scrolling, colour
   never the only signal (`docs/ui/conventions.md`); all five timestamps captured; elapsed time always

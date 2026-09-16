@@ -218,6 +218,32 @@ export const OrderLineStatus = {
 } as const;
 export type OrderLineStatus = (typeof OrderLineStatus)[keyof typeof OrderLineStatus];
 
+/**
+ * One round of dishes at one station (M08). The path is one-way — `new → acknowledged → preparing
+ * → ready` — and `served` is not the kitchen's to set: a dish is served when it reaches a table,
+ * which the kitchen cannot see. The KDS renders it and never sends it.
+ */
+export const KotTicketStatus = {
+  NEW: 'new',
+  ACKNOWLEDGED: 'acknowledged',
+  PREPARING: 'preparing',
+  READY: 'ready',
+  SERVED: 'served',
+  CANCELLED: 'cancelled',
+} as const;
+export type KotTicketStatus = (typeof KotTicketStatus)[keyof typeof KotTicketStatus];
+
+/** One dish on a ticket. `remake` is terminal — the remade dish arrives as its own new ticket. */
+export const KotLineStatus = {
+  PENDING: 'pending',
+  PREPARING: 'preparing',
+  READY: 'ready',
+  SERVED: 'served',
+  CANCELLED: 'cancelled',
+  REMAKE: 'remake',
+} as const;
+export type KotLineStatus = (typeof KotLineStatus)[keyof typeof KotLineStatus];
+
 export const DiscountType = {
   PERCENTAGE: 'percentage',
   FLAT: 'flat',

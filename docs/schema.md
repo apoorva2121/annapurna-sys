@@ -4,7 +4,7 @@ The concrete table specification. Conceptual model: `docs/domain-model.md`. Conv
 ADR 0004 (money/time/units), ADR 0006 (preparations), ADR 0007 (identity), ADR 0008 (keys, deletion,
 enums, numerics), ADR 0010 (idempotency, locking), ADR 0011 (performance).
 
-**75 tables in 13 domains.** Everything here is Phase 1 unless marked `[1.5]`.
+**76 tables in 13 domains.** Everything here is Phase 1 unless marked `[1.5]`.
 
 ## Reading this document
 
@@ -586,7 +586,7 @@ recomputation; a stored derived value with no test is a bug waiting.
 
 ---
 
-## 7 · Orders — 15 tables
+## 7 · Orders — 16 tables
 
 The order, the bill, the money and the till. Designed and argued in
 `docs/modules/M07-orders-spec.md`; built by migration 0019, except `kot_ticket` and
@@ -812,27 +812,82 @@ cash_movement                                    -- cash out that is not a refun
   business_date       date NN
   IX (restaurant_id, cash_session_id)
 
-kot_ticket                                       -- one per order per station
+kot_ticket                                       -- one per SEND per station: a round, not an order
   restaurant_id, order_id NN FK→order, station_id NN FK→station
-  ticket_number       text NN
+  ticket_number       text NN                    -- restarts each business day, like order_number
+  sequence_in_order   smallint NN                -- round 1, 2, 3 of this order at this station
   status              text NN check(new|acknowledged|preparing|ready|served|cancelled)
+  is_remake           bool NN default false
+  target_minutes      smallint NN                -- max prep_minutes on the ticket, frozen here
+  business_date       date NN
+  revision            bigint NN                  -- the stream cursor; see kot_stream_cursor
   printed_at          timestamptz NN
   acknowledged_at     timestamptz
   started_at          timestamptz
   ready_at            timestamptz
   served_at           timestamptz
-  IX (restaurant_id, station_id, status)         -- the KDS query
+  acknowledged_by     uuid FK→employee
+  ready_by            uuid FK→employee
+  cancelled_at        timestamptz
+  UQ (restaurant_id, business_date, ticket_number)
+  UQ (order_id, station_id, sequence_in_order)
+  IX (restaurant_id, station_id, status)         -- the KDS query, 50 ms with 200 open tickets
   IX (restaurant_id, printed_at)
+  IX (restaurant_id, revision)                   -- the stream query
+  CHECK started_at ⇒ acknowledged_at, ready_at ⇒ started_at, served_at ⇒ ready_at
 
 kot_ticket_line
-  kot_ticket_id NN FK→kot_ticket, order_line_id NN FK→order_line
+  restaurant_id, kot_ticket_id NN FK→kot_ticket, order_line_id NN FK→order_line
   quantity            smallint NN
+  item_name           text NN                    -- copied at the send; a KOT is a printed
+  variant_name        text NN                    -- instruction and says what it said then
+  modifier_summary    text                       -- "No onion, Extra spicy"
+  special_instructions text
   status              text NN check(pending|preparing|ready|served|cancelled|remake)
-  remake_reason       text
+  remake_reason       text                       -- NOT NULL when status = 'remake' (CHECK)
+  started_at          timestamptz                -- S2: per-dish prep time
+  ready_at            timestamptz
+  served_at           timestamptz
+  UQ (kot_ticket_id, order_line_id)
+
+kot_stream_cursor                                -- one row per restaurant
+  restaurant_id       uuid PK FK→restaurant
+  last_revision       bigint NN default 0
 ```
 
 Those five `kot_ticket` timestamps are the entire kitchen-performance module and half of the CX
 module. They cost nothing to capture now and cannot be reconstructed later.
+
+### What migration 0030 changed about the sketch above
+
+Argued in `docs/modules/M08-kitchen-spec.md`; four things differ from what §7 said for a year.
+
+**A ticket is a round, not an order.** The sketch said "one per order per station". A table that
+orders starters and then mains twenty minutes later produces two pieces of paper in every real
+kitchen, and folding the second send into the first ticket means either dragging a ticket that was
+already `ready` back to `new` — destroying the `ready_at` this section calls the entire
+kitchen-performance module — or adding dishes to a ticket the chef has already cleared off the
+rail. So there is no unique constraint on `(order_id, station_id)`, and `sequence_in_order` says
+which round this is.
+
+**The line carries the words to cook from.** `item_name`, `variant_name` and `modifier_summary` are
+copied at the send, for the same reason `order_line.unit_price` is copied and for one more: a KOT
+is a printed instruction and must still read correctly after the dish is renamed or withdrawn. It
+also takes three joins off the only query in this module with a latency budget.
+
+**`kot_ticket_line` gained three timestamps** (external review S2). The ticket knows when its
+*slowest* dish finished; only these can say how long the dal took, and M13 and M17 both read them.
+
+**`kot_stream_cursor` is new.** Every kitchen write bumps a per-restaurant counter and stamps the
+tickets it touched, so `GET /kot/stream` replays from a dropped client's `Last-Event-ID` rather than
+from a queue nobody kept. Per restaurant rather than a global sequence: a global cursor handed to a
+client leaks the platform's cross-tenant write volume, since a kitchen screen can watch its own
+event ids jump by four hundred and learn how busy everyone else is.
+
+**No append-only trigger, deliberately.** A ticket is a live working row for the whole time a dish
+is being cooked. Its immutability is the service's state machine plus the CHECK constraints above,
+and the *order* side is already protected: 0019's trigger refuses every change to a settled order
+except its kitchen columns, which is exactly what this module writes.
 
 ### What migration 0019 added beyond the sketch above
 
@@ -1238,7 +1293,7 @@ Dependencies force roughly this sequence:
 9. customer, customer_preference
 10. cash_session, order, order_table, order_line, order_line_modifier, order_discount, order_charge,
     invoice, credit_note, credit_note_line, payment, cash_count, cash_movement
-11. kot_ticket, kot_ticket_line
+11. kot_stream_cursor, kot_ticket, kot_ticket_line
 12. wastage_reason, wastage_event
 13. feedback, feedback_line, complaint
 14. shift, shift_assignment

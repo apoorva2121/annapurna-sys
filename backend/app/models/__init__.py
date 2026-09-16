@@ -17,6 +17,7 @@ from app.models.inventory import (
     StockCountLine,
     StockMovement,
 )
+from app.models.kitchen import KotStreamCursor, KotTicket, KotTicketLine
 from app.models.menu import (
     MenuCategory,
     MenuItem,
@@ -75,6 +76,9 @@ __all__ = [
     "IngredientProfile",
     "Invoice",
     "Issue",
+    "KotStreamCursor",
+    "KotTicket",
+    "KotTicketLine",
     "MenuCategory",
     "MenuItem",
     "MenuItemModifierGroup",

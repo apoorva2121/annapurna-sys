@@ -236,6 +236,42 @@ class OrderLineStatus(StrEnum):
     RETURNED = "returned"
 
 
+class KotTicketStatus(StrEnum):
+    """One round of dishes at one station, from the printer to the pass (M08).
+
+    The path is one-way: `new → acknowledged → preparing → ready`, and nothing goes back. Correcting
+    a mistake is a remake with a reason, which is a row, not an edit.
+
+    **`served` is not the kitchen's**, even though it lives here. A dish is served when it reaches a
+    table, which the kitchen cannot see — it is written by the order's serve path, behind the
+    permissions a waiter holds, and refused on every KOT route. That separation is the control
+    against a rail being cleared of food that never left the pass: marking everything `ready`
+    settles nothing and hides nothing, it only makes the gap to `served_at` visible.
+
+    `cancelled` is nobody's transition either. A ticket is cancelled by its order's lines being
+    cancelled, never by a button on the rail.
+    """
+
+    NEW = "new"
+    ACKNOWLEDGED = "acknowledged"
+    PREPARING = "preparing"
+    READY = "ready"
+    SERVED = "served"
+    CANCELLED = "cancelled"
+
+
+class KotLineStatus(StrEnum):
+    """One dish on a ticket. `remake` is terminal: the remade dish is new work on a new ticket, so
+    the original line keeps its history instead of being reopened."""
+
+    PENDING = "pending"
+    PREPARING = "preparing"
+    READY = "ready"
+    SERVED = "served"
+    CANCELLED = "cancelled"
+    REMAKE = "remake"
+
+
 class DiscountType(StrEnum):
     PERCENTAGE = "percentage"
     FLAT = "flat"
