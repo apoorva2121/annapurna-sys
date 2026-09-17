@@ -28,8 +28,8 @@ help:
 # uv installs from backend/uv.lock, so every machine and every CI run gets the same versions.
 # `uv sync` creates backend/.venv itself; the pip bootstrap exists only to obtain uv.
 setup:
-	python -m pip install --quiet --upgrade uv
-	uv sync --project backend
+	python -m pip install --quiet uv==0.12.13
+	uv sync --frozen --extra dev --project backend
 	$(NPM) ci
 
 # Re-resolve dependencies after editing backend/pyproject.toml. The lockfile is committed, so this

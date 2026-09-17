@@ -40,10 +40,21 @@ jobs:
       # Frozen, from backend/uv.lock. --frozen fails the build if the lockfile and pyproject.toml
       # disagree, so a dependency change that was never locked is caught here rather than shipping
       # a different resolution than the one that was tested (M9, G-10).
+      # --extra dev is load-bearing: ruff, mypy, pytest and pip-audit are declared in
+      # [project.optional-dependencies], which is an *extra*, and `uv sync` does not install extras
+      # unless asked. Without it this step succeeds, the venv contains only runtime dependencies,
+      # and the next step dies with "ruff: command not found" — which reads like a broken toolchain
+      # rather than a missing flag. It cost four red runs.
+      #
+      # uv is pinned to the version backend/Dockerfile installs. The project pins ruff exactly and
+      # explains why; uv is what installs ruff, and its defaults around extras and groups have
+      # changed between releases, so an unpinned uv is the same drift one level further down.
+      # Both facts are asserted by tests/test_toolchain_pins.py.
       - name: Install backend from the lockfile (same as `make setup`)
         run: |
-          python -m pip install --upgrade pip uv
-          uv sync --frozen --project backend
+          python -m pip install --upgrade pip
+          python -m pip install uv==0.12.13
+          uv sync --frozen --extra dev --project backend
           echo "backend/.venv/bin" >> "$GITHUB_PATH"
 
       - name: ruff check
@@ -167,8 +178,20 @@ jobs:
       - name: Audit guardrails
         run: python scripts/audit_guardrails.py
 
+      # These five are exactly `make check`'s audit-docs target, and tests/test_toolchain_pins.py
+      # fails when the two lists diverge. Three of them had drifted out of CI and were running only
+      # on a laptop, which is the drift this file's header warns about.
       - name: Validate seed data
         run: python seed/validate.py
+
+      - name: Validate the recipe library
+        run: python library/validate.py
+
+      - name: Validate market rates
+        run: python library/validate_rates.py
+
+      - name: Validate the Tandoor House dataset
+        run: python seed/validate_tandoor_house.py
 
   # ---------------------------------------------------------------- secrets
   secrets:
