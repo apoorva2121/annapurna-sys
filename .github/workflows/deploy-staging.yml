@@ -1,0 +1,156 @@
+# Staging deploy (remediation R7, and R4's "one origin" which can only be proven by deploying).
+#
+# Runs on push to main, after CI has passed. The order below is not arbitrary and the comments say
+# why each step is where it is; changing the order is how a deploy starts lying about what is live.
+#
+# Authentication is Workload Identity Federation, never a JSON service-account key. A key in a
+# repository secret is a long-lived credential that leaks with the repository; WIF mints a token
+# scoped to this workflow on this branch, valid for minutes.
+#
+# ONE-TIME SETUP lives in docs/deploy/gcp-staging-runbook.md. Until the four repository variables
+# and the Neon secret exist, this workflow is inert by design: it checks them first and stops with
+# a sentence naming what is missing, rather than failing deep inside a gcloud call.
+
+name: Deploy staging
+
+on:
+  push:
+    branches: [main]
+  # Deploying the same commit twice must be possible without an empty commit: a secret rotation or
+  # a Cloud Run setting change needs a redeploy of code that has not moved.
+  workflow_dispatch:
+
+# Never two deploys racing to be the live revision. Not cancel-in-progress: killing a deploy
+# half way through leaves the migrate job's outcome unknown, which is worse than queueing.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # Required for WIF: this is what lets the job request an OIDC token from GitHub.
+  id-token: write
+
+env:
+  REGION: asia-south1 # Mumbai — the restaurants are in India and latency is a budget (M13).
+  SERVICE: restaurant-os-api
+  REPOSITORY: restaurant-os
+
+jobs:
+  deploy:
+    name: build · migrate · deploy · smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # A missing variable should stop here with a sentence, not 40 lines into a gcloud error.
+      - name: Check the one-time setup exists
+        run: |
+          missing=""
+          [ -n "${{ vars.GCP_PROJECT_ID }}" ]   || missing="$missing GCP_PROJECT_ID"
+          [ -n "${{ vars.GCP_WIF_PROVIDER }}" ] || missing="$missing GCP_WIF_PROVIDER"
+          [ -n "${{ vars.GCP_DEPLOY_SA }}" ]    || missing="$missing GCP_DEPLOY_SA"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository variables:$missing"
+            echo "See docs/deploy/gcp-staging-runbook.md — the GCP project is not set up yet."
+            exit 1
+          fi
+
+      # ---------------------------------------------------------------- frontend
+      # Built here, not in the image. `backend/Dockerfile` already copies its whole context and
+      # .dockerignore excludes dist/ but not static/, so dropping the bundle at backend/static puts
+      # it at /app/static with no second copy of the image's build logic to drift (R4, option B).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build the frontend
+        run: npm ci && npm run build
+        working-directory: frontend
+
+      - name: Move the bundle into the backend build context
+        run: |
+          rm -rf backend/static
+          cp -r frontend/dist backend/static
+          # Both bundles must be present. ADR 0009's guest app is a separate Rollup entry, and an
+          # image missing guest.html serves a QR code that 404s on a table.
+          test -f backend/static/index.html || { echo "::error::no index.html in the bundle"; exit 1; }
+          test -f backend/static/guest.html || { echo "::error::no guest.html in the bundle"; exit 1; }
+
+      # ---------------------------------------------------------------- auth
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      # ---------------------------------------------------------------- image
+      - name: Build and push
+        id: build
+        run: |
+          IMAGE="${REGION}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${REPOSITORY}/${SERVICE}:${GITHUB_SHA}"
+          # GIT_SHA and BUILT_AT are why /api/v1/version can answer without a .git directory in the
+          # image. Omit them and version reports "unknown", and nobody can tell what is serving —
+          # scripts/smoke_prod.py fails on exactly that.
+          docker build backend \
+            --build-arg GIT_SHA="${GITHUB_SHA}" \
+            --build-arg BUILT_AT="$(date -u +%FT%TZ)" \
+            --tag "$IMAGE"
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      # ---------------------------------------------------------------- migrate
+      # A Cloud Run *Job*, run to completion BEFORE the service is deployed. The other order gives
+      # a window where new code queries columns that do not exist yet, which is an outage.
+      - name: Migrate
+        run: |
+          gcloud run jobs deploy migrate \
+            --image "${{ steps.build.outputs.image }}" \
+            --region "$REGION" \
+            --command python --args=-m,alembic,upgrade,head \
+            --set-secrets DATABASE_URL=DATABASE_URL:latest \
+            --max-retries 0 --task-timeout 10m --quiet
+          gcloud run jobs execute migrate --region "$REGION" --wait
+
+      # ---------------------------------------------------------------- deploy
+      - name: Deploy
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --image "${{ steps.build.outputs.image }}" \
+            --region "$REGION" \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8000 \
+            --memory 512Mi \
+            --concurrency 40 \
+            --max-instances 3 \
+            --min-instances "${{ vars.GCP_MIN_INSTANCES || '0' }}" \
+            --set-env-vars ENV=staging,DEBUG=false,LOG_LEVEL=INFO,STATIC_DIR=/app/static \
+            --set-secrets DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest \
+            --quiet
+          # CORS_ORIGINS is deliberately absent. One origin (R4) means the browser never makes a
+          # cross-origin request, so an allow-list here would be permission nothing needs.
+
+      # ---------------------------------------------------------------- verify
+      # The deploy is not done until something outside it agrees. --expect-sha is what makes this a
+      # check rather than a formality: without it a previous revision still serving traffic would
+      # pass every assertion.
+      - name: Smoke test the deployed revision
+        run: |
+          URL="$(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')"
+          echo "Deployed: $URL"
+          python scripts/smoke_prod.py --base "$URL" --expect-sha "${GITHUB_SHA}"
+
+      - name: Roll back if the smoke test failed
+        if: failure()
+        run: |
+          echo "::warning::Smoke test failed. The previous revision is still receiving traffic only"
+          echo "if this deploy did not complete. Check the revision list and route traffic back:"
+          echo "  gcloud run revisions list --service $SERVICE --region $REGION"
+          echo "  gcloud run services update-traffic $SERVICE --region $REGION --to-revisions <prev>=100"

@@ -82,6 +82,19 @@ check: lint test audit-docs audit-guardrails audit-deps
 smoke:
 	python scripts/smoke.py
 
+# Against a *deployed* image (guardrail G-14, R7 step 7). Everything it asserts is something that
+# passes locally and can still be wrong in the cloud: a container built with no frontend, a
+# /version reporting "unknown" because the build args were dropped, docs exposed because ENV was
+# not set. BASE is required; SHA is optional and proves the smoke test hit the build just deployed
+# rather than a previous revision still serving traffic.
+#   make smoke-prod BASE=https://restaurant-os-api-xxxx.run.app
+#   make smoke-prod BASE=https://... SHA=$$(git rev-parse HEAD)
+smoke-prod:
+ifndef BASE
+	$(error BASE is required, e.g. make smoke-prod BASE=https://restaurant-os-api-xxxx.run.app)
+endif
+	python scripts/smoke_prod.py --base "$(BASE)" $(if $(SHA),--expect-sha "$(SHA)",)
+
 audit-docs:
 	python scripts/audit_docs.py
 	python seed/validate.py
