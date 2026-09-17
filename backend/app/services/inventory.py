@@ -734,7 +734,17 @@ class InventoryService:
                     stock_count_id=count.id,
                     stock_item_id=stock_item_id,
                     system_quantity=system,
-                    counted_quantity=system,
+                    # Floored at zero, not copied. A negative book position is meaningful — stock
+                    # went out that nobody recorded coming in, which the seed plants deliberately
+                    # and `docs/onboarding-cold-start.md` calls the most useful thing this product
+                    # can tell a restaurant with no records. A negative *count* is not: a shelf
+                    # cannot hold minus four kilos, and `ck_stock_count_line_counted` says so.
+                    #
+                    # Copying the book across meant that opening a count on the one item most worth
+                    # counting raised CheckViolationError and reached the storeman as "Something
+                    # went wrong". Zero is also what they will write down, and it leaves the whole
+                    # negative position as the variance, which is the number that matters.
+                    counted_quantity=max(system, Decimal("0")),
                     variance_value=Decimal("0"),
                 )
             )

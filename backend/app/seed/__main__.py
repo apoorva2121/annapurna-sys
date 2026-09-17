@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.seed.counts import seed_counts
 from app.seed.customers import seed_customer_feedback, seed_customers
 from app.seed.identity import MissingSystemRoleError, seed_identity
 from app.seed.inventory import seed_inventory
@@ -74,6 +75,11 @@ async def seed() -> None:
             waste = await seed_waste(session)
             # The ratings and complaints, which hang off bills that now exist.
             customers = await seed_customer_feedback(session, customers)
+            # The physical count, last of all. It has to come after the orders seeder and after
+            # waste, because a count's whole meaning is the gap between what the ledger believes
+            # and what the shelf holds — and the ledger is only finished once everything that
+            # consumes stock has run. Counting first would reconcile a book nobody had written in.
+            counts = await seed_counts(session)
             # The single commit. Everything above it is provisional until this line.
             await session.commit()
     finally:
@@ -91,6 +97,7 @@ async def seed() -> None:
         and waste.reasons_created == 0
         and waste.events_created == 0
         and customers.created_nothing
+        and counts.created_nothing
     ):
         logger.info("Seed data already present; nothing to do.")
         return
@@ -139,6 +146,12 @@ async def seed() -> None:
         procurement.orders_created,
         procurement.receipts_created,
         procurement.short_deliveries_planted,
+    )
+    logger.info(
+        "Seeded %d approved stock counts (%d lines) and %d forgotten ones.",
+        counts.counts_approved,
+        counts.lines_counted,
+        counts.counts_abandoned,
     )
     logger.info(
         "Seeded %d orders, %d invoices, %d credit notes and %d deliberately short tills.",
