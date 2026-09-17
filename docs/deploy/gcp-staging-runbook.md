@@ -33,6 +33,46 @@ a sentence naming what is missing.
 
 ---
 
+## 0.5 · The local rehearsal — do this before spending a rupee
+
+**Run 2026-09-17, and it found two bugs.** The deploy image had been unit-tested and never
+assembled; both failures lived in the seam between components, where no unit test looks.
+
+    npm --prefix frontend run build && cp -r frontend/dist backend/static
+    docker build backend --build-arg GIT_SHA=$(git rev-parse HEAD) \
+                         --build-arg BUILT_AT=$(date -u +%FT%TZ) -t ros:rehearsal
+    docker run -d --name ros-rehearsal --network restaurant-os_default -p 8100:8000 \
+      -e ENV=staging -e DEBUG=false -e STATIC_DIR=/app/static \
+      -e DATABASE_URL=postgresql+asyncpg://restaurant:restaurant@db:5432/restaurant_os \
+      -e JWT_SECRET=$(python -c 'import secrets;print(secrets.token_urlsafe(48))') ros:rehearsal
+    python scripts/smoke_prod.py --base http://localhost:8100 --allow-http \
+      --expect-sha $(git rev-parse HEAD)
+
+What it proved, all of which the GCP deploy depends on:
+
+| Step | Result |
+|---|---|
+| Image carries `/app/static` with **both** bundles | `index.html`, `guest.html`, `assets/` |
+| `alembic upgrade head` from the image, fresh database | 64 tables, head `0040_m10_complaint_issues` |
+| `python -m app.bootstrap` from the image | org, restaurant, owner; password printed once |
+| The bootstrapped owner can **actually sign in** | access token, **39 permissions**, wrong password → 401 |
+| `smoke_prod.py` against the image | **clean**, 13 checks |
+| Staff SPA in a real browser | renders; `/` → `/login` via React Router |
+| Guest bundle in a real browser | renders; an invalid slug says *"This code has expired"* |
+
+Screenshots: `docs/manual-tests/evidence/M10/`.
+
+**The two bugs, because they say what this rehearsal is for.** `HEAD` returned 405 — the catch-all
+was registered with `@app.get`, and all nine tests used GET. Uptime monitors, some load balancers
+and `curl -I` use HEAD. And `smoke_prod.py` read headers case-sensitively while uvicorn sends them
+lowercase, so it reported a healthy service as broken. Neither is findable without assembling the
+thing and pointing a real client at it.
+
+**Do this again whenever the image, the static mount or the bootstrap command changes.** It costs
+about ten minutes and it is the cheapest possible rehearsal for the steps below.
+
+---
+
 ## 1 · Neon — the database
 
 Postgres, free tier, per ADR 0005. **100 compute-hours per month**, 0.5 GB storage. That is about
