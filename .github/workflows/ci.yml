@@ -55,7 +55,18 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install uv==0.12.13
           uv sync --frozen --extra dev --project backend
-          echo "backend/.venv/bin" >> "$GITHUB_PATH"
+          # Absolute. GITHUB_PATH entries are used verbatim, and every step below sets
+          # `working-directory: backend`, so the relative "backend/.venv/bin" this line used to
+          # write resolved against backend/ and looked for backend/backend/.venv/bin. The tools
+          # were installed and unreachable, which surfaced two steps later as
+          # "ruff: command not found" — an error that accuses the wrong thing.
+          echo "$GITHUB_WORKSPACE/backend/.venv/bin" >> "$GITHUB_PATH"
+          # Fail here, naming the cause, rather than leaving the next step to say something
+          # misleading about ruff.
+          test -x "$GITHUB_WORKSPACE/backend/.venv/bin/ruff" || {
+            echo "::error::dev tools are not in backend/.venv after uv sync --extra dev"
+            exit 1
+          }
 
       - name: ruff check
         working-directory: backend

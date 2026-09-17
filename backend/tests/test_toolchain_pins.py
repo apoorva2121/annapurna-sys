@@ -227,3 +227,28 @@ def test_the_ci_docs_job_runs_every_validator_the_gate_runs() -> None:
         f"`make check` runs {sorted(gate)} but ci.yml never runs {missing}. "
         "A validator that only runs on a laptop is a validator that stops running."
     )
+
+
+def test_every_path_ci_exports_is_absolute() -> None:
+    """The second half of the same CI failure, and the one that survived the first fix.
+
+    `uv sync --extra dev` installed ruff, mypy and pytest correctly — the run log shows
+    `+ ruff==0.16.6` — and `ruff check` still died with "command not found". GITHUB_PATH entries
+    are used verbatim, and every step in the backend job sets `working-directory: backend`, so the
+    relative entry `backend/.venv/bin` was looked for at `backend/backend/.venv/bin`.
+
+    It passed for months because CI installed uv with `--upgrade`: an older uv put the tools
+    somewhere already on PATH, so the broken entry never mattered. A newer one creates
+    `backend/.venv`, and the latent bug became the visible one.
+    """
+    for line in _ci_yaml().splitlines():
+        if "GITHUB_PATH" not in line or line.strip().startswith("#"):
+            continue
+        exported = re.search(r'echo\s+"([^"]+)"\s*>>\s*"?\$GITHUB_PATH', line)
+        assert exported is not None, f"cannot read the GITHUB_PATH export in: {line.strip()}"
+        value = exported.group(1)
+        assert value.startswith("$") or value.startswith("/"), (
+            f"ci.yml exports the relative path {value!r} to GITHUB_PATH. Steps run with "
+            "working-directory set, so a relative entry resolves against the wrong directory and "
+            "the tools become unreachable while appearing installed. Use $GITHUB_WORKSPACE."
+        )
