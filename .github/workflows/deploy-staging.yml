@@ -128,6 +128,16 @@ jobs:
       # ---------------------------------------------------------------- migrate
       # A Cloud Run *Job*, run to completion BEFORE the service is deployed. The other order gives
       # a window where new code queries columns that do not exist yet, which is an outage.
+      #
+      # It gets the same environment as the service, not a smaller one, because it runs the same
+      # image and therefore builds the same Settings object under the same validation. `env` is
+      # required with no default, and `jwt_secret` is required whenever ENV is not local. A
+      # migration never signs a token, but the settings model refuses to exist without a secret —
+      # and refusing is correct, because the alternative is a staging deployment quietly running on
+      # the development value committed to this repository.
+      #
+      # Passing only DATABASE_URL failed inside the container, after a perfectly clean
+      # `gcloud run jobs deploy`, with "1 validation error for Settings / env / Field required".
       - name: Migrate
         run: |
           gcloud run jobs deploy migrate \
@@ -135,7 +145,8 @@ jobs:
             --region "$REGION" \
             --command python --args=-m,alembic,upgrade,head \
             --service-account "$RUNTIME_SA" \
-            --set-secrets DATABASE_URL=DATABASE_URL:latest \
+            --set-env-vars ENV=staging,DEBUG=false,LOG_LEVEL=INFO \
+            --set-secrets DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest \
             --max-retries 0 --task-timeout 10m --quiet
           gcloud run jobs execute migrate --region "$REGION" --wait
 
