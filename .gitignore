@@ -67,3 +67,7 @@ env.txt
 *.env.txt
 env.local
 secrets.txt
+
+# Build output: the seed YAML copied into the image build context by CI (see
+# .github/workflows/deploy-staging.yml). The source of truth is seed/ at the repository root.
+backend/seed-data/
