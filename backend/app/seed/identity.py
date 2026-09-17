@@ -30,7 +30,7 @@ from datetime import time
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
+from app.core.config import Environment, get_settings
 from app.core.enums import UserAccountStatus
 from app.core.errors import AppError
 from app.core.identifiers import normalise_identifier
@@ -87,8 +87,8 @@ async def seed_identity(session: AsyncSession, data: SeedData | None = None) -> 
     Does not commit — the caller owns the transaction, which is what lets the test suite seed
     inside a transaction it rolls back.
     """
-    _refuse_outside_local()
     data = data or load_seed_data()
+    password = _seed_password(data.password)
     roles = await _system_roles_by_code(session)
 
     organizations: dict[str, Organization] = {}
@@ -119,7 +119,7 @@ async def seed_identity(session: AsyncSession, data: SeedData | None = None) -> 
 
     for employee_record in data.employees:
         restaurant = restaurants[employee_record.restaurant]
-        await _employee(session, restaurant, employee_record, data.password, roles, counts)
+        await _employee(session, restaurant, employee_record, password, roles, counts)
 
     await session.flush()
     summary = SeedSummary(
@@ -133,30 +133,60 @@ async def seed_identity(session: AsyncSession, data: SeedData | None = None) -> 
     return summary
 
 
-def _refuse_outside_local() -> None:
-    """Refuse to build the demo world anywhere but a developer's machine.
+def _seed_password(committed: str) -> str:
+    """Decide what every seeded login's password will be, or refuse to seed at all (R7 step 2).
 
-    Every seeded login is `status=ACTIVE` with a password that is committed to this repository, in
-    a file whose own header prints it. On staging that is an owner account for anyone who has read
-    the source — which is defect 5 in this module's build log (the committed JWT secret that would
-    have shipped to staging) wearing different clothes.
+    The danger this guards has not changed. Every seeded login is `status=ACTIVE`, and the password
+    in `seed/organization.yaml` is printed in that file's own header — so seeding with it outside
+    local hands an owner account to anyone who can read the source. That is defect 5 of this
+    module's build log (the committed JWT secret that would have shipped to staging) wearing
+    different clothes, and `is_demo` is not the control people assume: it keeps these organizations
+    out of reports and does nothing whatsoever about signing in.
 
-    `is_demo` is not the control people assume it is: it keeps these organizations out of reports,
-    and does nothing whatsoever about signing in.
+    What changed is that staging now needs the demo world. A staging deployment with an empty floor
+    demonstrates nothing, and `docs/sdlc.md` puts the manual pass there. So:
 
-    No override flag, deliberately, for the same reason `Settings` offers none for the JWT secret.
-    Seeding a real environment should require changing this code and thinking about why.
+    * **local** — allowed, with the committed password. Nothing is exposed that the repository does
+      not already publish.
+    * **staging** — allowed **only** when `SEED_PASSWORD` is set *and differs from the committed
+      value*. Both halves matter: without the first there is no password to use, and without the
+      second the deployment is the original hole with a longer configuration path to it.
+    * **production** — refused, always. There is no argument for demo logins on a real restaurant's
+      data, and no flag that makes one.
+
+    Still no override for production, deliberately, for the same reason `Settings` offers none for
+    the JWT secret: seeding it should require changing this code and thinking about why.
     """
     settings = get_settings()
     if settings.is_local:
-        return
-    raise AppError(
-        "seed.not_local",
-        f"Refusing to seed demo data when ENV={settings.env.value}. Every seeded login uses a "
-        "password committed to this repository; creating them outside local would hand an owner "
-        "account to anyone who can read the source.",
-        status_code=400,
-    )
+        return committed
+
+    if settings.env is Environment.PRODUCTION:
+        raise AppError(
+            "seed.not_local",
+            "Refusing to seed demo data on production. Seeded logins are demo accounts on real "
+            "data, and no environment variable makes that acceptable.",
+            status_code=400,
+        )
+
+    supplied = settings.seed_password
+    if not supplied:
+        raise AppError(
+            "seed.no_password",
+            f"Refusing to seed demo data when ENV={settings.env.value} without SEED_PASSWORD. "
+            "Every seeded login would otherwise use the password committed to this repository, "
+            "which is an owner account for anyone who can read the source.",
+            status_code=400,
+        )
+    if supplied == committed:
+        raise AppError(
+            "seed.committed_password",
+            f"Refusing to seed demo data when ENV={settings.env.value}: SEED_PASSWORD is the same "
+            "password committed to this repository. Setting it to the value it exists to replace "
+            "is the original problem with more steps.",
+            status_code=400,
+        )
+    return supplied
 
 
 class _Counter:

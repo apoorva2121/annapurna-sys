@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     # SPA and the API share a scheme, host and port. Empty means "serve no static files", which is
     # what local development wants — Vite owns :5173 and proxies /api here, so a static mount would
     # shadow the dev server with a stale build. Set to /app/static in the image only.
+    # Only ever set on staging, and only to seed the demo world there (R7 step 2). It must differ
+    # from the password committed in `seed/organization.yaml`, which is the whole point: the
+    # committed one is printed in a file's own header, so seeding with it outside local would hand
+    # an owner account to anyone who can read the source.
+    seed_password: str | None = None
     static_dir: str = ""
     sentry_dsn: str | None = None
     # Injected by the image build; "unknown" locally is honest rather than misleading.
