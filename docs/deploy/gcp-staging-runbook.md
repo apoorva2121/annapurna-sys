@@ -99,19 +99,28 @@ because it auto-suspends when idle and staging is idle most of the time.
 6. **Copy the POOLED connection string.** This is the one choice on this page that matters. It
    contains `-pooler` in the host. Cloud Run scales to several instances and each opens its own
    pool; the direct string exhausts Postgres connections, the pooled one does not.
-7. Change the scheme from `postgresql://` to **`postgresql+asyncpg://`** — SQLAlchemy needs the
-   driver named. Then **delete `?sslmode=require` if present**: asyncpg rejects that parameter.
+7. Rewrite the parameters. Neon hands out a **libpq** string and this application connects with
+   **asyncpg**, which understands a different set:
+
+   - scheme `postgresql://` → **`postgresql+asyncpg://`**, so SQLAlchemy loads the async driver
+   - **delete `?sslmode=require&channel_binding=require`** — both are libpq-only, and asyncpg
+     raises `connect() got an unexpected keyword argument 'sslmode'`
+   - **add `?ssl=require`** — the asyncpg spelling. Do not simply drop the SSL parameter: Neon
+     requires TLS, and a string with no `ssl` at all is a connection that fails at deploy rather
+     than a connection without encryption.
 
 You should end up with something shaped like:
 
 ```
-postgresql+asyncpg://USER:PASSWORD@ep-xxxx-pooler.ap-south-1.aws.neon.tech/neondb
+postgresql+asyncpg://USER:PASSWORD@ep-xxxx-pooler.ap-southeast-1.aws.neon.tech/neondb?ssl=require
 ```
 
 8. In **Settings → Backups**, confirm point-in-time restore is on. Free tier gives 6 hours, which
    is enough for staging.
 
-Keep that string on your clipboard for §4. **Do not paste it into a file in the repository.**
+Keep that string on your clipboard for §4. **Do not paste it into a file in the repository, and
+do not paste it into a chat** — it carries the database password, and rotating it afterwards
+(Neon → Roles → Reset password) is the only remedy.
 
 ---
 
