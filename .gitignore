@@ -58,3 +58,12 @@ uploads/
 # The deploy image is built with the frontend bundle copied here (R4 one origin); see
 # .github/workflows/deploy-staging.yml. Never committed - it is a build output.
 backend/static/
+
+# Credential scratch files. env.txt was a real near-miss on 2026-09-17: Neon hands out a
+# PGUSER=/PGPASSWORD= snippet, it landed in the repo root untracked and un-ignored, and one
+# `git add .` would have put a live database password into history - where gitleaks scans for it
+# precisely because removing it in a later commit does not remove it.
+env.txt
+*.env.txt
+env.local
+secrets.txt
