@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     database_url: str
     cors_origins: str = ""
+    # R4/ADR 0005 "one origin": the directory holding the built frontend, served by this app so the
+    # SPA and the API share a scheme, host and port. Empty means "serve no static files", which is
+    # what local development wants — Vite owns :5173 and proxies /api here, so a static mount would
+    # shadow the dev server with a stale build. Set to /app/static in the image only.
+    static_dir: str = ""
     sentry_dsn: str | None = None
     # Injected by the image build; "unknown" locally is honest rather than misleading.
     git_sha: str = "unknown"

@@ -140,3 +140,115 @@ def test_the_coverage_floor_can_actually_fail_the_build() -> None:
     # The demonstration, not just the setting: the figure that slipped through must now be caught.
     assert should_fail_under(94.83, 95, precision), "94.83% must fail a 95% floor"
     assert not should_fail_under(95.0, 95, precision), "95.00% must pass a 95% floor"
+
+
+# ---------------------------------------------------------------------------------------------
+# The dev tools live in an *extra*, and every place that installs them has to say so.
+#
+# CI failed four runs in a row on this: `uv sync --frozen --project backend` installs the runtime
+# dependencies and nothing else, because `[project.optional-dependencies]` is an extra rather than
+# a PEP 735 dependency-group, and `uv sync` does not install extras unless asked. The next step,
+# `ruff check .`, then died with "command not found" about ninety seconds in — which reads like a
+# broken toolchain rather than a missing flag.
+#
+# It stayed invisible locally because an existing `.venv` already had the tools from an earlier
+# install, and `make check` never recreates one.
+
+
+def _ci_yaml() -> str:
+    return (_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+
+def _makefile() -> str:
+    return (_ROOT / "Makefile").read_text(encoding="utf-8")
+
+
+def _make_target(name: str) -> list[str]:
+    """The recipe lines of one Makefile target."""
+    lines = _makefile().splitlines()
+    out: list[str] = []
+    inside = False
+    for line in lines:
+        if line.startswith(f"{name}:"):
+            inside = True
+            continue
+        if inside:
+            if line.startswith("\t"):
+                out.append(line.strip())
+            elif line.strip() and not line.startswith("#"):
+                break
+    return out
+
+
+def test_every_uv_sync_that_needs_the_dev_tools_asks_for_the_extra() -> None:
+    """ruff, mypy, pytest and pip-audit are all in the `dev` extra. A sync without it produces a
+    venv that looks fine and has none of them."""
+    for haystack, where in (
+        (_ci_yaml(), "ci.yml"),
+        ("\n".join(_make_target("setup")), "make setup"),
+    ):
+        for line in haystack.splitlines():
+            # A comment explaining the flag is not a command that needs it.
+            if "uv sync" not in line or line.strip().startswith("#"):
+                continue
+            assert "--extra dev" in line or "--all-extras" in line, (
+                f"{where} runs `{line.strip()}` without --extra dev. The dev tools are declared in "
+                "[project.optional-dependencies], so this installs none of them and the next step "
+                "fails with 'command not found'."
+            )
+
+
+def test_ci_pins_uv_the_way_the_image_does() -> None:
+    """The project pins ruff exactly and explains why. uv is what *installs* ruff, so an unpinned
+    uv is the same class of drift one level further down — and its default behaviour around extras
+    and groups has changed between releases."""
+    dockerfile = (_BACKEND / "Dockerfile").read_text(encoding="utf-8")
+    image_pin = re.search(r"pip install uv==([0-9.]+)", dockerfile)
+    assert image_pin is not None, "backend/Dockerfile no longer pins uv"
+
+    ci_pin = re.search(r"uv==([0-9.]+)", _ci_yaml())
+    assert ci_pin is not None, (
+        "ci.yml installs uv without a version. The image pins "
+        f"{image_pin.group(1)}; CI resolving a different one is how the same commit gets two "
+        "different toolchains."
+    )
+    assert ci_pin.group(1) == image_pin.group(1), (
+        f"ci.yml pins uv {ci_pin.group(1)}, backend/Dockerfile pins {image_pin.group(1)}."
+    )
+
+
+def test_the_ci_docs_job_runs_every_validator_the_gate_runs() -> None:
+    """ci.yml's own header: add a step to the Makefile gate and add it here in the same PR, or the
+    two drift and the local gate stops meaning anything. Three validators had drifted out."""
+    gate = {line.split()[-1] for line in _make_target("audit-docs") if line.startswith("python ")}
+    ci = _ci_yaml()
+    missing = sorted(script for script in gate if script not in ci)
+    assert not missing, (
+        f"`make check` runs {sorted(gate)} but ci.yml never runs {missing}. "
+        "A validator that only runs on a laptop is a validator that stops running."
+    )
+
+
+def test_every_path_ci_exports_is_absolute() -> None:
+    """The second half of the same CI failure, and the one that survived the first fix.
+
+    `uv sync --extra dev` installed ruff, mypy and pytest correctly — the run log shows
+    `+ ruff==0.16.6` — and `ruff check` still died with "command not found". GITHUB_PATH entries
+    are used verbatim, and every step in the backend job sets `working-directory: backend`, so the
+    relative entry `backend/.venv/bin` was looked for at `backend/backend/.venv/bin`.
+
+    It passed for months because CI installed uv with `--upgrade`: an older uv put the tools
+    somewhere already on PATH, so the broken entry never mattered. A newer one creates
+    `backend/.venv`, and the latent bug became the visible one.
+    """
+    for line in _ci_yaml().splitlines():
+        if "GITHUB_PATH" not in line or line.strip().startswith("#"):
+            continue
+        exported = re.search(r'echo\s+"([^"]+)"\s*>>\s*"?\$GITHUB_PATH', line)
+        assert exported is not None, f"cannot read the GITHUB_PATH export in: {line.strip()}"
+        value = exported.group(1)
+        assert value.startswith("$") or value.startswith("/"), (
+            f"ci.yml exports the relative path {value!r} to GITHUB_PATH. Steps run with "
+            "working-directory set, so a relative entry resolves against the wrong directory and "
+            "the tools become unreachable while appearing installed. Use $GITHUB_WORKSPACE."
+        )

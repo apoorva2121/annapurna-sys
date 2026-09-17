@@ -18,6 +18,9 @@ asserting the shape of the code that currently delivers it.
 from __future__ import annotations
 
 import asyncio
+import os
+
+import pytest
 
 from app.core.security import hash_password, verify_password
 
@@ -37,6 +40,11 @@ from app.core.security import hash_password, verify_password
 # never computed. This is that lesson, applied to a threshold.)
 _TICK_SECONDS = 0.005
 _MINIMUM_TICKS = 3
+
+# Twice `argon2_parallelism` (4), so at least two hashes can genuinely run side by side. Below it,
+# a concurrency *speedup* is not slow — it is unobservable, because one hash already owns every
+# core. GitHub's ubuntu-latest has 4 vCPUs; this project's development machine has 16.
+_CORES_TO_OBSERVE_CONCURRENCY = 8
 
 
 async def _count_ticks_during[T](work: asyncio.Future[T] | asyncio.Task[T]) -> int:
@@ -68,12 +76,31 @@ async def test_verifying_a_password_leaves_the_event_loop_free() -> None:
     )
 
 
+@pytest.mark.skipif(
+    (os.cpu_count() or 1) < _CORES_TO_OBSERVE_CONCURRENCY,
+    reason=(
+        f"needs >= {_CORES_TO_OBSERVE_CONCURRENCY} cores. argon2 runs with parallelism=4, so one "
+        "hash already uses four lanes: on a smaller box four concurrent hashes cannot beat four "
+        "sequential ones however correct the code is. The loop-freedom tests above still run."
+    ),
+)
 async def test_several_logins_verify_concurrently_rather_than_in_a_queue() -> None:
     """Four verifications together take appreciably less than four times one.
 
     The consequence a restaurant notices: a shift change is four people signing in at once, and on
     the event loop that was four sequential argon2 runs with every other request — and every
     kitchen display — waiting behind them.
+
+    **Skipped on small machines, and that is not a weakening.** This measures a *speedup*, and a
+    speedup needs spare CPU to exist. `argon2_parallelism` is 4, so a single hash saturates a
+    four-core runner; four at once then take four times as long there no matter where they run.
+    The property G-6 actually requires — that the work is off the event loop — is asserted by the
+    two tests above, which need no spare cores and run everywhere.
+
+    It failed CI on 2026-09-17 with `four concurrent verifications took 0.329s against 0.075s for
+    one`: 0.329 against a 0.300 bound, a 10% miss on a 4-vCPU runner, having scraped through the
+    previous run. The docstring already warned that asserting anything sharper would be asserting
+    the machine — on a machine with no spare cores, `four < one * 4` was exactly that.
     """
     stored = await hash_password("Staging#2026")
 

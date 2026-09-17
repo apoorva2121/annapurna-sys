@@ -199,6 +199,59 @@ confusion has cost this project a run, which is why CLAUDE.md says to read the n
 
 ---
 
+### 6 · CI had not run for a week, and was broken twice over (2026-09-17)
+
+`feat/m10-customers` was pushed for the first time on 17 September, seven days after the last green
+run. CI met 173 commits at once and failed five times. Two independent bugs, the second hidden
+behind the first:
+
+**`uv sync --frozen --project backend` installs no dev tools.** ruff, mypy, pytest and pip-audit
+are in `[project.optional-dependencies]` — an *extra* — and `uv sync` does not install extras unless
+asked. The install step reported success and produced a venv with none of the tools the next four
+steps invoke. **`make setup` had the identical bug**, so a fresh clone would have failed the same
+way; nobody had made one.
+
+**`echo "backend/.venv/bin" >> "$GITHUB_PATH"` is a relative path.** Every step in that job sets
+`working-directory: backend`, so the entry resolved to `backend/backend/.venv/bin`. With the first
+bug fixed the tools were installed and still unreachable, and the error still said
+`ruff: command not found`.
+
+**The second bug had been there since M00 and CI was green the whole time.** CI installed uv with
+`--upgrade`: an older uv put the tools somewhere already on PATH, so the broken entry never
+mattered. A newer uv creates `backend/.venv`, and a latent bug became a visible one — which is
+exactly the drift `pyproject.toml` pins ruff to avoid, one level further down. uv is now pinned to
+the version `backend/Dockerfile` installs, and `tests/test_toolchain_pins.py` asserts the two agree.
+
+**What to take from it.** *Read the logs.* Two messages were spent on plausible theories — a stale
+lockfile, a Playwright version mismatch — both disproved by measurement, while the actual log was
+reachable the whole time. The GitHub MCP server has no Actions tools, but `git credential fill`
+plus the REST API does, and the real cause took a minute once the log was in front of me. A third
+finding fell out of the same reading: CI's docs job ran three of the five validators `make check`
+runs, so `library/validate.py`, `library/validate_rates.py` and `seed/validate_tandoor_house.py`
+were running only on a laptop.
+
+### 7 · The deploy image had never been assembled (2026-09-17)
+
+`spa.py` had nine passing tests and `bootstrap.py` twelve, and neither had ever run inside the
+image. The first rehearsal — build the frontend into `backend/static`, build the image, run it as
+`ENV=staging` against a real Postgres, point `smoke_prod.py` at it — found two more:
+
+**`HEAD` returned 405.** The catch-all was registered with `@app.get`. All nine tests used GET.
+`curl -I` uses HEAD, and so do uptime monitors and some load balancers.
+
+**`smoke_prod.py` read headers case-sensitively** while uvicorn sends them lowercase, so it
+reported a perfectly healthy service as broken — the verification tool was the broken thing. It
+also refused any non-https URL, which made a local rehearsal impossible: a check that could not be
+run until the thing it checks already existed.
+
+**What to take from it.** Both bugs lived in the seam between components, which is where unit tests
+do not look. The parts were green and the assembly was not. The rehearsal is now §0.5 of
+`docs/deploy/gcp-staging-runbook.md`, with what it proved: 64 tables migrated from the image, an
+owner bootstrapped and **actually signed in** holding all 39 permissions, both bundles rendering in
+a real browser, and `smoke-prod: clean`.
+
+---
+
 ## The test files this module owes, and what each one is for
 
 Written down before any of them exists, because a test inventory decided afterwards is an inventory

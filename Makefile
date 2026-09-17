@@ -28,8 +28,8 @@ help:
 # uv installs from backend/uv.lock, so every machine and every CI run gets the same versions.
 # `uv sync` creates backend/.venv itself; the pip bootstrap exists only to obtain uv.
 setup:
-	python -m pip install --quiet --upgrade uv
-	uv sync --project backend
+	python -m pip install --quiet uv==0.12.13
+	uv sync --frozen --extra dev --project backend
 	$(NPM) ci
 
 # Re-resolve dependencies after editing backend/pyproject.toml. The lockfile is committed, so this
@@ -81,6 +81,19 @@ check: lint test audit-docs audit-guardrails audit-deps
 # Against a running stack, not test doubles. Unit tests cannot see the composed system.
 smoke:
 	python scripts/smoke.py
+
+# Against a *deployed* image (guardrail G-14, R7 step 7). Everything it asserts is something that
+# passes locally and can still be wrong in the cloud: a container built with no frontend, a
+# /version reporting "unknown" because the build args were dropped, docs exposed because ENV was
+# not set. BASE is required; SHA is optional and proves the smoke test hit the build just deployed
+# rather than a previous revision still serving traffic.
+#   make smoke-prod BASE=https://restaurant-os-api-xxxx.run.app
+#   make smoke-prod BASE=https://... SHA=$$(git rev-parse HEAD)
+smoke-prod:
+ifndef BASE
+	$(error BASE is required, e.g. make smoke-prod BASE=https://restaurant-os-api-xxxx.run.app)
+endif
+	python scripts/smoke_prod.py --base "$(BASE)" $(if $(SHA),--expect-sha "$(SHA)",)
 
 audit-docs:
 	python scripts/audit_docs.py
