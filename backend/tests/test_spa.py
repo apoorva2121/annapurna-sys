@@ -107,3 +107,16 @@ def test_an_image_without_a_frontend_build_refuses_to_start(tmp_path: Path) -> N
     """Loud, not an API that 404s every page with nothing in the log to explain it."""
     with pytest.raises(RuntimeError, match=r"no index\.html"):
         mount_spa(FastAPI(), str(tmp_path))
+
+
+async def test_head_is_answered_as_well_as_get(tmp_path: Path) -> None:
+    """Found by the first local rehearsal, not by any unit test here.
+
+    The catch-all was registered with `@app.get`, so HEAD returned 405 Method Not Allowed. Every
+    check in this file used GET and passed. `curl -I` uses HEAD, and so do uptime monitors, some
+    load balancers, and link checkers — a 405 from the page route reads as a broken deployment.
+    """
+    async with _client(tmp_path) as client:
+        for path in ("/", "/guest.html", "/orders/42"):
+            response = await client.head(path)
+            assert response.status_code == 200, f"HEAD {path} -> {response.status_code}"

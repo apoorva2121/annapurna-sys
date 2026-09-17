@@ -44,7 +44,10 @@ def mount_spa(app: FastAPI, static_dir: str) -> None:
         # StaticFiles, not the catch-all: it 404s a missing file, which is trap 2 above.
         app.mount("/assets", StaticFiles(directory=assets), name="assets")
 
-    @app.get("/{path:path}", include_in_schema=False)
+    # GET and HEAD. Registered with `@app.get` alone, HEAD answered 405 — found by the first local
+    # rehearsal rather than by any test here, because every test used GET. `curl -I` uses HEAD, and
+    # so do uptime monitors, some load balancers and link checkers.
+    @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     async def spa(path: str) -> FileResponse:
         # Trap 1. Registered API routes already matched; anything still starting with `api` is a
         # path that does not exist, and it must say so in the language the frontend parses.

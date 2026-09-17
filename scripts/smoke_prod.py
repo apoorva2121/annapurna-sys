@@ -27,6 +27,13 @@ TIMEOUT = 20  # Generous: a scale-to-zero service answers its first request afte
 failures: list[str] = []
 
 
+def _lower(headers: object) -> dict[str, str]:
+    """Header names are case-insensitive; uvicorn sends them lowercase. Looking up "Content-Type"
+    in a plain dict of them finds nothing, which reads as a broken service rather than a broken
+    lookup — it did exactly that during the first local rehearsal."""
+    return {str(k).lower(): str(v) for k, v in dict(headers).items()}
+
+
 def check(name: str, condition: bool, detail: str = "") -> None:
     status = "ok  " if condition else "FAIL"
     print(f"  [{status}] {name}{'' if condition else f'  -> {detail[:300]}'}")
@@ -41,10 +48,10 @@ def get(url: str, accept: str = "application/json") -> tuple[int, str, dict[str,
             return (
                 response.status,
                 response.read().decode(errors="replace"),
-                dict(response.headers),
+                _lower(response.headers),
             )
     except urllib.error.HTTPError as exc:
-        return exc.code, exc.read().decode(errors="replace"), dict(exc.headers)
+        return exc.code, exc.read().decode(errors="replace"), _lower(exc.headers)
     except Exception as exc:  # noqa: BLE001 - an unreachable service is a failed check, not a crash
         return 0, f"{type(exc).__name__}: {exc}", {}
 
@@ -58,12 +65,22 @@ def main(argv: list[str] | None = None) -> int:
         help="Fail unless /version reports this commit. Use in CI so the smoke test proves it "
         "tested the build that was just deployed, rather than a previous revision still serving.",
     )
+    parser.add_argument(
+        "--allow-http",
+        action="store_true",
+        help="Permit a plain-http base URL. For the local rehearsal only — a real deployment "
+        "reachable over http is a finding, not a configuration choice.",
+    )
     args = parser.parse_args(argv)
     base = args.base.rstrip("/")
 
-    if not base.startswith("https://"):
-        # A deployed service that is reachable over plain HTTP is a finding in itself.
-        check("base URL is https", False, base)
+    if not base.startswith("https://") and not args.allow_http:
+        # A deployed service reachable over plain HTTP is a finding in itself, so https is the
+        # default and http has to be asked for by name. --allow-http exists for one purpose: the
+        # local rehearsal, where the image runs on localhost with no certificate. Without it this
+        # script could never be run against anything before a real deployment existed — a
+        # verification tool that cannot itself be verified.
+        check("base URL is https (pass --allow-http for a local rehearsal)", False, base)
         return 1
 
     print("Health")
@@ -95,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print("One origin (R4)")
     status, body, headers = get(f"{base}/", accept="text/html")
-    content_type = headers.get("Content-Type", "")
+    content_type = headers.get("content-type", "")
     check(
         "/ serves the staff bundle",
         status == 200 and "text/html" in content_type,
@@ -105,8 +122,8 @@ def main(argv: list[str] | None = None) -> int:
     status, body, headers = get(f"{base}/guest.html?t=smoke", accept="text/html")
     check(
         "/guest.html serves the guest bundle",
-        status == 200 and "text/html" in headers.get("Content-Type", ""),
-        f"{status} {headers.get('Content-Type', '')}",
+        status == 200 and "text/html" in headers.get("content-type", ""),
+        f"{status} {headers.get('content-type', '')}",
     )
 
     status, body, _ = get(f"{base}/orders/42", accept="text/html")
@@ -117,15 +134,15 @@ def main(argv: list[str] | None = None) -> int:
     status, body, headers = get(f"{base}/api/v1/no-such-endpoint")
     check(
         "an unknown /api path stays JSON 404",
-        status == 404 and "text/html" not in headers.get("Content-Type", ""),
-        f"{status} {headers.get('Content-Type', '')}",
+        status == 404 and "text/html" not in headers.get("content-type", ""),
+        f"{status} {headers.get('content-type', '')}",
     )
 
     status, body, headers = get(f"{base}/assets/does-not-exist.js")
     check(
         "a missing asset 404s rather than returning HTML",
         status == 404,
-        f"{status} {headers.get('Content-Type', '')}",
+        f"{status} {headers.get('content-type', '')}",
     )
 
     print("Exposure")
