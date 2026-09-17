@@ -29,42 +29,34 @@ Spec: `docs/modules/M10-customers-spec.md`. **Resume from the State table below.
 
 ## Resume here
 
-**The gate is green.** Run 5 completed on 2026-09-17 with **exit code 0** and `make check: clean`:
-1437 backend tests, 396 frontend, coverage 96.24%, 0 guardrail issues, both dependency audits clean.
+**Updated 2026-09-17, end of the autonomous run.**
 
-| Run | What happened |
+| Thing | State |
 |---|---|
-| 1 | Failed at `lint-api` in ~1 minute: one line over 100 characters in `tests/test_seed_customers.py`. Fixed. |
-| 2 | **Killed by the harness for low memory**, about 5% into the test phase. Not a failure — the machine had 1.5 GB free of 13 GB. |
-| 3 | Stopped by the owner, who was restarting the machine. |
-| 4 | **Ran to completion and failed**, 35m30s, exit 2: one test of 1437 — the permission-description drift, finding 5 below. |
-| 5 | **Clean**, 36m16s, exit 0. |
+| Module gate, `make check` | ☑ clean, exit 0 — 1458 backend + 396 frontend, coverage 96.18% |
+| CI on `feat/m10-customers` | ☑ **run #11 green, all five jobs** |
+| CI on `main` | ☑ **run #12 green**; `main` merged at `1e4eea9` |
+| Deploy staging workflow | ☑ **skips** while no GCP project exists, rather than failing |
+| Local deploy rehearsal | ☑ `smoke-prod: clean`, 13 checks — runbook §0.5 |
+| **The owner's manual pass** | ☐ **the one remaining Definition of Done line** |
+| Staging on GCP (R7) | ☐ needs the owner's console session, §1–§7 of the runbook |
 
-**Eighteen warnings survive a clean gate**, all from `library/validate_rates.py`: market rates whose
-`as_of` is past the 90-day freshness threshold. They are calendar-driven, no M10 commit touches
-`library/`, and they will appear on any branch until the rates are re-scraped. Named here because
-the Definition of Done says *zero warnings* and this is the gap between that sentence and what a
-clean run actually prints.
+**The local gate no longer runs on this machine.** Three attempts on 17 September were killed for
+low memory, the last after seven tests. It is arithmetic, not a defect: `claude` holds ~2.2 GB,
+Docker's VM ~1.8 GB, `svchost` ~1.6 GB and `msedgewebview2` ~1.3 GB — about 7 GB of 13.35 GB before
+a test runs, and then pytest wants a Postgres testcontainer and vitest wants workers. When the
+testcontainer is killed mid-run every database test errors, which is what a screen of `EEEE` in
+`check.log` means. **CI is the gate now**: it runs the same suite (`test_the_ci_docs_job_runs_every_
+validator_the_gate_runs` stops the two drifting) on 16 GB with nothing competing. The machine has a
+free SO-DIMM slot; 48 GB would end this.
 
-**What is left is not mine.** Every remaining Definition of Done line needs either the owner or an
-environment that does not exist yet:
+**What CI caught that the module's own suites did not.** Five bugs, none of them in M10's features
+and all of them in seams: `uv sync` installing no dev tools; a relative `GITHUB_PATH` leaving those
+tools installed and unreachable; three validators running only on a laptop; `HEAD` answering 405
+from the SPA mount; and a concurrency threshold that asserted the machine rather than the code.
 
-- **The owner's manual pass** — `docs/manual-tests/M10-customers.md`, and the exploratory charter.
-- **Staging**, which two lines require: the module must be *on* staging before the manual pass, and
-  latency budgets are explicitly measured there with seeded data, not on a laptop.
-- **`make smoke-prod` (G-14) names a Makefile target that does not exist.** There is a `smoke`
-  target; `smoke-prod` has never been written, so that line cannot honestly be ticked by anybody
-  until it is. Recorded rather than quietly skipped.
-
-If staging is still not real, the pragmatic path is a manual pass against local `make dev` with the
-staging-dependent lines deferred under a named trigger, the way `docs/audit/external-review.md`
-handles deferred findings. That is the owner's call and has not been made.
-
-**On memory, because three of five runs were lost to it:** the gate needs roughly 3 GB free on a
-13.35 GB machine. `~/.wslconfig` now caps Docker's VM at 5 GB with `autoMemoryReclaim`, which must
-sit under `[experimental]` on WSL 2.7.13 — under `[wsl2]` it is rejected with a warning that is easy
-to miss. `~/bin/free-mem.ps1` sweeps before a long run and refuses to touch Docker while a container
-is live.
+**Next session, in order:** the owner's manual pass (local `make dev` is fine — staging does not
+exist), then R7's console work, then M11.
 
 ---
 
