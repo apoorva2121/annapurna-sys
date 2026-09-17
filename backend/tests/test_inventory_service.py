@@ -587,6 +587,42 @@ class TestTheRefusalsNobodyHadRead:
             await world.service.record_counted(count.id, counts={world.item.id: Decimal("-4")})
         assert raised.value.code == "invalid_quantity"
 
+    async def test_a_count_can_be_opened_on_an_item_whose_book_position_is_negative(
+        self, db_session: AsyncSession
+    ) -> None:
+        """The regression for a 500 the seed found.
+
+        `open_count` pre-fills every line's `counted_quantity` from the book so the sheet opens on
+        the position it is checking. A *negative* book position is meaningful — stock went out that
+        nobody recorded coming in, which `docs/onboarding-cold-start.md` calls the most useful
+        thing this product can tell a restaurant that has never kept records, and which the seed
+        plants deliberately on ONION. But `ck_stock_count_line_counted` says `counted_quantity >=
+        0`, because a shelf cannot hold minus four kilos.
+
+        So the two were in direct conflict: opening a count that included the unrecorded item
+        raised CheckViolationError from Postgres, and a storeman counting the one item most worth
+        counting got "Something went wrong".
+
+        The sheet now opens at zero for such an item, which is also what the storeman will write:
+        the shelf is empty, and the variance is the whole negative book position.
+        """
+        world = await _world(db_session, "count-negative-book")
+        await world.service.consume(
+            world.actor,
+            stock_item_id=world.item.id,
+            quantity=Decimal("50"),
+            basis=MovementBasis.THEORETICAL,
+        )
+
+        count = await world.service.open_count(world.actor, stock_item_ids=[world.item.id])
+        refreshed = await world.service.counts.get_with_lines(count.id)
+        assert refreshed is not None
+        line = refreshed.lines[0]
+        assert Decimal(str(line.system_quantity)) < 0, "the book should be negative here"
+        assert Decimal(str(line.counted_quantity)) == 0, (
+            "the sheet must open at zero rather than at a negative the constraint forbids"
+        )
+
     async def test_recording_an_item_the_sheet_does_not_list_is_ignored(
         self, db_session: AsyncSession
     ) -> None:

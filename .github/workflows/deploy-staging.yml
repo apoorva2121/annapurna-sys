@@ -32,9 +32,20 @@ permissions:
   id-token: write
 
 env:
-  REGION: asia-south1 # Mumbai — the restaurants are in India and latency is a budget (M13).
+  # Singapore, not Mumbai. Neon has no ap-south-1 region (checked 2026-09-17), so the database
+  # lives in ap-southeast-1 and the service is co-located with it: a page load makes several
+  # queries, and a split pays the cross-region hop per query instead of once per request.
+  REGION: asia-southeast1
   SERVICE: restaurant-os-api
   REPOSITORY: restaurant-os
+  # The identity the container runs AS, which is not the identity that deploys it.
+  # `github-deploy` pushes images and calls the Cloud Run API; the revision itself runs as this
+  # one, which can read two secrets and do nothing else. Without --service-account, Cloud Run uses
+  # the default compute account — which carries project Editor, and which the first deploy failed
+  # on with "Permission denied on secret ... for Revision service account
+  # 484549832300-compute@developer.gserviceaccount.com". Granting that account the secrets would
+  # have worked and would have left the application running as an Editor.
+  RUNTIME_SA: restaurant-os-run@restaurant-os-508914.iam.gserviceaccount.com
 
 jobs:
   # Until §1-§7 of docs/deploy/gcp-staging-runbook.md have been done, there is no project to deploy
@@ -117,13 +128,25 @@ jobs:
       # ---------------------------------------------------------------- migrate
       # A Cloud Run *Job*, run to completion BEFORE the service is deployed. The other order gives
       # a window where new code queries columns that do not exist yet, which is an outage.
+      #
+      # It gets the same environment as the service, not a smaller one, because it runs the same
+      # image and therefore builds the same Settings object under the same validation. `env` is
+      # required with no default, and `jwt_secret` is required whenever ENV is not local. A
+      # migration never signs a token, but the settings model refuses to exist without a secret —
+      # and refusing is correct, because the alternative is a staging deployment quietly running on
+      # the development value committed to this repository.
+      #
+      # Passing only DATABASE_URL failed inside the container, after a perfectly clean
+      # `gcloud run jobs deploy`, with "1 validation error for Settings / env / Field required".
       - name: Migrate
         run: |
           gcloud run jobs deploy migrate \
             --image "${{ steps.build.outputs.image }}" \
             --region "$REGION" \
             --command python --args=-m,alembic,upgrade,head \
-            --set-secrets DATABASE_URL=DATABASE_URL:latest \
+            --service-account "$RUNTIME_SA" \
+            --set-env-vars ENV=staging,DEBUG=false,LOG_LEVEL=INFO \
+            --set-secrets DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest \
             --max-retries 0 --task-timeout 10m --quiet
           gcloud run jobs execute migrate --region "$REGION" --wait
 
@@ -140,6 +163,7 @@ jobs:
             --concurrency 40 \
             --max-instances 3 \
             --min-instances "${{ vars.GCP_MIN_INSTANCES || '0' }}" \
+            --service-account "$RUNTIME_SA" \
             --set-env-vars ENV=staging,DEBUG=false,LOG_LEVEL=INFO,STATIC_DIR=/app/static \
             --set-secrets DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest \
             --quiet
