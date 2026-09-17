@@ -38,6 +38,14 @@ env:
   REGION: asia-southeast1
   SERVICE: restaurant-os-api
   REPOSITORY: restaurant-os
+  # The identity the container runs AS, which is not the identity that deploys it.
+  # `github-deploy` pushes images and calls the Cloud Run API; the revision itself runs as this
+  # one, which can read two secrets and do nothing else. Without --service-account, Cloud Run uses
+  # the default compute account — which carries project Editor, and which the first deploy failed
+  # on with "Permission denied on secret ... for Revision service account
+  # 484549832300-compute@developer.gserviceaccount.com". Granting that account the secrets would
+  # have worked and would have left the application running as an Editor.
+  RUNTIME_SA: restaurant-os-run@restaurant-os-508914.iam.gserviceaccount.com
 
 jobs:
   # Until §1-§7 of docs/deploy/gcp-staging-runbook.md have been done, there is no project to deploy
@@ -142,7 +150,7 @@ jobs:
             --memory 512Mi \
             --concurrency 40 \
             --max-instances 3 \
-            --min-instances "${{ vars.GCP_MIN_INSTANCES || '0' }}" \
+            --min-instances "${{ vars.GCP_MIN_INSTANCES || '0' }}"             --service-account "$RUNTIME_SA" \
             --set-env-vars ENV=staging,DEBUG=false,LOG_LEVEL=INFO,STATIC_DIR=/app/static \
             --set-secrets DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest \
             --quiet
