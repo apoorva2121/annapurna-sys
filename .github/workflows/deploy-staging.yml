@@ -37,22 +37,31 @@ env:
   REPOSITORY: restaurant-os
 
 jobs:
+  # Until §1-§7 of docs/deploy/gcp-staging-runbook.md have been done, there is no project to deploy
+  # to. This job is then **skipped**, not failed: a red X on every push to main for a deployment
+  # nobody has set up yet is noise, and a repository whose default branch is permanently red is one
+  # where a real failure stops being visible. The condition is on the job so the skip is a grey tick
+  # rather than a failed step.
+  #
+  # `vars.GCP_PROJECT_ID` is a repository *variable*, not a secret — it is not sensitive, and a
+  # variable can be read in an `if:` where a secret cannot.
   deploy:
     name: build · migrate · deploy · smoke
     runs-on: ubuntu-latest
+    if: vars.GCP_PROJECT_ID != ''
     steps:
       - uses: actions/checkout@v4
 
-      # A missing variable should stop here with a sentence, not 40 lines into a gcloud error.
-      - name: Check the one-time setup exists
+      # Past the `if:` above, the project exists but a piece of it may not. Fail here with a
+      # sentence naming what is missing, rather than 40 lines into a gcloud error.
+      - name: Check the one-time setup is complete
         run: |
           missing=""
-          [ -n "${{ vars.GCP_PROJECT_ID }}" ]   || missing="$missing GCP_PROJECT_ID"
           [ -n "${{ vars.GCP_WIF_PROVIDER }}" ] || missing="$missing GCP_WIF_PROVIDER"
           [ -n "${{ vars.GCP_DEPLOY_SA }}" ]    || missing="$missing GCP_DEPLOY_SA"
           if [ -n "$missing" ]; then
-            echo "::error::Missing repository variables:$missing"
-            echo "See docs/deploy/gcp-staging-runbook.md — the GCP project is not set up yet."
+            echo "::error::GCP_PROJECT_ID is set but these are not:$missing"
+            echo "See docs/deploy/gcp-staging-runbook.md §5-§7."
             exit 1
           fi
 
