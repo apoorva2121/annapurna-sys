@@ -82,8 +82,19 @@ because it auto-suspends when idle and staging is idle most of the time.
 1. Sign in at **neon.com** → **New Project**.
 2. **Name:** `restaurant-os-staging`
 3. **Postgres version:** **16** — match `docker-compose.yml`; do not take the newest offered.
-4. **Region:** **AWS ap-south-1 (Mumbai)**, or the closest to `asia-south1`. Cross-region adds a
-   round trip to every query and M13 has latency budgets.
+4. **Region:** **AWS ap-southeast-1 (Singapore)**.
+
+   **Neon has no Mumbai region** — checked against Neon's own list on 2026-09-17, which is US East
+   (N. Virginia, Ohio), US West (Oregon), Europe (Frankfurt, London), Asia Pacific (Singapore,
+   Sydney) and South America (São Paulo). Singapore is the closest to India, and Azure regions are
+   deprecated for new projects.
+
+   **This is why Cloud Run also runs in `asia-southeast1` rather than `asia-south1`.** A page load
+   makes several database queries, so a split between Mumbai and Singapore pays the hop *per
+   query*, while keeping them together pays it once per request from the user. M13 measures latency
+   budgets on staging, and a cross-region database would make those measurements a property of the
+   network rather than of the code. If production later wants the app in Mumbai, the database has
+   to move with it — Cloud SQL in `asia-south1`, which is not free, is the decision that unlocks.
 5. Create it, then open **Connection Details**.
 6. **Copy the POOLED connection string.** This is the one choice on this page that matters. It
    contains `-pooler` in the host. Cloud Run scales to several instances and each opens its own
@@ -130,7 +141,7 @@ Keep that string on your clipboard for §4. **Do not paste it into a file in the
 - **Name:** `restaurant-os`
 - **Format:** **Docker**
 - **Mode:** Standard
-- **Region:** **`asia-south1` (Mumbai)** — must match `REGION` in the workflow
+- **Region:** **`asia-southeast1` (Singapore)** — must match `REGION` in the workflow, and co-located with Neon (see §1)
 - **Encryption:** Google-managed
 
 ---
@@ -262,13 +273,13 @@ The deployment has a database and no way in. Run this once — Cloud Run → Job
 
 ```bash
 gcloud run jobs deploy bootstrap \
-  --image asia-south1-docker.pkg.dev/<PROJECT_ID>/restaurant-os/restaurant-os-api:<SHA> \
-  --region asia-south1 \
+  --image asia-southeast1-docker.pkg.dev/<PROJECT_ID>/restaurant-os/restaurant-os-api:<SHA> \
+  --region asia-southeast1 \
   --command python \
   --args=-m,app.bootstrap,--org,"Your Company",--slug,your-company,--restaurant,"Your Branch",--code,BR_ONE,--owner-name,"Your Name",--owner-email,you@example.com \
   --set-secrets DATABASE_URL=DATABASE_URL:latest --max-retries 0
 
-gcloud run jobs execute bootstrap --region asia-south1 --wait
+gcloud run jobs execute bootstrap --region asia-southeast1 --wait
 ```
 
 **The generated password is printed once, to the job's logs, and is not recoverable** — it is
@@ -320,8 +331,8 @@ to produce.
 Nothing here bills when idle, so you can leave it. If you want it gone:
 
 ```bash
-gcloud run services delete restaurant-os-api --region asia-south1
-gcloud run jobs delete migrate --region asia-south1
+gcloud run services delete restaurant-os-api --region asia-southeast1
+gcloud run jobs delete migrate --region asia-southeast1
 ```
 
 Neon: **Settings → Delete project**, or leave it suspended — a suspended project consumes no

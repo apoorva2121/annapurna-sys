@@ -32,7 +32,10 @@ permissions:
   id-token: write
 
 env:
-  REGION: asia-south1 # Mumbai — the restaurants are in India and latency is a budget (M13).
+  # Singapore, not Mumbai. Neon has no ap-south-1 region (checked 2026-09-17), so the database
+  # lives in ap-southeast-1 and the service is co-located with it: a page load makes several
+  # queries, and a split pays the cross-region hop per query instead of once per request.
+  REGION: asia-southeast1
   SERVICE: restaurant-os-api
   REPOSITORY: restaurant-os
 
