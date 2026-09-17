@@ -134,6 +134,7 @@ jobs:
             --image "${{ steps.build.outputs.image }}" \
             --region "$REGION" \
             --command python --args=-m,alembic,upgrade,head \
+            --service-account "$RUNTIME_SA" \
             --set-secrets DATABASE_URL=DATABASE_URL:latest \
             --max-retries 0 --task-timeout 10m --quiet
           gcloud run jobs execute migrate --region "$REGION" --wait
@@ -150,7 +151,8 @@ jobs:
             --memory 512Mi \
             --concurrency 40 \
             --max-instances 3 \
-            --min-instances "${{ vars.GCP_MIN_INSTANCES || '0' }}"             --service-account "$RUNTIME_SA" \
+            --min-instances "${{ vars.GCP_MIN_INSTANCES || '0' }}" \
+            --service-account "$RUNTIME_SA" \
             --set-env-vars ENV=staging,DEBUG=false,LOG_LEVEL=INFO,STATIC_DIR=/app/static \
             --set-secrets DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest \
             --quiet
