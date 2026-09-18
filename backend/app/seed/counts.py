@@ -172,7 +172,18 @@ async def seed_counts(session: AsyncSession) -> CountSummary:
             # one of 68 Numeric columns in this codebase that are, so mypy cannot see it is a
             # Decimal. It is one at runtime. See the backlog row about invariant 3 and typing.
             book = Decimal(str(line.system_quantity))
-            on_the_shelf[line.stock_item_id] = (book * fraction).quantize(Decimal("0.001"))
+            # **A shelf cannot hold a negative quantity, and this is where that stops being an
+            # abstraction.** M15's generator produces genuinely negative book positions — stock
+            # consumed that nobody recorded receiving is week one for a real restaurant
+            # (`docs/onboarding-cold-start.md`), and the ledger is honest about it. But a person
+            # standing in the storeroom counts what is there, and what is there is never less than
+            # nothing. Counting zero against a book of -2kg is the *whole point* of the count: it
+            # records the full shortfall rather than refusing to look at it.
+            #
+            # Before this, the count seeder multiplied a negative book by a fraction and handed the
+            # service a negative counted quantity, which it rightly refused.
+            counted_quantity = max(book * fraction, Decimal("0"))
+            on_the_shelf[line.stock_item_id] = counted_quantity.quantize(Decimal("0.001"))
         await service.record_counted(count.id, counts=on_the_shelf)
         await service.submit_count(count.id)
         await service.approve_count(_actor(approver, restaurant), count.id)

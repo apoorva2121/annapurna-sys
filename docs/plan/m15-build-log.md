@@ -8,9 +8,9 @@ Spec: `docs/modules/M15-generator-spec.md`. Manual script: `docs/manual-tests/M1
 
 | Chunk | What | State |
 |---|---|---|
-| A | The demand model, the deterministic clock, the week structure | ⏳ |
-| B | Fourteen planters and `tests/test_planted_signals.py` | ⏳ |
-| C | The volume, `make seed-small`, and the reports asserted against generated data | ⏳ |
+| A | The demand model, the deterministic clock, the week structure | ✅ committed |
+| B | Fourteen planters and `tests/test_planted_signals.py` | ✅ committed |
+| C | The volume, `make seed-small`, and the seed run end to end | ✅ committed |
 | — | Manual pass | **Owner's** |
 
 Built on 2026-09-19, on `feat/m11-communication` after M14.
@@ -93,8 +93,82 @@ started in.
 
 ## Measurements
 
-*(to be filled in when the run completes: `make seed` wall time, row counts, and the query plan for
-the heaviest generated report)*
+**A full seed takes 46 seconds**, measured by `tests/test_seed_cli.py::test_it_seeds_an_empty_
+database_and_reports_success` — which runs exactly what `make seed` runs, in one transaction,
+against a fresh database. The budget in the spec was five minutes.
+
+That is 120 days of trading plus everything the other twelve seeders do, on a laptop, inside a
+container, with a test suite running beside it. A second run takes 50 seconds and writes nothing:
+the generator finds history over its window and stops, which is the idempotence every other seeder
+promises.
+
+**No index migration was needed.** M13's `0048` already added `(restaurant_id, business_date)` on
+`invoice`, which is the path every generated report reads, and the reporting latency file measures
+that path at 16–32 ms against an 800 ms budget on ninety days. Nothing in this module made it
+slower: the generator writes the rows those measurements were already taken against.
+
+---
+
+## Six of the product's own rules refused the first draft
+
+Every one of them was right, and each is worth reading as a statement about the schema rather than
+about the generator.
+
+**The GST halves are computed on the line, not by halving the tax.** `app/core/tax.py` rule 1 says
+why in a sentence I had to be shown by a CHECK constraint: *"computing a total and halving it leaves
+an odd paisa that has to be given to one side."* ₹75 at 5% is ₹3.75, and 1.88 + 1.87 is not an equal
+split. `ck_order_line_gst_split` refused every line until each half was computed from the line
+value.
+
+**An invoice number is at most sixteen characters** (CGST Rule 46(b), `ck_invoice_number_length`).
+`INV/2026-27/000001` is eighteen. The product already had `invoice_number()`; the generator now
+calls it rather than formatting a second, illegal series.
+
+**A settled order takes no lines, no tables and no edits** — three separate triggers for invariant
+6. History arrives whole, so `session_replication_role` stands the triggers down for exactly two
+statements; and the customer goes on the bill *as it is built*, which is what M10 does and what the
+third trigger insisted on when the first draft tried to update settled orders afterwards.
+
+**Two deliveries of one thing on one day under one docket** is refused by
+`uq_stock_batch_restaurant_code`. Truncating ingredient codes to eight characters collided
+`CHKN_BONELESS` with `CHKN_BONE_IN`.
+
+**`captured` and `issued` are not this product's payment and invoice statuses.** They are `success`
+and `issued`; the enums exist and the generator now uses them.
+
+**A shelf cannot hold a negative quantity.** M15 produces genuinely negative book positions — stock
+consumed that nobody recorded receiving is week one for a real restaurant — and the count seeder
+multiplied a negative book by a fraction and handed the service a negative counted quantity, which
+it rightly refused. A person in the storeroom counts what is there, and what is there is never less
+than nothing. Counting zero against a book of −2 kg is the *point* of the count: it records the full
+shortfall rather than declining to look at it.
+
+## And one the tests caught rather than the database
+
+**The tomato spike never reached a plate.**
+
+A dish's recipe names a *preparation* — `PREP_MAKHANI` — and not tomato. So a price multiplier
+applied to `TOMATO` alone moved no `theoretical_unit_cost` at all, and signal 13's report would have
+shown a flat line while the generator logged a spike it had faithfully applied to an ingredient
+nothing bought directly.
+
+`docs/seed-data.md`'s own wording was the fix, and it had been right all along: *"tomato price spike
+raises **gravy cost** 22% for 3 weeks."* The three preparations built on tomato now carry the 22%,
+and the test measures one gravy-heavy dish rather than the menu average — across the whole menu the
+rise is real and invisible, because two thirds of the dishes contain no tomato and the mix's own
+variation is larger than the signal.
+
+**This is the class of bug this module exists to prevent**, found on the module that exists to
+prevent it: a documented anomaly, faithfully implemented, that never reached the report it was
+planted for.
+
+## One more, in the same family
+
+`_demo_restaurant` ordered by code and took the first, which is the **unfurnished Baner branch** —
+`seed/organization.yaml` creates three restaurants and fits out one. The generator logged "the menu
+is empty" about a restaurant that never had a menu: a true sentence about the wrong restaurant,
+which is the least helpful kind of correct. It now picks the demo restaurant with the most active
+variants.
 
 ---
 
@@ -102,4 +176,4 @@ the heaviest generated report)*
 
 | File | Count |
 |---|---|
-| `tests/test_planted_signals.py` | 19 |
+| `tests/test_planted_signals.py` | 21 |
