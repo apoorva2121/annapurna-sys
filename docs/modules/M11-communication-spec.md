@@ -90,27 +90,44 @@ restaurant, and that would be a new ADR, not an afternoon.
 communication module the restaurant will not adopt, because the person who finds the broken freezer
 at 6am is exactly the person with no permissions.
 
-So `conversation.view`, `message.send` and `task.view` are granted to **every role in the
-catalogue**, and the module's tests assert that — the same mechanism M17 uses for
-`performance.view.own` ("granted to every role and not removable"). A role added later starts with
-them.
+So `message.send`, `task.view` and `task.complete` are granted to **every role in the
+catalogue**, and the module's tests assert that over the catalogue — the same mechanism M17 uses
+for `performance.view.own` ("granted to every role and not removable"). A role added later fails
+the test rather than silently losing access.
 
 This is not a weakening of access control. It is the recognition that the permission that matters
 here is **participation**, not role: you see a conversation because you are a participant in it,
 and the repository scope enforces that on every read. A permission catalogue cannot express "this
 thread, not that one"; a participant row can.
 
-The permissions that *are* rationed:
+**This module invents no permission code.** The P1 design in `seed/organization.yaml` — written
+in P1 and guarded by `test_the_shipped_catalogue_is_a_subset_of_the_p1_design` — already contains
+exactly four comms codes and already grants three of them to every role, cleaner included. The
+design got here first and it was right. Four codes, not the seven a fresh reading would have
+invented:
 
-| Permission | Who holds it | Why |
+| Permission | Who holds it | What it means here |
 |---|---|---|
-| `conversation.view` | every role | see the threads you are in |
-| `message.send` | every role | take part in them |
-| `task.view` | every role | see the work assigned to you |
-| `announcement.post` | owner, manager, chef | a message to the whole restaurant that nobody can reply to is a megaphone; three people may hold one |
-| `task.manage` | owner, manager, chef, store_manager | create a task, assign it to someone else, edit or cancel it |
-| `task.verify` | owner, manager | say that completed work was actually done |
-| `attachment.manage` | every role | *the mechanism*; the real check is decision 6 |
+| `message.send` | **every role** | take part in conversations at all: read the threads you are a participant of, post, attach a file |
+| `task.view` | **every role** | see tasks assigned to you, and write down your own work |
+| `task.complete` | **every role** | move a task you were assigned along its lifecycle |
+| `task.assign` | owner, manager | give work to *somebody else*, edit it, cancel it, verify it |
+
+Two consequences of using the design's four rather than inventing more:
+
+**There is no `conversation.view`.** Reading is `message.send` plus a participant row, because
+participation is the control that matters and a permission catalogue cannot express "this thread,
+not that one".
+
+**There is no `attachment.manage`.** The attachment routes declare `message.send` — every role
+holds it, and it means only "may use the attachment mechanism". The check that matters is
+decision 6.
+
+**Creating a task for yourself needs only `task.view`; assigning one to somebody else needs
+`task.assign`.** This is the design's own split read literally, and it is the right line: anybody
+may write down their own work, and giving work to another person is a manager's act. It is also
+what keeps a chef able to note "deep-clean the fryer" without holding a permission the design
+deliberately withheld.
 
 ### 2 · Unread is a watermark, and the count is one comparison
 
@@ -141,7 +158,7 @@ Enforced in the database, not only in the service: a unique index on a canonical
 (`least(a,b), greatest(a,b)`) for direct conversations, so two simultaneous taps cannot both win.
 The service catches the unique violation and returns the winner.
 
-`group` and `announcement` are not deduplicated. Two groups with the same members are two groups,
+`group` conversations are not deduplicated. Two groups with the same members are two groups,
 because they have different purposes and the members know what they are.
 
 ### 4 · Leaving a conversation is a fact with a date, not a deletion
@@ -251,7 +268,9 @@ conversation it came from, not a fresh empty one. The message gains no state; pr
 flag on it, it is a task that points back. Promoting the same message twice is allowed — two people
 may genuinely owe two different pieces of work from one instruction — and the task list shows both.
 
-Requires `task.manage`. The person who *sent* the message does not thereby get to create tasks.
+Promoting a message into work for yourself needs `task.view`; promoting it onto somebody else
+needs `task.assign`, exactly as creating a task does. The person who *sent* the message gets no
+special standing from having sent it.
 
 ### 9 · Task status is a lifecycle, and `task_event` is the record
 
@@ -263,9 +282,10 @@ Who may move what:
 
 - **The assignee** may `accept`, move to `in_progress`, and `complete`. Nobody else may complete
   work on somebody's behalf — that is the whole value of the record.
-- **`task.manage`** may `assign`, reassign, edit and `cancel`.
-- **`task.verify`** may `verify` a completed task, and **may not verify a task they completed
-  themselves** unless they are the owner. Same shape as M09's approver rule, for the same reason.
+- **`task.assign`** may assign, reassign, edit, `cancel` and `verify`.
+- A `task.assign` holder **may not verify a task they completed themselves** unless they are the
+  owner. Same shape as M09's approver rule, and for the same reason: the person who did the work
+  is not the person who says it was done.
 
 `task_event` is append-only, one row per transition, with actor, both states, a note and
 `occurred_at`. **Reassignment writes an event too**, with the note carrying from and to — a task
@@ -278,7 +298,7 @@ never stored. There is no background job flipping a flag, and the partial index 
 ### 10 · Deleting a message leaves a tombstone
 
 `deleted_at` is set; body is nulled in the same statement. The row stays, the sender stays, and
-the thread renders "message deleted". You may delete your own message; `task.manage` holders may
+the thread renders "message deleted". You may delete your own message; `task.assign` holders may
 delete anyone's, which is the moderation valve a group chat eventually needs.
 
 The body is nulled rather than kept, because "deleted" that a database admin can still read is a
@@ -338,6 +358,12 @@ Stated so they are decisions rather than omissions.
   it goes to the backlog with its trigger — build it when someone has created the same task by
   hand four weeks running.
 - **No attachment screens for complaint, feedback or goods receipt.** Decision 6.
+- **No announcements.** `conversation.type` keeps the value, because `docs/schema.md` declares it
+  and a later module may want it, but **nothing in M11 creates one**. A broadcast nobody may reply
+  to needs a permission the P1 design does not contain, and inventing one inside a migration is
+  exactly what `test_the_shipped_catalogue_is_a_subset_of_the_p1_design` exists to stop. A group
+  containing everybody already reaches everybody. The trigger for building it properly: somebody
+  reports that an important broadcast got buried under replies.
 - **No shift-scoped conversations.** M12 lands in the same run; a thread per shift is a tempting
   cross-module feature and neither module needs it.
 
@@ -345,22 +371,30 @@ Stated so they are decisions rather than omissions.
 
 ## Deliverables
 
-### Migration — one
+### Migrations — two
 
-`0037_communication_and_tasks`: six tables, their checks, their indexes, the canonical-pair unique
-index for direct conversations, the partial index on `task.due_at`, and the permission catalogue
-rows for the seven new permissions with their role grants. `downgrade()` drops all six and the
-grants. Up→down→up against real Postgres.
+`0041_m11_communication`: six tables, their checks, their indexes, the canonical-pair unique index
+for direct conversations, and the partial index on `task.due_at`. `downgrade()` drops all six.
+Up→down→up against real Postgres.
+
+`0042_m11_permissions`: the four P1 codes into `permission`, and their grants — three to every
+system role, `task.assign` to owner and manager. A separate migration for the reason 0037
+documents: a database that has already run 0002 never re-reads `permissions.json`.
+
+`0043_m11_issues`: the issue-catalogue rows for this module's refusals (D11, D12) — a person reads
+`message` and "Issue N", never a `code`.
 
 `conversation_participant.last_read_message_id` → `message.id` is the circular FK
-`docs/schema.md` §"Migration order" warns about; both tables are created in this migration, so the
-constraint is added after both exist within the one revision rather than deferred to a follow-up.
+`docs/schema.md` §"Migration order" warns about; both tables are created in the same revision, so
+the constraint is added after both exist rather than deferred to a follow-up.
 
 ### Backend
 
 - `app/core/enums.py` — `ConversationType`, `MessagePriority`, `TaskStatus`, `TaskPriority`,
   `AttachmentOwnerType`, `AttachmentStatus`, mirrored into `frontend/src/shared/enums.ts` (the
   mirror test enforces it).
+- `app/core/permissions.py` and `permissions.json` — the four P1 codes, with the descriptions a
+  person reads in the role editor.
 - `app/models/communication.py` — the six tables.
 - `app/repositories/communication.py` — every query tenant-scoped; the inbox's single grouped
   unread query lives here.
@@ -377,29 +411,29 @@ constraint is added after both exist within the one revision rather than deferre
 ### Endpoints
 
 ```
-GET    /conversations                          conversation.view   inbox, cursor, unread counts
-POST   /conversations                          message.send        direct dedupes to 200
-GET    /conversations/{id}                     conversation.view   participants + title
-PATCH  /conversations/{id}                     conversation.view   title (creator/manage), own mute
-POST   /conversations/{id}/participants        message.send        add; announcement needs the post perm
-DELETE /conversations/{id}/participants/{eid}  message.send        sets left_at; self always allowed
-GET    /conversations/{id}/messages            conversation.view   cursor, newest first
-PATCH  /conversations/{id}/read                conversation.view   watermark, forward only
-POST   /messages                               message.send        Idempotency-Key required
-DELETE /messages/{id}                          message.send        tombstone
-POST   /messages/{id}/promote                  task.manage         → task, keeps source + thread
-GET    /messages/stream                        conversation.view   SSE
-GET    /tasks                                  task.view           scoped: own unless task.manage
-POST   /tasks                                  task.manage
-GET    /tasks/{id}                             task.view           with its events
-PATCH  /tasks/{id}                             task.manage         title, description, priority, due
-POST   /tasks/{id}/assign                      task.manage         writes an event
-POST   /tasks/{id}/status                      task.view           the transition table decides
-POST   /attachments                            attachment.manage   → row + upload instruction
-PUT    /attachments/{id}/content               attachment.manage   filesystem driver only
-POST   /attachments/{id}/confirm               attachment.manage   size + magic bytes, or refuse
-GET    /attachments/{id}                       attachment.manage   307 → short-lived signed URL
-DELETE /attachments/{id}                       attachment.manage   row + object
+GET    /conversations                          message.send   inbox, cursor, unread counts
+POST   /conversations                          message.send   direct dedupes to 200
+GET    /conversations/{id}                     message.send   participants + title
+PATCH  /conversations/{id}                     message.send   title (creator or task.assign), own mute
+POST   /conversations/{id}/participants        message.send   add
+DELETE /conversations/{id}/participants/{eid}  message.send   sets left_at; self always allowed
+GET    /conversations/{id}/messages            message.send   cursor, newest first
+PATCH  /conversations/{id}/read                message.send   watermark, forward only
+POST   /messages                               message.send   Idempotency-Key required
+DELETE /messages/{id}                          message.send   tombstone
+POST   /messages/{id}/promote                  task.view      → task; onto another person: task.assign
+GET    /messages/stream                        message.send   SSE
+GET    /tasks                                  task.view      scoped: own unless task.assign
+POST   /tasks                                  task.view      onto another person: task.assign
+GET    /tasks/{id}                             task.view      with its events
+PATCH  /tasks/{id}                             task.assign    title, description, priority, due
+POST   /tasks/{id}/assign                      task.assign    writes an event
+POST   /tasks/{id}/status                      task.complete  the transition table decides
+POST   /attachments                            message.send   → row + upload instruction
+PUT    /attachments/{id}/content               message.send   filesystem driver only
+POST   /attachments/{id}/confirm               message.send   size + magic bytes, or refuse
+GET    /attachments/{id}                       message.send   307 → short-lived signed URL
+DELETE /attachments/{id}                       message.send   row + object
 ```
 
 `POST /messages` carries `Idempotency-Key` for the reason `POST /wastage` does: a phone on a bad
@@ -448,9 +482,6 @@ never told you to comp that table" is the case the record exists for.
 
 **Post as somebody else.** `sender_employee_id` comes from the actor, never the body.
 
-**Use an announcement as a megaphone.** `announcement.post` is three roles, and an announcement
-conversation refuses replies from anyone without it.
-
 **Exfiltrate the staff list.** The people-picker for a new conversation returns active employees of
 this restaurant only, name and role, no phone, no email, no employment terms — it is already what
 `employee.view` shows, and the picker uses the same serialiser rather than a wider one.
@@ -459,9 +490,10 @@ this restaurant only, name and role, no phone, no email, no employment terms —
 
 ## Acceptance criteria
 
-1. Every role in the catalogue, including `cleaner`, can open the inbox, send a message and see a
-   task assigned to them — asserted over the catalogue, so a role added later fails the test rather
-   than silently losing access.
+1. Every role in the catalogue, including `cleaner`, can open the inbox, send a message, write
+   down a task for itself and move one it was assigned — asserted over the catalogue, so a role
+   added later fails the test rather than silently losing access. No permission code outside the
+   P1 design ships: the subset test passes untouched.
 2. Unread counts are correct in a group thread when 3 of 5 participants have read it, and a
    participant's own messages never count as unread.
 3. The inbox costs a bounded number of queries for 1 conversation and for 50.
@@ -498,9 +530,9 @@ this restaurant only, name and role, no phone, no email, no employment terms —
 
 ## Chunks — four PRs against `feat/m11-communication`
 
-**A · Schema, enums, permissions.** Migration 0037, models, the enum mirror, the seven permissions
-and their grants, `test_communication_schema.py`. Ends with up→down→up green and every role holding
-the three universal permissions.
+**A · Schema, enums, permissions.** Migrations 0041 and 0042, models, the enum mirror, the four
+P1 permissions and their grants, `test_communication_schema.py`. Ends with up→down→up green and
+every role holding the three universal permissions.
 
 **B · The storage port.** `app/storage/`, both drivers, settings and their boot-time validation,
 the `attachment` service, its four endpoints, the sweep, and `test_attachments.py` — including the

@@ -186,18 +186,30 @@ the order gets that waiter.
 
 ### 8 · Everyone reads the roster
 
-`shift.view` and `shift.clock` are granted to **every role**, including `cleaner`, for the same
-reason as M11's `message.send`: a roster nobody can read is a noticeboard in a locked room, and a
-clock-in button is useless to the person it exists for if a permission stands in front of it.
+**This module invents no permission code either.** The P1 design in `seed/organization.yaml`
+contains exactly two, and they are the two this module needs:
 
-| Permission | Who holds it |
-|---|---|
-| `shift.view` | every role — read the roster and your own assignments |
-| `shift.clock` | every role — clock *yourself* in and out |
-| `shift.manage` | owner, manager — shifts, assignments, statuses, and corrections with a reason |
+| Permission | Who holds it | What it means here |
+|---|---|---|
+| `shift.view` | **every role** | read the roster, your own assignments, who is on now — and clock *yourself* in and out |
+| `shift.manage` | owner, manager | create shifts, staff them, set a status, correct a time with a reason |
 
-`admin` gets `shift.manage` too: it is head-office staff configuration, in the same family as
-`restaurant.configure`, which admin already holds.
+**There is no `shift.clock`.** Clocking in declares `shift.view`, and the service enforces that the
+assignment is the actor's own. A permission cannot express "your row, not his"; the service can,
+and decision 3 is what makes that the only control that matters.
+
+**One deliberate widening of the P1 grant, and it is worth naming.** The design gives `shift.view`
+to the manager. This module gives it to every role, for the same reason M11 leans on
+`message.send`: a roster nobody can read is a noticeboard in a locked room, and the clock-in
+button is useless to the person it exists for if a permission stands in front of it. The widening
+is safe because **the permission opens the screen and the scope decides the content**: a front-line
+role sees its own assignments and who is covering which section right now — which it can establish
+by looking around the room — while the full roster with statuses and corrections stays behind
+`shift.manage`. `seed/organization.yaml` records the amendment on the line itself, the way M07's
+`cash.manage` and the floor's `floor.manage` are recorded.
+
+`admin` is **not** granted `shift.manage`, following the design: the administrator is configuration
+and people, not the running of a service.
 
 ---
 
@@ -219,16 +231,21 @@ clock-in button is useless to the person it exists for if a permission stands in
 
 ## Deliverables
 
-### Migration — one
+### Migrations — three
 
-`0038_shifts`: `shift`, `shift_assignment`, their checks and indexes, the two foreign keys onto
-`cash_session.shift_id` and `wastage_event.shift_id`, and the three permissions with their grants.
-`downgrade()` drops the constraints first, then the tables, then the grants. Up→down→up on real
-Postgres.
+`0044_m12_shifts`: `shift`, `shift_assignment`, their checks and indexes, and the two foreign keys
+onto `cash_session.shift_id` and `wastage_event.shift_id` — added here rather than by editing the
+applied migrations that created those columns. `downgrade()` drops the constraints first, then the
+tables. Up→down→up on real Postgres.
+
+`0045_m12_permissions`: `shift.view` and `shift.manage` into `permission`, with their grants.
+
+`0046_m12_issues`: the issue rows for the clock-in refusals of decision 3.
 
 ### Backend
 
 - `app/core/enums.py` — `ShiftAssignmentStatus`, mirrored into `frontend/src/shared/enums.ts`.
+- `app/core/permissions.py` and `permissions.json` — the two P1 codes and their grants.
 - `app/core/shift_window.py` — the pure crossing-midnight predicate and the shift's instants for a
   business date. No database, no I/O.
 - `app/models/shifts.py`, `app/repositories/shifts.py`, `app/services/shifts.py`.
@@ -249,8 +266,8 @@ POST   /shifts/assignments                    shift.manage  person + shift + dat
 PATCH  /shifts/assignments/{id}               shift.manage  section, status, corrected times + reason
 DELETE /shifts/assignments/{id}               shift.manage  before it starts; after, it is a record
 GET    /shifts/me                             shift.view    my assignments, today first
-POST   /shifts/assignments/{id}/clock-in      shift.clock   own only
-POST   /shifts/assignments/{id}/clock-out     shift.clock   own only
+POST   /shifts/assignments/{id}/clock-in      shift.view    own only, enforced in the service
+POST   /shifts/assignments/{id}/clock-out     shift.view    own only, enforced in the service
 GET    /shifts/on-now                         shift.view    who is on, by section — the floor's question
 ```
 
@@ -321,7 +338,9 @@ author.
 12. Opening a cash session and logging waste while rostered write the covering `shift_id`; doing
     either with no roster writes `NULL` and succeeds.
 13. No historical row gains a `shift_id` from the migration.
-14. Every role, including `cleaner`, can read the roster and clock itself in.
+14. Every role, including `cleaner`, can open the roster and clock itself in; a role without
+    `shift.manage` sees its own assignments and who is on now, and not the corrections.
+    No permission code outside the P1 design ships.
 15. `DELETE` on an assignment whose shift has started is refused.
 16. Deactivating a shift keeps every assignment readable and its name renderable.
 17. Query counts on the roster and `on-now` are bounded regardless of how many people are on.
@@ -331,7 +350,7 @@ author.
 
 ## Chunks — two PRs against `feat/m12-shifts`
 
-**A · Schema, the window, the roster.** Migration 0038, models, `shift_window.py` with its
+**A · Schema, the window, the roster.** Migrations 0044–0046, models, `shift_window.py` with its
 table-driven unit tests, repository, service, all eleven endpoints, permissions, seed, and
 `test_shifts_schema.py` / `test_shift_window.py` / `test_shifts_endpoints.py`.
 
