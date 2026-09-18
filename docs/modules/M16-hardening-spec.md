@@ -1,8 +1,8 @@
 # M16 · Hardening & Production — Module Spec
 
-**Depends on** M00–M15 **and, per `docs/modules.md`, M17 and M18 — which do not exist.**
-**Status** — spec written 2026-09-19, before any code, per `docs/sdlc.md` step 1.
-Build log: `docs/plan/m16-build-log.md`.
+**Depends on** M00–M18. **The dependency is now met** — see the revision note below.
+**Status** — spec written 2026-09-19 before any code, per `docs/sdlc.md` step 1; **revised
+2026-09-19** after M17 and M18 shipped. Build log: `docs/plan/m16-build-log.md`.
 
 Tables: none. Endpoints: none new. Screens: none new.
 Deliverables: a security checklist actually run, a load test, a **tested** restore, runbooks, cost
@@ -11,26 +11,35 @@ production deploy.
 
 ---
 
-## The dependency this module cannot meet, and what is done about it
+## Revision note · the dependency is now met, and a second one appeared
 
-`docs/modules.md` gives M16 the dependency "M00–M15, M17, M18 (everything)", and that is right:
-hardening is the last thing you do, because hardening something you are about to change twice is
-work you will do again.
+The first draft of this spec opened by saying M16 could not be what `docs/modules.md` describes,
+because M17 and M18 did not exist — and proposed hardening M00–M15 with the gap named. **That is no
+longer the situation.** M17 shipped on 2026-09-19 (five tables, seven routes, three screens) and
+M18 the same day (two tables, six routes, two screens, ten rules). So the module can be what the
+dependency graph asks for: the whole product, hardened once.
 
-**M17 (Workload & Fairness) and M18 (Compliance Alarms) are not built.** So this module cannot be
-what that line describes, and pretending otherwise would be the worst available outcome — a
-checklist marked complete against a product that is not the product that ships.
+Two consequences, and the second is the one that matters:
 
-**What this module does instead, stated so the owner can overrule it:** harden M00–M15 completely
-and record, in the build log and in `docs/checklist.md`, that **M17 and M18 each require their own
-pass of sections 1, 2, 3 and 7 of the security checklist before they go to production**. Every item
-that is genuinely about the platform — backups, restore, cost alerts, deploy, rate limits, the load
-test — is done once and holds. Every item that is about a *surface* is done for the surfaces that
-exist, and the two that do not exist yet are named rather than assumed.
+**M17 and M18 are in scope for every section of the security checklist**, not named as gaps. Their
+surfaces are exactly the kind the checklist is about — M17 holds what people are paid against, M18
+holds what an owner would hand an inspector.
 
-The alternative — wait — costs the pilot a working system for two modules that are, by the
-dependency graph's own note, "the natural fill for any week where a critical-path module is
-blocked". That is a worse trade than a named gap.
+**A second, harder dependency replaced the first one: this module needs infrastructure access that
+an autonomous session does not have.** The load test, the tested restore, the cost alerts and the
+production deploy all require a live GCP console session; `docs/plan/r7-deploy-prep.md` and the
+2026-09-18 staging note record that the pipeline was built and rehearsed and then blocked on
+exactly this. So the module splits, and the split is stated here rather than discovered halfway:
+
+| Part | Who |
+|---|---|
+| The security checklist's code- and config-inspectable rows | **Buildable now** — read the code, record the finding, fix with a regression test |
+| The financial-year boundary test | **Buildable now** — it is a test, and M15's generator produces the pair |
+| The k6 script, its thresholds and its runbook | **Writable now**, runnable only against staging |
+| The load test run, the restore, the cost alerts, the deploy | **Owner's console.** Named, with the exact commands, not attempted |
+
+A checklist row ticked without being run is worse than a blank one, so nothing in the second half
+is marked done on the strength of having read the configuration that would produce it.
 
 ---
 
@@ -92,12 +101,18 @@ first read during an incident is a runbook written for the wrong reader.
 second is sequence 1 of the new year rather than the next number of the old one. M15's generator
 can produce exactly that pair.
 
-### 5 · DPDP is verified as three flows, and one of them is expected to fail
+### 5 · DPDP is verified as three flows, and all three exist
 
-Consent, export and erasure. M10 built consent and erasure; **export does not exist**, and the
-DPDP right to access is part of the same Act. This module verifies the two that exist, states
-plainly that the third does not, and puts it where the owner will see it rather than inside a
-checklist row.
+Consent, export and erasure. **The first draft of this spec said export did not exist. It was
+wrong** — `GET /staff/customers/{id}/export` has been there since M10, is audited, is per-customer
+with no bulk version in any role, and returns the customer, their consent history and their order
+history in one response. Written down because a spec that names a gap which is not there sends a
+module looking for work, and because the correction is the kind that would otherwise be quietly
+dropped.
+
+So this module verifies three flows end to end rather than two and an apology. What it must not do
+is tick 9.1–9.5 by reading the code: consent *not pre-ticked* and erasure *retaining the revenue*
+are claims about what a person sees and what a total says, and those are run.
 
 ### 6 · Nothing in this module changes behaviour without a test
 
@@ -109,8 +124,6 @@ first, the way every other fix in this project has.
 
 ## Not in scope
 
-- **M17 and M18's own hardening.** Named above, and recorded in `docs/checklist.md` rather than
-  left implicit.
 - **A DPDP export flow.** It is a feature, not a hardening task, and building it inside a hardening
   module is how a hardening module stops being finishable.
 - **MFA.** The column exists and nothing writes it; that is a module of its own.
@@ -138,16 +151,26 @@ first, the way every other fix in this project has.
    green afterwards.
 10. `make check` clean, and the gate's own runtime recorded — it is now the slowest thing in the
     project and the build log should say so.
+11. **M17's and M18's surfaces are covered by sections 1, 2, 3 and 7 like every other module's**,
+    rather than named as a gap. The first draft of this spec planned to defer them; they exist now,
+    and deferring a module that shipped the same week would be a gap invented rather than found.
+12. **Every item requiring a console session is written as the exact command to run**, with the
+    expected output, rather than as an instruction to go and do it. A runbook step that says
+    "configure cost alerts" is a step somebody performs differently each time.
 
 ---
 
 ## Chunks — three PRs against `feat/m16-hardening`
 
-**A · The checklist and what it finds.** Run all ten sections. Fix what it finds, each with a
-regression test. Ends with every row filled in.
+**A · The checklist and what it finds.** Run every section that can be run against the code and
+the configuration — which, on inspection, is most of them. Fix what it finds, each with a
+regression test written first. Ends with every row carrying a pass, a fail with a ticket, a stated
+not-applicable, or **"requires a console session"** naming the command.
 
-**B · The measurements.** k6 at 3× peak, the three budgets, the restore, the cost alerts, the
-financial-year boundary test.
+**B · What can be measured here.** The financial-year boundary test, the k6 script with its
+thresholds expressed as the three existing budgets, and the restore runbook read line by line
+against what the pipeline actually builds.
 
-**C · Production.** The deploy, `smoke-prod`, the runbooks, and `docs/checklist.md` closed out with
-M17 and M18's gaps named. Ends with `make check` clean.
+**C · The owner's half, prepared.** The deploy, `smoke-prod`, the cost alerts and the restore, each
+written as the command to run and the output to expect, with `docs/checklist.md` marking them
+pending a session rather than ticked. Ends with `make check` clean and the gate's runtime recorded.
