@@ -19,6 +19,7 @@ from app.models.communication import (
     Task,
     TaskEvent,
 )
+from app.models.compliance import ComplianceEvent, ComplianceFinding
 from app.models.customers import (
     Complaint,
     Customer,
@@ -95,6 +96,8 @@ __all__ = [
     "CashSession",
     "CommStreamCursor",
     "Complaint",
+    "ComplianceEvent",
+    "ComplianceFinding",
     "Conversation",
     "ConversationParticipant",
     "CreditNote",
