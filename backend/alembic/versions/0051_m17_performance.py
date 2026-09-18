@@ -63,10 +63,16 @@ def _uuid() -> postgresql.UUID:
 def _timestamps() -> list[sa.Column]:
     return [
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
         ),
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
         ),
     ]
 
@@ -84,7 +90,9 @@ def upgrade() -> None:
         *_timestamps(),
         sa.ForeignKeyConstraint(["restaurant_id"], ["restaurant.id"]),
         sa.UniqueConstraint("id", "restaurant_id", name="uq_incentive_scheme_id_restaurant"),
-        sa.CheckConstraint(_in("period_type", _PERIOD_TYPES), name="ck_incentive_scheme_period_type"),
+        sa.CheckConstraint(
+            _in("period_type", _PERIOD_TYPES), name="ck_incentive_scheme_period_type"
+        ),
     )
     op.create_index(
         "ix_incentive_scheme_restaurant_active", "incentive_scheme", ["restaurant_id", "is_active"]
@@ -111,7 +119,10 @@ def upgrade() -> None:
         ),
         sa.UniqueConstraint("id", "restaurant_id", name="uq_performance_period_id_restaurant"),
         sa.UniqueConstraint(
-            "restaurant_id", "incentive_scheme_id", "period_start", name="uq_performance_period_start"
+            "restaurant_id",
+            "incentive_scheme_id",
+            "period_start",
+            name="uq_performance_period_start",
         ),
         sa.CheckConstraint(_in("status", _PERIOD_STATUSES), name="ck_performance_period_status"),
         sa.CheckConstraint("period_end >= period_start", name="ck_performance_period_order"),
@@ -209,7 +220,9 @@ def upgrade() -> None:
             ["performance_period.id", "performance_period.restaurant_id"],
         ),
         sa.CheckConstraint(_in("type", _AWARD_TYPES), name="ck_recognition_award_type"),
-        sa.CheckConstraint("(type = 'cash') = (amount IS NOT NULL)", name="ck_recognition_award_amount"),
+        sa.CheckConstraint(
+            "(type = 'cash') = (amount IS NOT NULL)", name="ck_recognition_award_amount"
+        ),
         sa.CheckConstraint("amount IS NULL OR amount > 0", name="ck_recognition_award_positive"),
     )
     op.create_index(
