@@ -46,6 +46,12 @@ export const PERMISSION_WORDS: Record<Permission, string> = {
   'customer.manage':
     'Add and edit a customer, record what they agreed to, and erase their details at their request',
   'feedback.view': 'Read what diners said about a day’s service',
+  'message.send':
+    'Take part in the restaurant’s conversations, and attach a photo or a PDF to a message',
+  'task.view': 'See the work assigned to you, and write down work for yourself',
+  'task.complete': 'Accept, start and finish a task you were given',
+  'task.assign':
+    'Give a task to somebody else, change it, cancel it, and check that finished work was done',
   'complaint.manage':
     'Log a complaint, give it an owner, and record what was actually done about it',
 };

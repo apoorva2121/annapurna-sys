@@ -1035,6 +1035,216 @@
       "number": 1207,
       "code": "order.settled",
       "text": "This bill has been settled, so it cannot be changed. Put the customer on their next order."
+    },
+    {
+      "number": 1208,
+      "code": "attachment.type_not_allowed",
+      "text": "That kind of file cannot be attached. Photographs and PDFs only."
+    },
+    {
+      "number": 1209,
+      "code": "attachment.too_large",
+      "text": "That file is too large. The limit is shown beside the button."
+    },
+    {
+      "number": 1210,
+      "code": "attachment.not_uploaded",
+      "text": "The file did not finish uploading. Try attaching it again."
+    },
+    {
+      "number": 1211,
+      "code": "attachment.size_mismatch",
+      "text": "The uploaded file was not the size it said it was, so it was discarded."
+    },
+    {
+      "number": 1212,
+      "code": "attachment.content_mismatch",
+      "text": "That file is not the kind of file it claims to be, so it was discarded."
+    },
+    {
+      "number": 1213,
+      "code": "attachment.already_confirmed",
+      "text": "That file has already been uploaded."
+    },
+    {
+      "number": 1214,
+      "code": "attachment.not_yours",
+      "text": "Only the person who started an upload can finish it."
+    },
+    {
+      "number": 1215,
+      "code": "attachment.not_found",
+      "text": "That attachment could not be found."
+    },
+    {
+      "number": 1216,
+      "code": "attachment.owner_not_found",
+      "text": "The thing you are attaching to could not be found."
+    },
+    {
+      "number": 1217,
+      "code": "attachment.not_your_message",
+      "text": "You can only attach a file to a message you sent."
+    },
+    {
+      "number": 1218,
+      "code": "attachment.not_your_task",
+      "text": "You can only attach a file to a task assigned to you."
+    },
+    {
+      "number": 1219,
+      "code": "attachment.not_your_wastage",
+      "text": "You can only attach a photograph to waste you logged."
+    },
+    {
+      "number": 1220,
+      "code": "attachment.not_permitted",
+      "text": "You do not have permission to do that."
+    },
+    {
+      "number": 1221,
+      "code": "attachment.not_in_conversation",
+      "text": "That file is in a conversation you are not part of."
+    },
+    {
+      "number": 1222,
+      "code": "conversation.type_not_creatable",
+      "text": "That kind of conversation is created by the thing it belongs to."
+    },
+    {
+      "number": 1223,
+      "code": "conversation.direct_needs_one_person",
+      "text": "A direct conversation is between two people."
+    },
+    {
+      "number": 1224,
+      "code": "conversation.direct_has_no_title",
+      "text": "A conversation between two people is named after them."
+    },
+    {
+      "number": 1225,
+      "code": "conversation.not_yours",
+      "text": "Only whoever started this group can rename it."
+    },
+    {
+      "number": 1226,
+      "code": "conversation.direct_is_closed",
+      "text": "A conversation between two people cannot take a third. Start a group."
+    },
+    {
+      "number": 1227,
+      "code": "conversation.direct_cannot_be_left",
+      "text": "A conversation between two people cannot be left. Mute it instead."
+    },
+    {
+      "number": 1228,
+      "code": "conversation.cannot_remove",
+      "text": "Only whoever started this group can remove somebody from it."
+    },
+    {
+      "number": 1229,
+      "code": "conversation.not_a_participant",
+      "text": "That person is not in this conversation."
+    },
+    {
+      "number": 1230,
+      "code": "conversation.person_not_found",
+      "text": "One of those people does not work here."
+    },
+    {
+      "number": 1231,
+      "code": "conversation.not_found",
+      "text": "That conversation could not be found."
+    },
+    {
+      "number": 1232,
+      "code": "message.empty",
+      "text": "A message needs something in it."
+    },
+    {
+      "number": 1233,
+      "code": "message.not_found",
+      "text": "That message could not be found."
+    },
+    {
+      "number": 1234,
+      "code": "message.not_yours",
+      "text": "You can only delete a message you sent."
+    },
+    {
+      "number": 1235,
+      "code": "message.reply_not_found",
+      "text": "The message you are replying to is not here."
+    },
+    {
+      "number": 1236,
+      "code": "message.not_in_conversation",
+      "text": "That message is not in this conversation."
+    },
+    {
+      "number": 1237,
+      "code": "task.not_found",
+      "text": "That task could not be found."
+    },
+    {
+      "number": 1238,
+      "code": "task.not_yours",
+      "text": "Only the person this task is assigned to can move it along."
+    },
+    {
+      "number": 1239,
+      "code": "task.not_permitted",
+      "text": "Only a manager can give work to somebody else."
+    },
+    {
+      "number": 1240,
+      "code": "task.transition_not_allowed",
+      "text": "This task has moved on since you opened it. Reload to see where it is."
+    },
+    {
+      "number": 1241,
+      "code": "task.cannot_verify_own_work",
+      "text": "Somebody else has to check work you finished yourself."
+    },
+    {
+      "number": 1242,
+      "code": "task.cannot_cancel",
+      "text": "Only whoever asked for this can cancel it."
+    },
+    {
+      "number": 1243,
+      "code": "task.finished",
+      "text": "This task is finished and cannot be changed."
+    },
+    {
+      "number": 1244,
+      "code": "task.person_not_found",
+      "text": "That person does not work here."
+    },
+    {
+      "number": 1245,
+      "code": "task.complaint_not_found",
+      "text": "That complaint could not be found."
+    },
+    {
+      "number": 1246,
+      "code": "task.assignee_unchanged",
+      "text": "That person already has this task."
+    },
+    {
+      "number": 1247,
+      "code": "task.title_required",
+      "text": "That message has no words to make a task from."
+    },
+    {
+      "number": 1248,
+      "code": "seed.no_password",
+      "text": "Refusing to seed demo data outside local without a seed password. Every seeded login would otherwise use the password committed to this repository, which is an owner account for anyone who can read the source."
+    },
+    {
+      "number": 1249,
+      "code": "seed.committed_password",
+      "text": "Refusing to seed demo data: the seed password supplied is the same one committed to this repository. Setting it to the value it exists to replace is the original problem with more steps."
     }
   ]
 }

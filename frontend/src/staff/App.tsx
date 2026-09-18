@@ -29,6 +29,7 @@ import MenuScreen from '@staff/screens/MenuScreen';
 import ModifierGroupsScreen from '@staff/screens/ModifierGroupsScreen';
 import StockItemsScreen from '@staff/screens/StockItemsScreen';
 import HomeScreen from '@staff/screens/HomeScreen';
+import InboxScreen from '@staff/screens/InboxScreen';
 import LoginScreen from '@staff/screens/LoginScreen';
 import NewEmployeeScreen from '@staff/screens/NewEmployeeScreen';
 import ProfileScreen from '@staff/screens/ProfileScreen';
@@ -37,6 +38,9 @@ import DesignGalleryScreen from '@staff/screens/DesignGalleryScreen';
 import RestaurantSettingsScreen from '@staff/screens/RestaurantSettingsScreen';
 import StaffListScreen from '@staff/screens/StaffListScreen';
 import StationsScreen from '@staff/screens/StationsScreen';
+import TaskScreen from '@staff/screens/TaskScreen';
+import TasksScreen from '@staff/screens/TasksScreen';
+import ThreadScreen from '@staff/screens/ThreadScreen';
 import TaxRatesScreen from '@staff/screens/TaxRatesScreen';
 import ComplaintsScreen from '@staff/screens/ComplaintsScreen';
 import CustomerScreen from '@staff/screens/CustomerScreen';
@@ -67,6 +71,40 @@ export default function App(): ReactElement {
       >
         <Route index element={<HomeScreen />} />
         <Route path="profile" element={<ProfileScreen />} />
+        {/* M11. Every role holds these, cleaner included, so the guards are here for the same
+            reason as everywhere else — presentation — rather than to draw a line. */}
+        <Route
+          path="messages"
+          element={
+            <RequirePermission permission={Permission.MESSAGE_SEND}>
+              <InboxScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="messages/:conversationId"
+          element={
+            <RequirePermission permission={Permission.MESSAGE_SEND}>
+              <ThreadScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="tasks"
+          element={
+            <RequirePermission permission={Permission.TASK_VIEW}>
+              <TasksScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="tasks/:taskId"
+          element={
+            <RequirePermission permission={Permission.TASK_VIEW}>
+              <TaskScreen />
+            </RequirePermission>
+          }
+        />
         <Route
           path="staff"
           element={

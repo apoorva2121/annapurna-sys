@@ -3,6 +3,7 @@ import { type ReactElement, type ReactNode, useState } from 'react';
 import { formatINR } from '@shared/money';
 import { Button } from '@shared/ui/button';
 import { useIdempotencyKey } from '@shared/useIdempotencyKey';
+import { AttachmentControl } from '@staff/components/AttachmentControl';
 import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
 import { WaiterSurface } from '@staff/components/WaiterSurface';
@@ -69,6 +70,10 @@ function LogForm({
   const [itemId, setItemId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState<string | null>(null);
   const [logged, setLogged] = useState<WastageEvent | null>(null);
+  // Which reason it was logged against, so the photo nudge knows whether to ask. The event does
+  // not carry the flag and should not: `requires_photo` is policy on the reason, not a fact about
+  // the waste.
+  const [loggedReason, setLoggedReason] = useState<WastageReason | null>(null);
   const log = useLogWastage();
   const { key, renew } = useIdempotencyKey();
 
@@ -92,6 +97,7 @@ function LogForm({
       {
         onSuccess: (event) => {
           setLogged(event);
+          setLoggedReason(reason);
           setItemId(null);
           setQuantity(null);
           renew();
@@ -101,7 +107,16 @@ function LogForm({
   };
 
   if (logged !== null) {
-    return <Logged event={logged} onAgain={() => { setLogged(null); }} />;
+    return (
+      <Logged
+        event={logged}
+        wantsPhoto={loggedReason?.requires_photo ?? false}
+        onAgain={() => {
+          setLogged(null);
+          setLoggedReason(null);
+        }}
+      />
+    );
   }
 
   return (
@@ -202,7 +217,15 @@ function Step({
  * rather than a footnote. It is also why there is no undo: the waste happened, and a screen that
  * offered to unmake the record would be offering to unmake the number.
  */
-function Logged({ event, onAgain }: { event: WastageEvent; onAgain: () => void }): ReactElement {
+function Logged({
+  event,
+  wantsPhoto,
+  onAgain,
+}: {
+  event: WastageEvent;
+  wantsPhoto: boolean;
+  onAgain: () => void;
+}): ReactElement {
   return (
     <div className="flex flex-col gap-page">
       <Notice tone="success" title={strings.waste.logged(event.reason_name)} />
@@ -211,6 +234,23 @@ function Logged({ event, onAgain }: { event: WastageEvent; onAgain: () => void }
       {event.awaiting_approval ? (
         <Notice tone="info" title={strings.waste.awaitingApproval} />
       ) : null}
+
+      {/* **The nudge, and it is only ever a nudge** (owner's decision, 2026-09-18). It appears
+          after the log is saved, when the cook is no longer holding a tray, and *Log something
+          else* is right beside it — because `docs/waste-model.md`'s rule is that anything making
+          honest reporting harder gets you less honest reporting, not more photographs. */}
+      {wantsPhoto ? (
+        <section className="flex flex-col gap-2 rounded-md bg-caution-soft p-4">
+          <h2 className="font-medium text-caution">{strings.waste.photoWanted}</h2>
+          <p className="text-sm">{strings.waste.photoWantedHint}</p>
+          <AttachmentControl
+            ownerType="wastage_event"
+            ownerId={event.id}
+            attachments={[]}
+          />
+        </section>
+      ) : null}
+
       <Button onClick={onAgain}>{strings.waste.logAnother}</Button>
     </div>
   );

@@ -355,6 +355,73 @@ export function apiDelete<T = void>(path: string): Promise<T> {
   return request<T>('DELETE', path);
 }
 
+/**
+ * PUT raw bytes at one of *our own* paths, with this session's token.
+ *
+ * M11's upload path for a deployment whose storage cannot presign (the filesystem driver). It is
+ * separate from `apiPut` because the body is a `File` rather than JSON, and separate from a bare
+ * `fetch` because the token must be attached — while an upload URL that points at a *bucket* must
+ * never carry it. The caller decides which by looking at the URL the server handed back; this
+ * function is only ever given ours.
+ */
+export async function apiPutBytes(path: string, file: Blob, contentType: string): Promise<void> {
+  const headers: Record<string, string> = { 'Content-Type': contentType };
+  if (accessToken !== null) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+  let response = await putBytes(path, file, headers);
+  if (response.status === 401) {
+    const token = await refreshOnce();
+    if (token !== null) {
+      headers.Authorization = `Bearer ${token}`;
+      response = await putBytes(path, file, headers);
+    }
+  }
+  if (!response.ok) {
+    throw await errorFrom(response);
+  }
+}
+
+async function putBytes(
+  path: string,
+  file: Blob,
+  headers: Record<string, string>,
+): Promise<Response> {
+  try {
+    return await fetch(`${API_BASE}${path}`, { method: 'PUT', headers, body: file });
+  } catch {
+    throw unreachable();
+  }
+}
+
+/**
+ * PUT bytes at a URL somebody else signed — a storage bucket's, never ours.
+ *
+ * **This deliberately sends no `Authorization` header.** The URL already carries its own
+ * signature, and attaching this session's token would hand a live credential for our API to
+ * another host. It lives here rather than in a screen for the same reason every other request
+ * does, and because this is the one file allowed to call `fetch` at all.
+ *
+ * The headers are the server's, sent back exactly: with S3 the content type is part of what was
+ * signed, and a different one is a signature mismatch nothing above could explain.
+ */
+export async function putToSignedUrl(
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  file: Blob,
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(url, { method, headers, body: file });
+  } catch {
+    throw unreachable();
+  }
+  if (!response.ok) {
+    throw unreachable();
+  }
+}
+
 // ---------------------------------------------------------------- server-sent events (M08)
 
 /** One parsed event off a `text/event-stream` body. */

@@ -402,3 +402,59 @@ export const ComplaintStatus = {
   CLOSED: 'closed',
 } as const;
 export type ComplaintStatus = (typeof ComplaintStatus)[keyof typeof ComplaintStatus];
+
+/** What a thread is for. Nothing in M11 creates an `ANNOUNCEMENT`. */
+export const ConversationType = {
+  DIRECT: 'direct',
+  GROUP: 'group',
+  TASK: 'task',
+  COMPLAINT: 'complaint',
+  ANNOUNCEMENT: 'announcement',
+} as const;
+export type ConversationType = (typeof ConversationType)[keyof typeof ConversationType];
+
+/** Sorting and colour, and deliberately nothing else in M11 — notifications are M14. */
+export const MessagePriority = {
+  NORMAL: 'normal',
+  HIGH: 'high',
+  URGENT: 'urgent',
+} as const;
+export type MessagePriority = (typeof MessagePriority)[keyof typeof MessagePriority];
+
+export const TaskPriority = {
+  LOW: 'low',
+  NORMAL: 'normal',
+  HIGH: 'high',
+  URGENT: 'urgent',
+} as const;
+export type TaskPriority = (typeof TaskPriority)[keyof typeof TaskPriority];
+
+/** `VERIFIED` is separate from `COMPLETED`: somebody did the work, somebody else agrees. */
+export const TaskStatus = {
+  CREATED: 'created',
+  ASSIGNED: 'assigned',
+  ACCEPTED: 'accepted',
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
+  VERIFIED: 'verified',
+  CANCELLED: 'cancelled',
+} as const;
+export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
+
+/** One `attachment` table, six owners. M11 gives three of them a screen. */
+export const AttachmentOwnerType = {
+  MESSAGE: 'message',
+  TASK: 'task',
+  COMPLAINT: 'complaint',
+  WASTAGE_EVENT: 'wastage_event',
+  FEEDBACK: 'feedback',
+  GOODS_RECEIPT: 'goods_receipt',
+} as const;
+export type AttachmentOwnerType = (typeof AttachmentOwnerType)[keyof typeof AttachmentOwnerType];
+
+/** `READY` means the store was asked how big the object is and its first bytes matched. */
+export const AttachmentStatus = {
+  PENDING: 'pending',
+  READY: 'ready',
+} as const;
+export type AttachmentStatus = (typeof AttachmentStatus)[keyof typeof AttachmentStatus];

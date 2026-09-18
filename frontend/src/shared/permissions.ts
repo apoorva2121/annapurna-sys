@@ -85,6 +85,16 @@ export const Permission = {
   FEEDBACK_VIEW: 'feedback.view',
   COMPLAINT_MANAGE: 'complaint.manage',
   WASTAGE_APPROVE: 'wastage.approve',
+  // M11. Every role holds the first three, cleaner included — the P1 design's own grant, and the
+  // reason is that the person who finds the broken freezer at 6am is exactly the person with no
+  // other permissions. MESSAGE_SEND does not open every thread: you read one because you are a
+  // participant in it, which is the control a permission cannot express. TASK_VIEW is enough to
+  // write down your own work; giving work to somebody else is TASK_ASSIGN, so the screens render
+  // an assignee picker only for that one.
+  MESSAGE_SEND: 'message.send',
+  TASK_VIEW: 'task.view',
+  TASK_COMPLETE: 'task.complete',
+  TASK_ASSIGN: 'task.assign',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

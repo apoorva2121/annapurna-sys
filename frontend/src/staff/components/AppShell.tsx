@@ -75,6 +75,11 @@ export function AppShell(): ReactElement {
               <Link to="/purchasing/suppliers">{strings.nav.suppliers}</Link>
             </>
           )}
+          {/* M11. No permission check: every role in the catalogue holds both, which is the
+              design being right rather than generous — the person who finds the broken freezer at
+              6am is exactly the person with no other permissions. */}
+          <Link to="/messages">{strings.nav.messages}</Link>
+          <Link to="/tasks">{strings.nav.tasks}</Link>
           <Link to="/profile">{strings.nav.profile}</Link>
           <DesignGalleryLink />
         </nav>
