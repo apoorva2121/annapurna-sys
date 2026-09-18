@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
+from datetime import UTC, date, datetime
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -21,6 +23,7 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.seed.counts import seed_counts
 from app.seed.customers import seed_customer_feedback, seed_customers
+from app.seed.generate import DEFAULT_DAYS, seed_history
 from app.seed.identity import MissingSystemRoleError, seed_identity
 from app.seed.inventory import seed_inventory
 from app.seed.loader import SeedDataNotFoundError
@@ -37,6 +40,16 @@ logger = logging.getLogger("app.seed")
 EXIT_OK = 0
 EXIT_NO_SEED_DATA = 2
 EXIT_NO_ROLE_CATALOGUE = 3
+
+
+def _today() -> date:
+    """The day the history ends on.
+
+    UTC's date rather than the restaurant's, and that is deliberate: this is the *window* the
+    generator fills, not a business date it writes onto a row. Every business date inside it is
+    computed against the restaurant's own 05:00 start.
+    """
+    return datetime.now(UTC).date()
 
 
 async def seed() -> None:
@@ -74,6 +87,18 @@ async def seed() -> None:
             # auto-assignment failing to happen. It also has to come after `seed_setup`, because an
             # assignment names a dining area.
             shifts = await seed_shifts(session)
+            # M15. The history, and then today. In that order for two reasons: an invoice sequence
+            # is gapless per financial year, so the four months behind us have to take their
+            # numbers before today's bill takes the next one; and the live snapshot below opens
+            # orders on tables, which a settled history never touches.
+            #
+            # `SEED_DAYS` is how `make seed-small` asks for a week instead of four months. The end
+            # date is the restaurant's own today, because a demo wants yesterday to be yesterday -
+            # determinism here is "the same seed and the same window", which the generator's
+            # docstring states and `tests/test_planted_signals.py` relies on.
+            history = await seed_history(
+                session, end_date=_today(), days=int(os.environ.get("SEED_DAYS", DEFAULT_DAYS))
+            )
             orders = await seed_orders(session)
             # The twelve wastage reasons, and a few days of waste across all four stages. Last,
             # because logging waste consumes stock: it needs the opening batches and it must not
@@ -91,6 +116,15 @@ async def seed() -> None:
     finally:
         # Always: a failure must not leave the process holding an open pool.
         await engine.dispose()
+
+    logger.info(
+        "Generated %d days of history: %d orders, %d lines, %d movements, %d signals planted.",
+        history.days,
+        history.orders,
+        history.lines,
+        history.movements,
+        len(history.signals),
+    )
 
     if (
         summary.created_nothing

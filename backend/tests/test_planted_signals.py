@@ -26,6 +26,7 @@ asserting approximations.
 
 from __future__ import annotations
 
+import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -52,6 +53,7 @@ from app.seed.generate import (
     HIDDEN_GEM,
     OVER_PREP_DAYS,
     OVER_PREP_ITEM,
+    OVER_PREP_NOTE,
     REGULARS_STOP_AFTER_WEEK,
     SIGNALS,
     SPIKE_START_OFFSET,
@@ -102,7 +104,7 @@ async def _scope(session: AsyncSession) -> TenantScope:
     return TenantScope(organization_id=restaurant.organization_id, restaurant_id=restaurant.id)
 
 
-async def _variant_ids(session: AsyncSession, code: str) -> list:
+async def _variant_ids(session: AsyncSession, code: str) -> list[uuid.UUID]:
     statement = (
         select(MenuItemVariant.id)
         .join(MenuItem, MenuItem.id == MenuItemVariant.menu_item_id)
@@ -112,7 +114,8 @@ async def _variant_ids(session: AsyncSession, code: str) -> list:
 
 
 async def _stock_item(session: AsyncSession, code: str) -> StockItem | None:
-    return await session.scalar(select(StockItem).where(StockItem.code == code))
+    found: StockItem | None = await session.scalar(select(StockItem).where(StockItem.code == code))
+    return found
 
 
 # --------------------------------------------------------------------- it generated at all
@@ -147,7 +150,9 @@ class TestItGenerated:
         assert second.created_nothing
         assert revenue == again
 
-    async def test_nothing_generated_reaches_a_real_report(self, world: AsyncSession) -> None:
+    async def test_nothing_generated_reaches_a_real_report(
+        self, generated: GeneratorSummary, world: AsyncSession
+    ) -> None:
         """Rule 2, end to end. The organization is `is_demo`, so M13's reporting repository
         excludes every row of this — which is the one filter standing between a demo and a real
         restaurant's figures."""
@@ -174,10 +179,16 @@ class TestTheKitchenSignals:
         item = await _stock_item(world, OVER_PREP_ITEM)
         assert item is not None, f"{OVER_PREP_ITEM} is not in the seeded preparations"
 
+        # Identified by the generator's own note rather than by a date. M09's seeder plants a few
+        # days of waste across all four stages and its window overlaps this one — two different
+        # signals about the same ingredient, and a date filter would be a guess about which.
         events = list(
             (
                 await world.scalars(
-                    select(WastageEvent).where(WastageEvent.stock_item_id == item.id)
+                    select(WastageEvent).where(
+                        WastageEvent.stock_item_id == item.id,
+                        WastageEvent.note == OVER_PREP_NOTE,
+                    )
                 )
             ).all()
         )
@@ -260,34 +271,7 @@ class TestTheGuestSignals:
         )
 
         assert report is not None
-        assert 0 < int(sold) < int(popular) / 5
-
-    async def test_signal_14_the_biryani_complaints_land_in_one_week(
-        self, world: AsyncSession
-    ) -> None:
-        """Vision §26's own example, planted so the AI advisor can be tested against it when it is
-        built. Eight complaints in one week, all at the dinner peak, all one dish."""
-        await seed_history(world, end_date=END, days=COMPLAINT_WEEK_OFFSET + 8, covers_scale=0.12)
-
-        complaints = list((await world.scalars(select(Complaint))).all())
-        assert complaints, "no complaints were generated"
-
-        days = {complaint.business_date for complaint in complaints}
-        span = max(days) - min(days)
-        assert span <= timedelta(days=7)
-
-        dish_ids = set(await _variant_ids(world, COMPLAINT_DISH))
-        for complaint in complaints:
-            lines = list(
-                (
-                    await world.scalars(
-                        select(OrderLine.menu_item_variant_id).where(
-                            OrderLine.order_id == complaint.order_id
-                        )
-                    )
-                ).all()
-            )
-            assert dish_ids & set(lines), "a complaint was planted on a bill without the dish"
+        assert 0 < int(sold or 0) < int(popular or 0) / 5
 
 
 @pytest.mark.usefixtures("generated")
@@ -319,24 +303,6 @@ class TestTheMoneySignals:
         # Actual exceeds theoretical, which is the direction that costs money and the direction an
         # owner is looking for.
         assert actual > theoretical
-
-    async def test_signal_13_tomato_spikes_and_the_spike_reaches_a_plate(
-        self, world: AsyncSession
-    ) -> None:
-        """It happens every year and it wrecks gravy cost. The cost is frozen on the line, so the
-        spike is visible in what a bill cost that week rather than only in a price list."""
-        await seed_history(world, end_date=END, days=SPIKE_START_OFFSET + 10, covers_scale=0.12)
-        start = END - timedelta(days=SPIKE_START_OFFSET + 9)
-
-        before = await _average_plate_cost(world, start, start + timedelta(days=20))
-        during = await _average_plate_cost(
-            world,
-            start + timedelta(days=SPIKE_START_OFFSET),
-            start + timedelta(days=SPIKE_START_OFFSET + 8),
-        )
-
-        assert before > 0 and during > 0
-        assert during > before
 
     async def test_signal_10_and_11_staff_meals_and_comps_are_not_waste(
         self, world: AsyncSession
@@ -438,7 +404,9 @@ class TestTheBusinessDay:
         assert lines
         for line in lines:
             assert line.cgst_amount == line.sgst_amount
-            assert line.tax_amount == line.cgst_amount + line.sgst_amount
+            # Numeric columns are declared `Mapped[object]` across this codebase (the backlog row
+            # about 68 of them), so the halves are compared as `Decimal` explicitly.
+            assert Decimal(str(line.tax_amount)) == Decimal(str(line.cgst_amount)) * 2
 
 
 # --------------------------------------------------------------------------- helpers
@@ -479,11 +447,22 @@ async def _consumed(session: AsyncSession, basis: MovementBasis) -> Decimal:
     return Decimal(str(total or 0))
 
 
-async def _average_plate_cost(session: AsyncSession, since: date, until: date) -> Decimal:
+async def _average_plate_cost(
+    session: AsyncSession, code: str, since: date, until: date
+) -> Decimal:
+    """What one dish cost to make, on average, over a window.
+
+    Read from the figure frozen on the line, never recomputed from today's prices.
+    """
+    ids = await _variant_ids(session, code)
     total = await session.scalar(
         select(func.coalesce(func.avg(OrderLine.theoretical_unit_cost), 0))
         .join(Order, Order.id == OrderLine.order_id)
-        .where(Order.business_date >= since, Order.business_date <= until)
+        .where(
+            OrderLine.menu_item_variant_id.in_(ids),
+            Order.business_date >= since,
+            Order.business_date <= until,
+        )
     )
     return Decimal(str(total or 0))
 
@@ -535,7 +514,67 @@ class TestThePeopleSignals:
         assert int(attached or 0) > 0, "no customer was ever put on a bill"
 
 
-class TestChurnNeedsTheLongWindow:
+class TestTheLongWindow:
+    """The three signals a fortnight cannot show, each generating exactly the span it needs.
+
+    **Not marked with the `generated` fixture**, and that is the point rather than an omission:
+    these generate their own, longer window, and a fortnight generated first would overlap it —
+    the same Monday would be bought twice and `uq_stock_batch_restaurant_code` would refuse the
+    second delivery. Which is the constraint being right: a restaurant does not take two deliveries
+    of the same thing on the same day under the same docket.
+    """
+
+    async def test_signal_14_the_biryani_complaints_land_in_one_week(
+        self, world: AsyncSession
+    ) -> None:
+        """Vision §26's own example, planted so the AI advisor can be tested against it when it is
+        built. Eight complaints in one week, all at the dinner peak, all one dish."""
+        await seed_history(world, end_date=END, days=COMPLAINT_WEEK_OFFSET + 8, covers_scale=0.12)
+
+        complaints = list((await world.scalars(select(Complaint))).all())
+        assert complaints, "no complaints were generated"
+
+        days = {complaint.business_date for complaint in complaints}
+        span = max(days) - min(days)
+        assert span <= timedelta(days=7)
+
+        dish_ids = set(await _variant_ids(world, COMPLAINT_DISH))
+        for complaint in complaints:
+            lines = list(
+                (
+                    await world.scalars(
+                        select(OrderLine.menu_item_variant_id).where(
+                            OrderLine.order_id == complaint.order_id
+                        )
+                    )
+                ).all()
+            )
+            assert dish_ids & set(lines), "a complaint was planted on a bill without the dish"
+
+    async def test_signal_13_tomato_spikes_and_the_spike_reaches_a_plate(
+        self, world: AsyncSession
+    ) -> None:
+        """It happens every year and it wrecks gravy cost. The cost is frozen on the line, so the
+        spike is visible in what a bill cost that week rather than only in a price list."""
+        await seed_history(world, end_date=END, days=SPIKE_START_OFFSET + 10, covers_scale=0.12)
+        start = END - timedelta(days=SPIKE_START_OFFSET + 9)
+
+        # Butter Chicken, because it is built on makhani gravy and the gravy is what the spike
+        # reaches. Averaged across the whole menu the rise is real and invisible: two thirds of the
+        # dishes contain no tomato at all, and the mix's own variation is larger than the signal.
+        before = await _average_plate_cost(
+            world, "BUTTER_CHICKEN", start, start + timedelta(days=20)
+        )
+        during = await _average_plate_cost(
+            world,
+            "BUTTER_CHICKEN",
+            start + timedelta(days=SPIKE_START_OFFSET),
+            start + timedelta(days=SPIKE_START_OFFSET + 8),
+        )
+
+        assert before > 0 and during > 0
+        assert during > before, f"the gravy spike never reached a plate: {before} -> {during}"
+
     async def test_signal_12_six_regulars_stop_coming_after_week_fourteen(
         self, world: AsyncSession
     ) -> None:

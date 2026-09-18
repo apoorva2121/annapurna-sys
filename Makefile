@@ -12,6 +12,7 @@ NPM := npm --prefix frontend
 
 .DEFAULT_GOAL := help
 .PHONY: help setup dev down logs test test-api test-web lint lint-api lint-web fmt check \
+	    seed-small \
 	    migrate revision seed audit-docs audit-guardrails audit-deps lock clean \
 	    visual visual-update
 
@@ -115,6 +116,11 @@ audit-deps:
 # ---------------------------------------------------------------- database
 # These run inside the container: the compose network is where `db` resolves, and .env lives at
 # the repo root rather than in backend/. Requires the stack to be up (`make dev`).
+# M15. Seven days instead of four months, for a laptop and for a test run. The same code
+# and the same seed - only the window is smaller.
+seed-small:
+	cd backend && SEED_DAYS=7 "$(PY)" -m app.seed
+
 migrate:
 	docker compose run --rm migrate
 
