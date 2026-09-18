@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.v1.staff import (
+    attachments,
     cash,
     complaints,
     customers,
@@ -26,6 +27,7 @@ from app.api.v1.staff import (
 )
 
 router = APIRouter()
+router.include_router(attachments.router)
 router.include_router(cash.router)
 router.include_router(employees.router)
 router.include_router(inventory.router)

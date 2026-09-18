@@ -36,6 +36,7 @@ from app.core.enums import EmploymentType, TableStatus, UserAccountStatus
 from app.core.permissions import CATALOGUE, permissions_for_role
 from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
+from app.models.communication import Attachment
 from app.models.customers import Complaint, Customer, CustomerPreference
 from app.models.identity import Employee, UserAccount
 from app.models.inventory import StockCount, StockCountLine
@@ -562,6 +563,12 @@ _VICTIM_PARAMETERS = frozenset(
         # tenant's is a commercial leak; a cross-tenant *resolve* would close somebody else's
         # complaint, which is the one write in this module that exists to be a record.
         "complaint_id",
+        # M11, and the seventh. An attachment is a photograph of somebody else's kitchen, a
+        # supplier's invoice, or a picture attached to a complaint. Reading another tenant's is
+        # the leak; a cross-tenant *delete* would destroy their evidence. The victim row hangs off
+        # the victim wastage event, because the module's authorisation rule is "you may attach to
+        # what you may write" — so the probe exercises the owner lookup, not only the row.
+        "attachment_id",
     }
 )
 
@@ -975,7 +982,22 @@ async def _victim_resources(
     session.add(victim_complaint)
     await session.flush()
 
+    victim_attachment = Attachment(
+        restaurant_id=tenant.restaurant.id,
+        owner_type="wastage_event",
+        owner_id=victim_wastage.id,
+        file_key=f"{tenant.restaurant.id}/2026/09/{uuid.uuid4().hex}.jpg",
+        file_name="victim.jpg",
+        mime_type="image/jpeg",
+        size_bytes=64,
+        uploaded_by=employee,
+        status="ready",
+    )
+    session.add(victim_attachment)
+    await session.flush()
+
     return {
+        "attachment_id": str(victim_attachment.id),
         "complaint_id": str(victim_complaint.id),
         "customer_id": str(victim_customer.id),
         "preference_id": str(victim_preference.id),

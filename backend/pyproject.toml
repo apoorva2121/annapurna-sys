@@ -32,6 +32,16 @@ dependencies = [
     # locked, identical input everywhere; this line alone would leave Debian and Windows free to
     # disagree about a rule. See tests/test_business_day.py::TestTheDatabaseItself.
     "tzdata>=2024.1",
+    # ADR 0005's "S3-compatible object storage", and the reason it is boto3 rather than 80 lines
+    # of hand-rolled SigV4 query signing: request signing is a specification, and writing one from
+    # memory is the exact failure mode CLAUDE.md warns about for Indian tax rates. The reference
+    # implementation encodes the spec; a recollection of it does not. Presigning does no I/O, so
+    # the async concern people expect here does not arise — the three calls that *do* reach the
+    # network (head, ranged read, delete) run in a thread (`app/storage/s3.py`).
+    #
+    # It is a real cost: botocore is the largest thing in the image, for a driver staging does not
+    # yet use. The trigger to revisit is a measured cold start, not a feeling.
+    "boto3>=1.35",
 ]
 
 [project.optional-dependencies]
@@ -54,6 +64,8 @@ dev = [
     # is a wrong answer that looks entirely normal, and three hand-picked examples cannot rule out
     # the family of inputs that breaks it.
     "hypothesis>=6.100",
+    # mypy strict over boto3 without these is a wall of Any.
+    "boto3-stubs[s3]>=1.35",
 ]
 
 [build-system]

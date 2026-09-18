@@ -20,6 +20,13 @@ class Environment(StrEnum):
     PRODUCTION = "production"
 
 
+class StorageDriver(StrEnum):
+    """Where uploaded files live. Two real adapters, not one and a stub (`app/storage/port.py`)."""
+
+    FILESYSTEM = "filesystem"
+    S3 = "s3"
+
+
 class Settings(BaseSettings):
     """Runtime configuration. Immutable — nothing reconfigures the app after boot."""
 
@@ -95,6 +102,38 @@ class Settings(BaseSettings):
     guest_read_per_minute: int = 60
     guest_write_per_minute: int = 6
 
+    # ------------------------------------------------------------- storage (M11)
+    # ADR 0005: "S3-compatible object storage", with media URLs "pre-signed through a storage
+    # abstraction, never constructed from a provider-specific host". Two drivers behind that
+    # abstraction, chosen here (owner's decision, 2026-09-18).
+    #
+    # `filesystem` is not a development shortcut - it is what staging runs until a bucket exists,
+    # and it is a real deployment's real driver. Its limitation is that Cloud Run's writable
+    # filesystem is /tmp, which is memory: an upload does not survive the instance recycling. That
+    # is stated at the top of the M11 manual script rather than discovered on the second day.
+    #
+    # `storage_root` empty means "somewhere sensible" - a directory under the system temp dir -
+    # which is correct locally, in tests and on Cloud Run alike. Set it explicitly to keep files
+    # on a mounted volume.
+    storage_driver: StorageDriver = StorageDriver.FILESYSTEM
+    storage_root: str = ""
+    storage_bucket: str = ""
+    # R2 wants an account endpoint, GCS wants storage.googleapis.com, MinIO wants a host and port.
+    # Never constructed from a provider name - ADR 0005's actual words.
+    storage_endpoint: str = ""
+    # SigV4 needs *a* region string whether or not the provider has regions. R2 says `auto`.
+    storage_region: str = "auto"
+    storage_access_key: str = ""
+    # SecretStr for the reason jwt_secret is: an accidental log line prints asterisks rather than
+    # the key that can read every file in the bucket.
+    storage_secret_key: SecretStr = SecretStr("")
+    # Five minutes. Long enough for a phone on a bad connection to finish a 5 MB photograph, short
+    # enough that a URL copied out of a browser's network tab is stale before it is useful.
+    storage_url_ttl_seconds: int = 300
+    # A phone photograph is 2-5 MB. Ten leaves room for a PDF invoice and refuses a video, which
+    # is the thing that would quietly make storage the largest line on the bill.
+    storage_max_bytes: int = 10 * 1024 * 1024
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
@@ -109,6 +148,27 @@ class Settings(BaseSettings):
         # this a startup assertion rather than a checklist item, because checklists get skipped.
         if self.debug and self.env is not Environment.LOCAL:
             raise ValueError(f"DEBUG=true is forbidden when ENV={self.env.value}")
+        return self
+
+    @model_validator(mode="after")
+    def _s3_storage_needs_its_credentials(self) -> Settings:
+        # The M00 rule, applied to the newest subsystem: a misconfiguration fails the boot rather
+        # than the first upload. Without this, STORAGE_DRIVER=s3 with a missing secret starts
+        # cleanly and then refuses every attachment with a signature error nobody can read.
+        if self.storage_driver is not StorageDriver.S3:
+            return self
+        missing = [
+            name
+            for name, value in (
+                ("STORAGE_BUCKET", self.storage_bucket),
+                ("STORAGE_ENDPOINT", self.storage_endpoint),
+                ("STORAGE_ACCESS_KEY", self.storage_access_key),
+                ("STORAGE_SECRET_KEY", self.storage_secret_key.get_secret_value()),
+            )
+            if not value
+        ]
+        if missing:
+            raise ValueError("STORAGE_DRIVER=s3 needs " + ", ".join(sorted(missing)))
         return self
 
     @model_validator(mode="after")
