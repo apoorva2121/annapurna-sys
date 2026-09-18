@@ -3,6 +3,10 @@
 `docs/modules/M08-kitchen-spec.md` decisions 3 and 4 argue the design. The code below is the part
 that is easy to get subtly wrong, so each hazard is named where it is handled.
 
+**The loop moved to `app/services/event_stream.py` when M11 needed the same one**, and so did the
+paragraphs below — they are kept here in short form because this is the file somebody opens when
+the kitchen display misbehaves. The long form, with M08's full argument, is in that module.
+
 **It polls a cursor.** Not an in-process broadcast, which is wrong the moment there are two workers
 and then fails silently and only under load; not `LISTEN`/`NOTIFY`, which needs a connection held
 outside the pool for the life of the process and which pgbouncer in transaction-pooling mode — the
@@ -26,21 +30,16 @@ running at 3am, and a check made at the handshake cannot say that.
 
 from __future__ import annotations
 
-import asyncio
-import logging
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.actor import Actor
 from app.models.kitchen import KotTicket
-from app.repositories.account import UserSessionRepository
 from app.repositories.kitchen import KitchenRepository
-
-logger = logging.getLogger(__name__)
+from app.services.event_stream import RevisionBatch, revision_stream
 
 # 500 ms puts worst-case delivery at half the 1 s budget. Lower would buy nothing anybody can
 # perceive on a wall-mounted screen and would double the database work for every open display.
@@ -90,57 +89,36 @@ async def kitchen_events(
 ) -> AsyncIterator[TicketEvent | None]:
     """Yield a ticket event per change, and `None` as a heartbeat when nothing has happened.
 
-    `is_disconnected` is injected rather than read off the request, so the reconnect behaviour —
-    the whole point of this module — is testable without an HTTP server standing in the way.
+    The loop itself is `app/services/event_stream.py` since M11 needed the same one for messages.
+    Everything this module still owns is kitchen-shaped: which rows a tick fetches, and what an
+    event carries.
     """
-    position = cursor
-    last_sent = datetime.now(UTC)
+
+    async def fetch(session: AsyncSession, position: int) -> list[RevisionBatch[KotTicket]]:
+        kitchen = KitchenRepository(session, actor.scope)
+        tickets = await kitchen.since(position, station_id=station_id, limit=PAGE)
+        return [RevisionBatch(revision=ticket.revision, payload=ticket) for ticket in tickets]
+
+    async def latest(session: AsyncSession) -> int:
+        return await KitchenRepository(session, actor.scope).current_revision()
+
     # `MAX_SECONDS` is read here rather than used as a default argument, because a default is
     # evaluated once when the function is defined — so a test that lowers the constant would be
     # lowering something this generator had already stopped reading, and would hang for the full
     # fifty-five minutes proving it.
-    deadline = datetime.now(UTC) + timedelta(
-        seconds=MAX_SECONDS if max_seconds is None else max_seconds
-    )
+    deadline = MAX_SECONDS if max_seconds is None else max_seconds
 
-    while datetime.now(UTC) < deadline and not await is_disconnected():
-        async with sessions() as session:
-            if not await _still_signed_in(session, actor):
-                logger.info("kot.stream_closed", extra={"reason": "session_revoked"})
-                return
-            kitchen = KitchenRepository(session, actor.scope)
-            if position is None:
-                # A screen arriving without a cursor starts from *now*, not from the beginning of
-                # time: it has just read the rail, and replaying every ticket since the restaurant
-                # opened would redraw tonight from last March.
-                position = await kitchen.current_revision() + 1
-            tickets = list(await kitchen.since(position, station_id=station_id, limit=PAGE))
-
-        for ticket in tickets:
-            last_sent = datetime.now(UTC)
-            yield TicketEvent(revision=ticket.revision, ticket=ticket)
-
-        if tickets:
-            highest = max(ticket.revision for ticket in tickets)
-            # A full page may have cut a revision in half — several tickets can share one. Stay on
-            # that revision so the remainder arrives next tick; re-delivering what was already sent
-            # costs nothing, because every event is a whole ticket state keyed by its id.
-            position = highest if len(tickets) == PAGE else highest + 1
-
-        if (datetime.now(UTC) - last_sent).total_seconds() >= heartbeat_seconds:
-            last_sent = datetime.now(UTC)
-            yield None
-
-        await asyncio.sleep(tick_seconds)
-
-
-async def _still_signed_in(session: AsyncSession, actor: Actor) -> bool:
-    """One indexed lookup per tick.
-
-    A token minted before sessions carried an id (backlog-issues B4) has nothing to look up and
-    falls back to the token's own expiry — which the handshake already checked, and which bounds
-    such a stream at fifteen minutes rather than for ever.
-    """
-    if actor.session_id is None:
-        return True
-    return await UserSessionRepository(session).is_live(actor.session_id)
+    async for event in revision_stream(
+        sessions,
+        actor,
+        fetch=fetch,
+        latest_revision=latest,
+        cursor=cursor,
+        is_disconnected=is_disconnected,
+        page=PAGE,
+        tick_seconds=tick_seconds,
+        heartbeat_seconds=heartbeat_seconds,
+        max_seconds=deadline,
+        closed_log_event="kot.stream_closed",
+    ):
+        yield None if event is None else TicketEvent(revision=event.revision, ticket=event.payload)

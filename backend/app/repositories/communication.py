@@ -244,12 +244,30 @@ class MessageRepository(RestaurantScopedRepository[Message]):
             statement = statement.where(Message.id < before)
         return (await self.session.scalars(statement)).all()
 
-    async def since_revision(self, revision: int, *, limit: int) -> Sequence[Message]:
-        """At or after, not after: several rows can share a revision, and an exclusive cursor would
-        permanently lose the rest of a batch whose first event arrived before a drop."""
+    async def since_revision(
+        self, revision: int, *, employee_id: uuid.UUID, limit: int
+    ) -> Sequence[Message]:
+        """What this viewer is entitled to see, at or after a revision.
+
+        **At or after, not after**: several rows can share a revision, and an exclusive cursor
+        would permanently lose the rest of a batch whose first event arrived before a drop.
+
+        The participant join is what makes a stream safe to open. Filtering afterwards in Python
+        would mean the page limit was spent on rows the viewer cannot have, so a busy thread they
+        are not in could starve them of their own messages — a correctness bug wearing a
+        performance bug's clothes.
+        """
         statement = (
             self.scoped()
-            .where(Message.revision >= revision)
+            .join(
+                ConversationParticipant,
+                ConversationParticipant.conversation_id == Message.conversation_id,
+            )
+            .where(
+                Message.revision >= revision,
+                ConversationParticipant.employee_id == employee_id,
+                ConversationParticipant.left_at.is_(None),
+            )
             .order_by(Message.revision, Message.id)
             .limit(limit)
         )
@@ -291,13 +309,20 @@ class TaskRepository(RestaurantScopedRepository[Task]):
             statement = statement.where(Task.id < after)
         return (await self.session.scalars(statement)).all()
 
-    async def since_revision(self, revision: int, *, limit: int) -> Sequence[Task]:
+    async def since_revision(
+        self, revision: int, *, employee_id: uuid.UUID | None, limit: int
+    ) -> Sequence[Task]:
+        """`employee_id=None` is a `task.assign` holder, who sees the whole board."""
         statement = (
             self.scoped()
             .where(Task.revision >= revision)
             .order_by(Task.revision, Task.id)
             .limit(limit)
         )
+        if employee_id is not None:
+            statement = statement.where(
+                or_(Task.assigned_to == employee_id, Task.assigned_by == employee_id)
+            )
         return (await self.session.scalars(statement)).all()
 
     async def events(self, task_id: uuid.UUID) -> Sequence[TaskEvent]:

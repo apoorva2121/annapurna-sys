@@ -36,7 +36,13 @@ from app.core.enums import EmploymentType, TableStatus, UserAccountStatus
 from app.core.permissions import CATALOGUE, permissions_for_role
 from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
-from app.models.communication import Attachment
+from app.models.communication import (
+    Attachment,
+    Conversation,
+    ConversationParticipant,
+    Message,
+    Task,
+)
 from app.models.customers import Complaint, Customer, CustomerPreference
 from app.models.identity import Employee, UserAccount
 from app.models.inventory import StockCount, StockCountLine
@@ -569,6 +575,13 @@ _VICTIM_PARAMETERS = frozenset(
         # the victim wastage event, because the module's authorisation rule is "you may attach to
         # what you may write" — so the probe exercises the owner lookup, not only the row.
         "attachment_id",
+        # M11's other three. A conversation is what the staff of a restaurant say to each other —
+        # the most casually revealing data in the product — and a cross-tenant *read* of a thread
+        # would be the worst leak in it. A task carries who was told to do what, and a message id
+        # is what a promotion and a deletion both take.
+        "conversation_id",
+        "message_id",
+        "task_id",
     }
 )
 
@@ -996,8 +1009,48 @@ async def _victim_resources(
     session.add(victim_attachment)
     await session.flush()
 
+    victim_conversation = Conversation(
+        restaurant_id=tenant.restaurant.id,
+        type="group",
+        title=f"{prefix} shift",
+        created_by=employee,
+    )
+    session.add(victim_conversation)
+    await session.flush()
+    session.add(
+        ConversationParticipant(
+            restaurant_id=tenant.restaurant.id,
+            conversation_id=victim_conversation.id,
+            employee_id=employee,
+            joined_at=datetime(2026, 9, 13, tzinfo=UTC),
+        )
+    )
+    victim_message = Message(
+        restaurant_id=tenant.restaurant.id,
+        conversation_id=victim_conversation.id,
+        sender_employee_id=employee,
+        body="Victim message.",
+        priority="normal",
+        revision=1,
+    )
+    session.add(victim_message)
+    victim_task = Task(
+        restaurant_id=tenant.restaurant.id,
+        title="Victim task",
+        assigned_to=employee,
+        assigned_by=employee,
+        priority="normal",
+        status="assigned",
+        revision=1,
+    )
+    session.add(victim_task)
+    await session.flush()
+
     return {
         "attachment_id": str(victim_attachment.id),
+        "conversation_id": str(victim_conversation.id),
+        "message_id": str(victim_message.id),
+        "task_id": str(victim_task.id),
         "complaint_id": str(victim_complaint.id),
         "customer_id": str(victim_customer.id),
         "preference_id": str(victim_preference.id),
@@ -1110,6 +1163,10 @@ class TestTenantIsolationAcrossEveryStaffRoute:
             # another restaurant's stream; tests/test_kitchen_endpoints.py — the permission both
             # ways, and the no-buffering headers.
             "GET /api/v1/staff/kot/stream",
+            # tests/test_conversations.py — the stream carries only what a participant may see,
+            # and a cursor lifted from another restaurant yields nothing; the permission and the
+            # revoked-session close are asserted there too.
+            "GET /api/v1/staff/messages/stream",
         }
         streaming = {route.key for route in staff_routes(api) if route.is_stream}
 

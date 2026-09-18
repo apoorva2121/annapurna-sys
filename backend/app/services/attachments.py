@@ -271,10 +271,7 @@ class AttachmentService:
         )
 
     def _employee_id(self, actor: Actor) -> uuid.UUID:
-        if actor.employee_id is None:  # pragma: no cover - every staff actor has one
-            raise PermissionDeniedError(
-                "attachment.no_employee", "Only a member of staff can attach a file."
-            )
+        """Named rather than inlined: every use of it here means *the person asking*."""
         return actor.employee_id
 
     async def _get(self, attachment_id: uuid.UUID) -> Attachment:
