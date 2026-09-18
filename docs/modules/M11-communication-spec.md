@@ -131,7 +131,7 @@ deliberately withheld.
 
 ### 2 · Unread is a watermark, and the count is one comparison
 
-`docs/schema.md` already decided this and recorded the rejected alternative: `message_read_receipt`
+`docs/schema.md` already decided this and eliminated the alternative: `message_read_receipt`
 "would be the largest table in the schema — participants × messages".
 
 `conversation_participant.last_read_message_id` is the watermark. The unread count for a
@@ -349,7 +349,8 @@ Stated so they are decisions rather than omissions.
 - **No guest messaging.** Decision above; a new ADR if ever.
 - **No full-text search.** Decision in Research. The inbox has a filter by person and by unread.
 - **No typing indicators, no read-by lists, no reactions, no voice notes.** The first two are the
-  `message_read_receipt` table under another name. Reactions and voice notes are Phase 2 if anyone
+  eliminated `message_read_receipt` table under another name. Reactions and voice notes are Phase 2
+  if anyone
   asks.
 - **No push notifications.** M14.
 - **No message editing.** Delete and resend. An edited message with no visible history in a place

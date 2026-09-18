@@ -224,7 +224,9 @@ First module with a guest surface — ADR 0009 applies in full.
 ## M11 · Communication & Tasks
 
 - **Depends on** — M01
-- **Tables** — conversation, conversation_participant, message, task, task_event, attachment
+- **Tables** — conversation, conversation_participant, message, task, task_event, attachment,
+  comm_stream_cursor (added by M11: `kot_stream_cursor`'s twin, because a Postgres sequence is
+  global and a global cursor leaks how busy every other tenant is)
 - **Endpoints** — conversation CRUD, `POST /messages`, `PATCH /conversations/{id}/read`,
   task CRUD + status transitions, attachment upload (presigned)
 - **Screens** — conversation list, thread, promote-message-to-task, task board, task detail
