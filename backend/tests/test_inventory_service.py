@@ -399,8 +399,15 @@ class TestAdjusting:
             await db_session.scalars(select(AuditLog).where(AuditLog.action == "stock.adjusted"))
         ).first()
         assert entry is not None
+        # **The reason moved in M14, and this is the better place for it.** `audit_log` has no
+        # `reason` column, so a why goes in the metadata block beside the values it explains —
+        # which is where M07's waiter handover and M12's attendance correction already put theirs,
+        # and where the audit viewer reads it from to render it as a reason. In `new_value` it
+        # would show on that screen as a *field that changed*, which is not what happened: nothing
+        # changed from one reason to another.
+        assert entry.audit_metadata == {"reason": "Spilled a tray"}
         assert entry.new_value is not None
-        assert entry.new_value["reason"] == "Spilled a tray"
+        assert entry.new_value["quantity_delta"] == "-15"
 
     async def test_a_reason_is_mandatory(self, db_session: AsyncSession) -> None:
         """The one movement nobody observed is the one an insider would use to erase a shortfall."""
