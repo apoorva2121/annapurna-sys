@@ -45,7 +45,7 @@ from app.models.menu import MenuItem, MenuItemVariant
 from app.models.orders import Invoice, Order, OrderLine, Payment
 from app.models.stock import StockItem
 from app.models.tenancy import Organization, Restaurant
-from app.models.waste import WastageEvent
+from app.models.waste import WastageEvent, WastageReason
 from app.repositories.base import ScopedRepository
 
 # Settled and not cancelled: an open order is not revenue, and a cancelled one never was.
@@ -108,6 +108,21 @@ class ConsumptionRow:
     actual_value: Decimal
     waste_quantity: Decimal
     waste_value: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class WasteRow:
+    """One line of the waste report: a stage, a reason, what it cost and how often.
+
+    Never one total. `docs/waste-model.md`: four stages, each with a different owner and a
+    different fix, and lumping them produces a number nobody can act on.
+    """
+
+    stage: str
+    reason_code: str
+    reason_name: str
+    events: int
+    cost_value: Decimal
 
 
 class ReportingRepository(ScopedRepository[Restaurant]):
@@ -361,6 +376,51 @@ class ReportingRepository(ScopedRepository[Restaurant]):
                 waste_value=Decimal(row[8]),
             )
             for row in rows
+        ]
+
+    # --------------------------------------------------------------- the waste
+
+    async def waste_by_reason(self, *, since: date, until: date) -> list[WasteRow]:
+        """What was thrown away, by stage and then by reason.
+
+        **This is M09's aggregation written a second time, and the duplication is deliberate.**
+        `WastageEventRepository.summary()` answers the same question for the chef's screen and is
+        scoped by `restaurant_id` alone; every query in this file goes through
+        `_real_restaurants()`, which is decision 8 — the demo organization appears in no report,
+        enforced in one place rather than in each query. Bending M09's repository to take a
+        reporting concern would have put that rule in two places, which is the thing decision 8
+        exists to prevent.
+
+        `tests/test_reporting.py::test_the_waste_report_agrees_with_m09s_own_summary` runs both
+        against one fixture and compares them line for line, so the two cannot drift apart
+        unnoticed. That test is the price of the duplication and the reason it is safe.
+        """
+        statement = (
+            select(
+                WastageReason.stage,
+                WastageReason.code,
+                WastageReason.name,
+                func.count(WastageEvent.id),
+                func.coalesce(func.sum(WastageEvent.cost_value), 0),
+            )
+            .join(WastageReason, WastageReason.id == WastageEvent.wastage_reason_id)
+            .where(
+                WastageEvent.restaurant_id.in_(self._real_restaurants()),
+                WastageEvent.business_date >= since,
+                WastageEvent.business_date <= until,
+            )
+            .group_by(WastageReason.stage, WastageReason.code, WastageReason.name)
+            .order_by(func.sum(WastageEvent.cost_value).desc())
+        )
+        return [
+            WasteRow(
+                stage=row[0],
+                reason_code=row[1],
+                reason_name=row[2],
+                events=int(row[3]),
+                cost_value=Decimal(row[4]),
+            )
+            for row in (await self.session.execute(statement)).all()
         ]
 
     # -------------------------------------------------------------- the glance

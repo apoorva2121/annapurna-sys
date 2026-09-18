@@ -124,3 +124,21 @@ class TodayResponse(_Schema):
     average_rating: str | None
     # How many ratings the average is of. A 4.8 from two people is not a 4.8.
     ratings_counted: int
+
+
+class WasteLineResponse(_Schema):
+    # receiving | storage | prep | service — docs/waste-model.md's four, never lumped.
+    stage: str
+    reason_code: str
+    reason_name: str
+    events: int
+    cost_value: str
+    # Computed once on the server from Decimal, so the stages add to a hundred.
+    share_percent: str
+
+
+class WasteReportResponse(_Schema):
+    since: date
+    until: date
+    total: ComparisonResponse
+    lines: list[WasteLineResponse]

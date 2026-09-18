@@ -35,6 +35,7 @@ from app.repositories.reporting import (
     PaymentSplit,
     ReportingRepository,
     SalesDay,
+    WasteRow,
 )
 
 # Two decimal places for money, four for a percentage before it is presented. Quantising once, at
@@ -110,6 +111,26 @@ class VarianceReport:
     variance_total: Decimal
     waste_total: Decimal
     unexplained_total: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class WasteLine:
+    """One reason, what it cost, and its share of the period's loss."""
+
+    stage: str
+    reason_code: str
+    reason_name: str
+    events: int
+    cost_value: Decimal
+    share_percent: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class WasteReport:
+    since: date
+    until: date
+    total: Compared
+    lines: Sequence[WasteLine]
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,6 +239,34 @@ class ReportingService:
             lines=[_dish_line(row, average_units, average_margin_rate) for row in rows],
         )
 
+    # ---------------------------------------------------------------- the waste
+
+    async def waste(self, *, since: date, until: date) -> WasteReport:
+        """What was lost, by stage and then by reason, with the period before it beside it.
+
+        **Never one number.** `docs/waste-model.md` is explicit: "this week you lost 31,200" is a
+        figure nobody can act on until it is split, because receiving, prep, service and spoilage
+        have different owners and different fixes. The total is the heading, not the answer.
+
+        **Each share is computed here, from `Decimal`, after the total is known.** A window
+        function in SQL would round every row on its own and the stages would not add to a
+        hundred — which is the first thing anybody checks and the fastest way to lose their trust
+        in a report (decision 7, and M09 learned it first).
+        """
+        rows = await self._reports.waste_by_reason(since=since, until=until)
+        previous_since, previous_until = _previous_period(since, until)
+        previous = await self._reports.waste_by_reason(since=previous_since, until=previous_until)
+
+        total = _sum(row.cost_value for row in rows)
+        return WasteReport(
+            since=since,
+            until=until,
+            total=Compared(
+                total.quantize(_MONEY), _sum(row.cost_value for row in previous).quantize(_MONEY)
+            ),
+            lines=[_waste_line(row, total) for row in rows],
+        )
+
     # --------------------------------------------------------------- the glance
 
     async def today(self, *, business_date: date) -> TodayReport:
@@ -297,6 +346,20 @@ def _variance_line(row: ConsumptionRow) -> VarianceLine:
         # The part nobody wrote a reason for. Never negative on screen: waste larger than the
         # variance means the waste *is* the variance and there is nothing left unexplained.
         unexplained_value=max(variance_value - row.waste_value, Decimal(0)),
+    )
+
+
+def _waste_line(row: WasteRow, total: Decimal) -> WasteLine:
+    """Zero rather than a division error when nothing was thrown away — a period with no waste has
+    no shares in it, which is a true statement and a good week."""
+    share = Decimal(0) if total == 0 else (row.cost_value / total * 100)
+    return WasteLine(
+        stage=row.stage,
+        reason_code=row.reason_code,
+        reason_name=row.reason_name,
+        events=row.events,
+        cost_value=row.cost_value.quantize(_MONEY),
+        share_percent=share.quantize(_PERCENT),
     )
 
 

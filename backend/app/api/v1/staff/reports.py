@@ -41,6 +41,8 @@ from app.schemas.reporting import (
     TodayResponse,
     VarianceLineResponse,
     VarianceReportResponse,
+    WasteLineResponse,
+    WasteReportResponse,
 )
 from app.services.reporting import Compared, ReportingService
 
@@ -280,6 +282,61 @@ async def food_cost_variance(
 
 
 # ------------------------------------------------------------------ the operations
+
+
+@router.get("/reports/waste", response_model=WasteReportResponse | None)
+async def waste(
+    session: SessionDep,
+    actor: _OPERATIONAL,
+    since: Annotated[date | None, Query()] = None,
+    until: Annotated[date | None, Query()] = None,
+    format: Annotated[Format, Query()] = "json",
+) -> object:
+    """What was thrown away, by stage and then by reason — M09's summary, widened.
+
+    **Two routes over the same rows, and the P1 design is why.** M09's `/wastage/summary` sits
+    behind `stock.view`, which a chef and a kitchen hand hold and an accountant does not; this one
+    sits behind `report.operational.view`, which an accountant holds and a chef does not. Neither
+    role can reach the other's, so collapsing them would take the report away from somebody. What
+    this one adds is the period before it, the export, and the demo exclusion every report carries.
+
+    **Never one number.** The total is the heading; the stages are the answer
+    (`docs/waste-model.md`).
+    """
+    start, finish = _bounds(since, until, await _today(session, actor))
+    report = await _service(session, actor).waste(since=start, until=finish)
+    if format == "csv":
+        return _csv(
+            [
+                (
+                    line.stage,
+                    line.reason_code,
+                    line.reason_name,
+                    line.events,
+                    _money(line.cost_value),
+                    str(line.share_percent),
+                )
+                for line in report.lines
+            ],
+            ("stage", "reason_code", "reason", "events", "cost_value", "share_percent"),
+            "waste",
+        )
+    return WasteReportResponse(
+        since=report.since,
+        until=report.until,
+        total=_compared(report.total),
+        lines=[
+            WasteLineResponse(
+                stage=line.stage,
+                reason_code=line.reason_code,
+                reason_name=line.reason_name,
+                events=line.events,
+                cost_value=_money(line.cost_value),
+                share_percent=str(line.share_percent),
+            )
+            for line in report.lines
+        ],
+    )
 
 
 @router.get("/reports/dish-performance", response_model=DishReportResponse | None)

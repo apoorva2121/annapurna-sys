@@ -45,6 +45,7 @@ from app.models.setup import Station, TaxGroup
 from app.models.stock import StockItem
 from app.models.tenancy import Organization, Restaurant
 from app.models.waste import WastageEvent, WastageReason
+from app.repositories.waste import WastageEventRepository
 from app.services.reporting import ReportingService
 
 _DAY = date(2026, 9, 16)
@@ -301,13 +302,21 @@ async def _wasted(
     quantity: str,
     value: str,
     business_date: date = _DAY,
+    stage: str = "prep",
+    reason_name: str = "Over-preparation",
 ) -> None:
+    """One logged waste event, with its own reason.
+
+    The stage is a parameter because `docs/waste-model.md`'s whole argument is that the four
+    stages have different owners and different fixes — a waste report tested only against "prep"
+    would not notice a query that collapsed them.
+    """
     rid = world.restaurant.id
     reason = WastageReason(
         restaurant_id=rid,
         code=f"R{uuid.uuid4().hex[:6]}",
-        name="Over-preparation",
-        stage="prep",
+        name=reason_name,
+        stage=stage,
     )
     session.add(reason)
     await session.flush()
@@ -555,6 +564,142 @@ class TestWhatNoReportShows:
         report = await _service(db_session, mine).sales(since=_DAY, until=_DAY)
 
         assert report.revenue.value == Decimal("0.00")
+
+
+# ---------------------------------------------------------------------- the waste
+
+
+class TestTheWasteReport:
+    """M09's summary, widened. Three things this report must not do.
+
+    **Never one number.** `docs/waste-model.md`: "this week you lost 31,200" is unactionable until
+    it is split by stage, because receiving is the store manager at the gate and prep is the chef
+    and the batch size.
+
+    **The shares must add to a hundred**, which they only do because they are computed once, from
+    `Decimal`, after the total is known. A window function rounding each row on its own is the
+    classic way this column stops adding up.
+
+    **It must agree with M09's own summary**, because the two queries are written twice — once
+    here with the demo exclusion, once in `WastageEventRepository` for the chef's screen behind a
+    permission an accountant does not hold. Two queries over the same rows drift; this is the test
+    that stops them.
+    """
+
+    async def test_the_report_splits_by_stage_rather_than_giving_one_total(
+        self, db_session: AsyncSession
+    ) -> None:
+        world = await _world(db_session)
+        item = await _item_with_ledger(
+            db_session, world, name="Paneer", theoretical="1000", actual="1400"
+        )
+        await _wasted(db_session, world, item, quantity="250", value="90.00", stage="prep")
+        await _wasted(
+            db_session,
+            world,
+            item,
+            quantity="100",
+            value="30.00",
+            stage="receiving",
+            reason_name="Short-weighted at the gate",
+        )
+
+        report = await _service(db_session, world).waste(since=_DAY, until=_DAY)
+
+        assert report.total.value == Decimal("120.00")
+        assert {line.stage for line in report.lines} == {"prep", "receiving"}
+        # Biggest first: the eye finds the line worth acting on without arithmetic.
+        assert [line.cost_value for line in report.lines] == [Decimal("90.00"), Decimal("30.00")]
+
+    async def test_the_shares_add_to_a_hundred_within_a_paisa(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Acceptance criterion 14, and the honest version of it.
+
+        Three equal thirds of a total cannot add to exactly 100 at two decimal places — a third is
+        33.33% and three of those are 99.99%. **Within a paisa is the guarantee.**
+
+        The failure it rules out is the one that actually happens: a share computed per row in SQL,
+        which drifts by whole percentage points rather than by one paisa. Rounding the *cost* twice
+        cannot happen here at all — `wastage_event.cost_value` is `NUMERIC(12,2)`, so the database
+        has already rounded before the service sees a figure, and a test claiming to prove
+        otherwise would be proving the column's work.
+        """
+        world = await _world(db_session)
+        item = await _item_with_ledger(
+            db_session, world, name="Paneer", theoretical="1000", actual="1400"
+        )
+        for index, stage in enumerate(("prep", "service", "storage")):
+            await _wasted(
+                db_session,
+                world,
+                item,
+                quantity="100",
+                value="33.33",
+                stage=stage,
+                reason_name=f"Reason {index}",
+            )
+
+        report = await _service(db_session, world).waste(since=_DAY, until=_DAY)
+
+        total_share = sum(line.share_percent for line in report.lines)
+        assert abs(total_share - Decimal("100")) <= Decimal("0.01"), total_share
+
+    async def test_the_waste_report_agrees_with_m09s_own_summary(
+        self, db_session: AsyncSession
+    ) -> None:
+        """**The price of writing the aggregation twice.**
+
+        `ReportingRepository.waste_by_reason` exists separately from M09's
+        `WastageEventRepository.summary` because every report carries the demo exclusion
+        (decision 8) and M09's screen does not. Same rows, same answer — asserted, not assumed.
+        """
+        world = await _world(db_session)
+        item = await _item_with_ledger(
+            db_session, world, name="Paneer", theoretical="1000", actual="1400"
+        )
+        await _wasted(db_session, world, item, quantity="250", value="90.00", stage="prep")
+        await _wasted(
+            db_session,
+            world,
+            item,
+            quantity="100",
+            value="30.00",
+            stage="receiving",
+            reason_name="Short-weighted at the gate",
+        )
+
+        report = await _service(db_session, world).waste(since=_DAY, until=_DAY)
+        m09 = await WastageEventRepository(db_session, world.scope).summary(since=_DAY, until=_DAY)
+
+        assert [
+            (line.stage, line.reason_code, line.events, line.cost_value) for line in report.lines
+        ] == [(row.stage, row.reason_code, row.events, row.cost_value) for row in m09]
+
+    async def test_a_demo_organizations_waste_appears_in_no_report(
+        self, db_session: AsyncSession
+    ) -> None:
+        """The half of decision 8 the duplicated query could have missed."""
+        world = await _world(db_session, is_demo=True)
+        item = await _item_with_ledger(
+            db_session, world, name="Paneer", theoretical="1000", actual="1400"
+        )
+        await _wasted(db_session, world, item, quantity="250", value="90.00")
+
+        report = await _service(db_session, world).waste(since=_DAY, until=_DAY)
+
+        assert report.lines == []
+        assert report.total.value == Decimal("0.00")
+
+    async def test_a_week_with_no_waste_is_a_good_week_and_not_a_division_error(
+        self, db_session: AsyncSession
+    ) -> None:
+        world = await _world(db_session)
+
+        report = await _service(db_session, world).waste(since=_DAY, until=_DAY)
+
+        assert report.lines == []
+        assert report.total.change_percent is None
 
 
 # ------------------------------------------------------------------- the glance
