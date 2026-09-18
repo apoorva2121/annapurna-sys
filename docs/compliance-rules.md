@@ -136,6 +136,30 @@ Rules notified 13 Nov 2025, commencing in three phases:
 | 2 | 13 Nov 2026 | Consent Manager registration |
 | 3 | **13 May 2027** | Notice, consent, security, breach, children's data, rights, penalties |
 
+
+**Employee data is covered too, and by a different route — §7(i), researched 2026-09-19 for M17.**
+The Act's Section 7 lists "legitimate uses" for which consent is *not* required, and clause (i) is:
+
+> *"for the purposes of employment or those related to safeguarding the employer from loss or
+> liability, such as prevention of corporate espionage, maintenance of confidentiality of trade
+> secrets, intellectual property, classified information or provision of any service or benefit
+> sought by a Data Principal who is an employee."*
+
+So M17's performance measurement needs **no consent** — commentary treats performance evaluation as
+squarely inside clause (i). Two things that does not settle, and they are the ones this file exists
+to keep apart:
+
+1. **It is not in force.** Phase 3 above is 13 May 2027. *Notified but not in force*, and only *in
+   force* may block a user.
+2. **Purpose limitation survives.** §7(i) covers employment purposes and nothing else. M17
+   therefore does not export a score, share one outside the restaurant, or use one for anything the
+   employee's own screen does not say it is used for.
+
+**Retention, decided in M17's spec because it cannot be retrofitted:** a frozen `performance_score`
+is kept for three financial years after its period, and is erased when the employee leaves **unless
+an award was granted against it** — in which case it is kept with the award, as the record of why
+money was paid.
+
 Consent architecture cannot be retrofitted — you cannot lawfully re-derive consent never captured.
 So build to the Phase 3 standard in M10, but **do not describe these obligations as currently in
 force**. When M10 starts: one consent row per purpose (never a single boolean), withdrawal as easy
