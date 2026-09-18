@@ -29,6 +29,7 @@ from app.core.logging import (
     request_id_var,
     restaurant_id_var,
 )
+from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.spa import mount_spa
 
 logger = logging.getLogger(__name__)
@@ -190,6 +191,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         expose_headers=[REQUEST_ID_HEADER],
     )
+    # M16. Added before the request context so the context wraps it too: a response that never
+    # reached a handler still leaves with its headers on.
+    app.add_middleware(SecurityHeadersMiddleware)
     # Added after CORS, so it wraps it: a rejected pre-flight is still a request that happened.
     app.add_middleware(RequestContextMiddleware)
     register_error_handlers(app)

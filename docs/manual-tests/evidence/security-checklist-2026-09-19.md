@@ -88,7 +88,7 @@ exist, so they are covered.
 | 5.3 | **PASS** | `tests/test_settlement.py:392` — a double-tapped settle charges the table once. `tests/test_idempotency.py` covers the general mechanism, including a key too short to be unguessable |
 | 5.4 | **PASS** | `tests/test_settlement.py:365,377` — a stale version cannot settle; a settled order cannot settle again. `tests/test_idempotency.py:203` races two taps against one key on a real database |
 | 5.5 | **PASS** | `tests/test_orders_endpoints.py:813` — a discount *names its authoriser*; the column is NOT NULL |
-| 5.6 | **FAIL → fixed in this module** | Gaplessness per financial year is enforced by the schema, and **nothing crossed a boundary**. See §Findings 1 |
+| 5.6 | **PASS**, and it was unverified until now | Gaplessness per financial year was enforced and tested; **nothing had ever crossed a boundary**, which is the only place the rule can be wrong. `tests/test_financial_year_boundary.py` now settles 31 March and 1 April — and 01:30 on 1 April, where the business date and the calendar date disagree. It passes against the existing code: the gap was in the tests, not in the product. See §Findings 1 |
 | 5.7 | **PASS** | One `float(` in `app/` and it is in a comment explaining why `str()` is used instead (`app/api/v1/staff/stock.py:237`). Money is `NUMERIC(12,2)`/`Decimal` throughout (invariant 3) |
 
 ---
@@ -111,8 +111,8 @@ exist, so they are covered.
 | # | Outcome | Evidence |
 |---|---|---|
 | 7.1 🔴 | **PASS** | `app/core/config.py:146` — `_debug_is_local_only` refuses to construct `Settings` when `debug` is true outside `Environment.LOCAL`. The app cannot boot, rather than booting and warning |
-| 7.2 | **FAIL → fixed in this module** | No HSTS. See §Findings 2 |
-| 7.3 | **FAIL → fixed in this module** | No CSP and no `X-Frame-Options` on the application's own responses. See §Findings 2 |
+| 7.2 | **FAIL → fixed** | No HSTS anywhere. `app/core/security_headers.py`, and only over TLS — a `max-age` on `localhost` pins a developer's browser for a year. See §Findings 2 |
+| 7.3 | **FAIL → fixed** | No CSP and no `X-Frame-Options` on the application's own responses. `app/core/security_headers.py` sends both, plus `nosniff`, and never overwrites the stricter policy the attachment route sets on somebody else's bytes. See §Findings 2 |
 | 7.4 | **PASS** | `app/main.py:187` — `allow_origins=settings.cors_origin_list`, an allow-list. No `*` |
 | 7.5 🔴 | **CONSOLE** | `gitleaks` is not installed in this environment. `make check`'s dependency audits run, but a secret scan over history is a separate tool and a separate run |
 | 7.6 | **PASS** | `make check` runs `pip-audit` and `npm audit`; the gate is green |
@@ -173,14 +173,17 @@ restaurant's data goes in is a finding, not a preference.
 
 ## Findings
 
-### 1 · The financial-year boundary was never crossed (row 5.6)
+### 1 · The financial-year boundary was never crossed (row 5.6) — a gap in the tests, not a bug
 
 `invoice.sequence` is gapless per financial year and India's runs April to March. Every existing
 test settles bills inside one year. Nothing asserted that a bill dated 1 April starts at sequence 1
 rather than continuing March's run — which is the only way the rule can actually be wrong.
 
-Fixed in M16 chunk B with a test that settles a 31 March bill and a 1 April bill and asserts the
-pair.
+`tests/test_financial_year_boundary.py` settles the pair, and a third case at 01:30 on 1 April —
+business day 31 March, calendar date 1 April, and the new year's series. **It passes against the
+existing code**, which is the honest result: the product was right and nobody had checked. Written
+down as a finding anyway, because "we believe this works" and "a test asserts this works" are
+different claims and only the second one survives the next refactor.
 
 ### 2 · `docs/security.md` promises three headers the product does not send (rows 7.2, 7.3)
 
@@ -196,7 +199,10 @@ are this application's responsibility and nobody else's.
 The consequence is concrete rather than theoretical: the staff application can be framed, which is
 a clickjacking surface on a product whose buttons void bills and reset passwords.
 
-Fixed in M16 chunk A with a middleware and a test that walks a response's headers.
+Fixed in M16 chunk A: `app/core/security_headers.py`, and `tests/test_security_headers.py`
+**reads `docs/security.md` and asserts the headers it names are sent** — so if somebody removes the
+middleware, the document keeps promising and the test fails, which is the correct direction for
+that disagreement to be discovered in.
 
 ### 3 · The rate limiter is in-process, and two containers double the budget
 
@@ -214,7 +220,7 @@ that is a decision the owner should make knowingly.
 ## Sign-off
 
 - **Date:** 2026-09-19 · **Run by:** autonomous session (M16 chunk A)
-- 🔴 items: 1.2, 2.5, 4.1, 5.1, 7.1, 9.4 **pass**. 5.6 and 7.2/7.3 **failed and are fixed in this
-  module**. 7.5 (gitleaks), 8.1 (production logs) and **all of §10** require a console session and
+- 🔴 items: 1.2, 2.5, 4.1, 5.1, 5.6, 7.1, 9.4 **pass**. 7.2 and 7.3 **failed and are fixed in this
+  module**; 5.6 passed once somebody actually crossed the boundary. 7.5 (gitleaks), 8.1 (production logs) and **all of §10** require a console session and
   are **not ticked**.
 - **Do not deploy until §10 is run**, and 10.3 in particular. An untested backup is not a backup.

@@ -10,9 +10,9 @@ Definition of done: `docs/checklist.md` P4–P6.
 
 | Chunk | What | State |
 |---|---|---|
-| A | The security checklist run in full; the two findings it produced, fixed with tests | ⏳ |
-| B | The financial-year boundary test; the k6 script and its thresholds | ⏳ |
-| C | The owner's half, written as commands rather than instructions | ⏳ |
+| A | The security checklist run in full; the headers it found missing, with tests | ✅ committed |
+| B | The financial-year boundary test; the k6 script and its thresholds | ✅ committed |
+| C | The owner's half, written as commands rather than instructions | ✅ committed (the restore runbook; the deploy and cost alerts remain) |
 | — | The console session: load test, restore, cost alerts, deploy | **Owner's** |
 
 Built on 2026-09-19, on `feat/m11-communication` after M18.
@@ -68,6 +68,16 @@ on a product whose buttons void bills, reset passwords and grant roles.
 test settles bills inside one year, so the schema's constraint was proved and the **boundary** —
 the only place the rule can actually be wrong — was not. `docs/checklist.md` P5 asks for exactly
 this and it had never been done.
+
+`tests/test_financial_year_boundary.py` now does it, and **it passes against the existing code**.
+That is the honest result and it is still worth recording: the product was right and nobody had
+checked, and *"we believe this works"* is a different claim from *"a test asserts this works"* —
+only the second one survives the next refactor.
+
+Writing it found one thing worth knowing. Pinning settlement's clock and not the order service's
+opens a bill in September and settles it in March, which the product refuses with
+`settlement.payment_time`. Correct behaviour, and exactly the kind of cross-service clock coupling
+that would otherwise be discovered by a confusing test failure a year from now.
 
 ### Finding 3 · The recoverable window is six hours, and nobody had written that down
 

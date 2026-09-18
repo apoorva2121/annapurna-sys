@@ -59,7 +59,9 @@ guest token reaches any staff route.
 query. We do not rely on unguessable UUIDs for authorisation.
 
 ### A02 Cryptographic Failures
-- TLS 1.2+ everywhere, HSTS, no mixed content.
+- TLS 1.2+ everywhere, HSTS, no mixed content. HSTS is sent only when the request arrived over
+  TLS: a `max-age` set on `localhost` pins a developer's browser to HTTPS for a year, and
+  browsers ignore the header over plain HTTP anyway.
 - Passwords: **argon2id** (not bcrypt, not SHA-anything), per-user salt, tuned cost.
 - Refresh tokens stored **hashed**, never plaintext — a database read must not yield live sessions.
 - Secrets in the platform secret manager, never in the repo, never in an image layer.
@@ -88,7 +90,13 @@ query. We do not rely on unguessable UUIDs for authorisation.
 ### A05 Security Misconfiguration
 - `DEBUG=false` in every non-local environment, asserted at startup — the app refuses to boot
   otherwise.
-- Strict CORS allow-list. CSP with no `unsafe-inline`. `X-Frame-Options: DENY`.
+- Strict CORS allow-list. CSP with no `unsafe-inline` **on scripts**. `X-Frame-Options: DENY`.
+  All three in `app/core/security_headers.py` since M16, where they were a promise and nothing
+  else for sixteen modules — there is no reverse proxy to add them, because ADR 0005 serves the
+  SPA from the API itself. `style-src` keeps `'unsafe-inline'` deliberately: Radix positions
+  popovers with `style=`, and removing it needs nonces threaded through the build
+  (`docs/backlog.md`). Asserted by `tests/test_security_headers.py`, which **reads this file**
+  and fails if the promise outlives the code.
 - Error responses never leak internals (`docs/engineering-standards.md` §4).
 - Default-deny: a route with no explicit permission declaration fails closed, and a test asserts
   every registered route declares one.
