@@ -47,6 +47,8 @@ _MODULE_NAMES = {
     "M08": "Kitchen — the display and the rail",
     "M09": "Waste — logging what was thrown away",
     "M10": "Customers — regulars, feedback, complaints, guest app",
+    "M11": "Communication — messages, tasks, attachments",
+    "M12": "Shifts — the roster and the clock",
 }
 
 
