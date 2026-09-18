@@ -21,6 +21,7 @@ from app.api.v1.staff import (
     kot,
     menu,
     orders,
+    performance,
     procurement,
     reports,
     roles,
@@ -41,6 +42,7 @@ router.include_router(customers.router)
 router.include_router(kot.router)
 router.include_router(menu.router)
 router.include_router(orders.router)
+router.include_router(performance.router)
 router.include_router(procurement.router)
 router.include_router(audit.router)
 router.include_router(reports.router)

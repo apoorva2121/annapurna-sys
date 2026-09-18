@@ -56,6 +56,7 @@ from app.models.menu import (
     ModifierGroup,
 )
 from app.models.orders import CashSession, Invoice, Order, OrderCharge, OrderDiscount, OrderLine
+from app.models.performance import IncentiveScheme, PerformanceNote, PerformancePeriod
 from app.models.procurement import (
     GoodsReceipt,
     GoodsReceiptLine,
@@ -101,6 +102,17 @@ _PUBLIC = PUBLIC_ROUTES | {
     # Writes one row: this actor's own state against a condition key, in this actor's own
     # restaurant. There is nothing here addressable that belongs to anybody else.
     "POST /api/v1/staff/notifications/read",
+    # M17. `performance.view.own` is held by every role and **is not removable by configuration**
+    # (ADR 0011) — so a dependency checking it here would imply it could be absent, which is the
+    # opposite of what the decision says. What the route enforces instead is stronger: it answers
+    # about *the caller* and takes no employee id at all, which
+    # tests/test_m17_endpoints.py asserts against its signature.
+    "GET /api/v1/staff/performance/me",
+    # Raising a challenge to your own figures is part of being measured. Gating it behind a
+    # permission a role might not hold would rebuild exactly the thing
+    # `docs/workload-fairness.md`'s ethics review refused: visibility without recourse. The service
+    # enforces the rule that matters — a dispute is raised by the person whose figures they are.
+    "POST /api/v1/staff/performance/periods/{period_id}/notes",
 }
 
 
@@ -601,6 +613,13 @@ _VICTIM_PARAMETERS = frozenset(
         # has never set foot in.
         "assignment_id",
         "shift_id",
+        # M17, and the ninth module in a row this suite has refused the build for. A performance
+        # period is what somebody was paid against; reading another restaurant's is a staffing and
+        # payroll leak, and a cross-tenant *publish* would freeze figures in a business the actor
+        # has never set foot in. A note is somebody's challenge to their own score — the most
+        # personal thing in this module and the one the ethics review exists to protect.
+        "period_id",
+        "note_id",
     }
 )
 
@@ -1085,7 +1104,38 @@ async def _victim_resources(
     session.add(victim_assignment)
     await session.flush()
 
+    victim_scheme = IncentiveScheme(
+        restaurant_id=tenant.restaurant.id,
+        name="Theirs",
+        period_type="weekly",
+        weights={"accuracy": "0.5", "rating": "0.5"},
+        effective_from=date(2026, 9, 1),
+    )
+    session.add(victim_scheme)
+    await session.flush()
+    victim_period = PerformancePeriod(
+        restaurant_id=tenant.restaurant.id,
+        incentive_scheme_id=victim_scheme.id,
+        period_start=date(2026, 9, 1),
+        period_end=date(2026, 9, 7),
+        status="draft",
+    )
+    session.add(victim_period)
+    await session.flush()
+    victim_note = PerformanceNote(
+        restaurant_id=tenant.restaurant.id,
+        performance_period_id=victim_period.id,
+        employee_id=employee,
+        author_employee_id=employee,
+        kind="dispute",
+        note="Those were not my tables.",
+    )
+    session.add(victim_note)
+    await session.flush()
+
     return {
+        "period_id": str(victim_period.id),
+        "note_id": str(victim_note.id),
         "assignment_id": str(victim_assignment.id),
         "shift_id": str(victim_shift.id),
         "attachment_id": str(victim_attachment.id),
