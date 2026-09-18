@@ -147,12 +147,8 @@ def upgrade() -> None:
     )
 
     # ------------------------------- the two columns that have been waiting
-    op.create_foreign_key(
-        "fk_cash_session_shift", "cash_session", "shift", ["shift_id"], ["id"]
-    )
-    op.create_foreign_key(
-        "fk_wastage_event_shift", "wastage_event", "shift", ["shift_id"], ["id"]
-    )
+    op.create_foreign_key("fk_cash_session_shift", "cash_session", "shift", ["shift_id"], ["id"])
+    op.create_foreign_key("fk_wastage_event_shift", "wastage_event", "shift", ["shift_id"], ["id"])
 
 
 def downgrade() -> None:

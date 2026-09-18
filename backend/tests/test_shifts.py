@@ -28,7 +28,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import CATALOGUE
 from app.models.audit import AuditLog
 from app.models.setup import DiningArea
-from app.models.shifts import ShiftAssignment
 from tests.test_conversations import _people
 from tests.test_setup_endpoints import _auth, _token, _world
 
@@ -62,14 +61,24 @@ async def _assign(
     business_date: str | None = None,
     area_id: str | None = None,
 ) -> Any:
+    """`business_date` defaults to **the restaurant's** today, never the machine's.
+
+    `date.today()` was the first version and ruff refused it (DTZ011), correctly: a suite running
+    at 2am would have staffed yesterday, which is invariant 4's entire point.
+    """
     body: dict[str, Any] = {
         "shift_id": shift_id,
         "employee_id": employee_id,
-        "business_date": business_date or date.today().isoformat(),
+        "business_date": business_date or await _today(client, token),
     }
     if area_id is not None:
         body["dining_area_id"] = area_id
     return await client.post(f"{SHIFTS}/assignments", json=body, headers=_auth(token))
+
+
+def _plus_days(business_date: str, days: int) -> str:
+    """Days from a business date the server gave us — arithmetic on its answer, not on a clock."""
+    return (date.fromisoformat(business_date) + timedelta(days=days)).isoformat()
 
 
 async def _today(client: AsyncClient, token: str) -> str:
@@ -101,9 +110,7 @@ class TestTheShiftsThemselves:
         screen never has to compare two times to know how to render one."""
         await _world(db_session, "owner")
         owner = await _token(api_client, "owner")
-        created = await _shift(
-            api_client, owner, name="Evening", start="18:00:00", end="00:30:00"
-        )
+        created = await _shift(api_client, owner, name="Evening", start="18:00:00", end="00:30:00")
         assert created.status_code == 201, created.text
         assert created.json()["crosses_midnight"] is True
 
@@ -197,7 +204,7 @@ class TestStaffingIt:
         owner = await _token(api_client, "owner")
         people = await _people(api_client, owner)
         shift = (await _shift(api_client, owner)).json()
-        later = (date.today() + timedelta(days=7)).isoformat()
+        later = _plus_days(await _today(api_client, owner), 7)
         assignment = (
             await _assign(api_client, owner, shift["id"], people["waiter"], business_date=later)
         ).json()
@@ -295,7 +302,7 @@ class TestTheClock:
         owner = await _token(api_client, "owner")
         people = await _people(api_client, owner)
         shift = (await _shift(api_client, owner)).json()
-        later = (date.today() + timedelta(days=3)).isoformat()
+        later = _plus_days(await _today(api_client, owner), 3)
         assignment = (
             await _assign(api_client, owner, shift["id"], people["waiter"], business_date=later)
         ).json()
@@ -351,7 +358,7 @@ class TestCorrectionsHaveAnAuthor:
     async def test_a_correction_writes_an_audit_row_with_both_values(
         self, db_session: AsyncSession, api_client: AsyncClient
     ) -> None:
-        """"Suresh's phone was dead" is a legitimate, recorded, attributable act — and it must not
+        """ "Suresh's phone was dead" is a legitimate, recorded, attributable act — and it must not
         look like his clocking in."""
         await _world(db_session, "owner", "waiter")
         owner = await _token(api_client, "owner")
@@ -475,9 +482,7 @@ async def _area_of(session: AsyncSession) -> uuid.UUID:
     return area.id
 
 
-async def test_a_midnight_start_belongs_to_the_end_of_the_business_day(
-    db_session: AsyncSession, api_client: AsyncClient
-) -> None:
+def test_a_midnight_start_belongs_to_the_end_of_the_business_day() -> None:
     """The consequence of invariant 4 that surprises everybody once, including this file.
 
     A restaurant's day runs 05:00 to 05:00. A shift starting at 00:00 on business date D is
@@ -512,7 +517,7 @@ class TestTheRosterAssignsTheWaiter:
         """Put `who` on an all-day shift covering the Hall, which is where M07's tables are."""
         from tests.test_orders_endpoints import _setup
 
-        world, menu, waiter_token = await _setup(session, client)
+        _, menu, waiter_token = await _setup(session, client)
         owner = await _token(client, "owner")
         people = await _people(client, owner)
         today = await _today(client, owner)
@@ -525,14 +530,14 @@ class TestTheRosterAssignsTheWaiter:
                 client, owner, shift["id"], people[role], business_date=today, area_id=area
             )
             assert assigned.status_code == 201, assigned.text
-        return world, menu, waiter_token
+        return menu, waiter_token
 
     async def test_one_waiter_on_the_section_gets_the_order(
         self, db_session: AsyncSession, api_client: AsyncClient
     ) -> None:
         from tests.test_orders_endpoints import _open
 
-        _world_, menu, _ = await self._rostered(db_session, api_client, who=("waiter",))
+        menu, _ = await self._rostered(db_session, api_client, who=("waiter",))
         manager = await _token(api_client, "manager")
 
         order = await _open(api_client, manager, menu)
@@ -545,7 +550,7 @@ class TestTheRosterAssignsTheWaiter:
         """A month later, "why is this Priya's order" has an answer that is not a shrug."""
         from tests.test_orders_endpoints import _open
 
-        _world_, menu, _ = await self._rostered(db_session, api_client, who=("waiter",))
+        menu, _ = await self._rostered(db_session, api_client, who=("waiter",))
         manager = await _token(api_client, "manager")
 
         await _open(api_client, manager, menu)
@@ -564,9 +569,7 @@ class TestTheRosterAssignsTheWaiter:
         else's name on an audit row."""
         from tests.test_orders_endpoints import _open
 
-        _world_, menu, _ = await self._rostered(
-            db_session, api_client, who=("waiter", "manager")
-        )
+        menu, _ = await self._rostered(db_session, api_client, who=("waiter", "manager"))
         manager = await _token(api_client, "manager")
 
         order = await _open(api_client, manager, menu)
@@ -578,9 +581,7 @@ class TestTheRosterAssignsTheWaiter:
         """A waiter opening their own order is still its waiter, roster or not."""
         from tests.test_orders_endpoints import _open
 
-        _world_, menu, waiter_token = await self._rostered(
-            db_session, api_client, who=("manager",)
-        )
+        menu, waiter_token = await self._rostered(db_session, api_client, who=("manager",))
 
         order = await _open(api_client, waiter_token, menu)
         assert order["waiter"]["full_name"] == "Waiter Person"
@@ -590,7 +591,7 @@ class TestTheRosterAssignsTheWaiter:
     ) -> None:
         from tests.test_orders_endpoints import _open
 
-        _world_, menu, _ = await self._rostered(db_session, api_client, who=("waiter",))
+        menu, _ = await self._rostered(db_session, api_client, who=("waiter",))
         manager = await _token(api_client, "manager")
 
         order = await _open(api_client, manager, menu, type="takeaway", table_ids=[])

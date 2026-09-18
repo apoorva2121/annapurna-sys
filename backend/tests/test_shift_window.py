@@ -141,10 +141,7 @@ class TestTheGraceIsReadTolerantly:
         ],
     )
     def test_anything_unreadable_falls_back(self, settings: object) -> None:
-        assert (
-            shift_window.grace_minutes_from(settings)
-            == shift_window.DEFAULT_LATE_AFTER_MINUTES
-        )
+        assert shift_window.grace_minutes_from(settings) == shift_window.DEFAULT_LATE_AFTER_MINUTES
 
     def test_a_real_value_is_used(self) -> None:
         assert shift_window.grace_minutes_from({"shifts": {"late_after_minutes": 25}}) == 25
