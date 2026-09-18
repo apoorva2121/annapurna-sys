@@ -52,6 +52,7 @@ _MODULE_NAMES = {
     "M13": "Reports — the dashboards, the variance, and the money",
     "M14": "Audit & alerts — who changed what, and what needs you now",
     "M15": "The generator — 120 days with fourteen things wrong in it",
+    "M17": "Fairness — who carries the load, and whether it reads as feedback",
 }
 
 
