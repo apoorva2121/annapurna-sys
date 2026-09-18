@@ -1301,15 +1301,34 @@ issue                                            -- B12 (D11, D12): the issue ca
   code                text NN                    -- UQ; the stable code the frontend switches on, never shown
   text                text NN                    -- plain words; seeded from app/core/issues.json by migration
 
-notification
+notification                                     -- **M14 built this smaller. See below.**
   restaurant_id, recipient_employee_id NN FK→employee
-  severity            text NN check(critical|warning|caution|info|success)  -- matches UI tokens
-  title NN, body
-  ref_type, ref_id
-  channels            text[] NN                  -- {in_app,push,email,whatsapp}
-  read_at, dispatched_at  timestamptz
-  IX (recipient_employee_id, read_at) WHERE read_at IS NULL
+  condition_key       text NN                    -- "stock.negative:<id>"; the condition's identity
+  read_at, dismissed_at  timestamptz
+  UQ (restaurant_id, recipient_employee_id, condition_key)
+  IX (restaurant_id, recipient_employee_id)
 ```
+
+
+**What M14 changed about `notification`, and why.** The sketch above was a *stored* notification —
+severity, title, body, channels, dispatched_at — a row somebody writes and somebody else reads. That
+shape needs a writer, and **there is no background job in this product**: ADR 0005 puts scheduled
+work in a container invocation and none is deployed. A notification table filled by a job that is
+not running is a centre that is silently empty, which is the worst failure available because it
+looks exactly like *nothing is wrong*.
+
+So the centre is **derived** from conditions the product can already answer — stock gone negative, a
+batch expiring, a count awaiting a second person, an open complaint, an overdue task, a till that
+did not balance — and this table holds only what cannot be derived: what a person *did* about one.
+`severity`, `title` and `body` belong to the condition and are computed with it; a stored copy goes
+stale the moment the condition moves, which is the "second source of truth that silently drifts"
+this document eliminated three tables for.
+
+`channels` and `dispatched_at` are not kept either, and that departs from M14's own spec. Phase 2
+adds them with the code that fills them: this schema already carries `customer.visit_count` and
+`lifetime_value` as columns nothing writes, and that pair shipped a screen reading numbers nobody
+maintained. Two more knowingly would be repeating it.
+
 
 ---
 

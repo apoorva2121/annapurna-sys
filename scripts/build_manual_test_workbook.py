@@ -50,6 +50,7 @@ _MODULE_NAMES = {
     "M11": "Communication — messages, tasks, attachments",
     "M12": "Shifts — the roster and the clock",
     "M13": "Reports — the dashboards, the variance, and the money",
+    "M14": "Audit & alerts — who changed what, and what needs you now",
 }
 
 
