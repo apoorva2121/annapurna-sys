@@ -90,14 +90,21 @@ jobs:
         run: npm ci && npm run build
         working-directory: frontend
 
-      - name: Move the bundle into the backend build context
+      # The seed YAML lives at the repository root because it describes the product, not the
+      # backend, and `docker-compose.yml` bind-mounts only `backend/`. The image's build context is
+      # `backend/`, so it has to be copied in the same way the frontend bundle is — and the job
+      # then points SEED_DIR at it. Without this the seeder exits 2 with "Could not find
+      # organization.yaml", which is correct and unhelpful on a deployment nobody can bind-mount.
+      - name: Move the bundle and the seed data into the backend build context
         run: |
-          rm -rf backend/static
+          rm -rf backend/static backend/seed-data
           cp -r frontend/dist backend/static
+          cp -r seed backend/seed-data
           # Both bundles must be present. ADR 0009's guest app is a separate Rollup entry, and an
           # image missing guest.html serves a QR code that 404s on a table.
           test -f backend/static/index.html || { echo "::error::no index.html in the bundle"; exit 1; }
           test -f backend/static/guest.html || { echo "::error::no guest.html in the bundle"; exit 1; }
+          test -f backend/seed-data/organization.yaml || { echo "::error::no seed data in the image"; exit 1; }
 
       # ---------------------------------------------------------------- auth
       - uses: google-github-actions/auth@v3

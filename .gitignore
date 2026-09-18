@@ -67,3 +67,12 @@ env.txt
 *.env.txt
 env.local
 secrets.txt
+
+# Build output: the seed YAML copied into the image build context by CI (see
+# .github/workflows/deploy-staging.yml). The source of truth is seed/ at the repository root.
+backend/seed-data/
+
+# The generated manual-test workbook. Deliberately NOT committed: the owner fills in Result,
+# Notes and the Bugs sheet, and a regenerated copy would silently overwrite a completed pass.
+# Rebuild it with scripts/build_manual_test_workbook.py; docs/manual-tests/*.md is the source.
+Restaurant-OS-manual-tests.xlsx
