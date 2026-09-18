@@ -129,11 +129,21 @@ class TestLogin:
         # — "7th visit, usually orders Butter Chicken + Butter Naan, no onion/garlic" — and a rating
         # is about a table this person served. Deliberately **not** `customer.manage`: editing
         # somebody's details, and erasing them, are accountable acts that belong to a manager.
+        #
+        # M11 and M12 added four more, and all four are the P1 design's own grant to **every** role:
+        # `message.send`, `task.view`, `task.complete` and `shift.view`. The person who finds the
+        # broken freezer at 6am is exactly the person with no other permissions, and the same person
+        # has to be able to clock in. Deliberately **not** `task.assign` — giving work to somebody
+        # else is a manager's act — and not `shift.manage`.
         assert result.permissions == frozenset(
             {
                 "customer.view",
                 "feedback.view",
                 "kot.view",
+                "message.send",
+                "shift.view",
+                "task.complete",
+                "task.view",
                 "menu.view",
                 "order.create",
                 "order.modify",

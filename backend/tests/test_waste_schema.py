@@ -234,12 +234,19 @@ async def test_the_models_and_the_migration_agree(db_session: AsyncSession) -> N
         await db_session.execute(select(model).limit(1))
 
 
-async def test_the_shift_reference_is_a_bare_column(db_session: AsyncSession) -> None:
-    """`shift` is M12's table, so `shift_id` carries no foreign key yet — the same shape
-    `cash_session.shift_id` has had since M07.
+async def test_the_shift_reference_is_a_real_foreign_key_now(db_session: AsyncSession) -> None:
+    """**This test was written to fail, and M12 is the day it did.**
 
-    Asserted rather than assumed, because the day M12 lands somebody has to remember to add the
-    constraint, and a test naming the gap is how they find out.
+    Until 2026-09-18 it asserted the opposite: `shift_id` was a bare column, because `shift` was
+    M12's table and did not exist. Its docstring said why — *"the day M12 lands somebody has to
+    remember to add the constraint, and a test naming the gap is how they find out"* — and that is
+    exactly how it was found out, in M12's gate run.
+
+    It told its replacement to delete it. Inverted instead, because the constraint is now the thing
+    worth asserting, and because the second half below is new: a wastage event pointing at a shift
+    that does not exist would be attribution nobody made, in the one table whose value is that it
+    is honest — and the column must stay **nullable**, because a restaurant may run without a
+    roster and must still be able to log waste.
     """
     constraints = await db_session.execute(
         text(
@@ -250,8 +257,18 @@ async def test_the_shift_reference_is_a_bare_column(db_session: AsyncSession) ->
             "  AND kcu.column_name = 'shift_id'"
         )
     )
-    assert constraints.first() is None, (
-        "wastage_event.shift_id has a foreign key now — if M12 has landed, delete this test and "
-        "keep the constraint; if it has not, something added a reference to a table that does not "
-        "exist yet."
+    assert constraints.first() is not None, (
+        "wastage_event.shift_id lost its foreign key. M12 added it, and a waste record pointing "
+        "at a shift that does not exist is attribution nobody made."
+    )
+
+    nullable = await db_session.scalar(
+        text(
+            "SELECT is_nullable FROM information_schema.columns "
+            "WHERE table_name = 'wastage_event' AND column_name = 'shift_id'"
+        )
+    )
+    assert nullable == "YES", (
+        "shift_id must stay nullable: a restaurant may run without a roster and must still be "
+        "able to log waste."
     )

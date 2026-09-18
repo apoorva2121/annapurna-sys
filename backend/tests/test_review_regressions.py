@@ -181,7 +181,15 @@ class TestSeedRefusesRealEnvironments:
         try:
             with pytest.raises(AppError) as caught:
                 await seed_identity(db_session)
-            assert "local" in str(caught.value).lower()
+            # **The wording moved and this assertion did not**, which M12's gate run caught. Staging
+            # gained the ability to seed with a password the repository does not know (2026-09-17),
+            # and the refusal stopped saying "local" — it now names the environment it is refusing.
+            # Asserted on what has not moved: the environment, the reason, and a code from the two
+            # this path can raise.
+            message = str(caught.value).lower()
+            assert "staging" in message
+            assert "password" in message
+            assert caught.value.code in ("seed.not_local", "seed.no_password")
         finally:
             get_settings.cache_clear()
 

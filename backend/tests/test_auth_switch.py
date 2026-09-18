@@ -208,11 +208,18 @@ class TestSwitchingBranch:
         # Worth keeping in mind for this test specifically: `customer.view` does **not** carry the
         # organization. After the switch she reads the customers of the branch she switched *to*,
         # which is the same rule that makes the switch meaningful at all.
+        # M11 and M12 added the four the P1 design grants every role: `message.send`, `task.view`,
+        # `task.complete` and `shift.view`. They survive a branch switch for the same reason the
+        # others do — they are what the *waiter* role holds, wherever she is working tonight.
         assert switched.permissions == frozenset(
             {
                 "customer.view",
                 "feedback.view",
                 "kot.view",
+                "message.send",
+                "shift.view",
+                "task.complete",
+                "task.view",
                 "menu.view",
                 "order.create",
                 "order.modify",
