@@ -188,6 +188,14 @@ class PermissionCode(StrEnum):
     # the row is the actor's own; a permission cannot express "your row, not his".
     SHIFT_VIEW = "shift.view"
     SHIFT_MANAGE = "shift.manage"
+    # M13. Both from the P1 design, and the split between them is sharper than it
+    # first looks: `report.financial.view` belongs to the owner and the **accountant**,
+    # and the manager holds neither it nor `audit.view`. So the money screens are not
+    # manager screens with blanks in them — they are screens a manager does not have,
+    # and the route refuses rather than redacting. A disabled figure invites somebody
+    # to go looking for the endpoint.
+    REPORT_OPERATIONAL_VIEW = "report.operational.view"
+    REPORT_FINANCIAL_VIEW = "report.financial.view"
 
 
 class PermissionSpec(BaseModel):

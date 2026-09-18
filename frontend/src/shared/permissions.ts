@@ -101,6 +101,11 @@ export const Permission = {
   // enforces that the row is yours.
   SHIFT_VIEW: 'shift.view',
   SHIFT_MANAGE: 'shift.manage',
+  // M13. The manager holds the operational reports and **not** the financial ones —
+  // the P1 design's line, and the reason the money screens are absent from a
+  // manager's navigation rather than present and empty.
+  REPORT_OPERATIONAL_VIEW: 'report.operational.view',
+  REPORT_FINANCIAL_VIEW: 'report.financial.view',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

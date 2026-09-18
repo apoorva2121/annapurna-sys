@@ -305,6 +305,18 @@
       "resource": "shift",
       "action": "manage",
       "description": "Create shifts, put people on them, set somebody absent or on leave, and correct a clock time. A correction always needs a reason and always writes an audit entry, because asserting somebody else's attendance is not the same act as their clocking in and the record must not make the two look alike."
+    },
+    {
+      "code": "report.operational.view",
+      "resource": "report.operational",
+      "action": "view",
+      "description": "Read the operational reports: what each dish sold and earned, where it sits on the menu, how long it took the kitchen, and what was thrown away. Held by a manager and a store manager as well as the owner, because these are the numbers somebody running a service can actually act on before the next one."
+    },
+    {
+      "code": "report.financial.view",
+      "resource": "report.financial",
+      "action": "view",
+      "description": "Read the money: revenue, covers, average bill, the payment split, and the food-cost variance that shows what was used against what the recipes say should have been. Held by the owner and the accountant. A manager is deliberately not given it - running the floor and reading the books are different jobs, and the design draws that line rather than showing a manager a screen full of blanks."
     }
   ],
   "roles": [
@@ -343,6 +355,8 @@
         "purchase.manage",
         "recipe.manage",
         "recipe.view",
+        "report.financial.view",
+        "report.operational.view",
         "restaurant.configure",
         "role.view",
         "shift.manage",
@@ -420,6 +434,7 @@
         "order.void",
         "purchase.manage",
         "recipe.view",
+        "report.operational.view",
         "role.view",
         "shift.manage",
         "shift.view",
@@ -504,6 +519,7 @@
         "message.send",
         "purchase.manage",
         "recipe.view",
+        "report.operational.view",
         "shift.view",
         "stock.adjust",
         "stock.count",
@@ -540,6 +556,8 @@
         "message.send",
         "order.view",
         "purchase.manage",
+        "report.financial.view",
+        "report.operational.view",
         "shift.view",
         "supplier.view",
         "task.complete",

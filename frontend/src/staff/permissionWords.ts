@@ -55,6 +55,10 @@ export const PERMISSION_WORDS: Record<Permission, string> = {
   'shift.view': 'Read the roster, and clock yourself in and out',
   'shift.manage':
     'Create shifts, staff them, mark somebody absent, and correct a clock time with a reason',
+  'report.operational.view':
+    'Read the operational reports: dish performance, kitchen times and waste',
+  'report.financial.view':
+    'Read the money: revenue, the payment split, and the food-cost variance',
   'complaint.manage':
     'Log a complaint, give it an owner, and record what was actually done about it',
 };
