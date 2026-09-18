@@ -120,6 +120,12 @@ export const Permission = {
   PERFORMANCE_PUBLISH: 'performance.publish',
   INCENTIVE_CONFIGURE: 'incentive.configure',
   RECOGNITION_AWARD: 'recognition.award',
+  // M18. Seeing and deciding are split. A manager holds the first — the floor is where an
+  // expired licence is found by an inspector, and withholding the list from the person most
+  // able to act on it would be the wrong kind of caution. Only the owner and the
+  // administrator hold the second: a suppression is the row an inspection reads.
+  COMPLIANCE_VIEW: 'compliance.view',
+  COMPLIANCE_ACT: 'compliance.act',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

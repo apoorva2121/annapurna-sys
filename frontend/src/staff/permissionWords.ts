@@ -13,7 +13,8 @@ export const PERMISSION_WORDS: Record<Permission, string> = {
   'employee.role.assign': "Give or take away an employee's roles",
   'employee.password.reset': 'Set a new password for someone who has forgotten theirs',
   'role.view': 'See what each role is allowed to do',
-  'restaurant.configure': "Change the restaurant's settings, floor plan, kitchen stations and tax rates",
+  'restaurant.configure':
+    "Change the restaurant's settings, floor plan, kitchen stations and tax rates",
   'menu.view': 'See the menu',
   'menu.manage': 'Add and change dishes, sections and options',
   'menu.price': 'Change what a dish costs the guest',
@@ -57,17 +58,17 @@ export const PERMISSION_WORDS: Record<Permission, string> = {
     'Create shifts, staff them, mark somebody absent, and correct a clock time with a reason',
   'report.operational.view':
     'Read the operational reports: dish performance, kitchen times and waste',
-  'report.financial.view':
-    'Read the money: revenue, the payment split, and the food-cost variance',
+  'report.financial.view': 'Read the money: revenue, the payment split, and the food-cost variance',
   'complaint.manage':
     'Log a complaint, give it an owner, and record what was actually done about it',
-  'audit.view':
-    'Read the audit trail: who changed a price, who voided a bill, who granted a role',
+  'audit.view': 'Read the audit trail: who changed a price, who voided a bill, who granted a role',
   'performance.view.own': 'See your own figures, and everything they are computed from',
   'performance.view.team': 'See how the work is shared out, and the team’s top contributors',
   'performance.publish': 'Freeze a period, after which its figures never move',
   'incentive.configure': 'Set what the restaurant rewards, and how much each part counts',
   'recognition.award': 'Give somebody an award, with a note saying what it is for',
+  'compliance.view': 'See what in this restaurant’s setup puts its licences at risk',
+  'compliance.act': 'Mark a risk as seen, or set it aside with a reason that stays on the record',
 };
 
 export function wordsFor(code: string): string | null {

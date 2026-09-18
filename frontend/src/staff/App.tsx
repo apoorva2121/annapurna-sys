@@ -38,6 +38,7 @@ import RecipeScreen from '@staff/screens/RecipeScreen';
 import RosterScreen from '@staff/screens/RosterScreen';
 import AuditScreen from '@staff/screens/AuditScreen';
 import MyPerformanceScreen from '@staff/screens/MyPerformanceScreen';
+import ComplianceScreen from '@staff/screens/ComplianceScreen';
 import WorkloadScreen from '@staff/screens/WorkloadScreen';
 import NotificationsScreen from '@staff/screens/NotificationsScreen';
 import DesignGalleryScreen from '@staff/screens/DesignGalleryScreen';
@@ -143,6 +144,17 @@ export default function App(): ReactElement {
           }
         />
         <Route path="alerts" element={<NotificationsScreen />} />
+        {/* M18. Behind `compliance.view`, which the manager holds and the floor does not.
+            Opening this route *is* the check — the request behind it evaluates the rule
+            catalogue and writes what it found, because ADR 0005 leaves no background job. */}
+        <Route
+          path="compliance"
+          element={
+            <RequirePermission permission={Permission.COMPLIANCE_VIEW}>
+              <ComplianceScreen />
+            </RequirePermission>
+          }
+        />
         {/* M13. Two permissions, and the split is the P1 design's: a manager reads the
             operations and an accountant reads the books. The financial screens are ones a
             manager does not have rather than ones with blanks in them — a disabled figure is an

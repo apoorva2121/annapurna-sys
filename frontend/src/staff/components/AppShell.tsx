@@ -70,6 +70,10 @@ function InsightLinks(): ReactElement {
       {/* M17. About the rota rather than about pay, which is why it sits with the reading
           screens and not with the settings. */}
       {can(Permission.PERFORMANCE_VIEW_TEAM) && <Link to="/workload">{strings.nav.workload}</Link>}
+      {/* M18. Sits with the reading screens: it is a thing somebody checks, not a thing they
+          configure. The link is absent rather than disabled for the floor, for the same
+          reason as the audit trail. */}
+      {can(Permission.COMPLIANCE_VIEW) && <Link to="/compliance">{strings.nav.compliance}</Link>}
     </>
   );
 }

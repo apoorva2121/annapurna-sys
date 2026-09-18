@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { formatINR } from '@shared/money';
 import { Permission } from '@shared/permissions';
 import { useAuth } from '@staff/auth/AuthContext';
+import { ComplianceCard } from '@staff/components/ComplianceCard';
 import { QueryState } from '@staff/components/QueryState';
 import { StatTile } from '@staff/components/StatTile';
 import { strings } from '@staff/strings';
@@ -69,6 +70,12 @@ export default function TodayScreen(): ReactElement {
                 hint={strings.reports.ratingsCounted(today.data.ratings_counted)}
               />
             </div>
+
+            {/* M18. Renders nothing at all when nothing is outstanding — a compliance widget
+                that always shows something trains its reader to skim past it. It is also not
+                guarded here: the card's own query is behind `compliance.view`, and a person
+                without it gets an error the card swallows into silence. */}
+            {can(Permission.COMPLIANCE_VIEW) && <ComplianceCard />}
 
             <ReportLinks canSeeMoney={can(Permission.REPORT_FINANCIAL_VIEW)} />
           </>

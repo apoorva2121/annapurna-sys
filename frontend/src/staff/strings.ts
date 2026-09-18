@@ -39,6 +39,7 @@ export const strings = {
     profile: 'Your profile',
     // Backlog-issues B11b: the component gallery, shown only in a development build.
     design: 'Design gallery',
+    compliance: 'Compliance',
     signOut: 'Sign out',
     signingOut: 'Signing out…',
     // M03 and M04 shipped their screens behind routes with nothing linking to them, so each was
@@ -104,7 +105,8 @@ export const strings = {
     loginIdentifier: 'Login (phone or email)',
     // Help text rewritten for decision D21.
     fullNameHint: 'As it should appear on rotas and reports. At least two letters.',
-    employeeCodeHint: 'Filled in with the next free code. Change it if you number staff your own way.',
+    employeeCodeHint:
+      'Filled in with the next free code. Change it if you number staff your own way.',
     loginHint: 'Only for someone who will sign in. Leave it blank for staff who never use the app.',
     initialPasswordHint:
       'At least 10 characters. Tell them in person; they choose their own the first time they sign in.',
@@ -112,7 +114,9 @@ export const strings = {
     nowGiveRole: (name: string) => `Now give ${name} a role`,
     finish: 'Finish',
     addedAs: (name: string, roles: string[]) =>
-      roles.length === 0 ? `${name} added, with no role yet` : `${name} added as ${roles.join(', ')}`,
+      roles.length === 0
+        ? `${name} added, with no role yet`
+        : `${name} added as ${roles.join(', ')}`,
     backToStaff: 'Back to staff',
     initialPassword: 'Initial password',
     passwordHint: 'At least 10 characters.',
@@ -158,7 +162,8 @@ export const strings = {
     changed: 'Password changed. Your other devices have been signed out.',
     // Decision D23: this device only; the restaurant's default is in Settings.
     appearance: 'Appearance on this device',
-    appearanceHint: "Only this device, and only for you. The restaurant's default look is set in Settings.",
+    appearanceHint:
+      "Only this device, and only for you. The restaurant's default look is set in Settings.",
     appearanceSelected: 'in use',
     mustChange: 'Change your password now',
     mustChangeWhy:
@@ -1118,11 +1123,16 @@ export const strings = {
     searchLabel: 'Search by number or name',
     // The branch rule, said where somebody would otherwise wonder why a regular is missing.
     branchHint: 'Customers of this branch. Switch branch to see another one’s.',
-    empty: 'No customers here yet. They appear when somebody is added at the counter, or when a guest gives their number after rating a meal.',
+    empty:
+      'No customers here yet. They appear when somebody is added at the counter, or when a guest gives their number after rating a meal.',
     noName: 'No name yet',
     noResults: 'Nobody here matches that.',
     visitSummary: (count: number) =>
-      count === 0 ? 'First visit not recorded yet' : count === 1 ? '1 visit' : `${String(count)} visits`,
+      count === 0
+        ? 'First visit not recorded yet'
+        : count === 1
+          ? '1 visit'
+          : `${String(count)} visits`,
     lastVisitHeading: 'Last visit',
     visitsHeading: 'Visits',
     nameHeading: 'Name',
@@ -1162,7 +1172,8 @@ export const strings = {
     eraseConfirm: 'Yes, erase their details',
     eraseCancel: 'Keep them',
     erasedTitle: 'Details erased',
-    erasedBody: 'This person asked for their details to be erased. Their bills are still on the books; nothing more can be recorded about them.',
+    erasedBody:
+      'This person asked for their details to be erased. Their bills are still on the books; nothing more can be recorded about them.',
     erasureKept: (orders: number, value: string) =>
       `${String(orders)} bill(s) kept, worth ${value}. Nothing on the books moved.`,
 
@@ -1177,7 +1188,8 @@ export const strings = {
     title: 'Complaints',
     loading: 'Opening the list…',
     // A complaint nobody resolves is worse than no system, so the empty state says what "open" means.
-    empty: 'Nothing open. A complaint stays here until somebody has written down what was done about it.',
+    empty:
+      'Nothing open. A complaint stays here until somebody has written down what was done about it.',
     reference: (value: string) => `Complaint ${value}`,
     severityHeading: 'Severity',
     whatHappenedHeading: 'What happened',
@@ -1205,7 +1217,8 @@ export const strings = {
   feedback: {
     title: 'What diners said',
     loading: 'Reading the day…',
-    empty: 'Nothing for this day. Most tables never rate a meal, which is normal — the ones who do are the signal.',
+    empty:
+      'Nothing for this day. Most tables never rate a meal, which is normal — the ones who do are the signal.',
     dayLabel: 'Business day',
     foodHeading: 'Food',
     serviceHeading: 'Service',
@@ -1218,15 +1231,15 @@ export const strings = {
       staff: 'Entered by staff',
       call: 'Phone call',
     },
-    wouldReturn: (answer: boolean | null) =>
-      answer === null ? '—' : answer ? 'Yes' : 'No',
+    wouldReturn: (answer: boolean | null) => (answer === null ? '—' : answer ? 'Yes' : 'No'),
     rating: (value: number | null) => (value === null ? '—' : `${String(value)}/5`),
   },
 
   messages: {
     title: 'Messages',
     loading: 'Opening your messages…',
-    empty: 'No conversations yet. Start one with whoever you need — the person who finds a problem first is usually the one nobody thought to ask.',
+    empty:
+      'No conversations yet. Start one with whoever you need — the person who finds a problem first is usually the one nobody thought to ask.',
     unreadFilter: 'Unread only',
     allFilter: 'All',
     unread: (count: number) => (count === 1 ? '1 unread' : `${String(count)} unread`),
@@ -1271,7 +1284,8 @@ export const strings = {
   tasks: {
     title: 'Tasks',
     loading: 'Reading the board…',
-    empty: 'Nothing on the board. A task is an instruction somebody is accountable for, so an empty board is good news — as long as the instructions are actually being written down.',
+    empty:
+      'Nothing on the board. A task is an instruction somebody is accountable for, so an empty board is good news — as long as the instructions are actually being written down.',
     mineFilter: 'Only mine',
     allFilter: 'Everyone',
     newTitle: 'Add a task',
@@ -1407,7 +1421,9 @@ export const strings = {
     openOrdersHint: 'Bills still running right now.',
     rating: 'Rating',
     ratingsCounted: (count: number) =>
-      count === 0 ? 'No ratings yet' : `From ${String(count)} ${count === 1 ? 'rating' : 'ratings'}`,
+      count === 0
+        ? 'No ratings yet'
+        : `From ${String(count)} ${count === 1 ? 'rating' : 'ratings'}`,
     day: 'Day',
     bills: 'Bills',
     tax: 'Tax',
@@ -1554,6 +1570,56 @@ export const strings = {
     disputeLabel: 'What happened?',
     disputeSubmit: 'Send it',
     disputeSent: 'Sent. Somebody will answer it before this period is finalised.',
+  },
+
+  // M18. Every word is chosen so a person reads a risk and not an accusation, and so that a rule
+  // which is not law today says so in the sentence rather than in a colour.
+  compliance: {
+    title: 'What puts your licences at risk',
+    intro:
+      'Checked against your restaurant’s settings, menu and bills. Each one says where the rule comes from and when that was last checked, so you can look it up yourself.',
+    loading: 'Checking…',
+    clear: 'Nothing to act on. Everything checked came back clear.',
+    outstanding: (count: number) =>
+      count === 1 ? '1 thing to look at' : `${String(count)} things to look at`,
+    detected: (at: string) => `First detected by this system on ${at}.`,
+    // The sentence that stops a date being misread during an inspection.
+    detectedNote: 'That is when this system noticed, which may be later than when it started.',
+    risk: 'Why it matters',
+    action: 'What to do',
+    source: 'Where the rule comes from',
+    checkedOn: (on: string) => `Citation last checked ${on}.`,
+    commenced: (on: string) => `In force from ${on}.`,
+    severity: {
+      critical: 'Act on this',
+      warning: 'Worth fixing',
+      advisory: 'For information',
+    } as Record<string, string | undefined>,
+    // Never folded into severity. Only the first is a current obligation.
+    status: {
+      in_force: 'This is law today.',
+      notified_not_in_force: 'Notified, but not in force yet — this is not law today.',
+      unsettled: 'The legal position is unsettled and being appealed.',
+      unverified: 'We have not been able to verify this against the instrument.',
+    } as Record<string, string | undefined>,
+    state: {
+      open: '',
+      acknowledged: 'Marked as seen.',
+      suppressed: 'Set aside.',
+      resolved: 'Resolved.',
+    } as Record<string, string | undefined>,
+    acknowledge: 'Mark as seen',
+    suppress: 'Set aside…',
+    suppressLabel: 'Why is this being set aside?',
+    suppressHint:
+      'This stays on the record with your name against it. Setting something aside does not remove it from the export.',
+    suppressSubmit: 'Set it aside',
+    cancel: 'Cancel',
+    exportCsv: 'Download the record',
+    historyTitle: 'Everything ever raised',
+    historyIntro:
+      'Including what has since been put right. Nothing is ever deleted from this list.',
+    empty: 'Nothing has been raised yet.',
   },
 
   errors: {
