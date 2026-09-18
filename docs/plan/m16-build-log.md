@@ -41,8 +41,8 @@ ticked. A checklist row ticked without being run is worse than a blank one.
 
 Ten sections, 62 rows. The full record with evidence per row is in
 `docs/manual-tests/evidence/security-checklist-2026-09-19.md`; the summary is that **most of it
-was already true, and the two things that were not are both cases of a document promising
-something the code does not do.**
+was already true, and of the three things that were not, two are a document promising
+something the code does not do and one is a number nobody wrote down at all.**
 
 That pattern is worth naming, because it is the failure mode of a security posture written before
 the software: a file that says "HSTS, CSP, X-Frame-Options" reads as a control and is a wish.
@@ -69,6 +69,24 @@ test settles bills inside one year, so the schema's constraint was proved and th
 the only place the rule can actually be wrong — was not. `docs/checklist.md` P5 asks for exactly
 this and it had never been done.
 
+### Finding 3 · The recoverable window is six hours, and nobody had written that down
+
+`docs/observability.md` §7 records **RPO ≤ 5 minutes**, and Neon meets it easily — a restore point
+can be almost any moment. What that number does not say, and what nothing in this project said, is
+**how far back a restore can reach**.
+
+The staging database is Neon (`docs/deploy/gcp-staging-runbook.md` §1), and Neon keeps *change
+history* rather than backups. The history window defaults to **6 hours on the Free plan and 1 day
+on paid plans**, configurable to 7 days on Launch and 30 on Scale (checked 2026-09-19).
+
+**Nobody notices a bad settlement within six hours.** A restaurant that discovers on Monday that
+Saturday's service was wrong has, on a free project, nothing to restore from — and would discover
+that while looking for it. Raising the window before a real restaurant's data goes in is a finding
+rather than a preference, and it is now the first thing `docs/runbooks/restore.md` says.
+
+This also corrected an assumption in the checklist run: §10's rows were written expecting Cloud SQL,
+which is the wrong product and the wrong mental model.
+
 ### Not findings, but recorded where somebody will look for them
 
 **MFA does not exist.** Row 2.8 is marked N/A with the reason rather than skipped: the product goes
@@ -90,7 +108,7 @@ module looking for work.
 
 | Rows | What | Why not here |
 |---|---|---|
-| 10.1–10.5 | Backups, PITR, **an actual restore**, timed against the 1-hour RTO, following `docs/runbooks/restore.md` | Needs the Cloud SQL console and a scratch instance. 10.3 is the row most often skipped and most often regretted |
+| 10.1–10.5 | The history window, **an actual restore**, timed against the 1-hour RTO, following `docs/runbooks/restore.md` | Needs a live Neon session. The runbook is now written against Neon with real commands and **nobody has followed it**. 10.3 is the row most often skipped and most often regretted |
 | 7.5 | `gitleaks` over history | The tool is not installed here, and a secret scan is its own run rather than a line in `make check` |
 | 8.1 | Search *production* logs for a known test phone number | Needs production. The mechanism is verified: redaction sits on the log **handler**, so no call site can bypass it |
 | 8.5 | Sentry PII scrubbing active before the first event | Verified against the Sentry project, not against the code that configures it |

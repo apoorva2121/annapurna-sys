@@ -14,7 +14,7 @@ Every row carries one of four outcomes, and the fourth is the honest one:
 | **PASS** | Verified, with the evidence named. A test, a suite, or a line of code you can open |
 | **FAIL** | Verified broken. Fixed in this module with a regression test, or ticketed |
 | **N/A** | Does not apply, with the reason stated. Never a blank |
-| **CONSOLE** | Requires a live GCP session or a browser in front of a person. **Not attempted, not ticked** |
+| **CONSOLE** | Requires a live GCP or Neon session, or a browser in front of a person. **Not attempted, not ticked** |
 
 A checklist row ticked without being run is worse than a blank one, so nothing below is marked
 PASS on the strength of having read the configuration that would produce it. Where a row's intent
@@ -150,10 +150,21 @@ exist, so they are covered.
 
 Every row here needs a live console session. **None is ticked.**
 
+**The database is Neon, not Cloud SQL** (`docs/deploy/gcp-staging-runbook.md` §1), which changes
+what these rows even mean: Neon keeps **change history**, not backups, and a restore is a branch
+taken at a past moment inside that window. `docs/runbooks/restore.md` is now written against it
+with real commands.
+
+**And the number that matters is not RPO.** `docs/observability.md` §7 records RPO ≤ 5 minutes,
+which Neon meets easily. What was never written down is **how far back a restore can reach** —
+the history window, which defaults to **6 hours on the Free plan and 1 day on paid plans**
+(checked 2026-09-19). Nobody notices a bad settlement within six hours. Raising it before a real
+restaurant's data goes in is a finding, not a preference.
+
 | # | Outcome | What the owner must run |
 |---|---|---|
-| 10.1 | **CONSOLE** | Confirm daily automated backups and encryption at rest on the Cloud SQL instance |
-| 10.2 | **CONSOLE** | Confirm point-in-time recovery is enabled |
+| 10.1 | **CONSOLE** | Confirm the Neon project's history window and encryption at rest. **Neon keeps change history, not backups** — see `docs/runbooks/restore.md` |
+| 10.2 | **CONSOLE** | Confirm how far back the history window reaches. Neon defaults to **6 hours free, 1 day paid**; that is the real recoverable window and nobody notices a bad settlement within six hours |
 | 10.3 🔴 | **CONSOLE** | **Perform a restore into a scratch database and verify the data.** The one most often skipped and most often regretted |
 | 10.4 | **CONSOLE** | Time it against the 1-hour RTO |
 | 10.5 | **CONSOLE** | Follow `docs/runbooks/restore.md` exactly as written, and correct it where it was wrong |
