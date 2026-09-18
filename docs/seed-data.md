@@ -95,6 +95,37 @@ that explanation from this data unaided. That is the Phase 3 acceptance test, pl
   regression in an analytics query is visible as a changed figure.
 - `make seed` wipes and regenerates. `make seed-small` does 7 days for fast tests.
 
+### What the generator actually plants, and the three that differ from the table
+
+Written 2026-09-19, when `backend/app/seed/generate.py` was built. Rule 4 below says an
+undocumented anomaly is indistinguishable from a generator bug; the same is true of a documented one
+that is planted differently from how it reads.
+
+All fourteen are planted, and `backend/tests/test_planted_signals.py` fails when any planter is
+removed. Three are shaped differently from the row above:
+
+**Signal 3 — the short delivery** is planted as a *batch smaller than what was ordered*, not as a
+goods-receipt variance against a purchase order. The generator writes no purchase orders: M06's
+three-way match compares `quantity_ordered` on a PO line with what arrived, and generating four
+months of purchase orders to carry one signal would be a second procurement history nobody reads.
+What the ledger shows is the thing a restaurant without paperwork actually sees — less stock than
+the money paid for. **The three-way match itself is still tested by M06's own fixtures.**
+
+**Signal 11 — the comp concentration** is planted on `stock_movement.actor_employee_id` rather than
+as an authorisation record, because a comp in this schema is a `complimentary` movement and not a
+document. The concentration is visible where it matters: 70% of the comped food carries one name.
+
+**Signal 6 — the waiter's errors** are planted as service-stage waste events on that person's
+dinner bills, at about twice everybody else's rate. Not as a score: `docs/workload-fairness.md` and
+ADR 0011 are emphatic that measuring people needs guardrails this module does not have, so the
+generator plants the fact and M17 is where anybody is measured by it.
+
+**And one thing the table does not say:** the generator writes rows rather than driving the
+services, because `OrderService.create` and `SettlementService.settle` take no clock — they read
+`datetime.now(UTC)`, correctly, for a real bill. Driving them fourteen thousand times would produce
+fourteen thousand bills all dated today. `docs/plan/m15-build-log.md` carries the argument.
+
+
 ## Rules
 
 1. **Deterministic.** Same seed, same data, always.
