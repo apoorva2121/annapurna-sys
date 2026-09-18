@@ -103,26 +103,44 @@ ticked on inference. Marking rules above: a box is ticked only when the thing is
 
 ## P4 · Integration & system testing
 
-- [ ] Order → KOT → stock consumption → cost freeze → waste → feedback → dashboard, end to end
-- [ ] Rupee figures match `seed/validate.py` exactly
-- [ ] All **14 planted signals** surfaced by the dashboards
-- [ ] Full-day simulated service, all four personas
-- [ ] Load test at 3× expected peak (k6)
-- [ ] Latency budgets met (KDS 50ms, settle 400ms, dashboard 800ms)
+M16 closed what can be closed from the code. Everything still open needs staging or a console, and
+is named in `docs/plan/m16-build-log.md` rather than left blank.
+
+- [ ] Order → KOT → stock consumption → cost freeze → waste → feedback → dashboard, end to end —
+      *covered by tests per hop; the end-to-end pass is the owner's manual script*
+- [ ] Rupee figures match `seed/validate.py` exactly — *owner's manual pass*
+- [x] All **14 planted signals** surfaced by the dashboards — M15, `tests/test_planted_signals.py`,
+      21 tests
+- [ ] Full-day simulated service, all four personas — *owner's manual pass*
+- [ ] Load test at 3× expected peak (k6) — **script written** (`load/peak.js`); running it needs
+      staging
+- [ ] Latency budgets met (KDS 50ms, settle 400ms, dashboard 800ms) — **asserted as k6 thresholds**;
+      measured on a laptop only (M08 28ms median, M13 16–32ms)
 
 ## P5 · Deployment & release
 
-- [ ] `docs/manual-tests/security-checklist.md` — all 🔴 items pass
-- [ ] Backups configured, **restore actually tested** into a scratch DB
-- [ ] `docs/runbooks/restore.md` written and followed once
-- [ ] Cost alerts armed (50 / 80 / 100%)
-- [ ] DPDP consent + export + erasure flows verified
-- [ ] GST invoice numbering verified across a financial-year boundary
-- [ ] Production deploy, outside service hours
+- [ ] `docs/manual-tests/security-checklist.md` — all 🔴 items pass. **Run in full 2026-09-19**
+      (`docs/manual-tests/evidence/security-checklist-2026-09-19.md`): every row carries a pass with
+      its evidence, a fail, a stated not-applicable, or "requires a console session". Two fails
+      found and fixed. **§10 is entirely console and is a 🔴 stop.**
+- [ ] Backups configured, **restore actually tested** into a scratch DB — **Neon keeps change
+      history, not backups**, and the window defaults to 6 hours free / 1 day paid. Raising it is
+      the first step of `docs/deploy/production-runbook.md`
+- [x] `docs/runbooks/restore.md` written — against Neon, with real commands. **Not yet followed**,
+      which the file says at the top
+- [ ] Cost alerts armed (50 / 80 / 100%) — console. Commands in the production runbook §3, including
+      firing one deliberately
+- [ ] DPDP consent + export + erasure flows verified — export and erasure verified by test; *"not
+      pre-ticked"* is what a person sees and is the owner's pass
+- [x] GST invoice numbering verified across a financial-year boundary —
+      `tests/test_financial_year_boundary.py`, including 01:30 on 1 April, where the business date
+      and the calendar date disagree
+- [ ] Production deploy, outside service hours — console. `docs/deploy/production-runbook.md`
 
 ## P6 · Operations
 
-- [ ] Monitoring and alerting live
+- [ ] Monitoring and alerting live — Sentry is configured; *active before the first event* is
+      verified against the project, not the code
 - [ ] Monthly restore test in the calendar
 - [ ] First real restaurant onboarded via `docs/onboarding-cold-start.md`
 
