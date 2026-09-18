@@ -211,6 +211,9 @@ class TestSwitchingBranch:
         # M11 and M12 added the four the P1 design grants every role: `message.send`, `task.view`,
         # `task.complete` and `shift.view`. They survive a branch switch for the same reason the
         # others do — they are what the *waiter* role holds, wherever she is working tonight.
+        # M17 added `performance.view.own`, which every role holds by ADR 0011 and which
+        # therefore survives a switch trivially — but it is worth having here anyway, because
+        # the figures it opens are the figures of the branch she is now working in.
         assert switched.permissions == frozenset(
             {
                 "customer.view",
@@ -225,6 +228,7 @@ class TestSwitchingBranch:
                 "order.modify",
                 "order.settle",
                 "order.view",
+                "performance.view.own",
             }
         )
         assert "employee.view" not in switched.permissions, (

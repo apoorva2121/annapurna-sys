@@ -206,6 +206,22 @@ METHOD_EXEMPTIONS: dict[str, str] = {
     "ShiftService.unassign": (
         "Taking somebody off a shift that has not started — M12 refuses to unassign one that has."
     ),
+    # ------------------------------------------------------------------ performance
+    "PerformanceService.open_period": (
+        "Opening a **draft** period. Nothing has been computed and nothing can have been paid on "
+        "it; the act that matters is `publish`, which freezes the figures, names who froze them "
+        "and when, and is audited. A row for opening a draft would be a row for intending to "
+        "measure somebody."
+    ),
+    "PerformanceService.add_note": (
+        "**`performance_note` is already the record, and a better one than an audit row would "
+        "be.** It names its author, the person it is about, whether it is context or a "
+        "dispute, and — for a dispute — who answered it and when. None of it can be edited or "
+        "deleted through any "
+        "endpoint, and a period cannot be published while a dispute is unanswered. Copying a "
+        "colleague's written statement about their own pay into `audit_log` would spread the most "
+        "personal text in this product into a second table for no question it helps answer."
+    ),
 }
 
 

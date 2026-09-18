@@ -1,0 +1,69 @@
+{
+  "issues": [
+    {
+      "number": 1267,
+      "code": "incentive_scheme.not_found",
+      "text": "That scheme does not exist here."
+    },
+    {
+      "number": 1268,
+      "code": "incentive.weights_invalid",
+      "text": "Those weights do not work. What people are paid for has to add up to one, only things somebody controls can carry weight, and how much you serve cannot outweigh accuracy and ratings together."
+    },
+    {
+      "number": 1269,
+      "code": "performance_period.not_found",
+      "text": "That period does not exist here."
+    },
+    {
+      "number": 1270,
+      "code": "performance.period_backwards",
+      "text": "A period cannot end before it starts."
+    },
+    {
+      "number": 1271,
+      "code": "performance.already_published",
+      "text": "This period is already published, and published figures never move. A correction after the fact must not rewrite what somebody was paid on."
+    },
+    {
+      "number": 1272,
+      "code": "performance.dispute_open",
+      "text": "Somebody has challenged their figures and nobody has answered yet. Answer it first - that is what makes this a conversation rather than a verdict."
+    },
+    {
+      "number": 1273,
+      "code": "performance_note.not_found",
+      "text": "That note does not exist here."
+    },
+    {
+      "number": 1274,
+      "code": "performance.not_a_dispute",
+      "text": "That note is context, not a challenge. There is nothing to answer."
+    },
+    {
+      "number": 1275,
+      "code": "performance.dispute_not_yours",
+      "text": "You can only challenge your own figures. If somebody else's look wrong, say so to them."
+    },
+    {
+      "number": 1276,
+      "code": "recognition.citation_required",
+      "text": "Say what the award is for. The person receiving it is shown your words, and an award with no reason is a payment rather than recognition."
+    },
+    {
+      "number": 1277,
+      "code": "compliance_finding.not_found",
+      "text": "That finding is not on this list."
+    },
+    {
+      "number": 1278,
+      "code": "compliance_finding.already_resolved",
+      "text": "This has already been put right, so there is nothing to act on."
+    },
+    {
+      "number": 1279,
+      "code": "compliance.reason_required",
+      "text": "Say why this is being set aside. The reason stays on the record with your name against it, and it is part of what an inspector would read."
+    }
+  ]
+}

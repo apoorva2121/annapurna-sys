@@ -135,6 +135,16 @@ class TestLogin:
         # broken freezer at 6am is exactly the person with no other permissions, and the same person
         # has to be able to clock in. Deliberately **not** `task.assign` — giving work to somebody
         # else is a manager's act — and not `shift.manage`.
+        #
+        # M17 added `performance.view.own`, and it is the only one in this list that is not a
+        # grant somebody chose. ADR 0011 makes it a structural guarantee held by **every** role,
+        # including the cleaner: *"a score an employee cannot see is surveillance and lowers
+        # morale; the same score, visible with its inputs shown, is feedback and raises it."* A
+        # waiter losing it would be a change to what that feature is.
+        #
+        # M18 added nothing here, and the absence is the design: `compliance.view` reaches the
+        # owner, the administrator, the manager and the accountant. A compliance finding names
+        # what is wrong with the business, and it is not a thing a waiter is given to read.
         assert result.permissions == frozenset(
             {
                 "customer.view",
@@ -149,6 +159,7 @@ class TestLogin:
                 "order.modify",
                 "order.settle",
                 "order.view",
+                "performance.view.own",
             }
         )
 

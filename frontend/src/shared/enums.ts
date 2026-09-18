@@ -469,3 +469,48 @@ export const ShiftAssignmentStatus = {
 } as const;
 export type ShiftAssignmentStatus =
   (typeof ShiftAssignmentStatus)[keyof typeof ShiftAssignmentStatus];
+
+/** A week or a month. Nothing shorter, because a day of a restaurant is weather. */
+export const PerformancePeriodType = {
+  WEEKLY: 'weekly',
+  MONTHLY: 'monthly',
+} as const;
+export type PerformancePeriodType =
+  (typeof PerformancePeriodType)[keyof typeof PerformancePeriodType];
+
+/** `draft -> published -> finalised`, and **publish is the freeze** (ADR 0011). A later void must
+ *  not rewrite the basis on which a bonus was already paid. */
+export const PerformancePeriodStatus = {
+  DRAFT: 'draft',
+  PUBLISHED: 'published',
+  FINALISED: 'finalised',
+} as const;
+export type PerformancePeriodStatus =
+  (typeof PerformancePeriodStatus)[keyof typeof PerformancePeriodStatus];
+
+/** Whether a metric carries weight. `CONTEXT` is shown beside the score and counts **zero** — a
+ *  waiter penalised for the tandoor running slow will correctly conclude the system is stupid. */
+export const PerformanceMetricKind = {
+  CONTROLLABLE: 'controllable',
+  CONTEXT: 'context',
+} as const;
+export type PerformanceMetricKind =
+  (typeof PerformanceMetricKind)[keyof typeof PerformanceMetricKind];
+
+/** Who is talking, and whether an answer is owed. A `DISPUTE` is raised by the person being
+ *  measured, and a period cannot be published while one is unanswered. */
+export const PerformanceNoteKind = {
+  CONTEXT: 'context',
+  DISPUTE: 'dispute',
+} as const;
+export type PerformanceNoteKind = (typeof PerformanceNoteKind)[keyof typeof PerformanceNoteKind];
+
+/** Recognition need not be money. A name on a board by the kitchen door is cheap and works. */
+export const AwardType = {
+  CASH: 'cash',
+  LEAVE: 'leave',
+  SHIFT_PREFERENCE: 'shift_preference',
+  MEAL: 'meal',
+  RECOGNITION_ONLY: 'recognition_only',
+} as const;
+export type AwardType = (typeof AwardType)[keyof typeof AwardType];
