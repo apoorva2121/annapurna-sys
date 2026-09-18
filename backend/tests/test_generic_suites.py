@@ -90,6 +90,17 @@ _PUBLIC = PUBLIC_ROUTES | {
     # The same list `/auth/me` embeds the first twenty of, paged (backlog-issues B3). Authorises
     # itself for the reason `/auth/switch` does, and returns only the caller's own branches.
     "GET /api/v1/auth/restaurants",
+    # M14's notification centre. Authenticated, and it authorises itself *per condition*: what a
+    # person is shown is decided by the permissions they hold to act on each one
+    # (`services/notifications.py`), so a waiter sees their own overdue task and no food-cost
+    # figure. A permission on the route would be a second, weaker copy of that rule — and there is
+    # no code for it in the P1 design, which forbids inventing one
+    # (`test_the_shipped_catalogue_is_a_subset_of_the_p1_design`). The rule itself is tested
+    # directly in tests/test_audit_endpoints.py::TestTheCentreShowsWhatAPersonCanActOn.
+    "GET /api/v1/staff/notifications",
+    # Writes one row: this actor's own state against a condition key, in this actor's own
+    # restaurant. There is nothing here addressable that belongs to anybody else.
+    "POST /api/v1/staff/notifications/read",
 }
 
 

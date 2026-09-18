@@ -53,6 +53,8 @@ export const strings = {
     purchaseOrders: 'Purchase orders',
     myShifts: 'My shifts',
     reports: 'Reports',
+    audit: 'Audit trail',
+    notifications: 'Alerts',
     roster: 'Roster',
     messages: 'Messages',
     tasks: 'Tasks',
@@ -1459,6 +1461,49 @@ export const strings = {
     // The stage labels themselves are M09's (`strings.waste.stage`) — four stages spelled twice
     // would eventually be four stages spelled two different ways.
     toFloor: 'Back to the floor',
+  },
+
+  // M14. The trail says what happened in a sentence; the centre says what is true right now.
+  audit: {
+    title: 'Audit trail',
+    intro:
+      'Who changed what, and what the value was before. Every price change, void, discount, role grant and stock adjustment is here, and nothing in it can be edited.',
+    loading: 'Reading the trail…',
+    empty: 'Nothing has been recorded in this range.',
+    entityLabel: 'What kind of thing?',
+    entityHint: 'For example: order, menu_item_variant, employee. Leave it blank for everything.',
+    sinceLabel: 'From',
+    untilLabel: 'To',
+    showValues: 'Show the values',
+    hideValues: 'Hide the values',
+    field: 'Field',
+    before: 'Before',
+    after: 'After',
+    reason: (why: string) => `Reason given: ${why}`,
+  },
+
+  notifications: {
+    title: 'Alerts',
+    loading: 'Checking…',
+    // An empty centre is the right answer when nothing is wrong, and it says so rather than
+    // leaving somebody to wonder whether it is broken.
+    allClear: 'Nothing needs you right now.',
+    allClearHint:
+      'Alerts appear here on their own — stock gone negative, a batch about to expire, a complaint nobody has resolved, a task past its time, a till that did not balance.',
+    markRead: 'Mark as read',
+    dismiss: 'Dismiss',
+    // The distinction that matters: dismissing hides the alert, not the problem.
+    dismissHint: 'Dismissing hides this alert. It does not change what it is about.',
+    open: 'Go and deal with it',
+    unread: (count: number) => (count === 1 ? '1 alert' : `${String(count)} alerts`),
+    kind: {
+      'stock.negative': 'Stock',
+      'stock.expiring': 'Expiring',
+      'stock.count_awaiting': 'Stock count',
+      'complaint.open': 'Complaint',
+      'task.overdue': 'Task',
+      'cash.variance': 'Till',
+    } as Record<string, string | undefined>,
   },
 
   errors: {

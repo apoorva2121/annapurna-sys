@@ -197,6 +197,11 @@ class PermissionCode(StrEnum):
     REPORT_OPERATIONAL_VIEW = "report.operational.view"
     REPORT_FINANCIAL_VIEW = "report.financial.view"
 
+    # M14. The owner's, the administrator's and the accountant's — and **not** the manager's.
+    # The person who runs the floor is frequently the subject of the record, and a record its
+    # subject curates is not a record. The P1 design drew that line; this only ships it.
+    AUDIT_VIEW = "audit.view"
+
 
 class PermissionSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

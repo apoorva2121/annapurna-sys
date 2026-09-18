@@ -11,6 +11,7 @@ from fastapi import APIRouter
 
 from app.api.v1.staff import (
     attachments,
+    audit,
     cash,
     communication,
     complaints,
@@ -41,6 +42,7 @@ router.include_router(kot.router)
 router.include_router(menu.router)
 router.include_router(orders.router)
 router.include_router(procurement.router)
+router.include_router(audit.router)
 router.include_router(reports.router)
 router.include_router(roles.router)
 router.include_router(setup.router)

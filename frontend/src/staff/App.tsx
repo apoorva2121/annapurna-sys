@@ -36,6 +36,8 @@ import NewEmployeeScreen from '@staff/screens/NewEmployeeScreen';
 import ProfileScreen from '@staff/screens/ProfileScreen';
 import RecipeScreen from '@staff/screens/RecipeScreen';
 import RosterScreen from '@staff/screens/RosterScreen';
+import AuditScreen from '@staff/screens/AuditScreen';
+import NotificationsScreen from '@staff/screens/NotificationsScreen';
 import DesignGalleryScreen from '@staff/screens/DesignGalleryScreen';
 import DishPerformanceScreen from '@staff/screens/DishPerformanceScreen';
 import SalesReportScreen from '@staff/screens/SalesReportScreen';
@@ -112,6 +114,20 @@ export default function App(): ReactElement {
             </RequirePermission>
           }
         />
+        {/* M14. The trail is the owner's, the administrator's and the accountant's — the P1
+            design withholds it from the manager, because the person who runs the floor is
+            frequently the subject of the record. The centre has no permission at all: what it
+            shows is decided per condition by what each person can act on, so a guard here would
+            be a second, weaker copy of that rule. */}
+        <Route
+          path="audit"
+          element={
+            <RequirePermission permission={Permission.AUDIT_VIEW}>
+              <AuditScreen />
+            </RequirePermission>
+          }
+        />
+        <Route path="alerts" element={<NotificationsScreen />} />
         {/* M13. Two permissions, and the split is the P1 design's: a manager reads the
             operations and an accountant reads the books. The financial screens are ones a
             manager does not have rather than ones with blanks in them — a disabled figure is an

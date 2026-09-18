@@ -37,6 +37,7 @@ function DesignGalleryLink(): ReactElement | null {
 function EveryonesLinks(): ReactElement {
   return (
     <>
+      <Link to="/alerts">{strings.nav.notifications}</Link>
       <Link to="/shifts">{strings.nav.myShifts}</Link>
       <Link to="/messages">{strings.nav.messages}</Link>
       <Link to="/tasks">{strings.nav.tasks}</Link>
@@ -87,6 +88,9 @@ function Nav(): ReactElement {
       {can(Permission.REPORT_OPERATIONAL_VIEW) && (
         <Link to="/reports">{strings.nav.reports}</Link>
       )}
+      {/* M14. Withheld from the manager by the P1 design, so the link is absent rather than
+          disabled — a greyed-out door is an invitation to find out what is behind it. */}
+      {can(Permission.AUDIT_VIEW) && <Link to="/audit">{strings.nav.audit}</Link>}
       {can(Permission.RECIPE_VIEW) && <Link to="/stock">{strings.nav.stock}</Link>}
       {can(Permission.COST_VIEW) && <Link to="/costs">{strings.nav.costs}</Link>}
       {/* M06. Two links rather than one: a store manager arrives either to raise an order or

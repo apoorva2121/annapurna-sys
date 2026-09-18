@@ -61,6 +61,8 @@ export const PERMISSION_WORDS: Record<Permission, string> = {
     'Read the money: revenue, the payment split, and the food-cost variance',
   'complaint.manage':
     'Log a complaint, give it an owner, and record what was actually done about it',
+  'audit.view':
+    'Read the audit trail: who changed a price, who voided a bill, who granted a role',
 };
 
 export function wordsFor(code: string): string | null {

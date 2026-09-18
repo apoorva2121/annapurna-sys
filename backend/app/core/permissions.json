@@ -317,6 +317,12 @@
       "resource": "report.financial",
       "action": "view",
       "description": "Read the money: revenue, covers, average bill, the payment split, and the food-cost variance that shows what was used against what the recipes say should have been. Held by the owner and the accountant. A manager is deliberately not given it - running the floor and reading the books are different jobs, and the design draws that line rather than showing a manager a screen full of blanks."
+    },
+    {
+      "code": "audit.view",
+      "resource": "audit",
+      "action": "view",
+      "description": "Read the audit trail: who changed a price, who voided a bill, who granted a role, and what the value was before and after. Held by the owner, the administrator and the accountant. A manager is deliberately not given it - the person who runs the floor is frequently the subject of the record, and a record its subject curates is not a record."
     }
   ],
   "roles": [
@@ -326,6 +332,7 @@
       "rank": 0,
       "description": "The person whose money is at risk. Holds everything, always.",
       "permissions": [
+        "audit.view",
         "cash.manage",
         "complaint.manage",
         "cost.view",
@@ -381,6 +388,7 @@
       "rank": 10,
       "description": "The owner's delegate for system configuration. Trusted, not operational.",
       "permissions": [
+        "audit.view",
         "employee.create",
         "employee.deactivate",
         "employee.edit",
@@ -552,6 +560,7 @@
       "rank": 30,
       "description": "Reads the staff list because payroll needs to know who is employed, and reconciles what suppliers billed against what arrived. Holds purchase.manage and NOT stock.receive: an accountant may raise an order and may never sign for a delivery. Reads every order and changes none: order.view is the whole of its order path.",
       "permissions": [
+        "audit.view",
         "employee.view",
         "message.send",
         "order.view",

@@ -43,6 +43,7 @@ from app.models.menu import (
     Modifier,
     ModifierGroup,
 )
+from app.models.notifications import Notification
 from app.models.orders import (
     CashCount,
     CashMovement,
@@ -115,6 +116,7 @@ __all__ = [
     "Message",
     "Modifier",
     "ModifierGroup",
+    "Notification",
     "Order",
     "OrderCharge",
     "OrderDiscount",
