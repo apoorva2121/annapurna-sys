@@ -31,14 +31,13 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
+from app.core.audit import record
 from app.core.errors import AppError, ConflictError, NotFoundError
 from app.core.tenancy import TenantScope
-from app.models.audit import AuditLog
 from app.models.menu import (
     MenuCategory,
     MenuItem,
@@ -366,12 +365,13 @@ class MenuService:
         )
         self.session.add(variant)
         await self.session.flush()
-        await self._audit(
+        record(
+            self.session,
             actor,
             action="menu_item_variant.created",
+            entity="menu_item_variant",
             entity_id=variant.id,
-            old_value=None,
-            new_value={"code": variant.code, "price": variant.price},
+            new={"code": variant.code, "price": variant.price},
         )
         return variant
 
@@ -407,12 +407,14 @@ class MenuService:
         if priced:
             # Rule 5. Invariant 6: everything price-affecting writes an audit row, with before and
             # after, so a quiet reprice has a name and a timestamp on it.
-            await self._audit(
+            record(
+                self.session,
                 actor,
                 action="menu_item_variant.repriced",
+                entity="menu_item_variant",
                 entity_id=variant.id,
-                old_value=priced,
-                new_value={field: getattr(variant, field) for field in priced},
+                old=priced,
+                new={field: getattr(variant, field) for field in priced},
             )
         await self._touch(actor)
         return await self.get_item(actor, variant.menu_item_id)
@@ -509,12 +511,13 @@ class MenuService:
         self.session.add(modifier)
         await self.session.flush()
         if request.price_delta:
-            await self._audit(
+            record(
+                self.session,
                 actor,
                 action="modifier.priced",
+                entity="modifier",
                 entity_id=modifier.id,
-                old_value=None,
-                new_value={"code": modifier.code, "price_delta": modifier.price_delta},
+                new={"code": modifier.code, "price_delta": modifier.price_delta},
             )
         await self._touch(actor)
         return await self._reload_group(actor, group_id)
@@ -537,12 +540,14 @@ class MenuService:
         if priced and any(priced[field] != getattr(modifier, field) for field in priced):
             # Invariant 6. A quiet change from +Rs 30 to +Rs 150 on a popular add-on leaves no
             # other trace: the menu still reads "Extra paneer" and the bill is simply larger.
-            await self._audit(
+            record(
+                self.session,
                 actor,
                 action="modifier.repriced",
+                entity="modifier",
                 entity_id=modifier.id,
-                old_value=priced,
-                new_value={field: getattr(modifier, field) for field in priced},
+                old=priced,
+                new={field: getattr(modifier, field) for field in priced},
             )
         await self._touch(actor)
         return await self._reload_group(actor, modifier.modifier_group_id)
@@ -647,32 +652,3 @@ class MenuService:
         if group is None:  # pragma: no cover - written in this transaction
             raise NotFoundError("modifier_group.not_found", "That modifier group does not exist.")
         return group
-
-    async def _audit(
-        self,
-        actor: Actor,
-        *,
-        action: str,
-        entity_id: uuid.UUID,
-        old_value: dict[str, Any] | None,
-        new_value: dict[str, Any],
-    ) -> None:
-        self.session.add(
-            AuditLog(
-                restaurant_id=actor.restaurant_id,
-                actor_employee_id=actor.employee_id,
-                action=action,
-                entity_type="modifier" if action.startswith("modifier") else "menu_item_variant",
-                entity_id=entity_id,
-                old_value=_jsonable(old_value),
-                new_value=_jsonable(new_value),
-            )
-        )
-
-
-def _jsonable(value: dict[str, Any] | None) -> dict[str, Any] | None:
-    """`Decimal` and `UUID` are not JSON. Stringified rather than floated — a price in an audit row
-    that reads `470.0000000001` is worse than useless in a dispute."""
-    if value is None:
-        return None
-    return {key: str(item) if item is not None else None for key, item in value.items()}

@@ -37,6 +37,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
+from app.core.audit import audited, record
 from app.core.business_day import business_date_of, calendar_date_of
 from app.core.enums import (
     ChargeType,
@@ -61,7 +62,6 @@ from app.core.tax import (
     to_paisa,
 )
 from app.core.tenancy import TenantScope
-from app.models.audit import AuditLog
 from app.models.identity import Employee
 from app.models.menu import Modifier, ModifierGroup
 from app.models.orders import (
@@ -466,14 +466,19 @@ class OrderService:
                 )
         return chosen
 
+    @audited("order_line.updated", entity="order_line", key="line_id")
     async def update_line(
         self,
+        actor: Actor,  # noqa: ARG002 - read by @audited
         order_id: uuid.UUID,
         line_id: uuid.UUID,
         *,
         version: int,
         changes: dict[str, Any],
     ) -> None:
+        """**Took no actor until M14.** Changing a line's quantity is changing what a table is
+        charged, and the method had no way to say who did it — which is the class of gap the
+        declaration guard exists to find. The parameter is added rather than the audit skipped."""
         order = await self._locked(order_id, version)
         line = self._line(order, line_id)
         if line.status != OrderLineStatus.PENDING:
@@ -515,11 +520,12 @@ class OrderService:
                 )
             line.status = OrderLineStatus.CANCELLED
             line.cancel_reason = reason
-            self._audit(
+            record(
+                self.session,
                 actor,
-                "order_line.cancel",
-                "order_line",
-                line.id,
+                action="order_line.cancel",
+                entity="order_line",
+                entity_id=line.id,
                 new={
                     "order_id": str(order.id),
                     "order_number": order.order_number,
@@ -767,19 +773,22 @@ class OrderService:
         current: uuid.UUID | None,
         reason: str | None,
     ) -> None:
-        """The history of who served a table: a handover at ten o'clock keeps the first two
-        hours."""
-        self.session.add(
-            AuditLog(
-                restaurant_id=actor.restaurant_id,
-                actor_employee_id=actor.employee_id,
-                action="order.waiter_assigned",
-                entity_type="order",
-                entity_id=order_id,
-                old_value={"waiter_employee_id": None if previous is None else str(previous)},
-                new_value={"waiter_employee_id": None if current is None else str(current)},
-                audit_metadata=None if reason is None else {"reason": reason},
-            )
+        """The history of who served a table: a handover at ten o'clock keeps the first two hours.
+
+        Three public methods write this same row — opening an order, claiming one, and a manager
+        reassigning one — so it stays a named helper rather than being spelled out three times.
+        What it no longer is, is a *second way of writing an audit row*: it calls the one writer,
+        which is what `tests/test_audit_declarations.py` is about.
+        """
+        record(
+            self.session,
+            actor,
+            action="order.waiter_assigned",
+            entity="order",
+            entity_id=order_id,
+            old={"waiter_employee_id": previous},
+            new={"waiter_employee_id": current},
+            reason=reason,
         )
 
     async def cancel(self, actor: Actor, order_id: uuid.UUID, *, version: int, reason: str) -> None:
@@ -801,11 +810,12 @@ class OrderService:
         order.updated_at = now
         await self.session.flush()
         await self._release_tables(order)
-        self._audit(
+        record(
+            self.session,
             actor,
-            "order.cancel",
-            "order",
-            order.id,
+            action="order.cancel",
+            entity="order",
+            entity_id=order.id,
             new={
                 "order_number": order.order_number,
                 "reason": reason,
@@ -896,11 +906,12 @@ class OrderService:
         )
         self.session.add(discount)
         await self.session.flush()
-        self._audit(
+        record(
+            self.session,
             actor,
-            "order.discount",
-            "order_discount",
-            discount.id,
+            action="order.discount",
+            entity="order_discount",
+            entity_id=discount.id,
             new={
                 "order_id": str(order.id),
                 "order_number": order.order_number,
@@ -933,11 +944,12 @@ class OrderService:
         discount = next((row for row in order.discounts if row.id == discount_id), None)
         if discount is None:
             raise NotFoundError("order_discount.not_found", "That discount is not on this order.")
-        self._audit(
+        record(
+            self.session,
             actor,
-            "order.discount_removed",
-            "order_discount",
-            discount.id,
+            action="order.discount_removed",
+            entity="order_discount",
+            entity_id=discount.id,
             new={
                 "order_id": str(order.id),
                 "order_number": order.order_number,
@@ -952,8 +964,10 @@ class OrderService:
 
     # ------------------------------------------------------------------ charges
 
+    @audited("order.charge_added", entity="order", key="order_id")
     async def add_charge(
         self,
+        actor: Actor,  # noqa: ARG002 - read by @audited
         order_id: uuid.UUID,
         *,
         version: int,
@@ -1015,8 +1029,14 @@ class OrderService:
         )
         await self._reprice(order.id)
 
+    @audited("order.charge_removed", entity="order", key="order_id")
     async def remove_charge(
-        self, order_id: uuid.UUID, charge_id: uuid.UUID, *, version: int
+        self,
+        actor: Actor,  # noqa: ARG002 - read by @audited
+        order_id: uuid.UUID,
+        charge_id: uuid.UUID,
+        *,
+        version: int,
     ) -> None:
         order = await self._locked(order_id, version)
         charge = next((row for row in order.charges if row.id == charge_id), None)
@@ -1092,11 +1112,12 @@ class OrderService:
         moved = [line.id for line in chosen]
         await self.session.flush()
         await self._orders.move_lines(moved, child.id)
-        self._audit(
+        record(
+            self.session,
             actor,
-            "order.split",
-            "order",
-            order.id,
+            action="order.split",
+            entity="order",
+            entity_id=order.id,
             new={
                 "order_number": order.order_number,
                 "new_order_id": str(child.id),
@@ -1248,23 +1269,3 @@ class OrderService:
         if restaurant is None:
             raise NotFoundError("restaurant.not_found", "This restaurant no longer exists.")
         return restaurant
-
-    def _audit(
-        self,
-        actor: Actor,
-        action: str,
-        entity_type: str,
-        entity_id: uuid.UUID,
-        *,
-        new: dict[str, Any],
-    ) -> None:
-        self.session.add(
-            AuditLog(
-                restaurant_id=actor.restaurant_id,
-                actor_employee_id=actor.employee_id,
-                action=action,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                new_value=new,
-            )
-        )

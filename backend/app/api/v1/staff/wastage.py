@@ -129,6 +129,7 @@ async def create_reason(
     payload: WastageReasonCreateRequest, session: SessionDep, actor: _CONFIGURE
 ) -> WastageReasonResponse:
     reason = await _service(session, actor).create_reason(
+        actor,
         code=payload.code,
         name=payload.name,
         stage=payload.stage,
@@ -148,6 +149,7 @@ async def update_reason(
 ) -> WastageReasonResponse:
     """Neither the code nor the stage may change — see `WastageReasonUpdateRequest`."""
     reason = await _service(session, actor).update_reason(
+        actor,
         reason_id,
         name=payload.name,
         requires_photo=payload.requires_photo,

@@ -236,6 +236,7 @@ async def update_line(
 ) -> OrderResponse:
     service = _service(session, actor)
     await service.update_line(
+        actor,
         order_id,
         line_id,
         version=request.version,
@@ -383,6 +384,7 @@ async def add_charge(
 ) -> OrderResponse:
     service = _service(session, actor)
     await service.add_charge(
+        actor,
         order_id,
         version=request.version,
         kind=request.type,
@@ -402,7 +404,7 @@ async def remove_charge(
     request: OrderRemoveRequest,
 ) -> OrderResponse:
     service = _service(session, actor)
-    await service.remove_charge(order_id, charge_id, version=request.version)
+    await service.remove_charge(actor, order_id, charge_id, version=request.version)
     await session.commit()
     return _detail(await service.get(order_id))
 

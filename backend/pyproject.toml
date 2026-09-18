@@ -98,6 +98,10 @@ max-complexity = 10
 "tests/**" = ["S101"]
 # alembic's generated scaffolding owns its own style
 "alembic/versions/**" = ["E501"]
+# M14's decorator reads `actor` and the reason parameter out of the call rather than from the body,
+# so every service written for that test declares arguments it never names — which is the mechanism
+# under test, not dead code. The password fixtures are the subject of `test_a_credential_never…`.
+"tests/test_audit_decorator.py" = ["ARG002", "S106"]
 
 # ---------------------------------------------------------------- mypy
 [tool.mypy]

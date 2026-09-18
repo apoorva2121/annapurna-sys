@@ -33,10 +33,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import shift_window
 from app.core.actor import Actor
+from app.core.audit import record
 from app.core.enums import ShiftAssignmentStatus
 from app.core.errors import AppError, ConflictError, NotFoundError, PermissionDeniedError
 from app.core.tenancy import TenantScope
-from app.models.audit import AuditLog
 from app.models.shifts import Shift, ShiftAssignment
 from app.models.tenancy import Restaurant
 from app.repositories.employee import EmployeeRepository
@@ -211,13 +211,14 @@ class ShiftService:
         before = assignment.status
         assignment.status = status.value
         await self.session.flush()
-        self._audit(
+        record(
+            self.session,
             actor,
-            assignment,
             action="shift.status_set",
-            before={"status": before},
-            after={"status": status.value},
-            reason=None,
+            entity="shift_assignment",
+            entity_id=assignment.id,
+            old={"status": before},
+            new={"status": status.value},
         )
         return assignment
 
@@ -263,12 +264,17 @@ class ShiftService:
                 raise NotFoundError("shift.area_not_found", "That section does not exist.")
             assignment.dining_area_id = dining_area_id
         await self.session.flush()
-        self._audit(
+        # Every attendance correction, because the alternative is a roster that can be edited
+        # after the fact to change who was responsible — and M17 freezes a published period
+        # precisely so that editing one afterwards cannot move a score.
+        record(
+            self.session,
             actor,
-            assignment,
             action="shift.corrected",
-            before=before,
-            after={
+            entity="shift_assignment",
+            entity_id=assignment.id,
+            old=before,
+            new={
                 "clock_in_at": _iso(assignment.clock_in_at),
                 "clock_out_at": _iso(assignment.clock_out_at),
                 "dining_area_id": str(assignment.dining_area_id or ""),
@@ -431,37 +437,6 @@ class ShiftService:
             end=shift.end_time,
             timezone=restaurant.timezone,
             business_day_start=restaurant.business_day_start,
-        )
-
-    def _audit(
-        self,
-        actor: Actor,
-        assignment: ShiftAssignment,
-        *,
-        action: str,
-        before: dict[str, str],
-        after: dict[str, str],
-        reason: str | None,
-    ) -> None:
-        """Hand-written until M14 owns the decorator, and in the one place it is made.
-
-        Every attendance correction, because the alternative is a roster that can be edited after
-        the fact to change who was responsible — and M17 freezes a published period precisely so
-        that editing one afterwards cannot move a score.
-        """
-        self.session.add(
-            AuditLog(
-                restaurant_id=self.scope.restaurant_id,
-                actor_employee_id=actor.employee_id,
-                action=action,
-                entity_type="shift_assignment",
-                entity_id=assignment.id,
-                old_value=before,
-                new_value=after,
-                # `audit_log` has no `reason` column — the metadata block is where a why goes, and
-                # putting it there keeps the correction's reason in the same row as its values.
-                audit_metadata=None if reason is None else {"reason": reason},
-            )
         )
 
 

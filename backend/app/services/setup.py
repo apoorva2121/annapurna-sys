@@ -36,10 +36,10 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
+from app.core.audit import record
 from app.core.business_day import business_date_of
 from app.core.enums import TableStatus
 from app.core.errors import AppError, ConflictError, NotFoundError
-from app.models.audit import AuditLog
 from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, TaxRate
 from app.models.tenancy import Restaurant
 from app.repositories.orders import OrderRepository
@@ -189,13 +189,14 @@ class SetupService:
 
         audited = {field for field in changes if field in _AUDITED_SETTINGS}
         if audited:
-            await self._audit(
+            record(
+                self.session,
                 actor,
                 action="restaurant.settings_changed",
-                entity_type="restaurant",
+                entity="restaurant",
                 entity_id=restaurant.id,
-                old_value={field: before[field] for field in audited},
-                new_value={field: changes[field] for field in audited},
+                old={field: before[field] for field in audited},
+                new={field: changes[field] for field in audited},
             )
         return restaurant
 
@@ -489,13 +490,14 @@ class SetupService:
         self.session.add(rate)
         await self.session.flush()
 
-        await self._audit(
+        record(
+            self.session,
             actor,
             action="tax_group.created",
-            entity_type="tax_group",
+            entity="tax_group",
             entity_id=group.id,
-            old_value=None,
-            new_value={
+            old=None,
+            new={
                 "code": group.code,
                 "name": group.name,
                 "rate": rate.rate,
@@ -525,13 +527,14 @@ class SetupService:
         await self.session.flush()
 
         if before != {"name": group.name, "is_active": group.is_active}:
-            await self._audit(
+            record(
+                self.session,
                 actor,
                 action="tax_group.updated",
-                entity_type="tax_group",
+                entity="tax_group",
                 entity_id=group.id,
-                old_value=before,
-                new_value={"name": group.name, "is_active": group.is_active},
+                old=before,
+                new={"name": group.name, "is_active": group.is_active},
             )
         return await self._reload_group(actor, group.id)
 
@@ -588,17 +591,18 @@ class SetupService:
         self.session.add(replacement)
         await self.session.flush()
 
-        await self._audit(
+        record(
+            self.session,
             actor,
             action="tax_rate.created",
-            entity_type="tax_group",
+            entity="tax_group",
             entity_id=tax_group_id,
-            old_value=(
+            old=(
                 None
                 if current is None
                 else {"id": current.id, "rate": current.rate, "until": current.effective_to}
             ),
-            new_value={"rate": replacement.rate, "effective_from": replacement.effective_from},
+            new={"rate": replacement.rate, "effective_from": replacement.effective_from},
         )
         return await self._reload_group(actor, tax_group_id)
 
@@ -638,30 +642,6 @@ class SetupService:
         return business_date_of(
             datetime.now(UTC), restaurant.timezone, restaurant.business_day_start
         )
-
-    async def _audit(
-        self,
-        actor: Actor,
-        *,
-        action: str,
-        entity_type: str,
-        entity_id: uuid.UUID,
-        old_value: dict[str, Any] | None,
-        new_value: dict[str, Any] | None,
-    ) -> None:
-        self.session.add(
-            AuditLog(
-                restaurant_id=actor.restaurant_id,
-                actor_employee_id=actor.employee_id,
-                action=action,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                old_value=None if old_value is None else _jsonable(old_value),
-                new_value=None if new_value is None else _jsonable(new_value),
-                occurred_at=datetime.now(UTC),
-            )
-        )
-        await self.session.flush()
 
 
 def _jsonable_theme(theme: dict[str, Any]) -> dict[str, Any]:

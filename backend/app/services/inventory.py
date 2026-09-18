@@ -33,11 +33,11 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
+from app.core.audit import record
 from app.core.business_day import business_date_of
 from app.core.enums import MovementBasis, MovementType, StockCountScope, StockCountStatus
 from app.core.errors import AppError, NotFoundError
 from app.core.tenancy import TenantScope
-from app.models.audit import AuditLog
 from app.models.inventory import StockBatch, StockCount, StockCountLine, StockMovement
 from app.models.stock import PreparationProfile
 from app.models.tenancy import Restaurant
@@ -137,25 +137,6 @@ class InventoryService:
                 {"stock_item_id": str(stock_item_id)},
             )
         return item
-
-    def _audit(
-        self,
-        actor: Actor,
-        action: str,
-        entity_id: uuid.UUID,
-        new_value: dict[str, Any] | None = None,
-    ) -> None:
-        self.session.add(
-            AuditLog(
-                restaurant_id=actor.restaurant_id,
-                actor_employee_id=actor.employee_id,
-                action=action,
-                entity_type="stock_movement",
-                entity_id=entity_id,
-                old_value=None,
-                new_value=new_value,
-            )
-        )
 
     def _movement(
         self,
@@ -302,11 +283,16 @@ class InventoryService:
             actor=actor,
         )
         await self.session.flush()
-        self._audit(
+        # `stock_batch`, not `stock_movement`: the id here is the batch's. The helper this
+        # replaced hard-coded one entity type for all four of its call sites, so "what happened to
+        # this batch" and "what happened to this count" both returned nothing.
+        record(
+            self.session,
             actor,
-            "stock.received",
-            batch.id,
-            {"stock_item_id": str(stock_item_id), "quantity": str(quantity)},
+            action="stock.received",
+            entity="stock_batch",
+            entity_id=batch.id,
+            new={"stock_item_id": stock_item_id, "quantity": quantity},
         )
         return batch
 
@@ -549,15 +535,14 @@ class InventoryService:
             note=reason.strip(),
         )
         await self.session.flush()
-        self._audit(
+        record(
+            self.session,
             actor,
-            "stock.adjusted",
-            movement.id,
-            {
-                "stock_item_id": str(stock_item_id),
-                "quantity_delta": str(quantity_delta),
-                "reason": reason.strip(),
-            },
+            action="stock.adjusted",
+            entity="stock_movement",
+            entity_id=movement.id,
+            new={"stock_item_id": stock_item_id, "quantity_delta": quantity_delta},
+            reason=reason.strip(),
         )
         return movement
 
@@ -678,14 +663,16 @@ class InventoryService:
             ref_id=output.id,
         )
         await self.session.flush()
-        self._audit(
+        record(
+            self.session,
             actor,
-            "stock.produced",
-            output.id,
-            {
-                "stock_item_id": str(stock_item_id),
-                "quantity": str(quantity),
-                "input_cost": str(input_cost),
+            action="stock.produced",
+            entity="stock_movement",
+            entity_id=output.id,
+            new={
+                "stock_item_id": stock_item_id,
+                "quantity": quantity,
+                "input_cost": input_cost,
             },
         )
         return output
@@ -835,7 +822,12 @@ class InventoryService:
         count.status = StockCountStatus.APPROVED
         count.approved_by = actor.employee_id
         await self.session.flush()
-        self._audit(
-            actor, "stock.count_approved", count.id, {"business_date": str(count.business_date)}
+        record(
+            self.session,
+            actor,
+            action="stock.count_approved",
+            entity="stock_count",
+            entity_id=count.id,
+            new={"business_date": count.business_date},
         )
         return count

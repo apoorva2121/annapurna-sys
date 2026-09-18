@@ -36,6 +36,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from app.core.actor import Actor
+from app.core.audit import record
 from app.core.business_day import business_date_of, calendar_date_of, financial_year_of
 from app.core.enums import (
     DocumentType,
@@ -201,11 +202,12 @@ class SettlementService(OrderService):
         await self.session.flush()
         await self._release_tables(order, to=_table_after_the_bill(restaurant, now))
 
-        self._audit(
+        record(
+            self.session,
             actor,
-            "order.settle",
-            "order",
-            order.id,
+            action="order.settle",
+            entity="order",
+            entity_id=order.id,
             new={
                 "order_number": order.order_number,
                 "invoice_number": invoice.invoice_number,

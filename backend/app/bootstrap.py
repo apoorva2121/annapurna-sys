@@ -36,13 +36,13 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.core.audit import record_unattributed
 from app.core.config import get_settings
 from app.core.enums import EmploymentType, OrganizationPlan, RoleCode, UserAccountStatus
 from app.core.identifiers import normalise_identifier
 from app.core.logging import configure_logging
 from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
-from app.models.audit import AuditLog
 from app.models.identity import Employee, UserAccount
 from app.models.tenancy import Organization, Restaurant
 
@@ -157,21 +157,20 @@ async def bootstrap(session: AsyncSession, args: argparse.Namespace) -> str:
 
     # No actor. Nobody was signed in — that is the point of the command — and an unattributed row is
     # worth more than no row, which is why `audit_log.actor_employee_id` is nullable.
-    session.add(
-        AuditLog(
-            restaurant_id=restaurant.id,
-            actor_employee_id=None,
-            action="organization.bootstrap",
-            entity_type="organization",
-            entity_id=organization.id,
-            new_value={
-                "slug": args.slug,
-                "restaurant_code": args.code,
-                "owner_employee_code": args.owner_code,
-                # The password is not here, and must never be.
-                "owner_email": normalise_identifier(args.owner_email),
-            },
-        )
+    record_unattributed(
+        session,
+        restaurant_id=restaurant.id,
+        action="organization.bootstrap",
+        entity="organization",
+        entity_id=organization.id,
+        new={
+            "slug": args.slug,
+            "restaurant_code": args.code,
+            "owner_employee_code": args.owner_code,
+            # The password is not here, and must never be — and `scrub` now refuses it a second
+            # time, by column name, in the one writer.
+            "owner_email": normalise_identifier(args.owner_email),
+        },
     )
     return password
 

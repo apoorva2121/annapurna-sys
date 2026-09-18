@@ -39,6 +39,7 @@ from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
+from app.core.audit import record
 from app.core.business_day import business_date_of, calendar_date_of, financial_year_of
 from app.core.enums import (
     CashSessionStatus,
@@ -52,7 +53,6 @@ from app.core.enums import (
 from app.core.errors import AppError, ConflictError, NotFoundError
 from app.core.tax import ZERO, credit_note_number, to_paisa
 from app.core.tenancy import TenantScope
-from app.models.audit import AuditLog
 from app.models.orders import CreditNote, CreditNoteLine, Invoice, OrderLine, Payment
 from app.models.tenancy import Restaurant
 from app.repositories.orders import (
@@ -164,12 +164,13 @@ class ReversalService:
         paid = sum(
             (_dec(payment.amount) for payment in await self._payments.for_order(order.id)), ZERO
         )
-        self._audit(
+        record(
+            self.session,
             actor,
-            "invoice.cancel",
-            "invoice",
-            invoice.id,
-            {
+            action="invoice.cancel",
+            entity="invoice",
+            entity_id=invoice.id,
+            new={
                 "invoice_number": invoice.invoice_number,
                 "order_number": order.order_number,
                 "grand_total": str(invoice.grand_total),
@@ -302,12 +303,13 @@ class ReversalService:
             )
         await self.session.flush()
 
-        self._audit(
+        record(
+            self.session,
             actor,
-            "invoice.credit_note",
-            "credit_note",
-            note.id,
-            {
+            action="invoice.credit_note",
+            entity="credit_note",
+            entity_id=note.id,
+            new={
                 "invoice_number": invoice.invoice_number,
                 "credit_note_number": note.credit_note_number,
                 "grand_total": str(grand),
@@ -405,22 +407,3 @@ class ReversalService:
         if restaurant is None:
             raise NotFoundError("restaurant.not_found", "This restaurant no longer exists.")
         return restaurant
-
-    def _audit(
-        self,
-        actor: Actor,
-        action: str,
-        entity_type: str,
-        entity_id: uuid.UUID,
-        new: dict[str, object],
-    ) -> None:
-        self.session.add(
-            AuditLog(
-                restaurant_id=actor.restaurant_id,
-                actor_employee_id=actor.employee_id,
-                action=action,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                new_value=new,
-            )
-        )

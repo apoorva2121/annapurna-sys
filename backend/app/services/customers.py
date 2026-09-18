@@ -36,11 +36,11 @@ from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
+from app.core.audit import record
 from app.core.enums import ConsentPurpose, ContactSource, PreferenceType
 from app.core.errors import ConflictError, NotFoundError
 from app.core.phone import normalise_phone
 from app.core.tenancy import TenantScope
-from app.models.audit import AuditLog
 from app.models.customers import (
     Complaint,
     Customer,
@@ -390,19 +390,17 @@ class CustomerService:
         # The consent ledger is deliberately untouched. What survives is "marketing was granted on
         # this date and withdrawn on that one" against an id that no longer names anybody — which
         # is the record proving the erasure itself was lawful.
-        self.session.add(
-            AuditLog(
-                restaurant_id=actor.restaurant_id,
-                actor_employee_id=actor.employee_id,
-                action="customer.erase",
-                entity_type="customer",
-                entity_id=customer.id,
-                new_value={
-                    "erased_at": customer.erased_at.isoformat(),
-                    "preferences_deleted": deleted,
-                    "orders_retained": retained,
-                },
-            )
+        record(
+            self.session,
+            actor,
+            action="customer.erase",
+            entity="customer",
+            entity_id=customer.id,
+            new={
+                "erased_at": customer.erased_at,
+                "preferences_deleted": deleted,
+                "orders_retained": retained,
+            },
         )
         await self.session.flush()
         logger.warning("customer.erased", extra={"preferences_deleted": deleted})

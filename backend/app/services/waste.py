@@ -35,10 +35,10 @@ from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
+from app.core.audit import audited, record
 from app.core.enums import MovementBasis, MovementType
 from app.core.errors import AppError, ConflictError, NotFoundError
 from app.core.tenancy import TenantScope
-from app.models.audit import AuditLog
 from app.models.waste import WastageEvent, WastageReason
 from app.repositories.waste import StageTotal, WastageEventRepository, WastageReasonRepository
 from app.services.inventory import InventoryService
@@ -68,8 +68,10 @@ class WastageService:
     async def reasons(self, *, include_inactive: bool = False) -> Sequence[WastageReason]:
         return await self._reasons.list_all(include_inactive=include_inactive)
 
+    @audited("wastage_reason.created", entity="wastage_reason")
     async def create_reason(
         self,
+        actor: Actor,  # noqa: ARG002 - read by @audited
         *,
         code: str,
         name: str,
@@ -103,8 +105,10 @@ class WastageService:
         await self.session.flush()
         return reason
 
+    @audited("wastage_reason.updated", entity="wastage_reason", key="reason_id")
     async def update_reason(
         self,
+        actor: Actor,  # noqa: ARG002 - read by @audited
         reason_id: uuid.UUID,
         *,
         name: str | None = None,
@@ -214,22 +218,19 @@ class WastageService:
             event.stock_batch_id = consumed.lines[0].batch_id
         await self.session.flush()
 
-        self.session.add(
-            AuditLog(
-                restaurant_id=self.scope.restaurant_id,
-                actor_employee_id=actor.employee_id,
-                action="wastage.logged",
-                entity_type="wastage_event",
-                entity_id=event.id,
-                old_value=None,
-                new_value={
-                    "reason": reason.code,
-                    "stage": reason.stage,
-                    "quantity": str(quantity),
-                    "cost_value": str(event.cost_value),
-                    "shortfall": str(consumed.shortfall),
-                },
-            )
+        record(
+            self.session,
+            actor,
+            action="wastage.logged",
+            entity="wastage_event",
+            entity_id=event.id,
+            new={
+                "reason": reason.code,
+                "stage": reason.stage,
+                "quantity": quantity,
+                "cost_value": event.cost_value,
+                "shortfall": consumed.shortfall,
+            },
         )
         logger.info(
             "wastage.logged",
@@ -242,6 +243,7 @@ class WastageService:
         )
         return event
 
+    @audited("wastage.approved", entity="wastage_event", key="event_id")
     async def approve(self, actor: Actor, event_id: uuid.UUID) -> WastageEvent:
         """Sign off an event logged against a reason that needs it.
 

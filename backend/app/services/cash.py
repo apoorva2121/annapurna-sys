@@ -34,13 +34,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
+from app.core.audit import record
 from app.core.business_day import business_date_of
 from app.core.enums import CashMovementType, CashSessionStatus
 from app.core.errors import AppError, ConflictError, NotFoundError
 from app.core.money import format_inr
 from app.core.permissions import OWNER_RANK
 from app.core.tenancy import TenantScope
-from app.models.audit import AuditLog
 from app.models.orders import CashCount, CashMovement, CashSession
 from app.models.tenancy import Restaurant
 from app.repositories.orders import CashSessionRepository, PaymentRepository, TillTotals
@@ -177,7 +177,14 @@ class CashService:
             raise ConflictError(
                 "cash.session_open", "A till was opened a moment ago. Reload to see it."
             ) from error
-        self._audit(actor, "cash.open", till.id, {"opening_float": str(opening_float)})
+        record(
+            self.session,
+            actor,
+            action="cash.open",
+            entity="cash_session",
+            entity_id=till.id,
+            new={"opening_float": opening_float},
+        )
         await self.session.flush()
         logger.info("cash.opened", extra={"session_id": str(till.id)})
         return till.id
@@ -199,7 +206,17 @@ class CashService:
                 status_code=422,
             )
         await self._movement(actor, till, CashMovementType.PAYOUT, amount, reason)
-        self._audit(actor, "cash.payout", till.id, {"amount": str(amount), "reason": reason})
+        # A payout adds a `cash_movement`; the till row itself does not change, so there is no
+        # diff to take. The fact goes through the same writer the decorator uses.
+        record(
+            self.session,
+            actor,
+            action="cash.payout",
+            entity="cash_session",
+            entity_id=till.id,
+            new={"amount": amount},
+            reason=reason,
+        )
         await self.session.flush()
 
     async def close(
@@ -234,14 +251,16 @@ class CashService:
         till.counted_cash = counted
         till.variance = variance
         await self.session.flush()
-        self._audit(
+        record(
+            self.session,
             actor,
-            "cash.close",
-            till.id,
-            {
-                "expected": str(position.expected),
-                "counted": str(counted),
-                "variance": str(variance),
+            action="cash.close",
+            entity="cash_session",
+            entity_id=till.id,
+            new={
+                "expected": position.expected,
+                "counted": counted,
+                "variance": variance,
             },
         )
         await self.session.flush()
@@ -268,11 +287,14 @@ class CashService:
                 "owner, has to.",
             )
         await self._movement(actor, till, CashMovementType.ADJUSTMENT, amount, reason)
-        self._audit(
+        record(
+            self.session,
             actor,
-            "cash.adjust",
-            till.id,
-            {"amount": str(amount), "reason": reason, "variance_at_close": str(till.variance)},
+            action="cash.adjust",
+            entity="cash_session",
+            entity_id=till.id,
+            new={"amount": amount, "variance_at_close": till.variance},
+            reason=reason,
         )
         await self.session.flush()
 
@@ -331,15 +353,3 @@ class CashService:
         if restaurant is None:
             raise NotFoundError("restaurant.not_found", "This restaurant no longer exists.")
         return restaurant
-
-    def _audit(self, actor: Actor, action: str, till_id: uuid.UUID, new: dict[str, object]) -> None:
-        self.session.add(
-            AuditLog(
-                restaurant_id=actor.restaurant_id,
-                actor_employee_id=actor.employee_id,
-                action=action,
-                entity_type="cash_session",
-                entity_id=till_id,
-                new_value=new,
-            )
-        )

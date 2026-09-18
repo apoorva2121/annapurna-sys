@@ -31,8 +31,8 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
+from app.core.audit import audited, record
 from app.core.errors import AppError, ConflictError, NotFoundError
-from app.models.audit import AuditLog
 from app.models.menu import MenuItem, MenuItemVariant
 from app.models.stock import (
     IngredientProfile,
@@ -115,6 +115,7 @@ class StockService:
             raise NotFoundError("stock_item.not_found", "That stock item does not exist.")
         return item
 
+    @audited("stock_item.created", entity="stock_item")
     async def create_item(self, actor: Actor, request: StockItemCreateRequest) -> StockItem:
         repo = self._items(actor)
         if await repo.code_exists(request.code):
@@ -190,12 +191,14 @@ class StockService:
         if "current_unit_cost" in changes and before["current_unit_cost"] != item.current_unit_cost:
             # A price change moves every dish that uses this. Audited for the same reason a menu
             # reprice is: it changes money and leaves no other trace (invariant 6).
-            await self._audit(
+            record(
+                self.session,
                 actor,
                 action="stock_item.repriced",
+                entity="stock_item",
                 entity_id=item.id,
-                old_value={"current_unit_cost": before["current_unit_cost"]},
-                new_value={"current_unit_cost": item.current_unit_cost},
+                old={"current_unit_cost": before["current_unit_cost"]},
+                new={"current_unit_cost": item.current_unit_cost},
             )
         return await self.get_item(actor, item_id)
 
@@ -342,12 +345,14 @@ class StockService:
             )
         await self.session.flush()
 
-        await self._audit(
+        record(
+            self.session,
             actor,
             action="recipe.version_created",
+            entity="recipe",
             entity_id=recipe.id,
-            old_value={"owner": owner, "version": version - 1} if version > 1 else None,
-            new_value={"owner": owner, "version": version, "unit_cost": recipe.unit_cost},
+            old={"owner": owner, "version": version - 1} if version > 1 else None,
+            new={"owner": owner, "version": version, "unit_cost": recipe.unit_cost},
         )
         return await self.get_recipe(actor, recipe.id)
 
@@ -362,12 +367,14 @@ class StockService:
         if recipe.confirmed_at is None:
             recipe.confirmed_at = datetime.now(UTC)
             await self.session.flush()
-            await self._audit(
+            record(
+                self.session,
                 actor,
                 action="recipe.confirmed",
+                entity="recipe",
                 entity_id=recipe.id,
-                old_value=None,
-                new_value={"confirmed_at": recipe.confirmed_at},
+                old=None,
+                new={"confirmed_at": recipe.confirmed_at},
             )
         return recipe
 
@@ -613,27 +620,6 @@ class StockService:
         if not batch_yield:
             return cost.total
         return cost.total / batch_yield
-
-    async def _audit(
-        self,
-        actor: Actor,
-        *,
-        action: str,
-        entity_id: uuid.UUID,
-        old_value: dict[str, Any] | None,
-        new_value: dict[str, Any],
-    ) -> None:
-        self.session.add(
-            AuditLog(
-                restaurant_id=actor.restaurant_id,
-                actor_employee_id=actor.employee_id,
-                action=action,
-                entity_type="recipe" if action.startswith("recipe") else "stock_item",
-                entity_id=entity_id,
-                old_value=_jsonable(old_value),
-                new_value=_jsonable(new_value),
-            )
-        )
 
 
 def _jsonable(value: dict[str, Any] | None) -> dict[str, Any] | None:

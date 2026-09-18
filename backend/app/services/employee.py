@@ -27,13 +27,13 @@ from datetime import UTC, date, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
+from app.core.audit import record
 from app.core.enums import EmploymentType, UserAccountStatus
 from app.core.errors import AppError, ConflictError, NotFoundError, PermissionDeniedError
 from app.core.identifiers import normalise_identifier
 from app.core.permissions import may_assign_rank, may_reset_password
 from app.core.security import hash_password
 from app.models.access import EmployeeRoleAssignment, Role
-from app.models.audit import AuditLog
 from app.models.identity import Employee, UserAccount
 from app.repositories.access import AccessRepository
 from app.repositories.account import UserAccountRepository, UserSessionRepository
@@ -157,12 +157,13 @@ class EmployeeService:
         self.session.add(employee)
         await self.session.flush()
 
-        await self._audit(
+        record(
+            self.session,
             actor,
-            "employee.create",
-            employee.id,
-            None,
-            {
+            action="employee.create",
+            entity="employee",
+            entity_id=employee.id,
+            new={
                 "full_name": employee.full_name,
                 "employee_code": employee.employee_code,
                 "has_login": account_id is not None,
@@ -235,8 +236,14 @@ class EmployeeService:
             setattr(employee, field, value)
         await self.session.flush()
 
-        await self._audit(
-            actor, "employee.update", employee.id, _jsonable(before), _jsonable(changes)
+        record(
+            self.session,
+            actor,
+            action="employee.update",
+            entity="employee",
+            entity_id=employee.id,
+            old=_jsonable(before),
+            new=_jsonable(changes),
         )
         return employee
 
@@ -268,12 +275,14 @@ class EmployeeService:
             revoked = await self.sessions.revoke_all_for_account(employee.user_account_id)
         await self.session.flush()
 
-        await self._audit(
+        record(
+            self.session,
             actor,
-            "employee.deactivate",
-            employee.id,
-            {"is_active": True},
-            {"is_active": False, "sessions_revoked": revoked},
+            action="employee.deactivate",
+            entity="employee",
+            entity_id=employee.id,
+            old={"is_active": True},
+            new={"is_active": False, "sessions_revoked": revoked},
         )
         return employee
 
@@ -289,8 +298,14 @@ class EmployeeService:
         employee.is_active = True
         employee.deactivated_at = None
         await self.session.flush()
-        await self._audit(
-            actor, "employee.reactivate", employee.id, {"is_active": False}, {"is_active": True}
+        record(
+            self.session,
+            actor,
+            action="employee.reactivate",
+            entity="employee",
+            entity_id=employee.id,
+            old={"is_active": False},
+            new={"is_active": True},
         )
         return employee
 
@@ -357,12 +372,14 @@ class EmployeeService:
             await self.sessions.revoke_all_for_account(employee.user_account_id)
 
         after = await self.access.resolve(employee.id, actor.restaurant_id)
-        await self._audit(
+        record(
+            self.session,
             actor,
-            "employee.role.assign",
-            employee.id,
-            {"roles": list(before.role_codes)},
-            {"roles": list(after.role_codes)},
+            action="employee.role.assign",
+            entity="employee",
+            entity_id=employee.id,
+            old={"roles": list(before.role_codes)},
+            new={"roles": list(after.role_codes)},
         )
         return after.role_codes
 
@@ -434,43 +451,16 @@ class EmployeeService:
         revoked = await self.sessions.revoke_all_for_account(account.id)
         await self.session.flush()
 
-        await self._audit(
+        record(
+            self.session,
             actor,
-            "employee.password.reset",
-            employee.id,
-            None,
-            {"sessions_revoked": revoked},
+            action="employee.password.reset",
+            entity="employee",
+            entity_id=employee.id,
+            new={"sessions_revoked": revoked},
         )
 
     # ------------------------------------------------------------------- audit
-
-    async def _audit(
-        self,
-        actor: Actor,
-        action: str,
-        entity_id: uuid.UUID,
-        old_value: dict[str, object] | None,
-        new_value: dict[str, object] | None,
-    ) -> None:
-        """Append-only, and never carries a credential.
-
-        The redaction is at the call site rather than in the writer, because this table is readable
-        by anyone holding the audit permission — a password hash landing here would be a leak with
-        a long tail.
-        """
-        self.session.add(
-            AuditLog(
-                restaurant_id=actor.restaurant_id,
-                actor_employee_id=actor.employee_id,
-                action=action,
-                entity_type="employee",
-                entity_id=entity_id,
-                old_value=old_value,
-                new_value=new_value,
-                occurred_at=datetime.now(UTC),
-            )
-        )
-        await self.session.flush()
 
 
 def _jsonable(values: dict[str, object]) -> dict[str, object]:

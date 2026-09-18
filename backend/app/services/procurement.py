@@ -43,10 +43,10 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
+from app.core.audit import record
 from app.core.enums import CostSource, PurchaseOrderStatus
 from app.core.errors import AppError, ConflictError, NotFoundError
 from app.core.tenancy import TenantScope
-from app.models.audit import AuditLog
 from app.models.procurement import (
     GoodsReceipt,
     GoodsReceiptLine,
@@ -239,28 +239,6 @@ class ProcurementService:
 
     # ------------------------------------------------------------------ helpers
 
-    def _audit(
-        self,
-        actor: Actor,
-        action: str,
-        entity_type: str,
-        entity_id: uuid.UUID,
-        *,
-        old_value: dict[str, Any] | None = None,
-        new_value: dict[str, Any] | None = None,
-    ) -> None:
-        self.session.add(
-            AuditLog(
-                restaurant_id=actor.restaurant_id,
-                actor_employee_id=actor.employee_id,
-                action=action,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                old_value=old_value,
-                new_value=new_value,
-            )
-        )
-
     async def _require_supplier(self, supplier_id: uuid.UUID) -> Supplier:
         supplier = await self.suppliers.get(supplier_id)
         if supplier is None:
@@ -315,8 +293,13 @@ class ProcurementService:
         supplier = Supplier(restaurant_id=self.scope.restaurant_id, name=normalised, **fields)
         self.session.add(supplier)
         await self.session.flush()
-        self._audit(
-            actor, "supplier.created", "supplier", supplier.id, new_value={"name": normalised}
+        record(
+            self.session,
+            actor,
+            action="supplier.created",
+            entity="supplier",
+            entity_id=supplier.id,
+            new={"name": normalised},
         )
         return supplier
 
@@ -350,13 +333,14 @@ class ProcurementService:
             setattr(supplier, field, value)
         await self.session.flush()
 
-        self._audit(
+        record(
+            self.session,
             actor,
-            "supplier.updated",
-            "supplier",
-            supplier.id,
-            old_value=before,
-            new_value={"name": supplier.name, "is_active": supplier.is_active},
+            action="supplier.updated",
+            entity="supplier",
+            entity_id=supplier.id,
+            old=before,
+            new={"name": supplier.name, "is_active": supplier.is_active},
         )
         return supplier
 
@@ -406,12 +390,13 @@ class ProcurementService:
         await self.session.flush()
         order.total_amount = await self._replace_lines(order, lines)
         await self.session.flush()
-        self._audit(
+        record(
+            self.session,
             actor,
-            "purchase_order.created",
-            "purchase_order",
-            order.id,
-            new_value={"po_number": order.po_number, "total_amount": str(order.total_amount)},
+            action="purchase_order.created",
+            entity="purchase_order",
+            entity_id=order.id,
+            new={"po_number": order.po_number, "total_amount": str(order.total_amount)},
         )
         return order
 
@@ -475,7 +460,13 @@ class ProcurementService:
             await self.session.flush()
             order.total_amount = await self._replace_lines(order, lines)
         await self.session.flush()
-        self._audit(actor, "purchase_order.updated", "purchase_order", order.id)
+        record(
+            self.session,
+            actor,
+            action="purchase_order.updated",
+            entity="purchase_order",
+            entity_id=order.id,
+        )
         return order
 
     async def send_order(self, actor: Actor, order_id: uuid.UUID) -> PurchaseOrder:
@@ -488,13 +479,14 @@ class ProcurementService:
             )
         order.status = PurchaseOrderStatus.SENT
         await self.session.flush()
-        self._audit(
+        record(
+            self.session,
             actor,
-            "purchase_order.sent",
-            "purchase_order",
-            order.id,
-            old_value={"status": PurchaseOrderStatus.DRAFT.value},
-            new_value={"status": order.status},
+            action="purchase_order.sent",
+            entity="purchase_order",
+            entity_id=order.id,
+            old={"status": PurchaseOrderStatus.DRAFT.value},
+            new={"status": order.status},
         )
         return order
 
@@ -525,13 +517,14 @@ class ProcurementService:
         order.cancelled_at = datetime.now(UTC)
         order.cancel_reason = reason.strip()
         await self.session.flush()
-        self._audit(
+        record(
+            self.session,
             actor,
-            "purchase_order.cancelled",
-            "purchase_order",
-            order.id,
-            old_value={"status": previous},
-            new_value={"status": order.status, "reason": order.cancel_reason},
+            action="purchase_order.cancelled",
+            entity="purchase_order",
+            entity_id=order.id,
+            old={"status": previous},
+            new={"status": order.status, "reason": order.cancel_reason},
         )
         return order
 
@@ -592,12 +585,13 @@ class ProcurementService:
         if order is not None:
             await self._refresh_order_status(actor, order)
         await self.session.flush()
-        self._audit(
+        record(
+            self.session,
             actor,
-            "goods_receipt.posted",
-            "goods_receipt",
-            receipt.id,
-            new_value={
+            action="goods_receipt.posted",
+            entity="goods_receipt",
+            entity_id=receipt.id,
+            new={
                 "supplier_id": str(supplier_id),
                 "invoice_number": invoice_number,
                 "lines": len(variances),
@@ -820,13 +814,14 @@ class ProcurementService:
             return
         item.current_unit_cost = landed
         item.cost_source = CostSource.PURCHASE
-        self._audit(
+        record(
+            self.session,
             actor,
-            "stock_item.repriced",
-            "stock_item",
-            item.id,
-            old_value={"current_unit_cost": str(before_cost), "cost_source": before_source},
-            new_value={"current_unit_cost": str(landed), "cost_source": CostSource.PURCHASE.value},
+            action="stock_item.repriced",
+            entity="stock_item",
+            entity_id=item.id,
+            old={"current_unit_cost": str(before_cost), "cost_source": before_source},
+            new={"current_unit_cost": str(landed), "cost_source": CostSource.PURCHASE.value},
         )
 
     async def _refresh_order_status(self, actor: Actor, order: PurchaseOrder) -> None:
@@ -851,13 +846,14 @@ class ProcurementService:
         elif anything:
             order.status = PurchaseOrderStatus.PARTIAL
         if order.status != previous:
-            self._audit(
+            record(
+                self.session,
                 actor,
-                "purchase_order.status_changed",
-                "purchase_order",
-                order.id,
-                old_value={"status": previous},
-                new_value={"status": order.status},
+                action="purchase_order.status_changed",
+                entity="purchase_order",
+                entity_id=order.id,
+                old={"status": previous},
+                new={"status": order.status},
             )
 
     # ------------------------------------------------------------------ reads
