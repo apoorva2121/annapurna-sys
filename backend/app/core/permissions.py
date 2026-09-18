@@ -202,6 +202,15 @@ class PermissionCode(StrEnum):
     # subject curates is not a record. The P1 design drew that line; this only ships it.
     AUDIT_VIEW = "audit.view"
 
+    # M17. `performance.view.own` is held by **every** role and is not removable by configuration
+    # (ADR 0011) — a score an employee cannot see is surveillance, and the same score visible with
+    # its inputs is feedback. Which of the two this feature becomes is decided by that one line.
+    PERFORMANCE_VIEW_OWN = "performance.view.own"
+    PERFORMANCE_VIEW_TEAM = "performance.view.team"
+    PERFORMANCE_PUBLISH = "performance.publish"
+    INCENTIVE_CONFIGURE = "incentive.configure"
+    RECOGNITION_AWARD = "recognition.award"
+
 
 class PermissionSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

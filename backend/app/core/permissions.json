@@ -323,6 +323,36 @@
       "resource": "audit",
       "action": "view",
       "description": "Read the audit trail: who changed a price, who voided a bill, who granted a role, and what the value was before and after. Held by the owner, the administrator and the accountant. A manager is deliberately not given it - the person who runs the floor is frequently the subject of the record, and a record its subject curates is not a record."
+    },
+    {
+      "code": "performance.view.own",
+      "resource": "performance.view",
+      "action": "own",
+      "description": "See your own performance figures and everything they are computed from. **Held by every role, and it is not removable by configuration** (ADR 0011): a score an employee cannot see is surveillance and lowers morale; the same score, visible with its inputs, is feedback and raises it. Which of those two this feature becomes is decided by this line."
+    },
+    {
+      "code": "performance.view.team",
+      "resource": "performance.view",
+      "action": "team",
+      "description": "See the team's performance figures. Top contributors are visible to everyone who holds it; a bottom ranking is not returned by any endpoint in this product, and below five scored people the team view shows nobody but the viewer - with three waiters, naming the top two names the third."
+    },
+    {
+      "code": "performance.publish",
+      "resource": "performance",
+      "action": "publish",
+      "description": "Freeze a period. Publishing writes the computed figures into `performance_score` and they are never recomputed, because a later void must not rewrite the basis on which a bonus was paid. The owner's, because it is the act that turns a measurement into a payment."
+    },
+    {
+      "code": "incentive.configure",
+      "resource": "incentive",
+      "action": "configure",
+      "description": "Set the weights a score is computed from. The owner's alone: it decides what the restaurant pays people to do, and a volume weight above the combined accuracy and rating weights is refused on save because it would pay people to rush."
+    },
+    {
+      "code": "recognition.award",
+      "resource": "recognition",
+      "action": "award",
+      "description": "Grant an award - cash, leave, a preferred shift, a meal, or simple recognition - with a citation saying what it is for. **Granted by a person, never by a score** (ADR 0011): data informs the decision and never makes it."
     }
   ],
   "roles": [
@@ -346,6 +376,7 @@
         "employee.view",
         "feedback.view",
         "floor.manage",
+        "incentive.configure",
         "kot.update",
         "kot.view",
         "menu.manage",
@@ -359,9 +390,13 @@
         "order.settle",
         "order.view",
         "order.void",
+        "performance.publish",
+        "performance.view.own",
+        "performance.view.team",
         "purchase.manage",
         "recipe.manage",
         "recipe.view",
+        "recognition.award",
         "report.financial.view",
         "report.operational.view",
         "restaurant.configure",
@@ -397,6 +432,7 @@
         "employee.view",
         "menu.view",
         "message.send",
+        "performance.view.own",
         "restaurant.configure",
         "role.view",
         "shift.view",
@@ -440,8 +476,11 @@
         "order.settle",
         "order.view",
         "order.void",
+        "performance.view.own",
+        "performance.view.team",
         "purchase.manage",
         "recipe.view",
+        "recognition.award",
         "report.operational.view",
         "role.view",
         "shift.manage",
@@ -471,6 +510,8 @@
         "kot.view",
         "menu.view",
         "message.send",
+        "performance.view.own",
+        "performance.view.team",
         "recipe.manage",
         "recipe.view",
         "shift.view",
@@ -490,6 +531,7 @@
         "kot.update",
         "kot.view",
         "message.send",
+        "performance.view.own",
         "recipe.view",
         "shift.view",
         "stock.view",
@@ -513,6 +555,7 @@
         "order.modify",
         "order.settle",
         "order.view",
+        "performance.view.own",
         "shift.view",
         "task.complete",
         "task.view"
@@ -525,6 +568,7 @@
       "description": "Runs the store room and supplier relationships. Manages stock, not people.",
       "permissions": [
         "message.send",
+        "performance.view.own",
         "purchase.manage",
         "recipe.view",
         "report.operational.view",
@@ -549,6 +593,7 @@
       "description": "Referenced by tasks and shifts. Frequently has no login at all.",
       "permissions": [
         "message.send",
+        "performance.view.own",
         "shift.view",
         "task.complete",
         "task.view"
@@ -564,6 +609,7 @@
         "employee.view",
         "message.send",
         "order.view",
+        "performance.view.own",
         "purchase.manage",
         "report.financial.view",
         "report.operational.view",

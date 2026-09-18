@@ -60,6 +60,13 @@ from app.models.orders import (
     OrderTable,
     Payment,
 )
+from app.models.performance import (
+    IncentiveScheme,
+    PerformanceNote,
+    PerformancePeriod,
+    PerformanceScore,
+    RecognitionAward,
+)
 from app.models.procurement import (
     GoodsReceipt,
     GoodsReceiptLine,
@@ -103,6 +110,7 @@ __all__ = [
     "GoodsReceipt",
     "GoodsReceiptLine",
     "IdempotencyKey",
+    "IncentiveScheme",
     "IngredientProfile",
     "Invoice",
     "Issue",
@@ -125,12 +133,16 @@ __all__ = [
     "OrderTable",
     "Organization",
     "Payment",
+    "PerformanceNote",
+    "PerformancePeriod",
+    "PerformanceScore",
     "Permission",
     "PreparationProfile",
     "PurchaseOrder",
     "PurchaseOrderLine",
     "Recipe",
     "RecipeLine",
+    "RecognitionAward",
     "Restaurant",
     "RestaurantTable",
     "Role",

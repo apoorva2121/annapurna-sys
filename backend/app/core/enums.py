@@ -544,3 +544,62 @@ class ShiftAssignmentStatus(StrEnum):
     ABSENT = "absent"
     LATE = "late"
     LEAVE = "leave"
+
+
+class PerformancePeriodType(StrEnum):
+    """A week or a month. Nothing shorter, because a day of a restaurant is weather."""
+
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+
+
+class PerformancePeriodStatus(StrEnum):
+    """`draft -> published -> finalised`, and **publish is the freeze** (ADR 0011).
+
+    While draft every metric is computed live. On publish they are written into
+    `performance_score` and never recomputed, for the same reason `theoretical_food_cost` is frozen
+    at settlement: a later void must not rewrite the basis on which a bonus was paid.
+    """
+
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    FINALISED = "finalised"
+
+
+class PerformanceMetricKind(StrEnum):
+    """Whether a metric carries weight, and the whole of ADR 0011's second decision.
+
+    `CONTEXT` metrics are shown beside the score and contribute **zero**. A waiter penalised for the
+    tandoor running slow will correctly conclude the system is stupid and ignore all of it - so
+    kitchen delay, section footfall, table size and tips are context, and showing them is what makes
+    a low score explainable rather than accusatory.
+    """
+
+    CONTROLLABLE = "controllable"
+    CONTEXT = "context"
+
+
+class PerformanceNoteKind(StrEnum):
+    """Who is talking, and whether an answer is owed.
+
+    A `DISPUTE` is raised by the person being measured, and a period **cannot be published while
+    one is unanswered**. `docs/workload-fairness.md`'s ethics review: visibility without recourse is
+    the shape of surveillance rather than of feedback.
+    """
+
+    CONTEXT = "context"
+    DISPUTE = "dispute"
+
+
+class AwardType(StrEnum):
+    """What recognition can be, and it need not be money.
+
+    In Indian restaurants non-cash recognition often lands harder than a small bonus - a name on a
+    board by the kitchen door is cheap and works (`docs/workload-fairness.md`).
+    """
+
+    CASH = "cash"
+    LEAVE = "leave"
+    SHIFT_PREFERENCE = "shift_preference"
+    MEAL = "meal"
+    RECOGNITION_ONLY = "recognition_only"
