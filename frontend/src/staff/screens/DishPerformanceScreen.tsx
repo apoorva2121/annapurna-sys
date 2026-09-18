@@ -1,6 +1,9 @@
 import type { ReactElement } from 'react';
+import { Link } from 'react-router-dom';
 
 import { formatINR } from '@shared/money';
+import { Permission } from '@shared/permissions';
+import { useAuth } from '@staff/auth/AuthContext';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@shared/ui/table';
 import { ExportButton } from '@staff/components/ExportButton';
 import { QueryState } from '@staff/components/QueryState';
@@ -26,6 +29,9 @@ import { type DishLine, type DishReport, useDishReport } from '@staff/api/report
  */
 export default function DishPerformanceScreen(): ReactElement {
   const report = useDishReport();
+  // Decision 4. Gated, because an accountant holds the report and not the costing screen, and a
+  // link that answers 403 reads as a broken product.
+  const { can } = useAuth();
 
   return (
     <div className="flex flex-col gap-page">
@@ -36,13 +42,15 @@ export default function DishPerformanceScreen(): ReactElement {
         error={report.error}
         pendingLabel={strings.reports.loading}
       >
-        {report.data === undefined ? null : <Dishes report={report.data} />}
+        {report.data === undefined ? null : (
+          <Dishes report={report.data} toCosts={can(Permission.COST_VIEW)} />
+        )}
       </QueryState>
     </div>
   );
 }
 
-function Dishes({ report }: { report: DishReport }): ReactElement {
+function Dishes({ report, toCosts }: { report: DishReport; toCosts: boolean }): ReactElement {
   if (report.lines.length === 0) {
     return (
       <div className="flex flex-col gap-2">
@@ -76,7 +84,7 @@ function Dishes({ report }: { report: DishReport }): ReactElement {
           </TableHeader>
           <TableBody>
             {report.lines.map((line) => (
-              <Line key={line.variant_id} line={line} />
+              <Line key={line.variant_id} line={line} toCosts={toCosts} />
             ))}
           </TableBody>
         </Table>
@@ -85,11 +93,17 @@ function Dishes({ report }: { report: DishReport }): ReactElement {
   );
 }
 
-function Line({ line }: { line: DishLine }): ReactElement {
+function Line({ line, toCosts }: { line: DishLine; toCosts: boolean }): ReactElement {
   return (
     <TableRow>
       <TableCell>
-        <span className="font-medium">{line.item_name}</span>
+        {toCosts ? (
+          <Link className="font-medium underline" to="/costs">
+            {line.item_name}
+          </Link>
+        ) : (
+          <span className="font-medium">{line.item_name}</span>
+        )}
         <span className="ml-2 text-xs text-muted-foreground">{line.variant_name}</span>
         {/* The quadrant, in words, beside the dish it describes. */}
         <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs">

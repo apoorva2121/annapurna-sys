@@ -1,6 +1,9 @@
 import type { ReactElement } from 'react';
+import { Link } from 'react-router-dom';
 
 import { formatINR } from '@shared/money';
+import { Permission } from '@shared/permissions';
+import { useAuth } from '@staff/auth/AuthContext';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@shared/ui/table';
 import { ExportButton } from '@staff/components/ExportButton';
 import { QueryState } from '@staff/components/QueryState';
@@ -25,6 +28,10 @@ import { type VarianceLine, type VarianceReport, useVarianceReport } from '@staf
  */
 export default function VarianceReportScreen(): ReactElement {
   const report = useVarianceReport();
+  // Decision 4: every figure reaches the rows it was computed from. Gated, because offering a
+  // door that answers 403 reads as a broken product (ADR 0007) — an accountant holds the report
+  // and not the ledger.
+  const { can } = useAuth();
 
   return (
     <div className="flex flex-col gap-page">
@@ -35,13 +42,21 @@ export default function VarianceReportScreen(): ReactElement {
         error={report.error}
         pendingLabel={strings.reports.loading}
       >
-        {report.data === undefined ? null : <Variance report={report.data} />}
+        {report.data === undefined ? null : (
+          <Variance report={report.data} toLedger={can(Permission.STOCK_VIEW)} />
+        )}
       </QueryState>
     </div>
   );
 }
 
-function Variance({ report }: { report: VarianceReport }): ReactElement {
+function Variance({
+  report,
+  toLedger,
+}: {
+  report: VarianceReport;
+  toLedger: boolean;
+}): ReactElement {
   return (
     <>
       <p className="text-sm text-muted-foreground tabular-nums">
@@ -80,7 +95,7 @@ function Variance({ report }: { report: VarianceReport }): ReactElement {
             </TableHeader>
             <TableBody>
               {report.lines.map((line) => (
-                <Line key={line.stock_item_id} line={line} />
+                <Line key={line.stock_item_id} line={line} toLedger={toLedger} />
               ))}
             </TableBody>
           </Table>
@@ -96,10 +111,18 @@ function Variance({ report }: { report: VarianceReport }): ReactElement {
  * Quantities carry their base unit because a bare "400" beside paneer means nothing — units are
  * canonical in the ledger (invariant 5) and the screen is where that becomes readable.
  */
-function Line({ line }: { line: VarianceLine }): ReactElement {
+function Line({ line, toLedger }: { line: VarianceLine; toLedger: boolean }): ReactElement {
   return (
     <TableRow>
-      <TableCell className="font-medium">{line.item_name}</TableCell>
+      <TableCell className="font-medium">
+        {toLedger ? (
+          <Link className="underline" to="/stock/on-hand">
+            {line.item_name}
+          </Link>
+        ) : (
+          line.item_name
+        )}
+      </TableCell>
       <TableCell className="text-right tabular-nums">
         {line.theoretical_quantity} {line.base_unit}
       </TableCell>

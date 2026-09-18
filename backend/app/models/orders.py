@@ -556,6 +556,12 @@ class Invoice(TimestampedUUIDMixin, Base):
         ),
         CheckConstraint("round_off BETWEEN -0.50 AND 0.50", name="ck_invoice_round_off"),
         Index("ix_invoice_restaurant_date", "restaurant_id", "invoice_date"),
+        # M13, from a query plan rather than a guess. The sales report filters on
+        # `business_date` — a restaurant's day, which starts at 05:00 (invariant 4) — and the
+        # index above is on `invoice_date`, the date printed on the document. They are
+        # different columns and only one of them was indexed, so the most-run report in the
+        # product had no index available for the column it filters on.
+        Index("ix_invoice_restaurant_business_date", "restaurant_id", "business_date"),
     )
 
     restaurant_id: Mapped[uuid.UUID] = mapped_column(_uuid(), nullable=False)

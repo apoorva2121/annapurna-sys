@@ -34,6 +34,8 @@ replace.
 | **E · the business day** | Verified: a 01:30 order counts to the previous day in every report. **E1 by hand** |
 | **F · CSV** | Verified: the export and the screen agree row for row. **F2 in Excel** |
 | **G · who may see what** | Verified by the permission matrix over every route. **G1 and G3 by hand** |
+| **I · the waste report** | Verified: the split by stage, the shares within a paisa, and that it agrees with M09's own summary. **I3 is the one for you** |
+| **J · drill-through** | Verified: every link is gated on the permission that opens the screen behind it. **J1 by hand** |
 | **H · exploratory** | Not run. Yours |
 
 Short of time? Do **C**, then **B4**, then the H charter.
@@ -120,6 +122,38 @@ developer imagines; the one you go looking for at 11pm on a Sunday is the one th
 | G3 | As **accountant**, open the sales and variance reports | Both work |
 | G4 | As **waiter1**, try any report address | Refused with a readable message |
 | G5 | As **manager@tandoorhouse.test**, open every report | Their own restaurant's figures only — never Spice Garden's |
+
+---
+
+## I · The waste report
+
+There are **two waste screens in this product on purpose**, and this is the one behind the reports.
+M09's (**Waste → Summary**) sits behind `stock.view`, which a chef holds and an accountant does not;
+this one sits behind `report.operational.view`, which an accountant holds and a chef does not.
+Neither role can reach the other's, so both exist. They must always agree.
+
+| # | Step | Expect |
+|---|---|---|
+| I1 | As **owner**, open **Reports → Waste** | A total at the top and a line per reason underneath, grouped by where it happened. **Never one number on its own** — the total is the heading, the stages are the answer |
+| I2 | Add up the share column | 100%, give or take a paisa. Three equal thirds come to 99.99% and that is arithmetic, not a bug |
+| I3 | **The question.** Look at the biggest stage | Does it tell you who to talk to? Receiving is the store manager at the gate, prep is the chef and the batch size, service is portion control. If the biggest line does not suggest a person and an action, tell me |
+| I4 | Compare it with **Waste → Summary** (M09) as the **manager**, same dates | The same lines and the same figures. Two waste screens disagreeing would be the worst defect in this module |
+| I5 | As **accountant**, open **Reports → Waste**, then try M09's **Waste → Summary** | The report opens; M09's refuses. That is the reason both exist |
+| I6 | Export it | A CSV with the stage, the reason, the times, the cost and the share |
+
+---
+
+## J · Drill-through — every figure reaches its rows
+
+Decision 4: *a figure that cannot be opened is a figure nobody trusts the second time it surprises
+them.*
+
+| # | Step | Expect |
+|---|---|---|
+| J1 | On the **variance** report, click an ingredient's name | The stock ledger opens. Its movement history is the rows the variance was computed from |
+| J2 | On **dish performance**, click a dish's name | The dish-cost screen opens |
+| J3 | On the **sales** report, click a day | The bills screen opens |
+| J4 | As **accountant**, look at the same three | The names are **plain text, not links** — an accountant reads the books and does not hold the ledger, the costing screen or the bills. A link that answered "you do not have access to this" would read as a broken product |
 
 ---
 

@@ -1,6 +1,9 @@
 import type { ReactElement } from 'react';
+import { Link } from 'react-router-dom';
 
 import { formatINR } from '@shared/money';
+import { Permission } from '@shared/permissions';
+import { useAuth } from '@staff/auth/AuthContext';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@shared/ui/table';
 import { ExportButton } from '@staff/components/ExportButton';
 import { QueryState } from '@staff/components/QueryState';
@@ -21,6 +24,9 @@ import { type SalesReport, useSalesReport } from '@staff/api/reports';
  */
 export default function SalesReportScreen(): ReactElement {
   const report = useSalesReport();
+  // Decision 4: a day's revenue reaches the bills that made it. Gated, because the bills screen is
+  // a manager's and an accountant reads the books without holding it.
+  const { can } = useAuth();
 
   return (
     <div className="flex flex-col gap-page">
@@ -30,13 +36,15 @@ export default function SalesReportScreen(): ReactElement {
         error={report.error}
         pendingLabel={strings.reports.loading}
       >
-        {report.data === undefined ? null : <Sales report={report.data} />}
+        {report.data === undefined ? null : (
+          <Sales report={report.data} toBills={can(Permission.ORDER_VOID)} />
+        )}
       </QueryState>
     </div>
   );
 }
 
-function Sales({ report }: { report: SalesReport }): ReactElement {
+function Sales({ report, toBills }: { report: SalesReport; toBills: boolean }): ReactElement {
   return (
     <>
       <p className="text-sm text-muted-foreground tabular-nums">
@@ -80,7 +88,15 @@ function Sales({ report }: { report: SalesReport }): ReactElement {
           <TableBody>
             {report.days.map((day) => (
               <TableRow key={day.business_date}>
-                <TableCell className="tabular-nums">{day.business_date}</TableCell>
+                <TableCell className="tabular-nums">
+                  {toBills ? (
+                    <Link className="underline" to="/bills">
+                      {day.business_date}
+                    </Link>
+                  ) : (
+                    day.business_date
+                  )}
+                </TableCell>
                 <TableCell className="text-right tabular-nums">{day.orders}</TableCell>
                 <TableCell className="text-right tabular-nums">{day.covers}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatINR(day.revenue)}</TableCell>

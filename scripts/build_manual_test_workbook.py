@@ -49,6 +49,7 @@ _MODULE_NAMES = {
     "M10": "Customers — regulars, feedback, complaints, guest app",
     "M11": "Communication — messages, tasks, attachments",
     "M12": "Shifts — the roster and the clock",
+    "M13": "Reports — the dashboards, the variance, and the money",
 }
 
 

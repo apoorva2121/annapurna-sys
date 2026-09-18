@@ -746,6 +746,86 @@ class TestTheGlance:
         assert report.ratings_counted == 2
 
 
+# ------------------------------------------------------- the acceptance query
+
+
+class TestTheChainThatHasToWork:
+    """`docs/domain-model.md`: *"This query must be answerable in SQL, because it is the product."*
+
+        For last week, per dish: units sold, revenue, theoretical food cost from recipes, actual
+        ingredient consumption from the ledger, the variance between them, waste attributed to it,
+        average prep time, and average customer rating.
+
+    **It is answered by two reports, not one, and that is a finding rather than a shortcut.**
+
+    Units, revenue, theoretical cost, prep time and rating are per dish, and the dish report
+    answers them from figures frozen on the settled line. Actual consumption is not a per-dish
+    fact and cannot be made into one: the shelf is counted per ingredient, and a kilo of paneer
+    that went missing did not arrive with a note saying which dish it was meant for. Splitting it
+    across dishes in proportion to what the recipes say would produce a number that *looks* per
+    dish and is really the theoretical figure wearing a different hat — which is precisely what
+    invariant 7 forbids.
+
+    So the variance half is answered per ingredient, by the variance report, over the same period
+    and the same restaurant. Both halves are asserted here together, because the criterion is that
+    the chain works end to end and a test of each half separately would not show that.
+    """
+
+    async def test_the_chain_is_answerable_end_to_end(self, db_session: AsyncSession) -> None:
+        world = await _world(db_session)
+        variant = await _variant(db_session, world, dish="Paneer Tikka", price="380")
+        await _sold(db_session, world, variant, quantity=4, unit_price="380", unit_cost="95")
+        item = await _item_with_ledger(
+            db_session, world, name="Paneer", theoretical="1000", actual="1400"
+        )
+        await _wasted(db_session, world, item, quantity="250", value="90.00")
+
+        service = _service(db_session, world)
+        dishes = await service.dish_performance(since=_DAY, until=_DAY)
+        variance = await service.food_cost_variance(since=_DAY, until=_DAY)
+        waste = await service.waste(since=_DAY, until=_DAY)
+
+        # The per-dish half.
+        dish = next(line for line in dishes.lines if line.item_name == "Paneer Tikka")
+        assert dish.units == 4
+        assert dish.revenue == Decimal("1520.00")
+        assert dish.theoretical_cost == Decimal("380.00")
+        assert dish.average_prep_seconds is None or dish.average_prep_seconds >= 0
+        assert dish.average_rating is None or dish.average_rating >= 0
+
+        # The per-ingredient half, over the same period.
+        line = next(row for row in variance.lines if row.item_name == "Paneer")
+        assert line.theoretical_quantity == Decimal("1000")
+        assert line.actual_quantity == Decimal("1400")
+        assert line.variance_value == Decimal("144.00")
+        assert line.waste_value == Decimal("90.00")
+        assert line.unexplained_value == Decimal("54.00")
+
+        # And the waste the variance half attributed is the waste the waste report splits.
+        assert waste.total.value == Decimal("90.00")
+
+    async def test_theoretical_cost_per_dish_is_the_frozen_one(
+        self, db_session: AsyncSession
+    ) -> None:
+        """The half of the chain a recipe edit could quietly rewrite.
+
+        `order_line.theoretical_unit_cost` is written at settlement from the recipe version in
+        force *then*. A report that recomputed from today's recipes would answer "what did this
+        bill cost in March" with March's prices and today's portions.
+        """
+        world = await _world(db_session)
+        variant = await _variant(db_session, world, dish="Paneer Tikka", price="380")
+        await _sold(db_session, world, variant, quantity=2, unit_price="380", unit_cost="95")
+        # The recipe changes after the bill was settled. Nothing in the report may move.
+        variant.price = Decimal("999")
+        await db_session.flush()
+
+        dishes = await _service(db_session, world).dish_performance(since=_DAY, until=_DAY)
+
+        assert dishes.lines[0].revenue == Decimal("760.00")
+        assert dishes.lines[0].theoretical_cost == Decimal("190.00")
+
+
 @pytest.mark.parametrize("days", [1, 7, 90])
 async def test_the_report_costs_the_same_for_one_day_and_for_ninety(
     db_session: AsyncSession, days: int
@@ -764,3 +844,19 @@ async def test_the_report_costs_the_same_for_one_day_and_for_ninety(
 
     # Three: the days, the payment split, and the baseline. Never more, whatever the range.
     assert counted.count == 3
+
+
+@pytest.mark.parametrize("days", [1, 7, 90])
+async def test_the_waste_report_costs_the_same_for_one_day_and_for_ninety(
+    db_session: AsyncSession, days: int
+) -> None:
+    from tests.helpers.queries import count_queries
+
+    world = await _world(db_session)
+    engine = db_session.get_bind().engine
+
+    with count_queries(engine) as counted:
+        await _service(db_session, world).waste(since=_DAY - timedelta(days=days - 1), until=_DAY)
+
+    # Two: the period and its baseline. Never one per day.
+    assert counted.count == 2

@@ -1415,6 +1415,20 @@ menu_item_variant
 Every hop is a single indexed foreign key. If a proposed change adds a hop or removes an index on
 that path, it is the wrong change.
 
+**M13 built it, and found it is two queries rather than one.** The first five hops are per dish and
+are answered by the dish-performance report from figures frozen on the settled line. The
+`stock_movement WHERE basis='actual'` hop is **not a per-dish fact**: the shelf is counted per
+ingredient, and a kilo of paneer that went missing did not arrive with a note saying which dish it
+was meant for. Apportioning it across dishes in proportion to the recipes would produce a figure
+that looks per dish and is really the theoretical number wearing a different hat, which invariant 7
+forbids. So the variance half is answered per ingredient, over the same period, by the food-cost
+variance report. `tests/test_reporting.py::TestTheChainThatHasToWork` asserts both halves together.
+
+**And one index was missing on that path.** `invoice` carried `(restaurant_id, invoice_date)` — the
+date printed on the document — while every report filters on `business_date`, the restaurant's own
+trading day. Migration `0048_m13_report_indexes` adds `ix_invoice_restaurant_business_date`; the
+query plans that found it are in `docs/plan/m13-build-log.md`.
+
 ## Migration order
 
 Dependencies force roughly this sequence:
