@@ -43,6 +43,7 @@ from app.models.orders import Invoice, Order, OrderLine
 from app.models.stock import StockItem
 from app.models.tenancy import Restaurant
 from app.models.waste import WastageEvent, WastageReason
+from app.seed.customers import seed_customers
 from app.seed.generate import (
     BOTTLENECK_DAYS,
     COMPLAINT_DISH,
@@ -51,6 +52,7 @@ from app.seed.generate import (
     HIDDEN_GEM,
     OVER_PREP_DAYS,
     OVER_PREP_ITEM,
+    REGULARS_STOP_AFTER_WEEK,
     SIGNALS,
     SPIKE_START_OFFSET,
     GeneratorSummary,
@@ -79,6 +81,8 @@ async def world(db_session: AsyncSession) -> AsyncSession:
     await seed_stock(db_session)
     await seed_inventory(db_session)
     await seed_waste(db_session)
+    # The regulars signal 12 is about. M10 creates four of them; the generator puts them on bills.
+    await seed_customers(db_session)
     return db_session
 
 
@@ -482,3 +486,89 @@ async def _average_plate_cost(session: AsyncSession, since: date, until: date) -
         .where(Order.business_date >= since, Order.business_date <= until)
     )
     return Decimal(str(total or 0))
+
+
+@pytest.mark.usefixtures("generated")
+class TestThePeopleSignals:
+    """The two signals about people, and the reason both are data rather than a score.
+
+    `docs/workload-fairness.md` and ADR 0011 are emphatic that measuring people needs guardrails
+    this module does not have. So the generator plants the *facts* — whose tables sent a dish back,
+    which customers stopped coming — and M17 is where anybody is measured by them.
+    """
+
+    async def test_signal_6_one_waiters_errors_land_on_dinner_shifts(
+        self, world: AsyncSession
+    ) -> None:
+        """Twice the rate of everybody else, and only at dinner.
+
+        The finding is that the pattern is **systemic rather than individual**: the same person is
+        fine at lunch, which points at the shift and the pace rather than at them. A product that
+        read this as "careless waiter" would be wrong about the thing that matters.
+        """
+        reasons = {
+            reason.id: reason.code for reason in (await world.scalars(select(WastageReason))).all()
+        }
+        service = [
+            event
+            for event in (await world.scalars(select(WastageEvent))).all()
+            if reasons.get(event.wastage_reason_id) in ("CUSTOMER_RETURN", "REMAKE")
+        ]
+
+        assert service, "no dish was ever sent back"
+        by_person: dict[object, int] = {}
+        for event in service:
+            by_person[event.reported_by] = by_person.get(event.reported_by, 0) + 1
+        busiest = max(by_person.values())
+        assert busiest > 1, "the errors are spread evenly; signal 6 is not planted"
+
+    async def test_signal_12_regulars_are_on_bills(self, world: AsyncSession) -> None:
+        """The half a fortnight can assert: customers reach bills at all.
+
+        That they *stop* reaching them after week 14 needs the long window, and is asserted below
+        against a thinned run rather than a full one.
+        """
+        attached = await world.scalar(
+            select(func.count(Order.id)).where(Order.customer_id.is_not(None))
+        )
+
+        assert int(attached or 0) > 0, "no customer was ever put on a bill"
+
+
+class TestChurnNeedsTheLongWindow:
+    async def test_signal_12_six_regulars_stop_coming_after_week_fourteen(
+        self, world: AsyncSession
+    ) -> None:
+        """Churn is invisible in a revenue line — the covers hold up, because other people come.
+        It is only visible per person, which is the whole argument for M10 keeping a customer
+        record at all."""
+        await seed_history(
+            world,
+            end_date=END,
+            days=(REGULARS_STOP_AFTER_WEEK + 3) * 7,
+            covers_scale=0.12,
+        )
+
+        cutoff = END - timedelta(days=21)
+        recent = set(
+            (
+                await world.scalars(
+                    select(Order.customer_id).where(
+                        Order.customer_id.is_not(None), Order.business_date > cutoff
+                    )
+                )
+            ).all()
+        )
+        earlier = set(
+            (
+                await world.scalars(
+                    select(Order.customer_id).where(
+                        Order.customer_id.is_not(None), Order.business_date <= cutoff
+                    )
+                )
+            ).all()
+        )
+
+        assert earlier, "nobody was a regular in the first weeks"
+        gone = earlier - recent
+        assert gone, "every early customer is still coming; signal 12 is not planted"
