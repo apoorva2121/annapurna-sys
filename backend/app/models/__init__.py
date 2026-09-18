@@ -10,6 +10,15 @@ from __future__ import annotations
 from app.models.access import EmployeeRoleAssignment, Permission, Role, RolePermission
 from app.models.audit import AuditLog, Issue
 from app.models.base import Base
+from app.models.communication import (
+    Attachment,
+    CommStreamCursor,
+    Conversation,
+    ConversationParticipant,
+    Message,
+    Task,
+    TaskEvent,
+)
 from app.models.customers import (
     Complaint,
     Customer,
@@ -69,12 +78,16 @@ from app.models.tenancy import Organization, Restaurant
 from app.models.waste import WastageEvent, WastageReason
 
 __all__ = [
+    "Attachment",
     "AuditLog",
     "Base",
     "CashCount",
     "CashMovement",
     "CashSession",
+    "CommStreamCursor",
     "Complaint",
+    "Conversation",
+    "ConversationParticipant",
     "CreditNote",
     "CreditNoteLine",
     "Customer",
@@ -98,6 +111,7 @@ __all__ = [
     "MenuItem",
     "MenuItemModifierGroup",
     "MenuItemVariant",
+    "Message",
     "Modifier",
     "ModifierGroup",
     "Order",
@@ -125,6 +139,8 @@ __all__ = [
     "StockItem",
     "StockMovement",
     "Supplier",
+    "Task",
+    "TaskEvent",
     "TaxGroup",
     "TaxRate",
     "UserAccount",

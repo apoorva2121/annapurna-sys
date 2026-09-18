@@ -445,3 +445,85 @@ class ComplaintStatus(StrEnum):
     INVESTIGATING = "investigating"
     RESOLVED = "resolved"
     CLOSED = "closed"
+
+
+class ConversationType(StrEnum):
+    """What a thread is for. `TASK` and `COMPLAINT` threads carry `ref_type`/`ref_id`.
+
+    `ANNOUNCEMENT` exists because `docs/schema.md` declares it and a later module may want it.
+    **Nothing in M11 creates one** (M11 spec, Not in scope): a broadcast nobody may reply to needs
+    a permission the P1 design does not contain, and a group containing everybody already reaches
+    everybody.
+    """
+
+    DIRECT = "direct"
+    GROUP = "group"
+    TASK = "task"
+    COMPLAINT = "complaint"
+    ANNOUNCEMENT = "announcement"
+
+
+class MessagePriority(StrEnum):
+    """Sorting and colour, and deliberately nothing else in M11.
+
+    No push, no email, no SMS: `notification` is M14's table and escalation tiers are M14's problem
+    (vision doc §25). An `URGENT` message sorts its conversation to the top of every participant's
+    inbox and renders in the locked alert colour. That is the whole feature.
+    """
+
+    NORMAL = "normal"
+    HIGH = "high"
+    URGENT = "urgent"
+
+
+class TaskPriority(StrEnum):
+    LOW = "low"
+    NORMAL = "normal"
+    HIGH = "high"
+    URGENT = "urgent"
+
+
+class TaskStatus(StrEnum):
+    """The lifecycle, held as a transition table in the service rather than scattered `if`s.
+
+    `VERIFIED` is a separate state from `COMPLETED` on purpose, and it is the module's reason to
+    exist: somebody did the work, and somebody else agrees it was done. Collapsing the two would
+    leave "the fryer was cleaned" as an unverifiable claim by the person who was asked to clean it.
+    """
+
+    CREATED = "created"
+    ASSIGNED = "assigned"
+    ACCEPTED = "accepted"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    VERIFIED = "verified"
+    CANCELLED = "cancelled"
+
+
+class AttachmentOwnerType(StrEnum):
+    """One `attachment` table, six owners (`docs/schema.md` §10).
+
+    M11 gives three of them a screen — message, task and the waste photo M09 has been waiting for.
+    The other three are authorised and unbuilt on purpose (M11 spec decision 6): the trigger for a
+    screen is somebody asking for one.
+    """
+
+    MESSAGE = "message"
+    TASK = "task"
+    COMPLAINT = "complaint"
+    WASTAGE_EVENT = "wastage_event"
+    FEEDBACK = "feedback"
+    GOODS_RECEIPT = "goods_receipt"
+
+
+class AttachmentStatus(StrEnum):
+    """`PENDING` until the bytes are in the store and have been checked.
+
+    With the S3 driver the API never sees the bytes, so nothing about a `PENDING` row may be
+    trusted: the size is a claim and the content type is a claim. `READY` means the store was asked
+    how big the object is and its first bytes were read back and matched. A `PENDING` row older
+    than an hour is swept along with any object behind it.
+    """
+
+    PENDING = "pending"
+    READY = "ready"

@@ -32,7 +32,7 @@ def _settings(monkeypatch: pytest.MonkeyPatch, **overrides: object) -> None:
     from app.seed import identity
 
     built = Settings(
-        _env_file=None,  # type: ignore[call-arg]
+        _env_file=None,
         database_url=_VALID_DB,
         jwt_secret="j" * 40,
         **overrides,  # type: ignore[arg-type]

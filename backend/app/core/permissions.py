@@ -154,6 +154,26 @@ class PermissionCode(StrEnum):
     CUSTOMER_MANAGE = "customer.manage"
     FEEDBACK_VIEW = "feedback.view"
     COMPLAINT_MANAGE = "complaint.manage"
+    # M11. Four codes, and **not one of them is new**: `seed/organization.yaml`'s P1 design
+    # already carried exactly these, and already granted three of them to every role including
+    # `cleaner`. Reading the design before writing the migration removed three inventions
+    # (`conversation.view`, `attachment.manage`, `task.manage`) and one whole feature.
+    #
+    # **`message.send` is the whole communication surface**, deliberately. There is no
+    # `conversation.view`, because the control that matters is *participation*: you read a thread
+    # because a participant row says so, and no permission catalogue can express "this thread, not
+    # that one". The attachment routes declare it for the same reason - it means "may use the
+    # mechanism", and whether you may attach to a particular thing is decided by whether you may
+    # write that thing.
+    #
+    # **The task split is the design's own, read literally.** `task.view` lets anybody write down
+    # their own work; giving work to somebody else is `task.assign`, which is the owner's and the
+    # manager's. That is what keeps a chef able to note "deep-clean the fryer" without holding a
+    # permission the design withheld from them on purpose.
+    MESSAGE_SEND = "message.send"
+    TASK_VIEW = "task.view"
+    TASK_ASSIGN = "task.assign"
+    TASK_COMPLETE = "task.complete"
 
 
 class PermissionSpec(BaseModel):

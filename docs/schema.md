@@ -1098,34 +1098,68 @@ left as a bare column.
 
 ---
 
-## 10 · Communication & tasks — 6 tables
+## 10 · Communication & tasks — 7 tables
+
+Built by M11, migration 0041. Three columns here are **not** what this section said before that
+module was built, and each is a decision with a reason:
+
+- **`conversation.direct_key`** — a direct thread between two people must be one row forever, and
+  two simultaneous taps must resolve to one thread rather than two. The pair lives in
+  `conversation_participant`, which no expression index on `conversation` can see, so the canonical
+  pair is denormalised here and a partial unique index enforces it.
+- **`conversation_participant.restaurant_id`** — this section listed the table without it. Every
+  child in this schema carries the tenant with a composite foreign key onto its parent, because
+  invariant 1 outranks a sketch.
+- **`message.revision` / `task.revision` and `comm_stream_cursor`** — the seventh table. M08's
+  reasoning applies unchanged: a Postgres sequence is global, and a global cursor handed to a
+  client leaks how busy every other tenant is. What M08 and M11 share is the polling loop
+  (`app/services/event_stream.py`), not the counter.
 
 ```
+comm_stream_cursor                               -- `kot_stream_cursor`'s twin, for /messages/stream
+  restaurant_id       uuid PK FK→restaurant
+  last_revision       bigint NN default 0        -- bumped once per transaction, not per row
+
 conversation
   restaurant_id
   type                text NN check(direct|group|task|complaint|announcement)
+                                                 -- M11 creates no `announcement`: a broadcast
+                                                 -- nobody may reply to needs a permission the P1
+                                                 -- design does not contain
   title               text
   ref_type, ref_id                               -- attaches a thread to a task or complaint
   created_by          uuid NN FK→employee
   last_message_at     timestamptz                -- denormalised: powers the inbox sort
+  direct_key          text                       -- '<smaller employee id>:<larger>', direct only
+  UQ (id, restaurant_id)
+  UQ (restaurant_id, direct_key) WHERE direct_key IS NOT NULL
+  CK (type = 'direct') = (direct_key IS NOT NULL)
+  CK (ref_type IS NULL) = (ref_id IS NULL)
   IX (restaurant_id, last_message_at DESC)
 
-conversation_participant
-  conversation_id NN FK→conversation, employee_id NN FK→employee
-  joined_at NN, left_at
+message
+  restaurant_id, conversation_id NN FK→conversation  -- composite (conversation_id, restaurant_id)
+  sender_employee_id  uuid NN FK→employee
+  body                text                       -- nullable: an attachment alone is a message
+  priority            text NN check(normal|high|urgent)
+  reply_to_message_id uuid FK→message
+  deleted_at          timestamptz                -- the one soft-delete exception (ADR 0008)
+  revision            bigint NN                  -- from comm_stream_cursor; what the SSE replays
+  UQ (id, restaurant_id)
+  CK deleted_at IS NULL OR body IS NULL          -- a tombstone keeps no words
+  IX (conversation_id, id DESC)                  -- uuid7 is time-ordered, so one index pages the
+                                                 -- thread AND counts "since the watermark"
+  IX (restaurant_id, revision)
+
+conversation_participant                         -- created AFTER message, so the watermark FK
+                                                 -- resolves first time and needs no follow-up
+  restaurant_id, conversation_id NN FK→conversation
+  employee_id NN FK→employee
+  joined_at NN, left_at                          -- leaving is a fact with a date, not a deletion
   last_read_message_id  uuid FK→message          -- watermark. See "eliminated" below.
   is_muted            bool NN default false
   UQ (conversation_id, employee_id)
   IX (employee_id, conversation_id)              -- "my conversations"
-
-message
-  restaurant_id, conversation_id NN FK→conversation
-  sender_employee_id  uuid NN FK→employee
-  body                text
-  priority            text NN check(normal|high|urgent)
-  reply_to_message_id uuid FK→message
-  deleted_at          timestamptz                -- the one soft-delete exception (ADR 0008)
-  IX (conversation_id, created_at DESC)
 
 task
   restaurant_id
@@ -1141,26 +1175,37 @@ task
   due_at              timestamptz
   completed_at, verified_at  timestamptz
   verified_by         uuid FK→employee
+  revision            bigint NN
+  UQ (id, restaurant_id)
+  CK (status IN ('completed','verified')) = (completed_at IS NOT NULL)
+  CK (status = 'verified') = (verified_at IS NOT NULL AND verified_by IS NOT NULL)
   IX (restaurant_id, assigned_to, status), IX (restaurant_id, due_at) WHERE status != 'verified'
+  IX (restaurant_id, revision)
 
 task_event                                       -- append-only lifecycle log
-  task_id NN FK→task, actor_employee_id NN FK→employee
-  from_status, to_status  text
+  restaurant_id, task_id NN FK→task
+  actor_employee_id NN FK→employee
+  from_status, to_status  text                   -- both nullable: a reassignment moves no status
   note                text
   occurred_at         timestamptz NN
+  IX (task_id, occurred_at)
 
 attachment                                       -- one table, many owners
   restaurant_id
   owner_type          text NN check(message|task|complaint|wastage_event|feedback|goods_receipt)
   owner_id            uuid NN
-  file_key            text NN                    -- S3-compatible key (ADR 0005)
-  file_name, mime_type  text NN
-  size_bytes          bigint NN
+  file_key            text NN UQ                 -- S3-compatible key (ADR 0005), generated:
+                                                 -- {restaurant}/{yyyy}/{mm}/{uuid7}{ext}
+  file_name, mime_type  text NN                  -- file_name is display only, never a path
+  size_bytes          bigint NN                  -- CK > 0
   uploaded_by         uuid NN FK→employee
-  IX (owner_type, owner_id)
+  status              text NN check(pending|ready)
+                                                 -- `ready` means the STORE was asked how big the
+                                                 -- object is and its first bytes were read back.
+                                                 -- On a `pending` row both are a client's claim.
+  IX (restaurant_id, owner_type, owner_id)
+  IX (created_at) WHERE status = 'pending'       -- what the orphan sweep reads
 ```
-
----
 
 ## 11 · Shifts — 2 tables
 
@@ -1360,9 +1405,11 @@ Dependencies force roughly this sequence:
 12. wastage_reason, wastage_event
 13. feedback, feedback_line, complaint
 14. shift, shift_assignment
-15. conversation, conversation_participant, message, task, task_event, attachment
+15. comm_stream_cursor, conversation, message, conversation_participant, task, task_event,
+    attachment  (that order: the watermark FK is only circular if participant comes first)
 16. audit_log, notification, idempotency_key, issue
 17. incentive_scheme, performance_period, performance_score, performance_note, recognition_award
 
-`stock_batch.goods_receipt_line_id` and `conversation_participant.last_read_message_id` are circular
-against later steps — add both as a nullable FK in a follow-up migration.
+`stock_batch.goods_receipt_line_id` is circular against a later step — add it as a nullable FK in
+a follow-up migration. `conversation_participant.last_read_message_id` looked circular and is not:
+created after `message`, its foreign key resolves the first time, and M11 ships it whole.

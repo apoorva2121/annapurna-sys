@@ -269,6 +269,30 @@
       "resource": "complaint",
       "action": "manage",
       "description": "Log a complaint, give it an owner, and record what was actually done about it - a comp, a remake, a refund, an apology. A complaint nobody owns is worse than no system, which is why assigning is part of the same permission as logging. Whether the customer came back afterwards is not typed by anybody: it is derived from the order ledger, because it is the only honest measure of recovery and it becomes true weeks after everyone has forgotten."
+    },
+    {
+      "code": "message.send",
+      "resource": "message",
+      "action": "send",
+      "description": "Take part in the restaurant's conversations: read the threads you are in, post to them, and attach a photograph or a document. Held by every role, cleaner included, because the person who finds the broken freezer at 6am is exactly the person with no other permissions. It does not open every thread - you see a conversation because you are a participant in it, and being added to one is somebody's decision, not a permission."
+    },
+    {
+      "code": "task.view",
+      "resource": "task",
+      "action": "view",
+      "description": "See the work assigned to you, and write down work for yourself. Held by every role. Somebody without task.assign sees their own tasks and the ones they created, never the whole restaurant's board."
+    },
+    {
+      "code": "task.assign",
+      "resource": "task",
+      "action": "assign",
+      "description": "Give work to somebody else, move it to a different person, change what it says, cancel it, and verify that finished work was actually done. Giving a colleague a task is a manager's act, which is why it is separate from writing one down for yourself. Verifying your own completed work is refused unless you are the owner - the person who did the work is not the person who says it was done."
+    },
+    {
+      "code": "task.complete",
+      "resource": "task",
+      "action": "complete",
+      "description": "Move a task you were assigned along its lifecycle - accept it, start it, finish it. Held by every role, and the service refuses it on somebody else's task: nobody completes work on another person's behalf, because that is the one thing the record exists to prevent."
     }
   ],
   "roles": [
@@ -296,6 +320,7 @@
         "menu.manage",
         "menu.price",
         "menu.view",
+        "message.send",
         "order.assign",
         "order.create",
         "order.discount",
@@ -315,6 +340,9 @@
         "stock.view",
         "supplier.manage",
         "supplier.view",
+        "task.assign",
+        "task.complete",
+        "task.view",
         "wastage.approve",
         "wastage.log"
       ]
@@ -332,13 +360,16 @@
         "employee.role.assign",
         "employee.view",
         "menu.view",
+        "message.send",
         "restaurant.configure",
         "role.view",
         "stock.adjust",
         "stock.count",
         "stock.produce",
         "stock.receive",
-        "stock.view"
+        "stock.view",
+        "task.complete",
+        "task.view"
       ]
     },
     {
@@ -348,15 +379,24 @@
       "description": "Runs the floor. Staffs a shift at 7am when the owner is not on site, and appoints junior roles and other managers — but can never promote anyone above manager, nor change their own roles. Every assignment is written to the audit trail.",
       "permissions": [
         "cash.manage",
+        "complaint.manage",
         "cost.view",
+        "customer.manage",
+        "customer.view",
         "employee.create",
         "employee.deactivate",
         "employee.edit",
         "employee.password.reset",
         "employee.role.assign",
         "employee.view",
+        "feedback.view",
+        "floor.manage",
+        "kot.update",
+        "kot.view",
         "menu.manage",
         "menu.view",
+        "message.send",
+        "order.assign",
         "order.create",
         "order.discount",
         "order.modify",
@@ -373,16 +413,11 @@
         "stock.view",
         "supplier.manage",
         "supplier.view",
-        "floor.manage",
-        "order.assign",
-        "kot.view",
-        "kot.update",
-        "wastage.log",
+        "task.assign",
+        "task.complete",
+        "task.view",
         "wastage.approve",
-        "customer.view",
-        "customer.manage",
-        "feedback.view",
-        "complaint.manage"
+        "wastage.log"
       ]
     },
     {
@@ -392,13 +427,16 @@
       "description": "Runs the kitchen and needs to know who is on. Reads the staff list, changes nothing.",
       "permissions": [
         "employee.view",
+        "kot.update",
+        "kot.view",
         "menu.view",
+        "message.send",
         "recipe.manage",
         "recipe.view",
         "stock.produce",
         "stock.view",
-        "kot.view",
-        "kot.update",
+        "task.complete",
+        "task.view",
         "wastage.log"
       ]
     },
@@ -408,10 +446,13 @@
       "rank": 40,
       "description": "Cooks to tickets. Nothing in M01.",
       "permissions": [
+        "kot.update",
+        "kot.view",
+        "message.send",
         "recipe.view",
         "stock.view",
-        "kot.view",
-        "kot.update",
+        "task.complete",
+        "task.view",
         "wastage.log"
       ]
     },
@@ -421,14 +462,17 @@
       "rank": 40,
       "description": "Takes orders and takes the money: holds order.settle and NOT order.void, order.discount or cash.manage, which are the classic leakage vectors. Staff records carry phone numbers and dates of birth, so no access there.",
       "permissions": [
+        "customer.view",
+        "feedback.view",
+        "kot.view",
         "menu.view",
+        "message.send",
         "order.create",
         "order.modify",
         "order.settle",
         "order.view",
-        "kot.view",
-        "customer.view",
-        "feedback.view"
+        "task.complete",
+        "task.view"
       ]
     },
     {
@@ -437,6 +481,7 @@
       "rank": 30,
       "description": "Runs the store room and supplier relationships. Manages stock, not people.",
       "permissions": [
+        "message.send",
         "purchase.manage",
         "recipe.view",
         "stock.adjust",
@@ -446,8 +491,10 @@
         "stock.view",
         "supplier.manage",
         "supplier.view",
-        "wastage.log",
-        "wastage.approve"
+        "task.complete",
+        "task.view",
+        "wastage.approve",
+        "wastage.log"
       ]
     },
     {
@@ -455,7 +502,11 @@
       "name": "Cleaner",
       "rank": 40,
       "description": "Referenced by tasks and shifts. Frequently has no login at all.",
-      "permissions": []
+      "permissions": [
+        "message.send",
+        "task.complete",
+        "task.view"
+      ]
     },
     {
       "code": "accountant",
@@ -464,9 +515,12 @@
       "description": "Reads the staff list because payroll needs to know who is employed, and reconciles what suppliers billed against what arrived. Holds purchase.manage and NOT stock.receive: an accountant may raise an order and may never sign for a delivery. Reads every order and changes none: order.view is the whole of its order path.",
       "permissions": [
         "employee.view",
+        "message.send",
         "order.view",
         "purchase.manage",
-        "supplier.view"
+        "supplier.view",
+        "task.complete",
+        "task.view"
       ]
     }
   ]
