@@ -8,7 +8,9 @@ Three sheets:
 
 * **How to test** — the logins, the URL, and what to do before starting. A test script whose
   preconditions live somewhere else is a test script nobody runs.
-* **Test cases** — all 332 steps, one row each, with empty Result and Notes columns.
+* **Test cases** — every step in those files, one row each, with empty Result and Notes
+  columns. The count is not written down here on purpose: it changes with every module, and a
+  number in a docstring is a number that goes stale silently.
 * **Bugs** — empty, for the owner to fill. Its Test ID column points back at the step that found it,
   which is what makes a bug list actionable rather than a list of complaints.
 
@@ -53,6 +55,7 @@ _MODULE_NAMES = {
     "M14": "Audit & alerts — who changed what, and what needs you now",
     "M15": "The generator — 120 days with fourteen things wrong in it",
     "M17": "Fairness — who carries the load, and whether it reads as feedback",
+    "M18": "Compliance — what puts the licences at risk, and whether what it says is true",
 }
 
 

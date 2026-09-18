@@ -4,7 +4,7 @@ The concrete table specification. Conceptual model: `docs/domain-model.md`. Conv
 ADR 0004 (money/time/units), ADR 0006 (preparations), ADR 0007 (identity), ADR 0008 (keys, deletion,
 enums, numerics), ADR 0010 (idempotency, locking), ADR 0011 (performance).
 
-**78 tables in 13 domains.** Everything here is Phase 1 unless marked `[1.5]`.
+**80 tables in 14 domains.** Everything here is Phase 1 unless marked `[1.5]`.
 
 ## Reading this document
 
@@ -1392,6 +1392,57 @@ New permissions: `performance.view.own` (**granted to every role, not removable*
 
 ---
 
+## 14 · Compliance — 2 tables
+
+**There is no `compliance_rule` table**, and that is the interesting decision. A rule is a query
+plus a citation, and a query does not live in a row: a table would hold the words and leave the
+detection in code, free to disagree with them. The catalogue is `app/core/compliance.py`, where the
+two cannot drift apart, and `compliance_finding.rule_code` is deliberately **not a foreign key** —
+a finding raised by a rule later withdrawn keeps its code and its words, which is exactly what an
+inspection asks about.
+
+This is also the case where M14's reasoning inverts. The notification centre is derived and stores
+only what a person *did* about a condition, because a condition that resolves should disappear.
+Here the export is what an owner hands an inspector, and it has to reconstruct **what was known
+when** — which today's data cannot do however carefully it is queried. So the record is the product.
+
+```
+compliance_finding                               -- one thing wrong at one restaurant
+  restaurant_id
+  rule_code           text NN                    -- from app/core/compliance.py. NOT an FK.
+  severity            text NN check(critical|warning|advisory)
+                                                 -- only a rule `in_force` may be critical, held
+                                                 -- structurally in Rule.__post_init__
+  state               text NN check(open|acknowledged|suppressed|resolved) default 'open'
+  title, risk, action text NN                    -- frozen as raised. The catalogue's wording will
+                                                 -- improve; what an owner was told must not change
+  evidence            jsonb NN                   -- the facts it fired on, so a person can check
+  raised_at           timestamptz NN             -- when the PRODUCT NOTICED, not when the
+                                                 -- condition began. No background job (ADR 0005)
+  resolved_at         timestamptz
+  CK (state = 'resolved') = (resolved_at IS NOT NULL)
+  UQ (restaurant_id, rule_code) WHERE state <> 'resolved'
+                                                 -- partial, not full: a licence does not expire
+                                                 -- twice, but it may expire again next year
+  IX (restaurant_id, state)
+
+compliance_event                                 -- APPEND-ONLY. Nothing updates or deletes one.
+  restaurant_id, compliance_finding_id NN FK→compliance_finding (composite, with restaurant_id)
+  type                text NN check(raised|acknowledged|suppressed|resolved|reopened)
+  actor_employee_id   uuid FK→employee           -- null: the product raises and resolves
+  reason              text                       -- CK: required when type = 'suppressed'
+  occurred_at         timestamptz NN
+  IX (compliance_finding_id, occurred_at)
+```
+
+New permissions: `compliance.view` (owner, admin, **manager**, accountant) and `compliance.act`
+(owner, admin). The manager holds the first and not the second — unlike `audit.view`, which they
+are denied because they are frequently its *subject*. A compliance finding is about the restaurant,
+and the person who runs the floor is the one most able to act on an expired licence and the least
+appropriate to decide it does not matter.
+
+---
+
 ## What was deliberately eliminated
 
 Cut, with the reason. Each of these is a table someone would reasonably have created.
@@ -1412,6 +1463,8 @@ Cut, with the reason. Each of these is a table someone would reasonably have cre
 | `assist_event` | Derivable: an order taken at a table in another employee's assigned section *is* an assist. A table would need someone to remember to log helping a colleague — the one thing the incentive must never depend on. | `order` + `shift_assignment.dining_area_id` |
 | `employee_metric_daily` (live rollup) | The drift problem again. Live metrics are queries; only the published period is frozen (ADR 0011). | query, then `performance_score` on publish |
 | Automatic payout trigger | A number must never pay a person. | `recognition_award.granted_by` |
+| `compliance_rule` | A rule is a query plus a citation, and a query does not live in a row. A table would hold the words and leave the detection in code, free to disagree with them. | `app/core/compliance.py`, where both live together |
+| `compliance_finding.acknowledged_by` (a status flip) | Acknowledging is a thing that *happened*, and a column records only the last one. An inspection asks what was known when, which a column cannot answer. | `compliance_event`, append-only |
 | `deleted_at` on transactional tables | Blanket soft delete guarantees a forgotten `WHERE deleted_at IS NULL` eventually. | ADR 0008 three-tier deletion |
 
 ---
@@ -1472,6 +1525,7 @@ Dependencies force roughly this sequence:
     attachment  (that order: the watermark FK is only circular if participant comes first)
 16. audit_log, notification, idempotency_key, issue
 17. incentive_scheme, performance_period, performance_score, performance_note, recognition_award
+18. compliance_finding, compliance_event
 
 `stock_batch.goods_receipt_line_id` is circular against a later step — add it as a nullable FK in
 a follow-up migration. `conversation_participant.last_read_message_id` looked circular and is not:

@@ -333,13 +333,16 @@ between holding those facts and *acting* on them.
 
 - **Depends on** — M02 (restaurant identity), M03 (menu), M14 (notifications). Richer once M07
   (turnover from real sales) and M10 (DPDP consent) exist.
-- **Tables** — *indicative, pending the spec; deliberately not yet in `docs/schema.md`, because a
-  table listed there is a designed table and these are not designed yet* — `compliance_rule` (the
-  catalogue, seeded not user-authored), `compliance_finding` (open/resolved, per restaurant, with
-  the evidence that raised it), `compliance_event` (append-only: raised, acknowledged, resolved,
-  suppressed — and by whom)
-- **Endpoints** — `GET /compliance/findings` (open, by severity); `GET /compliance/history`;
-  `POST /compliance/findings/{id}/acknowledge`; `GET /compliance/export` (the inspection pack)
+- **Tables** — `docs/schema.md` §14. Two, not three: `compliance_finding` (per restaurant, with
+  the evidence that raised it and the words frozen as they were) and `compliance_event`
+  (append-only: raised, acknowledged, resolved, suppressed — and by whom). The catalogue table this
+  entry originally planned is **not built** — a rule is a query plus a citation, and a query does
+  not live in a row; it is `app/core/compliance.py` instead, where the detection and the words
+  cannot drift apart.
+- **Endpoints** — `GET /compliance/findings` (evaluates, reconciles, answers — the one read in this
+  product that writes, because ADR 0005 leaves no background job); `GET /compliance/history`;
+  `GET /compliance/rules`; `POST /compliance/findings/{id}/acknowledge`;
+  `POST /compliance/findings/{id}/suppress`; `GET /compliance/export` (the inspection pack)
 - **Screens** — a compliance card on the owner home that is **silent when nothing is wrong**; a
   findings list with what to do about each; an exportable record for an inspection
 - **Rules**

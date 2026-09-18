@@ -29,6 +29,41 @@ right one.
 
 ---
 
+## What now enforces this file · M18, 2026-09-19
+
+This file used to be prose that a reviewer had to remember to check. Ten of its rules now run as
+code: `app/core/compliance.py` holds each one as an **evaluator plus a citation plus a
+`checked_on` date**, and `GET /api/v1/staff/compliance/findings` runs the lot against a
+restaurant's own data whenever somebody opens the screen.
+
+**The four states above are now structural.** `Rule.__post_init__` refuses to construct a rule
+whose severity is `critical` and whose status is anything other than `in_force`:
+
+> *"only a rule in force may be critical. This one is {status}, so it may inform and must not
+> block."*
+
+`tests/test_m18_compliance.py::TestTheRuleThatGovernsTheRules` asserts it over the whole catalogue,
+including rules nobody has written yet. So the second standing rule below — never conflate *in
+force* with *notified but not in force* with *unsettled* with *unverified* — is no longer something
+a person has to hold in their head while editing.
+
+What is still a person's job: **the citations themselves**. Nothing in code can tell you whether
+the instrument says what this file says it says. That is what `checked_on` is for, and why it is
+printed on the screen an owner reads rather than kept here.
+
+| Rule here | Code | Severity |
+|---|---|---|
+| §A1 FSSAI licence validity | `fssai.expired`, `fssai.expiring`, `fssai.malformed` | critical / warning / critical |
+| §A3 licence tier by turnover | `fssai.tier` | warning |
+| §A4 GSTIN on a tax invoice | `gst.gstin_missing` | critical |
+| §A5 current GST rate | `gst.rate_missing` | critical |
+| §A2 allergen declaration | `labelling.allergens` | warning |
+| §B1 calorie declaration | `labelling.calories` | warning (conditional) |
+| §C/D DPDP consent | `dpdp.consent` | **advisory — notified, not in force** |
+| CCPA service charge | `ccpa.service_charge` | **advisory — unsettled** |
+
+---
+
 ## A · In force, and binds this product today
 
 ### A1 · The veg / non-veg / egg mark
@@ -193,8 +228,8 @@ mid-module additions:
 | Gap | Owner | Note |
 |---|---|---|
 | Allergens are a text statement, not a verified list | before M10 (guest app) | §A2 is met in text. A structured list or symbols needs the regulation's own list, read from the instrument |
-| No calorie applicability flag | M18 | §B1; fields exist since B8. Needs `outlet_count` (or a count of the organization's restaurants) and the Central Licence test (§A3 digits 2–3 `00`) |
-| No FSSAI registry status | M18 | The declared expiry date exists since B8 and the home and bill screens warn; FoSCoS status and last-verified are not modelled |
+| ~~No calorie applicability flag~~ | ~~M18~~ | **Closed 2026-09-19.** `labelling.calories` derives it per restaurant: the Central Licence test (digits 2–3 `00`) *or* ten or more active restaurants in the organization. No stored flag — a setting would be a second place to be wrong |
+| No FSSAI registry status | M18 → deferred | The declared expiry date drives `fssai.expired` and `fssai.expiring`, and the malformed-number check runs once a bill has been issued. **FoSCoS status and last-verified remain unmodelled**: they need an integration the product does not have, and asserting a licence is live on the strength of a date somebody typed would be exactly the confident wrongness this file exists to prevent |
 | No rendered invoice document | M07 follow-up | Rule 46's particulars and the restaurant's identity are stored on `invoice` at settlement, but nothing lays them out for a customer: no print, no PDF, and no Rule 5(1)(f) heading on a composition bill of supply. Printing is out of scope for month 1 (CLAUDE.md) |
 | Documents-issued counts are not reported | M07 follow-up | A cancelled invoice keeps its number, which GSTR-1 Table 13 needs, but no report produces the counts or the serial ranges |
 
@@ -207,3 +242,8 @@ mid-module additions:
    **unverified**. Those are four different things and only the first is safe to build on.
 3. Record the date you checked it. A rule with no check date is a rumour.
 4. Name the test that enforces it, or say plainly that nothing does.
+5. If it should reach an owner, add it to `app/core/compliance.py` — an evaluator, an instrument, a
+   commencement, a `checked_on` date and a status. The catalogue is code rather than a table
+   because a rule is a query plus a citation, and a query does not live in a row.
+6. **A rule that is not in force cannot be critical.** The constructor will refuse it, and that is
+   the point: it may inform, and it must not block.
