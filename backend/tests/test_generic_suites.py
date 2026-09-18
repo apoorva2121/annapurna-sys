@@ -44,6 +44,7 @@ from app.models.communication import (
     Message,
     Task,
 )
+from app.models.compliance import ComplianceFinding
 from app.models.customers import Complaint, Customer, CustomerPreference
 from app.models.identity import Employee, UserAccount
 from app.models.inventory import StockCount, StockCountLine
@@ -620,6 +621,12 @@ _VICTIM_PARAMETERS = frozenset(
         # personal thing in this module and the one the ethics review exists to protect.
         "period_id",
         "note_id",
+        # M18, and the tenth module in a row this suite has refused the build for. A compliance
+        # finding names what is wrong with a restaurant's licences — the single most damaging
+        # thing one competitor could learn about another — and a cross-tenant *suppress* would
+        # write a dismissal into a record an inspector reads, in a business the actor has never
+        # set foot in.
+        "finding_id",
     }
 )
 
@@ -1133,7 +1140,22 @@ async def _victim_resources(
     session.add(victim_note)
     await session.flush()
 
+    victim_finding = ComplianceFinding(
+        restaurant_id=tenant.restaurant.id,
+        rule_code="fssai.expired",
+        severity="critical",
+        state="open",
+        title="Their FSSAI licence has expired.",
+        risk="Operating without a valid licence.",
+        action="Renew on FoSCoS.",
+        evidence={"expired_on": "2026-09-01"},
+        raised_at=datetime(2026, 9, 18, 6, 0, tzinfo=UTC),
+    )
+    session.add(victim_finding)
+    await session.flush()
+
     return {
+        "finding_id": str(victim_finding.id),
         "period_id": str(victim_period.id),
         "note_id": str(victim_note.id),
         "assignment_id": str(victim_assignment.id),

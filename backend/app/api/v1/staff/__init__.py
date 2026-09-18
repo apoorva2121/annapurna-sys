@@ -15,6 +15,7 @@ from app.api.v1.staff import (
     cash,
     communication,
     complaints,
+    compliance,
     customers,
     employees,
     inventory,
@@ -38,6 +39,7 @@ router.include_router(communication.router)
 router.include_router(employees.router)
 router.include_router(inventory.router)
 router.include_router(complaints.router)
+router.include_router(compliance.router)
 router.include_router(customers.router)
 router.include_router(kot.router)
 router.include_router(menu.router)

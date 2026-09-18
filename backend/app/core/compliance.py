@@ -175,6 +175,15 @@ def _expiring(facts: Facts) -> Finding | None:
 
 
 def _malformed_licence(facts: Facts) -> Finding | None:
+    """Quiet until a bill has been issued, on the same reasoning as `_gstin`.
+
+    A restaurant that has not yet issued a bill has an *incomplete setup*, which is M02's business
+    and not a licence risk. Raising a red `critical` at a tenant who has been in the product for
+    four minutes is how a compliance screen teaches its owner to ignore it, and the one thing this
+    module cannot afford is to be ignored when it is right.
+    """
+    if facts.invoices_issued == 0:
+        return None
     if facts.fssai_licence and FSSAI_PATTERN.match(facts.fssai_licence):
         return None
     return Finding(
@@ -184,7 +193,7 @@ def _malformed_licence(facts: Facts) -> Finding | None:
         risk="It prints on every bill. A wrong or absent number on an issued bill is the thing an "
         "inspection looks at first.",
         action="Check the number on the licence itself: fourteen digits, starting with 1 or 2.",
-        evidence={"licence": facts.fssai_licence or ""},
+        evidence={"licence": facts.fssai_licence or "", "invoices_issued": facts.invoices_issued},
     )
 
 

@@ -171,6 +171,16 @@ class TestTheLicenceRules:
     def test_a_licence_that_is_not_fourteen_digits_is_malformed(self) -> None:
         assert "fssai.malformed" in _fired(_facts(fssai_licence="123"))
 
+    def test_a_restaurant_that_has_issued_no_bill_is_not_told_off_for_the_number(self) -> None:
+        """A tenant four minutes into onboarding has an incomplete setup, not a licence risk. The
+        endpoint test caught this: a brand-new restaurant opened its first compliance screen and
+        was shown a red `critical`, which is how a screen teaches its owner to ignore it.
+
+        The same reasoning `_gstin` already used, now applied to the number beside it.
+        """
+        assert "fssai.malformed" not in _fired(_facts(fssai_licence=None, invoices_issued=0))
+        assert "fssai.malformed" in _fired(_facts(fssai_licence=None, invoices_issued=1))
+
     def test_a_missing_licence_is_reported_once_not_three_times(self) -> None:
         """Three licence rules over one absent field would be three alarms about one thing, and an
         owner reading three would conclude the product is broken rather than that they are."""

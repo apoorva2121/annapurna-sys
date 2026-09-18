@@ -139,6 +139,10 @@ permissions:
   - {code: performance.publish,     resource: performance, action: publish}
   - {code: incentive.configure,     resource: incentive,   action: configure}
   - {code: recognition.award,       resource: recognition, action: award}
+  # compliance - M18. Two, not one: seeing what is wrong and deciding to set it aside are
+  # different acts, and the second is the one an inspection reads.
+  - {code: compliance.view,         resource: compliance,  action: view}
+  - {code: compliance.act,          resource: compliance,  action: act}
   # admin
   - {code: restaurant.configure,    resource: restaurant,  action: configure}
   - {code: role.view,               resource: role,        action: view}     # read the catalogue
@@ -164,6 +168,7 @@ roles:
       - audit.view
       - menu.view
       - performance.view.own
+      - compliance.view, compliance.act
 
   - code: manager
     name: Restaurant Manager
@@ -184,6 +189,7 @@ roles:
       - message.send, task.view, task.assign, task.complete
       - report.operational.view
       - performance.view.own, performance.view.team, recognition.award
+      - compliance.view
     # deliberately NOT granted: menu.price, report.financial.view, employee.wage.view,
     # incentive.configure, performance.publish - these are the owner's.
 
@@ -245,6 +251,7 @@ roles:
       - supplier.view, purchase.manage, audit.view
       - employee.wage.view
       - performance.view.own
+      - compliance.view
 
 # ---------------------------------------------------------------- employees
 # 16 people. Note who has no login: cleaners and two kitchen staff. An employee without a

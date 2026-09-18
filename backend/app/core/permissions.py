@@ -211,6 +211,12 @@ class PermissionCode(StrEnum):
     INCENTIVE_CONFIGURE = "incentive.configure"
     RECOGNITION_AWARD = "recognition.award"
 
+    # M18. Two rather than one: seeing what is wrong and deciding to set it aside are
+    # different acts. The second is the one an inspection reads, so it is the owner's and the
+    # administrator's — a manager may see every finding and may not dismiss one.
+    COMPLIANCE_VIEW = "compliance.view"
+    COMPLIANCE_ACT = "compliance.act"
+
 
 class PermissionSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

@@ -101,13 +101,13 @@ class ComplianceService:
                 del live[code]
 
         await self.session.flush()
-        items = tuple(self._item(row) for row in await self.findings.live())
+        items = tuple(self.item(row) for row in await self.findings.live())
         outstanding = sum(1 for item in items if item.finding.state == "open")
         return Review(as_of=now, business_date=today, items=items, outstanding=outstanding)
 
     async def history(self, *, limit: int | None = None) -> tuple[Item, ...]:
         """Everything ever raised, resolved rows included. What the export is built from."""
-        return tuple(self._item(row) for row in await self.findings.history(limit=limit))
+        return tuple(self.item(row) for row in await self.findings.history(limit=limit))
 
     async def acknowledge(
         self, finding_id: uuid.UUID, *, actor_employee_id: uuid.UUID, at: datetime
@@ -126,17 +126,12 @@ class ComplianceService:
         attached is indistinguishable afterwards from a misclick, and this row is the one an
         inspection reads.
         """
-        if not reason.strip():
-            raise AppError(
-                "compliance.reason_required",
-                "Say why this is being set aside. The reason is part of the record.",
-            )
         return await self._act(
             finding_id,
             state="suppressed",
             actor_employee_id=actor_employee_id,
             at=at,
-            reason=reason.strip(),
+            reason=reason,
         )
 
     # --- the three writes, in one place each -------------------------------------------------
@@ -189,6 +184,15 @@ class ComplianceService:
         row = await self.findings.get(finding_id)
         if row is None:
             raise NotFoundError("compliance_finding.not_found", "That finding is not on this list.")
+        if state == "suppressed" and not (reason or "").strip():
+            # Checked *after* the lookup, not before. The generic tenant-isolation suite caught
+            # the other order: a cross-tenant suppress with no reason answered 400 instead of 404,
+            # which tells a stranger their guessed id exists. Existence in scope is decided first,
+            # so a refusal never distinguishes "not yours" from "badly formed".
+            raise AppError(
+                "compliance.reason_required",
+                "Say why this is being set aside. The reason is part of the record.",
+            )
         if row.state == "resolved":
             # Not an error worth a special code: the condition has gone, and acting on it now
             # would attach a decision to something nobody has to decide about.
@@ -198,14 +202,21 @@ class ComplianceService:
             )
         row.state = state
         self.findings.add_event(
-            row, kind=state, at=at, actor_employee_id=actor_employee_id, reason=reason
+            row,
+            kind=state,
+            at=at,
+            actor_employee_id=actor_employee_id,
+            reason=None if reason is None else reason.strip(),
         )
         await self.session.flush()
         return row
 
     # --- helpers -----------------------------------------------------------------------------
 
-    def _item(self, row: ComplianceFinding) -> Item:
+    def item(self, row: ComplianceFinding) -> Item:
+        """One row with the rule it came from. Public because the API shapes a single
+        finding after an acknowledge or a suppress, and re-reading the list to do it
+        would be a second query for something already in hand."""
         rule = rule_for(row.rule_code)
         return Item(finding=row, citation=None if rule is None else _cite(rule))
 

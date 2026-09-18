@@ -79,6 +79,18 @@
       "description": "Read the role and permission catalogue, for the role-assignment screen."
     },
     {
+      "code": "compliance.view",
+      "resource": "compliance",
+      "action": "view",
+      "description": "See what in this restaurant's configuration puts its licences at risk: an expired or malformed FSSAI number, a missing GSTIN, dishes with no allergen statement. Every finding cites the instrument it comes from and the date that citation was checked, so a person can verify the product's working rather than trust it."
+    },
+    {
+      "code": "compliance.act",
+      "resource": "compliance",
+      "action": "act",
+      "description": "Acknowledge a finding, or set one aside with a reason. **Suppression is a recorded decision, not a deletion** - the finding stays in the export with the reason attached, because advice ignored is still advice given, and the export is what an owner hands an inspector. The owner's and the administrator's: deciding a licence warning does not matter is not a floor decision."
+    },
+    {
       "code": "restaurant.configure",
       "resource": "restaurant",
       "action": "configure",
@@ -365,6 +377,8 @@
         "audit.view",
         "cash.manage",
         "complaint.manage",
+        "compliance.act",
+        "compliance.view",
         "cost.view",
         "customer.manage",
         "customer.view",
@@ -442,7 +456,9 @@
         "stock.receive",
         "stock.view",
         "task.complete",
-        "task.view"
+        "task.view",
+        "compliance.view",
+        "compliance.act"
       ]
     },
     {
@@ -496,7 +512,8 @@
         "task.complete",
         "task.view",
         "wastage.approve",
-        "wastage.log"
+        "wastage.log",
+        "compliance.view"
       ]
     },
     {
@@ -616,7 +633,8 @@
         "shift.view",
         "supplier.view",
         "task.complete",
-        "task.view"
+        "task.view",
+        "compliance.view"
       ]
     }
   ]
