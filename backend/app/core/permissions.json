@@ -293,6 +293,18 @@
       "resource": "task",
       "action": "complete",
       "description": "Move a task you were assigned along its lifecycle - accept it, start it, finish it. Held by every role, and the service refuses it on somebody else's task: nobody completes work on another person's behalf, because that is the one thing the record exists to prevent."
+    },
+    {
+      "code": "shift.view",
+      "resource": "shift",
+      "action": "view",
+      "description": "Read the roster and clock yourself in and out. Held by every role: a roster nobody can read is a noticeboard in a locked room. What it shows depends on who is asking - somebody without shift.manage sees their own shifts and who is covering which section right now, never the corrections or the whole week's statuses."
+    },
+    {
+      "code": "shift.manage",
+      "resource": "shift",
+      "action": "manage",
+      "description": "Create shifts, put people on them, set somebody absent or on leave, and correct a clock time. A correction always needs a reason and always writes an audit entry, because asserting somebody else's attendance is not the same act as their clocking in and the record must not make the two look alike."
     }
   ],
   "roles": [
@@ -333,6 +345,8 @@
         "recipe.view",
         "restaurant.configure",
         "role.view",
+        "shift.manage",
+        "shift.view",
         "stock.adjust",
         "stock.count",
         "stock.produce",
@@ -363,6 +377,7 @@
         "message.send",
         "restaurant.configure",
         "role.view",
+        "shift.view",
         "stock.adjust",
         "stock.count",
         "stock.produce",
@@ -406,6 +421,8 @@
         "purchase.manage",
         "recipe.view",
         "role.view",
+        "shift.manage",
+        "shift.view",
         "stock.adjust",
         "stock.count",
         "stock.produce",
@@ -433,6 +450,7 @@
         "message.send",
         "recipe.manage",
         "recipe.view",
+        "shift.view",
         "stock.produce",
         "stock.view",
         "task.complete",
@@ -450,6 +468,7 @@
         "kot.view",
         "message.send",
         "recipe.view",
+        "shift.view",
         "stock.view",
         "task.complete",
         "task.view",
@@ -471,6 +490,7 @@
         "order.modify",
         "order.settle",
         "order.view",
+        "shift.view",
         "task.complete",
         "task.view"
       ]
@@ -484,6 +504,7 @@
         "message.send",
         "purchase.manage",
         "recipe.view",
+        "shift.view",
         "stock.adjust",
         "stock.count",
         "stock.produce",
@@ -504,6 +525,7 @@
       "description": "Referenced by tasks and shifts. Frequently has no login at all.",
       "permissions": [
         "message.send",
+        "shift.view",
         "task.complete",
         "task.view"
       ]
@@ -518,6 +540,7 @@
         "message.send",
         "order.view",
         "purchase.manage",
+        "shift.view",
         "supplier.view",
         "task.complete",
         "task.view"

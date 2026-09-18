@@ -42,6 +42,7 @@ from app.models.audit import AuditLog
 from app.models.waste import WastageEvent, WastageReason
 from app.repositories.waste import StageTotal, WastageEventRepository, WastageReasonRepository
 from app.services.inventory import InventoryService
+from app.services.shifts import ShiftService
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +184,7 @@ class WastageService:
             occurred_at=moment,
             business_date=business_date,
             reported_by=actor.employee_id,
+            shift_id=await self._my_shift(actor),
             station_id=station_id,
             menu_item_variant_id=menu_item_variant_id,
             order_line_id=order_line_id,
@@ -310,6 +312,20 @@ class WastageService:
         return await self._events.summary(since=since, until=until)
 
     # ------------------------------------------------------------------ internals
+
+    async def _my_shift(self, actor: Actor) -> uuid.UUID | None:
+        """The shift the actor is rostered to right now, or `None`.
+
+        M12 finally fills the column this module created as a bare `shift_id` with a comment saying
+        it was waiting. Nothing is backfilled and it stays nullable: a restaurant may run without a
+        roster, and a row written before one existed has no shift and must keep saying so —
+        attributing waste to a plausible shift nobody was on would manufacture exactly the kind of
+        number this module exists to avoid.
+        """
+        for row in await ShiftService(self.session, self.scope).on_now():
+            if row.assignment.employee_id == actor.employee_id:
+                return row.assignment.shift_id
+        return None
 
     async def _reason(self, reason_id: uuid.UUID) -> WastageReason:
         reason = await self._reasons.get(reason_id)

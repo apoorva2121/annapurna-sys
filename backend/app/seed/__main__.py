@@ -28,6 +28,7 @@ from app.seed.menu import seed_menu
 from app.seed.orders import seed_orders
 from app.seed.procurement import seed_procurement
 from app.seed.setup import seed_setup
+from app.seed.shifts import seed_shifts
 from app.seed.stock import seed_stock
 from app.seed.waste import seed_waste
 
@@ -68,6 +69,11 @@ async def seed() -> None:
             # enforces it. The screens count settled bills, so this ordering is what makes a
             # seeded regular somebody who has actually eaten here.
             customers = await seed_customers(session)
+            # M12, and **before** the orders seeder: opening an order asks the roster whose section
+            # the table is in, and a seeded bill with no waiter would be the demonstration of
+            # auto-assignment failing to happen. It also has to come after `seed_setup`, because an
+            # assignment names a dining area.
+            shifts = await seed_shifts(session)
             orders = await seed_orders(session)
             # The twelve wastage reasons, and a few days of waste across all four stages. Last,
             # because logging waste consumes stock: it needs the opening batches and it must not
@@ -98,6 +104,7 @@ async def seed() -> None:
         and waste.events_created == 0
         and customers.created_nothing
         and counts.created_nothing
+        and shifts.created_nothing
     ):
         logger.info("Seed data already present; nothing to do.")
         return
@@ -123,6 +130,11 @@ async def seed() -> None:
         menu.variants_created,
         menu.modifier_groups_created,
         menu.attachments_created,
+    )
+    logger.info(
+        "Seeded %d shifts and %d roster assignments.",
+        shifts.shifts_created,
+        shifts.assignments_created,
     )
     logger.info(
         "Seeded %d wastage reasons and %d wastage events across the four stages.",

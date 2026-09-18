@@ -19,6 +19,7 @@ import re
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, date, datetime, timedelta
+from datetime import time as dt_time
 from decimal import Decimal
 from typing import Any, get_args
 
@@ -63,6 +64,7 @@ from app.models.procurement import (
     Supplier,
 )
 from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, TaxRate
+from app.models.shifts import Shift, ShiftAssignment
 from app.models.stock import IngredientProfile, Recipe, RecipeLine, StockItem
 from app.models.tenancy import Organization, Restaurant
 from app.models.waste import WastageEvent, WastageReason
@@ -582,6 +584,12 @@ _VICTIM_PARAMETERS = frozenset(
         "conversation_id",
         "message_id",
         "task_id",
+        # M12, and the eighth module in a row this suite has refused the build for. A roster is
+        # who was in the building and when; reading another restaurant's is a staffing leak, and a
+        # cross-tenant *clock-in* would assert somebody else's attendance in a business the actor
+        # has never set foot in.
+        "assignment_id",
+        "shift_id",
     }
 )
 
@@ -1046,7 +1054,29 @@ async def _victim_resources(
     session.add(victim_task)
     await session.flush()
 
+    victim_shift = Shift(
+        restaurant_id=tenant.restaurant.id,
+        name=f"{prefix} evening",
+        start_time=dt_time(18, 0),
+        end_time=dt_time(0, 30),
+        is_active=True,
+    )
+    session.add(victim_shift)
+    await session.flush()
+    victim_assignment = ShiftAssignment(
+        restaurant_id=tenant.restaurant.id,
+        shift_id=victim_shift.id,
+        employee_id=employee,
+        dining_area_id=area.id,
+        business_date=date(2026, 9, 18),
+        status="scheduled",
+    )
+    session.add(victim_assignment)
+    await session.flush()
+
     return {
+        "assignment_id": str(victim_assignment.id),
+        "shift_id": str(victim_shift.id),
         "attachment_id": str(victim_attachment.id),
         "conversation_id": str(victim_conversation.id),
         "message_id": str(victim_message.id),

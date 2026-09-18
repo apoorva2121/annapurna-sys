@@ -1245,6 +1245,91 @@
       "number": 1249,
       "code": "seed.committed_password",
       "text": "Refusing to seed demo data: the seed password supplied is the same one committed to this repository. Setting it to the value it exists to replace is the original problem with more steps."
+    },
+    {
+      "number": 1250,
+      "code": "shift.name_taken",
+      "text": "This restaurant already has a shift with that name."
+    },
+    {
+      "number": 1251,
+      "code": "shift.not_found",
+      "text": "That shift does not exist here."
+    },
+    {
+      "number": 1252,
+      "code": "shift.inactive",
+      "text": "That shift is no longer used. Reactivate it before staffing it."
+    },
+    {
+      "number": 1253,
+      "code": "shift.too_long",
+      "text": "A shift cannot be longer than twenty-four hours. Check the two times."
+    },
+    {
+      "number": 1254,
+      "code": "shift.assignment_not_found",
+      "text": "That shift assignment does not exist here."
+    },
+    {
+      "number": 1255,
+      "code": "shift.person_not_found",
+      "text": "That person does not work here."
+    },
+    {
+      "number": 1256,
+      "code": "shift.area_not_found",
+      "text": "That section does not exist."
+    },
+    {
+      "number": 1257,
+      "code": "shift.already_assigned",
+      "text": "That person is already on this shift for that day."
+    },
+    {
+      "number": 1258,
+      "code": "shift.already_started",
+      "text": "That shift has started, so it is a record now. Mark the person absent instead."
+    },
+    {
+      "number": 1259,
+      "code": "shift.range_invalid",
+      "text": "That date range runs backwards. Check the two dates."
+    },
+    {
+      "number": 1260,
+      "code": "shift.not_yours",
+      "text": "You can only clock in and out of your own shifts. A manager can correct a time."
+    },
+    {
+      "number": 1261,
+      "code": "shift.already_clocked_in",
+      "text": "You are already clocked in."
+    },
+    {
+      "number": 1262,
+      "code": "shift.already_clocked_out",
+      "text": "You are already clocked out."
+    },
+    {
+      "number": 1263,
+      "code": "shift.not_clocked_in",
+      "text": "You have not clocked in to this shift yet."
+    },
+    {
+      "number": 1264,
+      "code": "shift.not_today",
+      "text": "That shift is not today's. You can only clock in to a shift you are working now."
+    },
+    {
+      "number": 1265,
+      "code": "shift.reason_required",
+      "text": "Say why the time is being changed. Somebody else's attendance is being asserted."
+    },
+    {
+      "number": 1266,
+      "code": "shift.status_not_settable",
+      "text": "Present and late are what clocking in means. Correct the time instead."
     }
   ]
 }

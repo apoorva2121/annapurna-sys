@@ -95,6 +95,12 @@ export const Permission = {
   TASK_VIEW: 'task.view',
   TASK_COMPLETE: 'task.complete',
   TASK_ASSIGN: 'task.assign',
+  // M12. Every role holds SHIFT_VIEW — one deliberate widening of the P1 grant, because a roster
+  // nobody can read is a noticeboard in a locked room. The permission opens the screen; the scope
+  // decides the content. There is no `shift.clock`: clocking in declares SHIFT_VIEW and the server
+  // enforces that the row is yours.
+  SHIFT_VIEW: 'shift.view',
+  SHIFT_MANAGE: 'shift.manage',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

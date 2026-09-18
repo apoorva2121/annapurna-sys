@@ -458,3 +458,14 @@ export const AttachmentStatus = {
   READY: 'ready',
 } as const;
 export type AttachmentStatus = (typeof AttachmentStatus)[keyof typeof AttachmentStatus];
+
+/** `PRESENT`/`LATE` are derived at clock-in; `ABSENT`/`LEAVE` are set by a person. */
+export const ShiftAssignmentStatus = {
+  SCHEDULED: 'scheduled',
+  PRESENT: 'present',
+  ABSENT: 'absent',
+  LATE: 'late',
+  LEAVE: 'leave',
+} as const;
+export type ShiftAssignmentStatus =
+  (typeof ShiftAssignmentStatus)[keyof typeof ShiftAssignmentStatus];

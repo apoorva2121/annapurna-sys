@@ -113,6 +113,10 @@ permissions:
   - {code: employee.role.assign,    resource: employee.role,    action: assign}
   - {code: employee.password.reset, resource: employee.password, action: reset}
   - {code: employee.wage.view,      resource: employee,    action: wage_view}   # separately gated
+  # M12 amendment: granted to EVERY role, not only the manager. A roster nobody can read is a
+  # noticeboard in a locked room, and the clock-in button is useless to the person it exists for
+  # if a permission stands in front of it. The permission opens the screen; the scope decides the
+  # content, so corrections and the week's statuses stay behind shift.manage.
   - {code: shift.view,              resource: shift,       action: view}
   - {code: shift.manage,            resource: shift,       action: manage}
   # customers

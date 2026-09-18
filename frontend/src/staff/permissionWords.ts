@@ -52,6 +52,9 @@ export const PERMISSION_WORDS: Record<Permission, string> = {
   'task.complete': 'Accept, start and finish a task you were given',
   'task.assign':
     'Give a task to somebody else, change it, cancel it, and check that finished work was done',
+  'shift.view': 'Read the roster, and clock yourself in and out',
+  'shift.manage':
+    'Create shifts, staff them, mark somebody absent, and correct a clock time with a reason',
   'complaint.manage':
     'Log a complaint, give it an owner, and record what was actually done about it',
 };

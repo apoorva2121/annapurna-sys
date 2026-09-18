@@ -31,9 +31,11 @@ import StockItemsScreen from '@staff/screens/StockItemsScreen';
 import HomeScreen from '@staff/screens/HomeScreen';
 import InboxScreen from '@staff/screens/InboxScreen';
 import LoginScreen from '@staff/screens/LoginScreen';
+import MyShiftsScreen from '@staff/screens/MyShiftsScreen';
 import NewEmployeeScreen from '@staff/screens/NewEmployeeScreen';
 import ProfileScreen from '@staff/screens/ProfileScreen';
 import RecipeScreen from '@staff/screens/RecipeScreen';
+import RosterScreen from '@staff/screens/RosterScreen';
 import DesignGalleryScreen from '@staff/screens/DesignGalleryScreen';
 import RestaurantSettingsScreen from '@staff/screens/RestaurantSettingsScreen';
 import StaffListScreen from '@staff/screens/StaffListScreen';
@@ -102,6 +104,25 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.TASK_VIEW}>
               <TaskScreen />
+            </RequirePermission>
+          }
+        />
+        {/* M12. `shift.view` is held by every role — the permission opens the screen and the
+            scope decides the content, so a waiter sees their own shifts and who is on now while
+            staffing and corrections stay behind `shift.manage`. */}
+        <Route
+          path="shifts"
+          element={
+            <RequirePermission permission={Permission.SHIFT_VIEW}>
+              <MyShiftsScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="shifts/roster"
+          element={
+            <RequirePermission permission={Permission.SHIFT_VIEW}>
+              <RosterScreen />
             </RequirePermission>
           }
         />

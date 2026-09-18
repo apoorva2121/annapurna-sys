@@ -23,6 +23,7 @@ from app.api.v1.staff import (
     procurement,
     roles,
     setup,
+    shifts,
     stock,
     wastage,
 )
@@ -41,5 +42,6 @@ router.include_router(orders.router)
 router.include_router(procurement.router)
 router.include_router(roles.router)
 router.include_router(setup.router)
+router.include_router(shifts.router)
 router.include_router(stock.router)
 router.include_router(wastage.router)

@@ -67,6 +67,7 @@ from app.models.procurement import (
     Supplier,
 )
 from app.models.setup import DiningArea, RestaurantTable, Station, TaxGroup, TaxRate
+from app.models.shifts import Shift, ShiftAssignment
 from app.models.stock import (
     IngredientProfile,
     PreparationProfile,
@@ -132,6 +133,8 @@ __all__ = [
     "RestaurantTable",
     "Role",
     "RolePermission",
+    "Shift",
+    "ShiftAssignment",
     "Station",
     "StockBatch",
     "StockCount",

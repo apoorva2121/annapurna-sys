@@ -51,6 +51,8 @@ export const strings = {
     costs: 'Dish costs',
     suppliers: 'Suppliers',
     purchaseOrders: 'Purchase orders',
+    myShifts: 'My shifts',
+    roster: 'Roster',
     messages: 'Messages',
     tasks: 'Tasks',
     onHand: 'Stock on hand',
@@ -1329,6 +1331,46 @@ export const strings = {
     remove: 'Remove',
     open: 'Open',
     count: (count: number) => (count === 1 ? '1 attachment' : `${String(count)} attachments`),
+  },
+
+  shifts: {
+    mineTitle: 'My shifts',
+    rosterTitle: 'Roster',
+    loading: 'Reading the roster…',
+    mineEmpty: 'You are not on the roster yet. Ask your manager to put you on a shift.',
+    rosterEmpty: 'Nobody is on the roster yet. Put somebody on a shift and the week fills in.',
+    backToRoster: 'Back to the roster',
+    // The status is the server's word, not this screen's arithmetic.
+    status: {
+      scheduled: 'Scheduled',
+      present: 'Present',
+      late: 'Late',
+      absent: 'Absent',
+      leave: 'On leave',
+    },
+    // The truth, rather than an absence nobody asserted.
+    didNotClockIn: 'Did not clock in',
+    stillOpen: 'Still clocked in',
+    between: (start: string, end: string) => `${start.slice(0, 5)} to ${end.slice(0, 5)}`,
+    clockIn: 'Clock in',
+    clockOut: 'Clock out',
+    clocking: 'Saving…',
+    done: 'Finished for the day',
+    onNowTitle: 'On now',
+    onNowEmpty: 'Nobody is on a shift right now.',
+    weekTitle: 'The next two weeks',
+    noSection: 'No section',
+    markAbsent: 'Mark absent',
+    staffTitle: 'Put somebody on a shift',
+    whoLabel: 'Who?',
+    whichShiftLabel: 'Which shift?',
+    sectionLabel: 'Which section?',
+    dayLabel: 'Which day?',
+    // Invariant 4, said to a person rather than to a reader of the schema.
+    dayHint:
+      'A restaurant day runs from five in the morning to five the next morning, so an evening shift that ends after midnight still belongs to the day it started.',
+    staff: 'Put them on it',
+    staffing: 'Saving…',
   },
 
   errors: {

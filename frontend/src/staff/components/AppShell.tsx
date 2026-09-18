@@ -26,8 +26,80 @@ function DesignGalleryLink(): ReactElement | null {
   return <Link to="/design">{strings.nav.design}</Link>;
 }
 
+/**
+ * The links every role in the catalogue holds, with no permission check on any of them.
+ *
+ * Its own component because the nav went over the complexity budget, and because the grouping is
+ * the honest one: M11 and M12 granted `message.send`, `task.view` and `shift.view` to everybody —
+ * the design being right rather than generous. The person who finds the broken freezer at 6am is
+ * exactly the person with no other permissions, and the same person needs to clock in.
+ */
+function EveryonesLinks(): ReactElement {
+  return (
+    <>
+      <Link to="/shifts">{strings.nav.myShifts}</Link>
+      <Link to="/messages">{strings.nav.messages}</Link>
+      <Link to="/tasks">{strings.nav.tasks}</Link>
+    </>
+  );
+}
+
+/**
+ * Everything in the header that depends on a permission.
+ *
+ * Extracted because `AppShell` went over the complexity budget when M12 added its links — which
+ * is the budget doing its job rather than an inconvenience: the shell's own work is the theme, the
+ * tenant name and signing out, and the navigation is a list that grows with every module.
+ *
+ * The navigation is built from permissions, never from a role name (ADR 0007).
+ */
+function Nav(): ReactElement {
+  const { can } = useAuth();
+  return (
+    <>
+      <ServiceLinks />
+      {can(Permission.EMPLOYEE_VIEW) && <Link to="/staff">{strings.nav.staff}</Link>}
+      {/* Four links rather than one, because they are four different jobs done at four
+          different times — the floor changes when tables move, tax when a rate changes, and a
+          manager should be able to reach the one they came for without reading a submenu. */}
+      {can(Permission.RESTAURANT_CONFIGURE) && (
+        <>
+          <Link to="/settings">{strings.setup.navSettings}</Link>
+          <Link to="/settings/floor">{strings.setup.navFloor}</Link>
+          <Link to="/settings/stations">{strings.setup.navStations}</Link>
+          <Link to="/settings/tax">{strings.setup.navTax}</Link>
+        </>
+      )}
+      {/* M03 and M04. These shipped as routes with nothing linking to them, so every one was
+          reachable only by typing a URL — which is to say not reachable. The header is where
+          they belong rather than only the home page: a chef standing at the pass is already
+          inside the app, and going back to a landing page to reach the next screen is not how
+          anybody works a shift. */}
+      {can(Permission.MENU_VIEW) && (
+        <>
+          <Link to="/menu">{strings.nav.menu}</Link>
+          <Link to="/menu/options">{strings.nav.menuOptions}</Link>
+        </>
+      )}
+      {can(Permission.RECIPE_VIEW) && <Link to="/stock">{strings.nav.stock}</Link>}
+      {can(Permission.COST_VIEW) && <Link to="/costs">{strings.nav.costs}</Link>}
+      {/* M06. Two links rather than one: a store manager arrives either to raise an order or
+          to look up what a supplier owes them, and those are different errands. */}
+      {can(Permission.SUPPLIER_VIEW) && (
+        <>
+          <Link to="/purchasing/orders">{strings.nav.purchaseOrders}</Link>
+          <Link to="/purchasing/suppliers">{strings.nav.suppliers}</Link>
+        </>
+      )}
+      <EveryonesLinks />
+      {can(Permission.SHIFT_MANAGE) && <Link to="/shifts/roster">{strings.nav.roster}</Link>}
+      <Link to="/profile">{strings.nav.profile}</Link>
+    </>
+  );
+}
+
 export function AppShell(): ReactElement {
-  const { session, signOut, can } = useAuth();
+  const { session, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
 
   return (
@@ -41,46 +113,7 @@ export function AppShell(): ReactElement {
           {session?.restaurant.name ?? strings.appName}
         </Link>
         <nav className="flex flex-wrap items-center gap-x-4">
-          <ServiceLinks />
-          {can(Permission.EMPLOYEE_VIEW) && <Link to="/staff">{strings.nav.staff}</Link>}
-          {/* Four links rather than one, because they are four different jobs done at four
-              different times — the floor changes when tables move, tax when a rate changes, and a
-              manager should be able to reach the one they came for without reading a submenu. */}
-          {can(Permission.RESTAURANT_CONFIGURE) && (
-            <>
-              <Link to="/settings">{strings.setup.navSettings}</Link>
-              <Link to="/settings/floor">{strings.setup.navFloor}</Link>
-              <Link to="/settings/stations">{strings.setup.navStations}</Link>
-              <Link to="/settings/tax">{strings.setup.navTax}</Link>
-            </>
-          )}
-          {/* M03 and M04. These shipped as routes with nothing linking to them, so every one was
-              reachable only by typing a URL — which is to say not reachable. The header is where
-              they belong rather than only the home page: a chef standing at the pass is already
-              inside the app, and going back to a landing page to reach the next screen is not how
-              anybody works a shift. */}
-          {can(Permission.MENU_VIEW) && (
-            <>
-              <Link to="/menu">{strings.nav.menu}</Link>
-              <Link to="/menu/options">{strings.nav.menuOptions}</Link>
-            </>
-          )}
-          {can(Permission.RECIPE_VIEW) && <Link to="/stock">{strings.nav.stock}</Link>}
-          {can(Permission.COST_VIEW) && <Link to="/costs">{strings.nav.costs}</Link>}
-          {/* M06. Two links rather than one: a store manager arrives either to raise an order or
-              to look up what a supplier owes them, and those are different errands. */}
-          {can(Permission.SUPPLIER_VIEW) && (
-            <>
-              <Link to="/purchasing/orders">{strings.nav.purchaseOrders}</Link>
-              <Link to="/purchasing/suppliers">{strings.nav.suppliers}</Link>
-            </>
-          )}
-          {/* M11. No permission check: every role in the catalogue holds both, which is the
-              design being right rather than generous — the person who finds the broken freezer at
-              6am is exactly the person with no other permissions. */}
-          <Link to="/messages">{strings.nav.messages}</Link>
-          <Link to="/tasks">{strings.nav.tasks}</Link>
-          <Link to="/profile">{strings.nav.profile}</Link>
+          <Nav />
           <DesignGalleryLink />
         </nav>
         {/* Renders nothing for the great majority of staff, who work at one restaurant. */}

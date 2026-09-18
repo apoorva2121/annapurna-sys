@@ -527,3 +527,20 @@ class AttachmentStatus(StrEnum):
 
     PENDING = "pending"
     READY = "ready"
+
+
+class ShiftAssignmentStatus(StrEnum):
+    """Where a rostered person stands on the day.
+
+    **`PRESENT` and `LATE` are derived at clock-in; `ABSENT` and `LEAVE` are said by a person.**
+    Nothing in the background flips a status — there is no job that marks people absent at eleven
+    at night. Somebody who never clocked in stays `SCHEDULED`, and the roster renders that as "did
+    not clock in", which is the truth. Storing an `ABSENT` nobody asserted would put a
+    disciplinary fact in the database with no author.
+    """
+
+    SCHEDULED = "scheduled"
+    PRESENT = "present"
+    ABSENT = "absent"
+    LATE = "late"
+    LEAVE = "leave"

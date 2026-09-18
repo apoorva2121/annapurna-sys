@@ -46,6 +46,7 @@ from app.models.tenancy import Restaurant
 from app.repositories.orders import CashSessionRepository, PaymentRepository, TillTotals
 from app.repositories.setup import RestaurantRepository
 from app.services.people import Person, people
+from app.services.shifts import ShiftService
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +167,7 @@ class CashService:
             opened_by=actor.employee_id,
             opening_float=opening_float,
             business_date=business_date_of(now, restaurant.timezone, restaurant.business_day_start),
+            shift_id=await self._my_shift(actor),
         )
         self.session.add(till)
         try:
@@ -311,6 +313,18 @@ class CashService:
         if till is None:
             raise NotFoundError("cash_session.not_found", "That till session does not exist.")
         return till
+
+    async def _my_shift(self, actor: Actor) -> uuid.UUID | None:
+        """The shift the actor is rostered to right now, or `None`.
+
+        M12 finally fills the column this module created as a bare `shift_id` with a comment saying
+        it was waiting. Nothing is backfilled and it stays nullable: a restaurant may run without a
+        roster, and a row written before one existed has no shift and must keep saying so.
+        """
+        for row in await ShiftService(self.session, self.scope).on_now():
+            if row.assignment.employee_id == actor.employee_id:
+                return row.assignment.shift_id
+        return None
 
     async def _restaurant(self) -> Restaurant:
         restaurant = await RestaurantRepository(self.session, self.scope).get()

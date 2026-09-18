@@ -61,6 +61,10 @@ class DiningArea(TimestampedUUIDMixin, Base):
     __tablename__ = "dining_area"
     __table_args__ = (
         UniqueConstraint("restaurant_id", "name", name="uq_dining_area_restaurant_name"),
+        # Added by M12's migration 0044. Not decoration: it is what lets `shift_assignment`
+        # reference a section with the composite tenant key every other child here uses, so a
+        # roster cannot put somebody in another restaurant's dining room.
+        UniqueConstraint("id", "restaurant_id", name="uq_dining_area_id_restaurant"),
         Index("ix_dining_area_restaurant_seq", "restaurant_id", "seq"),
     )
 

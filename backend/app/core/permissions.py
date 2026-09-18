@@ -174,6 +174,20 @@ class PermissionCode(StrEnum):
     TASK_VIEW = "task.view"
     TASK_ASSIGN = "task.assign"
     TASK_COMPLETE = "task.complete"
+    # M12. Two codes, both already in the P1 design, and **one deliberate widening of its grant**:
+    # the design gives `shift.view` to the manager, and this module gives it to every role. A
+    # roster nobody can read is a noticeboard in a locked room, and the clock-in button is useless
+    # to the person it exists for if a permission stands in front of it.
+    #
+    # The widening is safe because the permission opens the screen and the *scope* decides the
+    # content: a front-line role sees its own assignments and who is covering which section right
+    # now — which it can establish by looking around the room — while staffing, statuses and
+    # corrections stay behind `shift.manage`.
+    #
+    # There is no `shift.clock`. Clocking in declares `shift.view` and the service enforces that
+    # the row is the actor's own; a permission cannot express "your row, not his".
+    SHIFT_VIEW = "shift.view"
+    SHIFT_MANAGE = "shift.manage"
 
 
 class PermissionSpec(BaseModel):

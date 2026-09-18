@@ -1210,25 +1210,55 @@ attachment                                       -- one table, many owners
 ## 11 · Shifts — 2 tables
 
 Minimal on purpose. Waste and performance must attribute to a shift; full attendance, leave,
-overtime and swaps are Phase 2.
+overtime and swaps are Phase 2. Built by M12, migration 0044.
+
+Three things here are load-bearing and are not obvious from the columns:
+
+- **`start_time > end_time` is legal**, and means the shift crosses midnight. The instants a shift
+  occupies are never stored: `app/core/shift_window.py` derives them from the assignment's
+  `business_date`, which is the only arrangement in which a roster edited next week still describes
+  last week correctly. A shift starting at 00:00 on business date D is therefore the small hours at
+  the *end* of D — the consequence of invariant 4 that surprises everybody once.
+- **`present` and `late` are derived at clock-in; `absent` and `leave` are said by a person.**
+  Nothing in the background flips a status, so somebody who never clocked in stays `scheduled` and
+  the roster renders that as "did not clock in".
+- **`dining_area` gained `UNIQUE (id, restaurant_id)`** in the same migration, so
+  `shift_assignment` can reference a section with the composite tenant key every other child in
+  this schema uses.
 
 ```
 shift
   restaurant_id, name NN                         -- 'Morning', 'Evening'
-  start_time, end_time  time NN
-  is_active
+  start_time, end_time  time NN                  -- local wall-clock, never instants: a shift is
+                                                 -- "six in the evening" across a DST change
+  is_active                                      -- deactivated, never deleted (ADR 0008)
+  UQ (id, restaurant_id), UQ (restaurant_id, name)
+  IX (restaurant_id)
 
 shift_assignment
-  restaurant_id, shift_id NN FK→shift, employee_id NN FK→employee
+  restaurant_id, shift_id NN FK→shift            -- composite (shift_id, restaurant_id)
+  employee_id NN FK→employee
   dining_area_id      uuid FK→dining_area        -- the section they cover. ADR 0011: an order
                                                  -- taken elsewhere is a DERIVED assist, so nobody
-                                                 -- has to log helping a colleague.
+                                                 -- has to log helping a colleague. Composite
+                                                 -- (dining_area_id, restaurant_id).
   business_date       date NN
   status              text NN check(scheduled|present|absent|late|leave)
-  clock_in_at, clock_out_at  timestamptz
-  UQ (shift_id, employee_id, business_date)
-  IX (restaurant_id, business_date)
+  clock_in_at, clock_out_at  timestamptz         -- a missed clock-out stays open; nothing closes
+                                                 -- it at a guessed time
+  UQ (shift_id, employee_id, business_date)      -- one row per person per shift per day, so one
+                                                 -- section: covering another is an assist
+  CK clock_out_at IS NULL OR clock_in_at IS NOT NULL
+  CK clock_out_at IS NULL OR clock_out_at >= clock_in_at
+  CK status NOT IN ('present','late') OR clock_in_at IS NOT NULL
+  IX (restaurant_id, business_date), IX (employee_id, business_date)
 ```
+
+**The two columns that had been waiting.** `cash_session.shift_id` (M07) and
+`wastage_event.shift_id` (M09) were created as bare columns with a comment saying `shift` was
+M12's. Migration 0044 makes both real foreign keys. They stay nullable — a restaurant may run
+without a roster — and **nothing is backfilled**: a row written before a roster existed has no
+shift and must keep saying so.
 
 ---
 

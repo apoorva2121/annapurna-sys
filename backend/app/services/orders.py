@@ -90,6 +90,7 @@ from app.services.floor_rules import (
     ready_at,
 )
 from app.services.kitchen import KitchenService
+from app.services.shifts import ShiftService
 
 logger = logging.getLogger(__name__)
 
@@ -284,6 +285,11 @@ class OrderService:
 
         tables = [await self._usable_table(table_id) for table_id in table_ids]
         waiter = await self._opening_waiter(actor, order_type, waiter_employee_id)
+        from_roster = False
+        if waiter is None and tables:
+            # M12. Nobody was named, so ask the roster whose section this table is in tonight.
+            waiter = await self._waiter_from_roster(tables[0])
+            from_roster = waiter is not None
         order = Order(
             restaurant_id=self.scope.restaurant_id,
             order_number=await self._orders.next_order_number(business_date),
@@ -299,7 +305,15 @@ class OrderService:
         self.session.add(order)
         await self.session.flush()
         if waiter is not None and waiter != actor.employee_id:
-            self._waiter_audit(actor, order.id, previous=None, current=waiter, reason=None)
+            # `roster` rather than no reason, so that a month later "why is this Priya's order"
+            # has an answer that is not a shrug.
+            self._waiter_audit(
+                actor,
+                order.id,
+                previous=None,
+                current=waiter,
+                reason="roster" if from_roster else None,
+            )
         for index, table in enumerate(tables):
             self.session.add(
                 OrderTable(
@@ -685,6 +699,42 @@ class OrderService:
         if chosen is not None:
             await self._require_order_taker(chosen)
         return chosen
+
+    async def _waiter_from_roster(self, table: RestaurantTable) -> uuid.UUID | None:
+        """The waiter rostered to this table's section right now, when there is exactly one.
+
+        The owner's decision of 2026-09-14, buildable since M12. Five rules, each a test:
+
+        **It never overrides a person.** This runs only when `_opening_waiter` returned nobody, so
+        a waiter opening their own order is still its waiter and a manager who names somebody gets
+        the person they named. Auto-assignment only ever fills a blank.
+
+        **Ambiguity assigns nobody.** Zero waiters on that section leaves it unassigned, as before;
+        *two or more* also leaves it unassigned. The product does not guess who is serving table 7,
+        because a wrong waiter is worse than none — it is somebody else's performance score
+        (ADR 0011) and somebody else's name on an audit row.
+
+        **Only dine-in**, which the caller has already established by the time this is reached.
+
+        **It is an audit row like any other**, with the reason `roster`.
+
+        **A restaurant with no roster loses nothing.** No assignments means no covering
+        assignment means today's behaviour exactly — which is why this needs no setting to turn
+        off. An empty roster already is off, and a flag for a feature that self-disables is a flag
+        that will one day be wrong.
+        """
+        candidate = await ShiftService(self.session, self.scope).waiter_for_area(
+            table.dining_area_id
+        )
+        if candidate is None:
+            return None
+        # The roster says who is on the floor; it does not say who may take an order. Somebody
+        # rostered to a section who cannot take orders here — a cleaner covering a room — must not
+        # end up owning a bill.
+        found = await AccessRepository(self.session).order_takers(
+            self.scope.restaurant_id, employee_id=candidate
+        )
+        return candidate if found else None
 
     @staticmethod
     def _require_a_table(order: Order) -> None:
