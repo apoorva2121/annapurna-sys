@@ -405,6 +405,46 @@ async function putBytes(
  * The headers are the server's, sent back exactly: with S3 the content type is part of what was
  * signed, and a different one is a signature mismatch nothing above could explain.
  */
+/**
+ * Fetch a report's CSV and hand the browser a file to save.
+ *
+ * **It cannot be a plain `<a href>`.** This application's access token lives in memory rather than
+ * in a cookie (see `setAccessToken`), so a link would arrive at the API unauthenticated — and
+ * putting the token in the query string would write a live credential into every proxy log it
+ * passes. So the bytes are fetched with the header, turned into a blob, and saved.
+ *
+ * Buffering the whole file is fine here and only here: every report this serves is an *aggregate*
+ * — a row per day, per ingredient or per dish — so the largest of them is a few hundred lines. A
+ * route that streamed raw order lines would need a different answer.
+ */
+export async function downloadCsv(path: string, filename: string): Promise<void> {
+  const headers: Record<string, string> = { Accept: 'text/csv' };
+  if (accessToken !== null) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, { method: 'GET', headers });
+  } catch {
+    throw unreachable();
+  }
+  if (!response.ok) {
+    throw await errorFrom(response);
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  try {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+  } finally {
+    // Revoked immediately: an object URL holds the blob in memory until it is, and a manager
+    // exporting a report a dozen times in an afternoon should not accumulate a dozen copies.
+    URL.revokeObjectURL(url);
+  }
+}
+
 export async function putToSignedUrl(
   url: string,
   method: string,

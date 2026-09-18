@@ -52,6 +52,7 @@ export const strings = {
     suppliers: 'Suppliers',
     purchaseOrders: 'Purchase orders',
     myShifts: 'My shifts',
+    reports: 'Reports',
     roster: 'Roster',
     messages: 'Messages',
     tasks: 'Tasks',
@@ -1371,6 +1372,93 @@ export const strings = {
       'A restaurant day runs from five in the morning to five the next morning, so an evening shift that ends after midnight still belongs to the day it started.',
     staff: 'Put them on it',
     staffing: 'Saving…',
+  },
+
+  // M13. Every heading is what somebody came to find out, not the name of a table.
+  reports: {
+    todayTitle: 'Today',
+    salesTitle: 'Sales',
+    varianceTitle: 'Food-cost variance',
+    dishesTitle: 'Dish performance',
+    wasteTitle: 'Waste',
+    loading: 'Working it out…',
+    businessDay: (day: string) => `Business day ${day}`,
+    period: (since: string, until: string) => `${since} to ${until}`,
+    // A restaurant's day is not midnight to midnight, and the report says so rather than
+    // leaving somebody to wonder why 2am is on yesterday.
+    businessDayHint:
+      'A restaurant day runs from five in the morning, so a bill settled at two in the morning belongs to the night before.',
+    empty: 'Nothing was recorded in this period.',
+    // The comparison, in words. Never a colour on its own, and never red for a quiet Tuesday.
+    versusPrevious: 'vs the period before',
+    versusYesterday: 'vs yesterday',
+    noBaseline: 'Nothing to compare against yet',
+    exportCsv: 'Download as a spreadsheet',
+    exportFailed: 'That did not download. Try again.',
+
+    revenue: 'Revenue',
+    covers: 'Covers',
+    averageBill: 'Average bill',
+    openOrders: 'Open orders',
+    openOrdersHint: 'Bills still running right now.',
+    rating: 'Rating',
+    ratingsCounted: (count: number) =>
+      count === 0 ? 'No ratings yet' : `From ${String(count)} ${count === 1 ? 'rating' : 'ratings'}`,
+    day: 'Day',
+    bills: 'Bills',
+    tax: 'Tax',
+    discounts: 'Discounts',
+    paymentsTitle: 'How it was paid',
+    method: {
+      cash: 'Cash',
+      card: 'Card',
+      upi: 'UPI',
+      wallet: 'Wallet',
+      other: 'Other',
+    } as Record<string, string | undefined>,
+
+    // The variance report. Every word here was chosen to avoid accusing anybody.
+    theoretical: 'Recipes say',
+    actual: 'Shelf says',
+    variance: 'Difference',
+    wasteAttributed: 'Explained as waste',
+    unexplained: 'Unexplained',
+    unexplainedHint:
+      'The part of the difference nobody wrote a reason for. It is a question to ask, not an accusation — a missed waste log looks exactly like this.',
+    varianceIntro:
+      'What the recipes say was used, against what the shelf says was used. The two are never added together.',
+    item: 'Ingredient',
+    quantity: 'Quantity',
+    value: 'Value',
+
+    // The quadrant. Advice with the numbers beside it, never an action.
+    dish: 'Dish',
+    units: 'Sold',
+    margin: 'Margin',
+    foodCostPercent: 'Food cost',
+    prepTime: 'Kitchen time',
+    quadrant: {
+      star: 'Star',
+      plough_horse: 'Plough-horse',
+      hidden_gem: 'Hidden gem',
+      dog: 'Dog',
+    } as Record<string, string | undefined>,
+    quadrantHint: 'Where each dish sits on popularity against margin, for this period.',
+    adviceHeading: 'What to think about',
+    minutes: (seconds: number) => `${String(Math.round(seconds / 60))} min`,
+
+    // The waste report. The total is the heading; the stages are the answer.
+    wasteTotal: 'Thrown away',
+    wasteIntro:
+      'Split by where it happened. One total is a number nobody can act on — receiving is the store manager at the gate, prep is the chef and the batch size.',
+    stageHeading: 'Where',
+    reasonHeading: 'Why',
+    timesHeading: 'Times',
+    costHeading: 'Cost',
+    shareHeading: 'Share',
+    // The stage labels themselves are M09's (`strings.waste.stage`) — four stages spelled twice
+    // would eventually be four stages spelled two different ways.
+    toFloor: 'Back to the floor',
   },
 
   errors: {

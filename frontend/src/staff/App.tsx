@@ -37,6 +37,11 @@ import ProfileScreen from '@staff/screens/ProfileScreen';
 import RecipeScreen from '@staff/screens/RecipeScreen';
 import RosterScreen from '@staff/screens/RosterScreen';
 import DesignGalleryScreen from '@staff/screens/DesignGalleryScreen';
+import DishPerformanceScreen from '@staff/screens/DishPerformanceScreen';
+import SalesReportScreen from '@staff/screens/SalesReportScreen';
+import TodayScreen from '@staff/screens/TodayScreen';
+import VarianceReportScreen from '@staff/screens/VarianceReportScreen';
+import WasteReportScreen from '@staff/screens/WasteReportScreen';
 import RestaurantSettingsScreen from '@staff/screens/RestaurantSettingsScreen';
 import StaffListScreen from '@staff/screens/StaffListScreen';
 import StationsScreen from '@staff/screens/StationsScreen';
@@ -104,6 +109,50 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.TASK_VIEW}>
               <TaskScreen />
+            </RequirePermission>
+          }
+        />
+        {/* M13. Two permissions, and the split is the P1 design's: a manager reads the
+            operations and an accountant reads the books. The financial screens are ones a
+            manager does not have rather than ones with blanks in them — a disabled figure is an
+            invitation to go looking for the endpoint. */}
+        <Route
+          path="reports"
+          element={
+            <RequirePermission permission={Permission.REPORT_OPERATIONAL_VIEW}>
+              <TodayScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="reports/dishes"
+          element={
+            <RequirePermission permission={Permission.REPORT_OPERATIONAL_VIEW}>
+              <DishPerformanceScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="reports/waste"
+          element={
+            <RequirePermission permission={Permission.REPORT_OPERATIONAL_VIEW}>
+              <WasteReportScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="reports/sales"
+          element={
+            <RequirePermission permission={Permission.REPORT_FINANCIAL_VIEW}>
+              <SalesReportScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="reports/variance"
+          element={
+            <RequirePermission permission={Permission.REPORT_FINANCIAL_VIEW}>
+              <VarianceReportScreen />
             </RequirePermission>
           }
         />

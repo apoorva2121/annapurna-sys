@@ -78,6 +78,7 @@ describe('the staff home screen', () => {
       'stock.count',
       'kot.view',
       'wastage.log',
+      'report.operational.view',
     ]);
 
     expect(hrefs()).toEqual([
@@ -86,6 +87,7 @@ describe('the staff home screen', () => {
       '/menu',
       '/menu/options',
       '/profile',
+      '/reports',
       '/settings',
       '/staff',
       '/stock',

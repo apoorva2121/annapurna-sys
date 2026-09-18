@@ -35,6 +35,9 @@ const links: { to: string; label: string; permission: Permission | null }[] = [
   { to: '/menu/options', label: strings.nav.menuOptions, permission: Permission.MENU_VIEW },
   { to: '/stock', label: strings.nav.stock, permission: Permission.RECIPE_VIEW },
   { to: '/costs', label: strings.nav.costs, permission: Permission.COST_VIEW },
+  // M13. One entry, not five: `Today` is the way into the other four, and the two financial
+  // ones are absent for a manager rather than offered and refused.
+  { to: '/reports', label: strings.nav.reports, permission: Permission.REPORT_OPERATIONAL_VIEW },
   { to: '/stock/on-hand', label: strings.nav.onHand, permission: Permission.STOCK_VIEW },
   { to: '/stock/receive', label: strings.nav.receive, permission: Permission.STOCK_RECEIVE },
   { to: '/stock/produce', label: strings.nav.produce, permission: Permission.STOCK_PRODUCE },

@@ -81,6 +81,12 @@ function Nav(): ReactElement {
           <Link to="/menu/options">{strings.nav.menuOptions}</Link>
         </>
       )}
+      {/* M13. One link, because `Today` is the way into the other four — an owner reaching
+          for the books and a manager reaching for the glance both start here, and a header
+          with five report links would push the ones somebody uses every shift off the row. */}
+      {can(Permission.REPORT_OPERATIONAL_VIEW) && (
+        <Link to="/reports">{strings.nav.reports}</Link>
+      )}
       {can(Permission.RECIPE_VIEW) && <Link to="/stock">{strings.nav.stock}</Link>}
       {can(Permission.COST_VIEW) && <Link to="/costs">{strings.nav.costs}</Link>}
       {/* M06. Two links rather than one: a store manager arrives either to raise an order or
