@@ -111,6 +111,15 @@ export const Permission = {
   // its subject curates is not a record. The notification centre has no permission at all:
   // what it shows is decided per condition by what each person can act on.
   AUDIT_VIEW: 'audit.view',
+  // M17. `performance.view.own` is listed so the role screen can explain what it means —
+  // and **nothing in this application checks it**, because ADR 0011 makes it a structural
+  // guarantee rather than a setting: it is held by every role and is not removable. A guard
+  // on it would imply it could be absent, which is the opposite of the decision.
+  PERFORMANCE_VIEW_OWN: 'performance.view.own',
+  PERFORMANCE_VIEW_TEAM: 'performance.view.team',
+  PERFORMANCE_PUBLISH: 'performance.publish',
+  INCENTIVE_CONFIGURE: 'incentive.configure',
+  RECOGNITION_AWARD: 'recognition.award',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

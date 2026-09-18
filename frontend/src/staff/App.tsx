@@ -37,6 +37,8 @@ import ProfileScreen from '@staff/screens/ProfileScreen';
 import RecipeScreen from '@staff/screens/RecipeScreen';
 import RosterScreen from '@staff/screens/RosterScreen';
 import AuditScreen from '@staff/screens/AuditScreen';
+import MyPerformanceScreen from '@staff/screens/MyPerformanceScreen';
+import WorkloadScreen from '@staff/screens/WorkloadScreen';
 import NotificationsScreen from '@staff/screens/NotificationsScreen';
 import DesignGalleryScreen from '@staff/screens/DesignGalleryScreen';
 import DishPerformanceScreen from '@staff/screens/DishPerformanceScreen';
@@ -114,6 +116,19 @@ export default function App(): ReactElement {
             </RequirePermission>
           }
         />
+        {/* M17. The workload screen is behind `performance.view.team` because it is about the
+            roster; a person's own figures are behind nothing at all, because ADR 0011 makes
+            `performance.view.own` a structural guarantee held by every role — a guard here would
+            imply it could be absent. */}
+        <Route
+          path="workload"
+          element={
+            <RequirePermission permission={Permission.PERFORMANCE_VIEW_TEAM}>
+              <WorkloadScreen />
+            </RequirePermission>
+          }
+        />
+        <Route path="my-performance" element={<MyPerformanceScreen />} />
         {/* M14. The trail is the owner's, the administrator's and the accountant's — the P1
             design withholds it from the manager, because the person who runs the floor is
             frequently the subject of the record. The centre has no permission at all: what it

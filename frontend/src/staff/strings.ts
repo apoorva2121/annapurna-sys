@@ -53,6 +53,8 @@ export const strings = {
     purchaseOrders: 'Purchase orders',
     myShifts: 'My shifts',
     reports: 'Reports',
+    workload: 'Workload',
+    myPerformance: 'My performance',
     audit: 'Audit trail',
     notifications: 'Alerts',
     roster: 'Roster',
@@ -1504,6 +1506,54 @@ export const strings = {
       'task.overdue': 'Task',
       'cash.variance': 'Till',
     } as Record<string, string | undefined>,
+  },
+
+  // M17. Every word here is chosen so a person reading about themselves is being given feedback
+  // rather than being told a verdict.
+  performance: {
+    workloadTitle: 'Who is carrying the load',
+    workloadIntro:
+      'A share of the covers against a share of the hours. Somebody handling a third of the work on a fifth of the roster is a fact about the rota, and the rota is usually what to change.',
+    workloadFooter:
+      'This screen carries no score and no ranking. It is here so a conversation about workload does not have to start with one.',
+    loading: 'Working it out…',
+    empty: 'Nobody was rostered in this period.',
+    period: (since: string, until: string) => `${since} to ${until}`,
+    person: 'Who',
+    hours: 'Hours',
+    covers: 'Covers',
+    assists: 'Assists',
+    shareOfWork: 'Share of the work',
+    shareOfHours: 'Share of the hours',
+    reading: 'What it says',
+    carryingMore: 'Carrying more than their share of the roster',
+
+    mineTitle: 'My performance',
+    periodLabel: 'Which period?',
+    periodHint: 'Paste the period id your manager gave you. Periods are weekly or monthly.',
+    pickAPeriod: 'Choose a period to see your own figures.',
+    nothingYet: 'There are no figures for you in that period yet.',
+    points: 'Points',
+    hoursWorked: (hours: string) => `From ${hours} hours worked.`,
+    yourPlace: (rank: number, of: number) => `You were ${String(rank)} of ${String(of)}.`,
+    // Said plainly rather than implied by a greyed-out row: somebody looking at a bad number needs
+    // to know it did not count against them.
+    contextOnly: 'This one is not yours to fix, and it counts for nothing.',
+    metric: {
+      volume: 'How much you served',
+      accuracy: 'Orders that went out right',
+      rating: 'What guests said',
+      attendance: 'Shifts you worked',
+      assists: 'Helping other sections',
+      kitchen_delay: 'How late the kitchen ran',
+    } as Record<string, string | undefined>,
+
+    disputeTitle: 'Something not right?',
+    disputeHint:
+      'Say what you think is wrong. Somebody has to answer it before this period can be finalised, and the answer is written down.',
+    disputeLabel: 'What happened?',
+    disputeSubmit: 'Send it',
+    disputeSent: 'Sent. Somebody will answer it before this period is finalised.',
   },
 
   errors: {

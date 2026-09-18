@@ -63,6 +63,11 @@ export const PERMISSION_WORDS: Record<Permission, string> = {
     'Log a complaint, give it an owner, and record what was actually done about it',
   'audit.view':
     'Read the audit trail: who changed a price, who voided a bill, who granted a role',
+  'performance.view.own': 'See your own figures, and everything they are computed from',
+  'performance.view.team': 'See how the work is shared out, and the team’s top contributors',
+  'performance.publish': 'Freeze a period, after which its figures never move',
+  'incentive.configure': 'Set what the restaurant rewards, and how much each part counts',
+  'recognition.award': 'Give somebody an award, with a note saying what it is for',
 };
 
 export function wordsFor(code: string): string | null {

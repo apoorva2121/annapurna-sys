@@ -38,9 +38,38 @@ function EveryonesLinks(): ReactElement {
   return (
     <>
       <Link to="/alerts">{strings.nav.notifications}</Link>
+      {/* M17. Every role, always — ADR 0011 makes it a structural guarantee, so this link has no
+          permission check on it and is not supposed to. */}
+      <Link to="/my-performance">{strings.nav.myPerformance}</Link>
       <Link to="/shifts">{strings.nav.myShifts}</Link>
       <Link to="/messages">{strings.nav.messages}</Link>
       <Link to="/tasks">{strings.nav.tasks}</Link>
+    </>
+  );
+}
+
+/**
+ * The three screens somebody opens to find something out rather than to do something.
+ *
+ * Its own component because `Nav` went over eslint's complexity limit when M17 added the workload
+ * link — the third time the budget has forced this grouping and the third time the grouping has
+ * been the honest one. These are the modules that read the day rather than run it, and each is
+ * behind a different permission because the P1 design draws the lines differently: a manager reads
+ * the operations, an accountant reads the trail, and workload is about the roster.
+ */
+function InsightLinks(): ReactElement {
+  const { can } = useAuth();
+  return (
+    <>
+      {/* M13. One link, because `Today` is the way into the other four — a header with five
+          report links would push the ones somebody uses every shift off the row. */}
+      {can(Permission.REPORT_OPERATIONAL_VIEW) && <Link to="/reports">{strings.nav.reports}</Link>}
+      {/* M14. Withheld from the manager by the P1 design, so the link is absent rather than
+          disabled — a greyed-out door is an invitation to find out what is behind it. */}
+      {can(Permission.AUDIT_VIEW) && <Link to="/audit">{strings.nav.audit}</Link>}
+      {/* M17. About the rota rather than about pay, which is why it sits with the reading
+          screens and not with the settings. */}
+      {can(Permission.PERFORMANCE_VIEW_TEAM) && <Link to="/workload">{strings.nav.workload}</Link>}
     </>
   );
 }
@@ -82,15 +111,7 @@ function Nav(): ReactElement {
           <Link to="/menu/options">{strings.nav.menuOptions}</Link>
         </>
       )}
-      {/* M13. One link, because `Today` is the way into the other four — an owner reaching
-          for the books and a manager reaching for the glance both start here, and a header
-          with five report links would push the ones somebody uses every shift off the row. */}
-      {can(Permission.REPORT_OPERATIONAL_VIEW) && (
-        <Link to="/reports">{strings.nav.reports}</Link>
-      )}
-      {/* M14. Withheld from the manager by the P1 design, so the link is absent rather than
-          disabled — a greyed-out door is an invitation to find out what is behind it. */}
-      {can(Permission.AUDIT_VIEW) && <Link to="/audit">{strings.nav.audit}</Link>}
+      <InsightLinks />
       {can(Permission.RECIPE_VIEW) && <Link to="/stock">{strings.nav.stock}</Link>}
       {can(Permission.COST_VIEW) && <Link to="/costs">{strings.nav.costs}</Link>}
       {/* M06. Two links rather than one: a store manager arrives either to raise an order or
