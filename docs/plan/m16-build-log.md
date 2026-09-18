@@ -12,7 +12,7 @@ Definition of done: `docs/checklist.md` P4–P6.
 |---|---|---|
 | A | The security checklist run in full; the headers it found missing, with tests | ✅ committed |
 | B | The financial-year boundary test; the k6 script and its thresholds | ✅ committed |
-| C | The owner's half, written as commands rather than instructions | ✅ committed (the restore runbook; the deploy and cost alerts remain) |
+| C | The owner's half, written as commands rather than instructions | ✅ committed |
 | — | The console session: load test, restore, cost alerts, deploy | **Owner's** |
 
 Built on 2026-09-19, on `feat/m11-communication` after M18.
@@ -124,7 +124,7 @@ module looking for work.
 | 8.5 | Sentry PII scrubbing active before the first event | Verified against the Sentry project, not against the code that configures it |
 | 9.1, 9.5, 6.3 | Consent not pre-ticked; the purge job running; a script tag rendered everywhere it appears | Three rows that are about what a person sees in a browser. The owner's manual pass |
 | P4 | k6 at 3× peak against staging | `load/peak.js` is written with the three budgets as thresholds. Running it needs staging |
-| P5 | Cost alerts at 50/80/100, and the production deploy | Console |
+| P5 | Cost alerts at 50/80/100, and the production deploy | Console. `docs/deploy/production-runbook.md` is the command list, including the two settings that cannot be fixed afterwards |
 
 ---
 
@@ -150,9 +150,38 @@ failing fast is not a budget met.
 
 ---
 
+## Chunk C · the owner's half, written down
+
+`docs/deploy/production-runbook.md`. Not a second copy of the staging runbook — only the
+**differences**, as commands, because the pipeline R7 built is the pipeline this uses.
+
+Its first section is the one that matters, and it is first for a reason: **two settings cannot be
+fixed afterwards for data that has already been lost.**
+
+1. **Neon's history window**, which is finding 3 and is a console change. Six hours is not a backup
+   policy.
+2. **`GCP_MIN_INSTANCES = 1`.** The staging runbook §9 already names the trigger — *"`1` the day a
+   real restaurant runs the kitchen display on it"* — and this is that day. Scale-to-zero kills the
+   instance holding every open SSE stream; no ticket is lost because clients replay from a cursor,
+   but a display that blanks between rounds gets turned off by the kitchen, and a kitchen display
+   nobody looks at is worse than none.
+
+The rest is the six checklist rows that only exist in production, the load test command, and the
+four things `docs/deploy/gcp-staging-runbook.md` §10 says a laptop cannot tell you and which are
+still unchecked.
+
+One detail worth keeping: **fire a cost alert deliberately.** Set a throwaway budget below what has
+already been spent, confirm the email arrives, delete it. An alert nobody has seen arrive is
+configured rather than working, which is the same distinction as row 10.3.
+
+---
+
 ## Runs
 
 | Run | Result |
 |---|---|
-| `make check` (M18 gate) | — |
+| `make check` (M18 gate, first read) | **10 failed, 1833 passed**, 95.55% — eight of the ten M17's, fixed in `bcc9f26` |
+| `pytest tests/test_security_headers.py` | 9 passed |
+| `pytest tests/test_financial_year_boundary.py` | 3 passed |
+| `make check` (final) | — |
 | Security checklist, code-verifiable rows | 62 rows: see the evidence file |
