@@ -33,9 +33,9 @@ test, or the test may be written against a screen that no longer exists.
 
 | # | Seen on | What | Bucket | State |
 |---|---|---|---|---|
-| F1 | staging `eb8bd6e`, phone | The staff header reads as a paragraph of text, not a set of links | **A** | designed, not built |
-| F2 | local, from F1 | Links are `text-info` on the home screen and unstyled in the header, while `tokens.css` documents `--brand` as the link colour | **A** (small) | not started |
-| F3 | local `HEAD` | 8 screens are linked in both the header and the home page — the same option twice on one screen | **A** | designed, not built |
+| F1 | staging `eb8bd6e`, phone | The staff header reads as a paragraph of text, not a set of links | **A** | ✅ **fixed** 2026-09-19 |
+| F2 | local, from F1 | Links are `text-info` on the home screen and unstyled in the header, while `tokens.css` documents `--brand` as the link colour | **A** (small) | ✅ **fixed** 2026-09-19 |
+| F3 | local `HEAD` | 8 screens are linked in both the header and the home page — the same option twice on one screen | **A** | ✅ **fixed** 2026-09-19 |
 | F5 | local `HEAD` | A **manager** must no longer be assignable as a table's waiter | **A** | ✅ **fixed** 2026-09-19 |
 | F6 | local `HEAD` | The whole "Preparation preference" group comes off **non-veg** dishes | **A** | ✅ **fixed** 2026-09-19 |
 | F7 | local `HEAD` | "Ask for bill" is shown to the owner, where it is not an owner's action | **A** | ✅ **fixed** 2026-09-19 |
@@ -1286,3 +1286,34 @@ backend change rather than a screen change, which is why it is its own row.
 
 Until then `menuDiscipline.test.ts` exempts the screen **explicitly, with this reason written into
 the exemption**, so it reads as a decision rather than as a gap in the rule.
+
+---
+
+## Batch 3 — shipped 2026-09-19
+
+**F11, F12 first, then F1, F2, F3.** All frontend, all the navigation and the menu.
+
+**Checked in a browser at 400px, not only by test.** The header now shows Tables · Bills · Cash and
+a Menu button; the drawer opens with real group headings and scrolls. The home page shows the ten
+screens the header does not carry, grouped, with nothing repeated.
+
+**What the work turned up:**
+
+- **`reachability.test.ts` reported twenty-one unreachable screens** the moment the navigation
+  moved into `navigation.ts`, because it globbed only `.tsx`. It was right to complain — the links
+  really had left the files it was reading. Widened to `.{ts,tsx}`.
+- **A first version of the duplicate test asserted "every route is in the navigation" and was
+  wrong.** `/reports/sales`, `/reports/waste`, `/reports/dishes` and `/reports/variance` are
+  reached *from* the Reports screen on purpose — M13: *"one link, because Today is the way into the
+  other four"*. That assertion is gone, with the reason written where it used to be.
+- **`HomeScreen.test.tsx` threw rather than failing** on the new empty case: a person whose screens
+  are all in the header now lands on an empty home page, which is correct, and `getAllByRole`
+  throws on zero matches.
+
+**Three of the owner's four navigation defects had the same root**, and it is worth naming: the
+header and the home page were two hand-written lists that had to agree and had no way to. Four
+separate comments across the two files record somebody noticing a gap and patching one side. They
+are one list now, partitioned, and `navigationDiscipline.test.ts` refuses a screen offered twice.
+
+    vitest 459 passed (was 455) · eslint 0 · tsc 0
+    migrations 0056, 0057, 0058 applied to the local database and verified

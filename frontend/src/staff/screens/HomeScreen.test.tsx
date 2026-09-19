@@ -7,6 +7,13 @@
 // They also assert the *absence* of doors, which is the half that keeps the list honest: a chef
 // sees ingredients and recipes and must not be offered dish costs, because `seed/organization.yaml`
 // says a chef sees grams and not rupees. Offering a link that 403s reads as a broken product.
+//
+// **Rewritten 2026-09-19.** This page used to list eighteen screens, eight of which were also in
+// the header — the owner's report: *"the options that are present at the top they should not be
+// repeated below … that is redundant."* The header and this page are now one partition of one
+// list (`navigation.ts`), so the expectations below are shorter by exactly those eight. Menu,
+// recipes, dish costs, reports, staff, settings and the profile moved to the header, which is on
+// every screen; this page keeps the ten that were only ever here.
 
 import { render, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
@@ -55,8 +62,11 @@ function renderFor(permissions: string[]): void {
 }
 
 function hrefs(): string[] {
+  // `queryAllByRole`, not `getAllByRole`: "no links at all" is now a real and correct outcome —
+  // somebody whose screens all live in the header lands here and finds nothing — and `getAllBy`
+  // throws rather than returning an empty array.
   return screen
-    .getAllByRole('link')
+    .queryAllByRole('link')
     .map((link) => link.getAttribute('href') ?? '')
     .sort();
 }
@@ -81,16 +91,9 @@ describe('the staff home screen', () => {
       'report.operational.view',
     ]);
 
+    // Ten, not eighteen: the other eight are in the header and no longer repeated here.
     expect(hrefs()).toEqual([
-      '/costs',
       '/kitchen',
-      '/menu',
-      '/menu/options',
-      '/profile',
-      '/reports',
-      '/settings',
-      '/staff',
-      '/stock',
       '/stock/count',
       '/stock/on-hand',
       '/stock/produce',
@@ -108,13 +111,7 @@ describe('the staff home screen', () => {
     // module's whole control rests on.
     renderFor(['stock.view', 'stock.produce', 'wastage.log']);
 
-    expect(hrefs()).toEqual([
-      '/profile',
-      '/stock/on-hand',
-      '/stock/produce',
-      '/waste',
-      '/waste/summary',
-    ]);
+    expect(hrefs()).toEqual(['/stock/on-hand', '/stock/produce', '/waste', '/waste/summary']);
   });
 
   it('offers kitchen staff the shelf and nothing that changes it', () => {
@@ -125,19 +122,17 @@ describe('the staff home screen', () => {
     // seeing the shelf's history, not changing it. Logging still needs `wastage.log`.
     renderFor(['stock.view']);
 
-    expect(hrefs()).toEqual(['/profile', '/stock/on-hand', '/waste/summary']);
+    expect(hrefs()).toEqual(['/stock/on-hand', '/waste/summary']);
   });
 
-  it('offers a chef recipes and not rupees', () => {
-    renderFor(['recipe.view', 'recipe.manage', 'menu.view']);
-
-    expect(hrefs()).toEqual(['/menu', '/menu/options', '/profile', '/stock']);
-  });
-
-  it('offers a manager the costs but not the staff list', () => {
+  // Menu, recipes and dish costs are header screens now, so a chef holding only those reaches
+  // this page and finds nothing on it — correct, and the reason the empty state below matters more
+  // than it used to. The chef-sees-grams-not-rupees boundary moved with them and is asserted in
+  // `AppShell.test.tsx`, which is where those links now live.
+  it('offers nothing to somebody whose screens are all in the header', () => {
     renderFor(['menu.view', 'menu.manage', 'recipe.view', 'cost.view']);
 
-    expect(hrefs()).toEqual(['/costs', '/menu', '/menu/options', '/profile', '/stock']);
+    expect(hrefs()).toEqual([]);
   });
 
   it('tells someone with no permissions why the page is empty', () => {

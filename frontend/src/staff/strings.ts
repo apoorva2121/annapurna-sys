@@ -49,6 +49,24 @@ export const strings = {
     menu: 'Menu',
     menuOptions: 'Options and add-ons',
     menuCodes: 'Names and codes',
+    // Group headings. The grouping already existed in `AppShell`'s code — three times, each forced
+    // by eslint's complexity budget rather than designed — and was never shown on the screen.
+    groups: {
+      service: 'Service',
+      menu: 'Menu and recipes',
+      buying: 'Buying',
+      insight: 'Insight',
+      people: 'People',
+      setup: 'Set up',
+      yours: 'Yours',
+      kitchen: 'Kitchen and waste',
+      store: 'The store',
+      diners: 'Diners',
+    },
+    // The drawer. Not an icon alone: the design system allows an icon-only button only for an
+    // action done fifty times a shift, and opening a menu is not one.
+    more: 'Menu',
+    closeMenu: 'Close',
     stock: 'Ingredients and recipes',
     costs: 'Dish costs',
     suppliers: 'Suppliers',

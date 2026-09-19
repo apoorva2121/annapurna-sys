@@ -4,7 +4,10 @@
 // the app, and fails when a fixed-address route has no link anywhere.
 import { describe, expect, it } from 'vitest';
 
-const sources = import.meta.glob<string>('./**/*.tsx', {
+// `.ts` as well as `.tsx` since 2026-09-19: the navigation moved out of `AppShell.tsx` into
+// `navigation.ts` as data, and a glob that saw only components stopped seeing twenty-one links —
+// which this test then reported as twenty-one unreachable screens. It was right to complain.
+const sources = import.meta.glob<string>('./**/*.{ts,tsx}', {
   query: '?raw',
   import: 'default',
   eager: true,
