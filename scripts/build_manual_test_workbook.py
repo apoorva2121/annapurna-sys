@@ -54,6 +54,7 @@ _MODULE_NAMES = {
     "M13": "Reports — the dashboards, the variance, and the money",
     "M14": "Audit & alerts — who changed what, and what needs you now",
     "M15": "The generator — 120 days with fourteen things wrong in it",
+    "M16": "Hardening — the headers, the boundary, the QR, and the rows only you can run",
     "M17": "Fairness — who carries the load, and whether it reads as feedback",
     "M18": "Compliance — what puts the licences at risk, and whether what it says is true",
 }
