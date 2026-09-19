@@ -1,12 +1,19 @@
 import { type ReactElement, useState } from 'react';
 
 import { Button } from '@shared/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
 import { errorProps } from '@staff/components/errorProps';
 import { strings } from '@staff/strings';
-import { type Metric, type MyScore, useMyScore, useRaiseDispute } from '@staff/api/performance';
+import {
+  type Metric,
+  type MyScore,
+  useMyPeriods,
+  useMyScore,
+  useRaiseDispute,
+} from '@staff/api/performance';
 
 /**
  * A person's own figures — **the one screen every role in this product can open** (ADR 0011).
@@ -30,23 +37,48 @@ import { type Metric, type MyScore, useMyScore, useRaiseDispute } from '@staff/a
  * **What is shown with zero weight is shown anyway.** The kitchen running late is on this screen
  * and counts for nothing, because that is what makes a low score explainable rather than an
  * accusation.
+ *
+ * **And the period is chosen from a list.** It used to be a text box reading *"paste the period id
+ * your manager gave you"* — thirty-six hex characters spoken between two people, on the one screen
+ * ADR 0011 promises to everybody. A guarantee reachable only by dictation is not a guarantee.
  */
 export default function MyPerformanceScreen(): ReactElement {
   const [periodId, setPeriodId] = useState('');
+  const periods = useMyPeriods();
   const score = useMyScore(periodId);
 
   return (
     <div className="flex flex-col gap-page">
       <h1 className="text-2xl font-semibold">{strings.performance.mineTitle}</h1>
 
-      <Field
-        label={strings.performance.periodLabel}
-        hint={strings.performance.periodHint}
-        value={periodId}
-        onChange={(event) => {
-          setPeriodId(event.target.value);
-        }}
-      />
+      <QueryState
+        isPending={periods.isPending}
+        error={periods.error}
+        pendingLabel={strings.performance.loading}
+      >
+        {periods.data === undefined ? null : periods.data.length === 0 ? (
+          <p className="text-muted-foreground">{strings.performance.noPeriods}</p>
+        ) : (
+          <div className="flex max-w-sm flex-col gap-1">
+            <span className="text-sm font-medium">{strings.performance.periodLabel}</span>
+            <Select value={periodId} onValueChange={setPeriodId}>
+              <SelectTrigger aria-label={strings.performance.periodLabel}>
+                <SelectValue placeholder={strings.performance.pickAPeriod} />
+              </SelectTrigger>
+              <SelectContent>
+                {periods.data.map((period) => (
+                  <SelectItem key={period.id} value={period.id}>
+                    {/* The label and the status come from the server: one phrasing, so a screen,
+                        an export and a future translation cannot disagree. */}
+                    {period.label}
+                    {period.status === 'draft' ? ` · ${strings.performance.stillOpen}` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </QueryState>
 
       {periodId === '' ? (
         <p className="text-muted-foreground">{strings.performance.pickAPeriod}</p>
@@ -102,9 +134,7 @@ function MetricRow({ metric }: { metric: Metric }): ReactElement {
   return (
     <li className="flex flex-col gap-1 border-b border-border pb-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="font-medium">
-          {strings.performance.metric[metric.key] ?? metric.key}
-        </span>
+        <span className="font-medium">{strings.performance.metric[metric.key] ?? metric.key}</span>
         <span className="tabular-nums">{metric.value}</span>
       </div>
       {/* The sentence the server built. This is the half a person actually reads. */}

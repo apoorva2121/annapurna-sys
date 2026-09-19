@@ -1546,7 +1546,8 @@ export const strings = {
 
     mineTitle: 'My performance',
     periodLabel: 'Which period?',
-    periodHint: 'Paste the period id your manager gave you. Periods are weekly or monthly.',
+    noPeriods: 'No periods have been set up yet. Ask your manager.',
+    stillOpen: 'still open',
     pickAPeriod: 'Choose a period to see your own figures.',
     nothingYet: 'There are no figures for you in that period yet.',
     points: 'Points',

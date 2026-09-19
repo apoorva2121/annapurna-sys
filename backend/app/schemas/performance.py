@@ -124,6 +124,23 @@ class PeriodResponse(_Schema):
     unscored: tuple[str, ...] = ()
 
 
+class PeriodSummaryResponse(_Schema):
+    """Just enough to choose a period from a list, and **deliberately not `PeriodResponse`**.
+
+    That one carries `unanswered_disputes` and `unscored` — how many people have challenged their
+    figures, and the names of people who cannot see theirs. Both are a manager's business. This
+    shape is what the screen every role can open needs to fill a dropdown, and nothing else: when
+    it ran, whether it is frozen, and what to call it.
+    """
+
+    id: uuid.UUID
+    period_start: date
+    period_end: date
+    status: str
+    # "1-7 September", built on the server so a future translation changes one place.
+    label: str
+
+
 class PeriodCreateRequest(_Schema):
     incentive_scheme_id: uuid.UUID
     period_start: date

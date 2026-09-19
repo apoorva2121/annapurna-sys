@@ -25,6 +25,7 @@ person is bad*.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
@@ -257,6 +258,22 @@ class PerformanceService:
         return period
 
     # ------------------------------------------------------------------ reading it
+
+    async def periods(self, *, limit: int | None = None) -> Sequence[PerformancePeriod]:
+        """This restaurant's periods, newest first — so a person can **choose** one.
+
+        `MyPerformanceScreen` used to say *"paste the period id your manager gave you"*, and there
+        was no route that could have populated a list. A UUID read aloud between two people is
+        exactly what `docs/backlog.md`'s "a complaint needs a number a person can say out loud"
+        row is about — and worse here, because the screen behind it is the one ADR 0011 promises to
+        **every** employee. A guarantee reachable only by dictating thirty-six hex characters is
+        not a guarantee.
+
+        No permission, for the same reason `mine()` has none: the list is dates and statuses, it is
+        already scoped to the caller's restaurant, and gating it would gate the way into the one
+        screen everybody holds.
+        """
+        return await self._repository.periods(limit=limit)
 
     async def unscored(self, period_id: uuid.UUID) -> tuple[str, ...]:
         """Who worked this period and has no way to see their own figures.

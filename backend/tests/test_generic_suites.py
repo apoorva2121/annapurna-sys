@@ -109,6 +109,10 @@ _PUBLIC = PUBLIC_ROUTES | {
     # about *the caller* and takes no employee id at all, which
     # tests/test_m17_endpoints.py asserts against its signature.
     "GET /api/v1/staff/performance/me",
+    # The list that fills the dropdown on that same screen. Gating it would gate the way into the
+    # one screen every role holds, and the shape is deliberately narrow — dates, statuses and a
+    # label, never the dispute counts or the names `PeriodResponse` carries.
+    "GET /api/v1/staff/performance/periods",
     # Raising a challenge to your own figures is part of being measured. Gating it behind a
     # permission a role might not hold would rebuild exactly the thing
     # `docs/workload-fairness.md`'s ethics review refused: visibility without recourse. The service

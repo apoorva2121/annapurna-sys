@@ -96,10 +96,36 @@ export type Period = {
   unanswered_disputes: number;
 };
 
+/** Just enough to choose one. Deliberately not `Period` — that carries dispute counts and the
+ *  names of people who cannot see their own figures, and both are a manager's business. */
+export type PeriodSummary = {
+  id: string;
+  period_start: string;
+  period_end: string;
+  status: string;
+  /** "1-7 September", built on the server so a future translation changes one place. */
+  label: string;
+};
+
+/**
+ * The periods this person can look at.
+ *
+ * Behind no permission, like `useMyScore` — it fills the dropdown on the one screen every role
+ * holds (ADR 0011). Before this existed the screen asked somebody to **paste a period id their
+ * manager read out to them**, which is thirty-six hex characters spoken between two people.
+ */
+export function useMyPeriods(): UseQueryResult<PeriodSummary[]> {
+  return useQuery({
+    queryKey: [...KEY, 'periods'],
+    queryFn: () => apiGet<PeriodSummary[]>('/staff/performance/periods'),
+  });
+}
+
 export function useMyScore(periodId: string): UseQueryResult<MyScore | null> {
   return useQuery({
     queryKey: [...KEY, 'me', periodId],
     queryFn: () => apiGet<MyScore | null>(`/staff/performance/me?period_id=${periodId}`),
+    enabled: periodId !== '',
   });
 }
 

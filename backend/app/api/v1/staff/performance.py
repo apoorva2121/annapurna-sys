@@ -37,6 +37,7 @@ from app.schemas.performance import (
     NoteResponse,
     PeriodCreateRequest,
     PeriodResponse,
+    PeriodSummaryResponse,
     SchemeCreateRequest,
     SchemeResponse,
     ShareResponse,
@@ -65,6 +66,44 @@ def _service(session: SessionDep, actor: Actor) -> PerformanceService:
 
 
 # --------------------------------------------------------------------------- my own
+
+
+@router.get("/performance/periods", response_model=list[PeriodSummaryResponse])
+async def my_periods(session: SessionDep, actor: ActorDep) -> list[PeriodSummaryResponse]:
+    """The periods a person can choose from, newest first.
+
+    **No permission dependency, and a deliberately narrower shape than `PeriodResponse`.** The
+    screen this fills is the one every role holds (ADR 0011), so gating the list would gate the way
+    in — but `PeriodResponse` carries unanswered dispute counts and the names of people who cannot
+    see their own figures, and both of those are a manager's business. This returns when a period
+    ran, whether it is frozen, and what to call it.
+
+    It exists because the screen used to say *"paste the period id your manager gave you"* and no
+    route could have populated a list. A guarantee reachable only by dictating thirty-six hex
+    characters is not a guarantee.
+    """
+    periods = await _service(session, actor).periods()
+    return [
+        PeriodSummaryResponse(
+            id=period.id,
+            period_start=period.period_start,
+            period_end=period.period_end,
+            status=period.status,
+            label=_label(period.period_start, period.period_end),
+        )
+        for period in periods
+    ]
+
+
+def _label(start: date, end: date) -> str:
+    """`1-7 September`, or `28 September - 4 October` when it straddles a month.
+
+    Built here rather than in the browser so an export, a screen and any future translation say the
+    same thing — the same reason M13 computes its comparisons on the server.
+    """
+    if start.month == end.month:
+        return f"{start.day}-{end.day} {start:%B}"
+    return f"{start.day} {start:%B} - {end.day} {end:%B}"
 
 
 @router.get("/performance/me", response_model=MyScoreResponse | None)

@@ -54,6 +54,50 @@ async def _scheme_and_period(client: AsyncClient, token: str) -> tuple[str, str]
     return scheme.json()["id"], period.json()["id"]
 
 
+class TestChoosingAPeriod:
+    """The list that makes `/performance/me` reachable.
+
+    Before it existed the screen said *"paste the period id your manager gave you"* — thirty-six
+    hex characters spoken between two people, on the one screen ADR 0011 promises to everybody, and
+    `PerformanceRepository.periods()` was dead code written for a route nobody added. The backlog's
+    *"a complaint needs a number a person can say out loud"* row asked the next module that adds a
+    table to check exactly this, and M17 did not.
+    """
+
+    def test_the_summary_cannot_carry_a_managers_business(self) -> None:
+        """**A property of the schema, not of the handler.** `PeriodResponse` carries
+        `unanswered_disputes` (how many people have challenged their figures) and `unscored` (the
+        names of people who cannot see theirs). A waiter picking a period from a dropdown must not
+        receive either, and the way to guarantee that is a shape with nowhere to put them.
+        """
+        fields = set(schemas.PeriodSummaryResponse.model_fields)
+
+        assert fields == {"id", "period_start", "period_end", "status", "label"}
+        assert "unanswered_disputes" not in fields
+        assert "unscored" not in fields
+
+    async def test_a_waiter_can_list_the_periods(
+        self, api_client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """No permission, for the same reason `/performance/me` has none: gating the list would
+        gate the way into the screen every role holds."""
+        await _identity_world(db_session, "owner", "waiter")
+        owner = await _token(api_client, "owner")
+        _, period_id = await _scheme_and_period(api_client, owner)
+
+        response = await api_client.get(
+            f"{STAFF}/performance/periods", headers=_auth(await _token(api_client, "waiter"))
+        )
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert [row["id"] for row in body] == [period_id]
+        # A label a person can read, built on the server so a screen, an export and any future
+        # translation say the same thing.
+        assert body[0]["label"]
+        assert body[0]["status"] == "draft"
+
+
 class TestEverybodyCanSeeTheirOwn:
     def test_every_role_in_the_catalogue_holds_it(self) -> None:
         """**ADR 0011's structural guarantee**, asserted where it is structural.
