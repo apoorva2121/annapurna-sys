@@ -42,8 +42,9 @@ test, or the test may be written against a screen that no longer exists.
 | F8 | local `HEAD` | A **manager** cannot reset anyone's password — only the owner can | **A** | ✅ **fixed** 2026-09-19 |
 | F9 | local `HEAD` | No "forgot password" anywhere; owner recovery to go by SMS/WhatsApp code | **B** | channel chosen, blocked on research |
 | F10 | local `HEAD` | A bill cannot be printed; only the credit note that corrects it can | **A** | answered, needs a research step |
-| F11 | local `HEAD` | Dishes, categories, variants **and modifier groups** show their internal code beside the name | **A** | answered, ready to build |
-| F12 | new, owner's idea | A reference page listing every name and its code, since codes become invisible | **A** | answered, ready to build |
+| F11 | local `HEAD` | Dishes, categories, variants **and modifier groups** show their internal code beside the name | **A** | ✅ **fixed** 2026-09-19 |
+| F12 | new, owner's idea | A reference page listing every name and its code, since codes become invisible | **A** | ✅ **built** 2026-09-19 |
+| F24 | local `HEAD`, found by a test | A dish's cost breakdown names each ingredient by code, because the API sends no name | **A** | not started |
 | F13 | local `HEAD` | Nobody can look at a populated report: generated data is excluded from reports by design | **B** | question open |
 | F14 | local `HEAD` | Workload compares 120 days of orders against 2 days of attendance | **A** | question open |
 | F15 | local `HEAD` | Alert cards are unreadable in the Dark theme — contrast 1.04 against a minimum of 4.5 | **A** | ✅ **fixed** 2026-09-19 |
@@ -1259,3 +1260,29 @@ attachment now filters on the dish's own `food_type` — the field with a statut
 therefore the one that is never empty.
 
     pytest (5 affected suites) 103 passed · vitest 440 passed · ruff, mypy, eslint, tsc clean
+
+---
+
+## F24 · The cost breakdown names ingredients by code
+
+**Found by the discipline test written for F11**, not by the owner.
+
+`DishCostScreen.tsx:239` renders `line.code` for each ingredient in a dish's cost breakdown. Its
+own comment says why the screen exists:
+
+> *"The breakdown is the product. '₹126.70' is not actionable; '₹63 of it is the chicken tikka' is
+> what an owner uses when the price of chicken moves."*
+
+**That is exactly the sentence a code cannot say.** The screen prints `PREP_CHICKEN_TIKKA` where
+its author intended a name.
+
+**It is not part of F11 and was deliberately not folded into it.** F11 removes codes that sit
+*beside a name*, where the name is already there. Here there is no name to fall back on:
+`CostedLine` carries `component_id`, `code`, `quantity`, `unit_cost` and `cost` — the API sends no
+name at all. So removing the code would leave the row with nothing identifying it, which is worse.
+
+**The fix is a schema change:** add `name` to the costed line, show it, and keep the code out. A
+backend change rather than a screen change, which is why it is its own row.
+
+Until then `menuDiscipline.test.ts` exempts the screen **explicitly, with this reason written into
+the exemption**, so it reads as a decision rather than as a gap in the rule.

@@ -48,6 +48,7 @@ export const strings = {
     settings: 'Restaurant settings',
     menu: 'Menu',
     menuOptions: 'Options and add-ons',
+    menuCodes: 'Names and codes',
     stock: 'Ingredients and recipes',
     costs: 'Dish costs',
     suppliers: 'Suppliers',
@@ -389,6 +390,19 @@ export const strings = {
     modifiersTitle: 'Options asked about this dish',
     modifiersEmpty: 'No options attached.',
     modifierGroupsTitle: 'Option groups',
+    // The one screen where a code is information rather than noise (owner's request, 2026-09-19).
+    codesTitle: 'Names and codes',
+    codesIntro:
+      'Every menu object and the short code stored behind it. Codes are generated from the name when something is created and never change afterwards, because recipes are matched by them.',
+    codesFilter: 'Search a name or a code',
+    codesEmpty: 'There is no menu yet.',
+    codesNoMatch: 'Nothing matches that.',
+    codesKinds: {
+      category: 'Category',
+      dish: 'Dish',
+      variant: 'Size',
+      group: 'Option group',
+    },
     modifierGroupsEmpty: 'No option groups yet.',
     addModifierGroup: 'Add an option group',
     groupCode: 'Group code',

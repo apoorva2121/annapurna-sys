@@ -63,7 +63,6 @@ export default function MenuItemScreen(): ReactElement {
             <header className="flex flex-wrap items-center gap-3">
               <FoodTypeMark foodType={dish.food_type} />
               <h1 className="text-2xl font-semibold">{dish.name}</h1>
-              <span className="font-mono text-sm text-muted-foreground">{dish.code}</span>
               {!dish.is_active && (
                 <span className="rounded-sm bg-neutral-soft px-1.5 py-0.5 text-xs text-neutral">
                   {strings.menu.inactive}
@@ -145,16 +144,6 @@ function DishDetails({ dish, mayManage }: { dish: MenuItem; mayManage: boolean }
           setDescription(event.target.value);
         }}
       />
-      <Field
-        label={strings.menu.dishCode}
-        hint={strings.menu.dishCodeHint}
-        value={dish.code}
-        readOnly
-        onChange={() => {
-          // Read-only by design: the code is a join key, not a label.
-        }}
-      />
-
       <div className="space-y-1">
         <Label htmlFor="food-type">{strings.menu.foodType}</Label>
         <Select
@@ -276,7 +265,6 @@ function VariantRow({
         <Link className="text-info underline" to={`/recipes/${variant.id}`}>
           {variant.name}
         </Link>
-        <span className="ml-2 font-mono text-xs text-muted-foreground">{variant.code}</span>
         {!variant.is_active && (
           <span className="ml-2 rounded-sm bg-neutral-soft px-1.5 py-0.5 text-xs text-neutral">
             {strings.menu.inactive}
@@ -377,7 +365,6 @@ function AttachedGroups({
               />
               <Label htmlFor={`group-${group.id}`} className="flex-1">
                 {group.name}
-                <span className="ml-2 font-mono text-xs text-muted-foreground">{group.code}</span>
               </Label>
               <span className="text-sm text-muted-foreground">
                 {group.modifiers

@@ -9,6 +9,7 @@ import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
 import { errorProps, fieldErrors } from '@staff/components/errorProps';
+import { suffixedCode } from '@staff/codeFromName';
 import { strings } from '@staff/strings';
 import {
   type MenuCategory,
@@ -100,7 +101,7 @@ export default function MenuScreen(): ReactElement {
           )}
         </QueryState>
         {swap.isError && <Notice tone="critical" {...errorProps(swap.error)} />}
-        <AddCategory />
+        <AddCategory existing={items.map((category) => category.code)} />
       </section>
 
       {current !== null && <DishesSection categoryId={current} showInactive={showInactive} />}
@@ -153,7 +154,6 @@ function CategoryRow({
         }`}
       >
         {category.name}
-        <span className="ml-2 font-mono text-xs text-muted-foreground">{category.code}</span>
         {!category.is_active && (
           <span className="ml-2 rounded-sm bg-neutral-soft px-1.5 py-0.5 text-xs text-neutral">
             {strings.menu.inactive}
@@ -187,21 +187,29 @@ function CategoryRow({
   );
 }
 
-function AddCategory(): ReactElement {
+/**
+ * A category is named, and its code is derived.
+ *
+ * The code field used to be here and required, and the code was printed beside every name — the
+ * same thing said twice, once for a person and once for the database. The owner removed it from
+ * the screens on 2026-09-19, and a form that still asked for one would be asking somebody to
+ * invent a value they will never see again. `codeFromName` fills it; `/menu/codes` is where the
+ * result can be read when a recipe or an import needs it.
+ */
+function AddCategory({ existing }: { existing: string[] }): ReactElement {
   const create = useCreateCategory();
   const problems = fieldErrors(create.error);
-  const [code, setCode] = useState('');
   const [name, setName] = useState('');
 
   function onSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     create.mutate(
-      // Uppercased here rather than refused: the server's pattern is `^[A-Z][A-Z0-9_]*$`, and
-      // rejecting "main_veg" for its case is a rule nobody can know in advance.
-      { code: code.trim().toUpperCase(), name: name.trim() },
+      // Derived once, here, at creation. A rename must never reach this — the code is the join key
+      // `library/dishes.yaml` and every M04 recipe use, and a code that followed the name would
+      // detach a dish from its recipe the first time somebody fixed a spelling.
+      { code: suffixedCode(name.trim(), existing), name: name.trim() },
       {
         onSuccess: () => {
-          setCode('');
           setName('');
         },
       },
@@ -210,18 +218,11 @@ function AddCategory(): ReactElement {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
-      <Field
-        label={strings.menu.categoryCode}
-        hint={strings.menu.codeHint}
-        value={code}
-        onChange={(event) => {
-          // Nudged into shape as it is typed, like the station code: "chilli paneer" is what a
-          // person types, and it was refused with no reason in the M03 manual pass.
-          setCode(event.target.value.toUpperCase().replace(/\s+/g, '_'));
-        }}
-        required
-        error={problems.code}
-      />
+      {/* The server can still refuse a code — a collision this client could not see, from
+          another tab — so its message has to land somewhere a person will read it. */}
+      {problems.code === undefined ? null : (
+        <Notice tone="critical" title={problems.code} />
+      )}
       <Field
         label={strings.menu.categoryName}
         value={name}
@@ -231,7 +232,7 @@ function AddCategory(): ReactElement {
         required
         error={problems.name}
       />
-      <Button type="submit" disabled={create.isPending || name.trim() === '' || code.trim() === ''}>
+      <Button type="submit" disabled={create.isPending || name.trim() === ''}>
         {create.isPending ? strings.menu.creating : strings.menu.addCategory}
       </Button>
       {create.isError && (
@@ -290,7 +291,6 @@ function DishRow({ dish }: { dish: MenuItem }): ReactElement {
       <FoodTypeMark foodType={dish.food_type} />
       <a href={`/menu/${dish.id}`} className="min-h-target flex-1 rounded-md px-2 py-1">
         {dish.name}
-        <span className="ml-2 font-mono text-xs text-muted-foreground">{dish.code}</span>
         {!dish.is_active && (
           <span className="ml-2 rounded-sm bg-neutral-soft px-1.5 py-0.5 text-xs text-neutral">
             {strings.menu.inactive}

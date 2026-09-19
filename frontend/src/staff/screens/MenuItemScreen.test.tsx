@@ -183,14 +183,19 @@ describe('the dish', () => {
     expect(await screen.findByRole('img', { name: /non-vegetarian/i })).toBeInTheDocument();
   });
 
-  it('shows the code and does not let anyone edit it', async () => {
-    // `menu_item.code` is the join key to the starter library and to every recipe M04 attaches.
+  // Replaced on 2026-09-19. This test used to assert the code was shown here, read-only, because
+  // `menu_item.code` is the join key to the starter library and to every recipe M04 attaches.
+  //
+  // The owner removed codes from every browse and detail screen — *"every dish is mentioned twice,
+  // name is okay, but the other thing should not be in ui"* — and asked for one page that lists
+  // them instead. So the rule is now the opposite of what it was, and `/menu/codes` is the only
+  // screen that shows one. `menuDiscipline.test.ts` holds that from the other side.
+  it('does not show the database code beside the dish', async () => {
     renderScreen(['menu.view', 'menu.manage', 'menu.price']);
     await screen.findByText('Butter Chicken');
 
-    const code = screen.getByLabelText(/dish code/i);
-    expect(code).toHaveValue('BUTTER_CHICKEN');
-    expect(code).toHaveAttribute('readonly');
+    expect(screen.queryByLabelText(/dish code/i)).toBeNull();
+    expect(screen.queryByText('BUTTER_CHICKEN')).toBeNull();
   });
 
   it('formats the price with Indian grouping', async () => {

@@ -115,6 +115,10 @@ function Nav(): ReactElement {
           <Link to="/menu/options">{strings.nav.menuOptions}</Link>
         </>
       )}
+      {/* The one place a menu code is still shown, after the owner had them taken off every
+          browse screen on 2026-09-19. Behind `menu.manage` rather than `menu.view`, because a
+          waiter has no use for a table of database keys. */}
+      {can(Permission.MENU_MANAGE) && <Link to="/menu/codes">{strings.nav.menuCodes}</Link>}
       <InsightLinks />
       {can(Permission.RECIPE_VIEW) && <Link to="/stock">{strings.nav.stock}</Link>}
       {can(Permission.COST_VIEW) && <Link to="/costs">{strings.nav.costs}</Link>}

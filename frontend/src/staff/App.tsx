@@ -26,6 +26,7 @@ import OrderScreen from '@staff/screens/OrderScreen';
 import TableMapScreen from '@staff/screens/TableMapScreen';
 import MenuItemScreen from '@staff/screens/MenuItemScreen';
 import MenuScreen from '@staff/screens/MenuScreen';
+import MenuCodesScreen from '@staff/screens/MenuCodesScreen';
 import ModifierGroupsScreen from '@staff/screens/ModifierGroupsScreen';
 import StockItemsScreen from '@staff/screens/StockItemsScreen';
 import HomeScreen from '@staff/screens/HomeScreen';
@@ -285,6 +286,17 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.MENU_VIEW}>
               <ModifierGroupsScreen />
+            </RequirePermission>
+          }
+        />
+        <Route
+          // Behind `menu.manage`, not `menu.view`: every waiter holds `menu.view` — they read the
+          // menu to take an order — and has no use for a table of database keys. The narrower
+          // grant is the easy one to widen later.
+          path="menu/codes"
+          element={
+            <RequirePermission permission={Permission.MENU_MANAGE}>
+              <MenuCodesScreen />
             </RequirePermission>
           }
         />

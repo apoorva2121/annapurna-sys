@@ -11,6 +11,7 @@ import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { QueryState } from '@staff/components/QueryState';
 import { errorProps } from '@staff/components/errorProps';
+import { suffixedCode } from '@staff/codeFromName';
 import { strings } from '@staff/strings';
 import {
   type ModifierGroup,
@@ -58,7 +59,7 @@ export default function ModifierGroupsScreen(): ReactElement {
         )}
       </QueryState>
 
-      {mayManage && <AddGroup />}
+      {mayManage && <AddGroup existing={items.map((group) => group.code)} />}
       {mayManage && items.length > 0 && <BulkApply groups={items} />}
     </div>
   );
@@ -107,7 +108,6 @@ function GroupCard({
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold">{group.name}</h2>
-          <p className="font-mono text-xs text-muted-foreground">{group.code}</p>
         </div>
         <p className="text-sm text-muted-foreground">
           {group.is_required ? strings.menu.required : ''} {strings.menu.minSelect}{' '}
@@ -163,9 +163,15 @@ function GroupCard({
   );
 }
 
-function AddGroup(): ReactElement {
+/**
+ * A group is named, and its code is derived — the owner's decision of 2026-09-19.
+ *
+ * They found this form while reporting that `JAIN_PREF` and `ADDONS_GRAVY` were printed beside
+ * every group name: *"to create new addon group we need group code."* With the codes off every
+ * screen, asking somebody to invent one would be asking for a value they will never see again.
+ */
+function AddGroup({ existing }: { existing: string[] }): ReactElement {
   const create = useCreateModifierGroup();
-  const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [min, setMin] = useState('0');
   const [max, setMax] = useState('1');
@@ -175,7 +181,9 @@ function AddGroup(): ReactElement {
     event.preventDefault();
     create.mutate(
       {
-        code: code.trim().toUpperCase(),
+        // Derived once, at creation. `seed/operations.yaml` wires groups to categories by code,
+        // so a code that followed the name would detach a group from its attachment rule.
+        code: suffixedCode(name.trim(), existing),
         name: name.trim(),
         min_select: Number(min),
         max_select: Number(max),
@@ -184,7 +192,6 @@ function AddGroup(): ReactElement {
       },
       {
         onSuccess: () => {
-          setCode('');
           setName('');
         },
       },
@@ -195,15 +202,6 @@ function AddGroup(): ReactElement {
     <form onSubmit={onSubmit} className="space-y-3 rounded-md border p-page">
       <h2 className="text-lg font-semibold">{strings.menu.addModifierGroup}</h2>
       <div className="flex flex-wrap items-end gap-2">
-        <Field
-          label={strings.menu.groupCode}
-          hint={strings.menu.codeHint}
-          value={code}
-          onChange={(event) => {
-            setCode(event.target.value);
-          }}
-          required
-        />
         <Field
           label={strings.menu.groupName}
           value={name}
@@ -238,7 +236,7 @@ function AddGroup(): ReactElement {
         <Label htmlFor="group-required">{strings.menu.required}</Label>
       </div>
       {create.isError && <Notice tone="critical" {...errorProps(create.error)} />}
-      <Button type="submit" disabled={create.isPending || code.trim() === '' || name.trim() === ''}>
+      <Button type="submit" disabled={create.isPending || name.trim() === ''}>
         {create.isPending ? strings.menu.creating : strings.menu.addModifierGroup}
       </Button>
     </form>
