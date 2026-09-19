@@ -382,6 +382,34 @@ between holding those facts and *acting* on them.
   not "is it accurate" but **"would you have known this without us?"**
 - **Est.** 4 days
 
+## M19 · Owner Analytics
+
+Spec: `docs/modules/M19-analytics-spec.md`. The vision's second and third questions — *"what is
+going to happen?"* and *"what should I do?"* — where M13 answered the first. **Added 2026-09-19 at
+the owner's request**, and eight backlog rows were promoted into its spec rather than carried
+further.
+
+Its own rule, and the thing to hold it to: **every screen either shows a shape a table cannot, or
+produces an action with a rupee figure on it.** Petpooja ships 80+ reports and Restroworks 100+,
+and a restaurant reads none of them — report count is the failure mode, not the feature.
+
+- **Depends on** — M07, M09, M13 (the query layer), M14 (severity), M15 (120 days of generated
+  trading, which is what makes a forecast *scoreable* before a restaurant sees it)
+- **Tables** — none. **Endpoints** — trend and comparison variants of M13's five reports.
+  **Screens** — one analytics shell behind the desktop breakpoint, charts, an action queue
+- **Open decision, the owner's** — does an owner see one organization summing its branches, or one
+  branch at a time as today? Every report is currently single-branch, and CLAUDE.md puts rollups
+  out of scope for month 1 while explicitly not blocking them. `docs/owner-actions.md` Q3
+- **Rules** — no chart in any bundle a waiter or guest loads, asserted by a test; the `dataviz`
+  palette validator run rather than eyeballed; no two y-axes; no categorical colour that is one of
+  the six alert hues; a forecast shows its interval and its historical score or it does not ship;
+  every action card carries a rupee figure and exactly one action; anything naming a person passes
+  `docs/workload-fairness.md`'s review first
+- **Not in scope** — the AI advisor and natural-language analytics (vision Phase 3); customer
+  analytics and basket analysis (their own module); reorder suggestions, which are an **action**
+  and belong beside procurement, not inside a dashboard
+- **Est.** 6 days
+
 ## M16 · Hardening & Production
 
 - **Depends on** — M00–M15, M17, M18 (everything)
@@ -407,8 +435,9 @@ M11, M12 and M14 have only an M01 dependency — they are the natural fill for a
 critical-path module is blocked. M17 sits late because it consumes almost everything: orders, KOT
 timestamps, feedback, shifts and the dashboard query layer.
 
-**Total ≈ 67 working days** — roughly twelve and a half weeks of focused solo work, not four.
-(57 before M17 Workload Fairness was added at 5 days.)
+**Total ≈ 73 working days** — roughly fourteen and a half weeks of focused solo work, not four.
+(57 before M17 Workload Fairness was added at 5 days; 67 before M19 Owner Analytics was added
+at 6.)
 
 Month 1 (20 working days) covers **M00–M05 complete and M07 begun**: 1+3+2+3+4+4 = 17 days, leaving
 3 for the start of Orders. See `docs/plan/month-1.md`, which derives its weeks from these estimates
