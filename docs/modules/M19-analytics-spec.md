@@ -64,9 +64,13 @@ competitors do not.
 
 ## The decisions that matter
 
-### 1 · 🔴 OPEN — does the owner see one organization, or one branch at a time?
+### 1 · ✅ ANSWERED — does the owner see one organization, or one branch at a time?
 
-**This is the owner's decision and the spec cannot close without it** (`docs/owner-actions.md` Q3).
+**Answered by the owner on 2026-09-19** (`docs/owner-actions.md` Q3): **a comparison first and
+a sum second.** Revenue and covers sum across branches; anything tax-shaped is shown per branch
+and never totalled. The reasoning that was offered as a recommendation, and what follows from
+the answer, is kept below because the build has to implement the consequences, not just the
+headline.
 
 Today every report is **one branch**: `ReportingRepository._real_restaurants()` filters
 `Restaurant.id == scope.restaurant_id`, and an owner with two branches switches between them
@@ -88,10 +92,25 @@ Three things follow from the answer, and each is a product decision rather than 
    "every branch you hold a role at", which is a cleaner rule and makes the owner's view a special
    case rather than a separate feature.
 
-**My recommendation, for the owner to accept or reject:** an org view that is a **comparison
-first and a sum second**. A sum answers *"how are we doing"*; a comparison answers *"which branch
-has the problem"*, and only the second leads to an action. Revenue and covers sum; anything
-tax-shaped is shown per branch and never totalled.
+**The answer, and what chunk A must therefore do:** an org view that is a **comparison first and
+a sum second**. A sum answers *"how are we doing"*; a comparison answers *"which branch has the
+problem"*, and only the second leads to an action. Concretely:
+
+- **Revenue and covers sum.** They are counts of the same thing in the same unit.
+- **Anything tax-shaped does not sum** — tax, and any figure derived from it — and the response
+  carries a per-branch breakdown with no total, so a client cannot render one by accident. Two
+  branches can hold different GSTINs and different schemes; a summed tax figure means nothing.
+- **A branch closed for part of the period is named**, not silently averaged, because a
+  per-cover figure over a branch that traded nine days of thirty is wrong in the direction that
+  looks fine.
+- **Which branches the view covers is not a new decision.** The owner chose the shape of the
+  view, not the access rule, and one already exists: `AuthService.switch_restaurant` admits
+  exactly the branches in `AccessService.restaurants_for_employee(employee.id)`, within the
+  actor's own organization and active. The org view reuses that same set rather than inventing
+  a second definition of "your branches" — so a two-branch manager sees their two, the owner
+  sees theirs, and the owner's view is the general case rather than a separate feature. If the
+  owner wants the org view restricted to owners specifically, that is a permission change on
+  top of this, not a different query.
 
 ### 2 · Charts live behind the desktop breakpoint, and the bundle proves it
 

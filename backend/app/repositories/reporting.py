@@ -36,8 +36,10 @@ from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import Select, and_, case, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.enums import MovementBasis, OrderStatus
+from app.core.enums import MovementBasis, OrderStatus, OrderType
+from app.core.tenancy import TenantScope
 from app.models.customers import Feedback
 from app.models.inventory import StockMovement
 from app.models.kitchen import KotTicket
@@ -62,6 +64,30 @@ class SalesDay:
     revenue: Decimal
     tax: Decimal
     discounts: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class BranchSales:
+    """One branch's trading over a window (M19's branch comparison).
+
+    **There is no tax field and there must not be one.** The owner's decision of 2026-09-19 is that
+    nothing tax-shaped sums across branches, and the cheapest way to keep a total that must not
+    exist from existing is to never select the column it would be summed from.
+    """
+
+    restaurant_id: uuid.UUID
+    name: str
+    orders: int
+    covers: int
+    revenue: Decimal
+    #: Revenue from **dine-in orders only**, carried separately because `covers` is NULL on
+    #: takeaway and delivery (`ck_order_covers`) and `SUM` skips NULLs. Dividing total revenue by
+    #: covers would therefore charge a branch's entire takeaway trade to its dine-in guests and
+    #: report a spend-per-guest figure nobody ever spent. See `comparison_basis`.
+    dine_in_revenue: Decimal
+    discounts: Decimal
+    #: Distinct business dates this branch issued an invoice on. Not the length of the window.
+    business_days_traded: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,13 +163,52 @@ class ReportingRepository(ScopedRepository[Restaurant]):
 
     model = Restaurant
 
+    def __init__(
+        self,
+        session: AsyncSession,
+        scope: TenantScope,
+        *,
+        across: Sequence[uuid.UUID] | None = None,
+    ) -> None:
+        """`across` widens the reports to several branches at once (M19, owner decision 1).
+
+        **Default `None` means exactly what this repository has always meant**: one restaurant, the
+        one in the scope. M19 passes a set; nothing else does, and no M13 caller changed.
+
+        The set is a *request*, not a grant. It is intersected with the organization inside
+        `_real_restaurants`, so passing another tenant's id returns nothing rather than their
+        takings — widening a tenant filter is invariant 1's blast radius, and the check must be in
+        the query rather than in the caller that built the list.
+        """
+        super().__init__(session, scope)
+        self._across = None if across is None else tuple(across)
+
     def _real_restaurants(self) -> Select[tuple[uuid.UUID]]:
-        """This restaurant, unless it belongs to a demo organization."""
+        """This restaurant — or the several M19 asked for — unless the organization is a demo.
+
+        Every aggregate in this file filters through this one select with `.in_(...)`, which is
+        why the org view is this method returning more than one row rather than a query rewritten.
+
+        The three conditions do different jobs and none is redundant:
+
+        - `Restaurant.id.in_(wanted)` is the *request* — which branches were asked for.
+        - `Restaurant.organization_id == self.scope.organization_id` is the *tenant boundary*, and
+          it is what makes `across` safe to accept from a service. Without it this method would
+          trust its caller with another organization's revenue.
+        - `Organization.is_demo.is_(False)` keeps seeded demo trading out of a real report, once,
+          here, rather than in each query.
+
+        Inactive branches are **not** excluded, and that is a deliberate difference from
+        `AuthService.switch_restaurant`, which requires `is_active`. Switching asks *may I work
+        there now*; a report asks *what happened*, and a branch that closed in July still traded in
+        June. Dropping it would make the organization's history quietly shrink.
+        """
+        wanted = self._across if self._across is not None else (self.scope.restaurant_id,)
         return (
             select(Restaurant.id)
             .join(Organization, Organization.id == Restaurant.organization_id)
             .where(
-                Restaurant.id == self.scope.restaurant_id,
+                Restaurant.id.in_(wanted),
                 Restaurant.organization_id == self.scope.organization_id,
                 Organization.is_demo.is_(False),
             )
@@ -185,6 +250,69 @@ class ReportingRepository(ScopedRepository[Restaurant]):
                 revenue=Decimal(row[3]),
                 tax=Decimal(row[4]),
                 discounts=Decimal(row[5]),
+            )
+            for row in rows
+        ]
+
+    async def sales_by_branch(self, *, since: date, until: date) -> list[BranchSales]:
+        """The same trading as `sales_by_day`, grouped by branch instead of by day (M19).
+
+        A separate method rather than a parameter on `sales_by_day`, because the two answer
+        different questions and share only a WHERE clause: one is a time series over however many
+        branches, the other is one row per branch over the whole window. Collapsing them into one
+        method with a `group_by` flag would give M13's callers a way to change their own grouping
+        by accident.
+
+        `business_days_traded` is `COUNT(DISTINCT business_date)` **per branch** and is the reason
+        this cannot be assembled from `sales_by_day`'s output: once the days are summed together,
+        which branch was shut on which day is gone. Decision 1.3 in
+        `docs/plan/m19-build-log.md` depends on it.
+
+        **No tax column**, deliberately (owner decision 1.2). Tax is per branch and never totalled,
+        and a report that selected it here would be one `sum()` away from the number that must not
+        exist.
+        """
+        statement = (
+            select(
+                Invoice.restaurant_id,
+                Restaurant.name,
+                func.count(func.distinct(Invoice.order_id)),
+                func.coalesce(func.sum(Order.covers), 0),
+                func.coalesce(func.sum(Invoice.grand_total), 0),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (Order.type == OrderType.DINE_IN.value, Invoice.grand_total),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ),
+                func.coalesce(func.sum(Invoice.discount_total), 0),
+                func.count(func.distinct(Invoice.business_date)),
+            )
+            .join(Order, Order.id == Invoice.order_id)
+            .join(Restaurant, Restaurant.id == Invoice.restaurant_id)
+            .where(
+                Invoice.restaurant_id.in_(self._real_restaurants()),
+                Invoice.business_date >= since,
+                Invoice.business_date <= until,
+                Invoice.cancelled_at.is_(None),
+            )
+            .group_by(Invoice.restaurant_id, Restaurant.name)
+            .order_by(Restaurant.name)
+        )
+        rows = (await self.session.execute(statement)).all()
+        return [
+            BranchSales(
+                restaurant_id=row[0],
+                name=str(row[1]),
+                orders=int(row[2]),
+                covers=int(row[3]),
+                revenue=Decimal(row[4]),
+                dine_in_revenue=Decimal(row[5]),
+                discounts=Decimal(row[6]),
+                business_days_traded=int(row[7]),
             )
             for row in rows
         ]
