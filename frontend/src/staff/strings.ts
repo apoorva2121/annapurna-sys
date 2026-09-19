@@ -49,6 +49,7 @@ export const strings = {
     menu: 'Menu',
     menuOptions: 'Options and add-ons',
     menuCodes: 'Names and codes',
+    shiftSetup: 'Shifts',
     // Group headings. The grouping already existed in `AppShell`'s code — three times, each forced
     // by eslint's complexity budget rather than designed — and was never shown on the screen.
     groups: {
@@ -1430,7 +1431,25 @@ export const strings = {
     // A disabled control is only honest if something on screen explains it. Three lists feed one
     // button here, and any of them being empty produced the same dead button with no way to tell
     // which — found on 2026-09-19 by an owner who could not put anybody on a shift.
-    noShiftsYet: 'No shifts exist yet. Add one in Restaurant settings, then come back here.',
+    noShiftsYet: 'No shifts exist yet. Add one in Shifts under Set up, then come back here.',
+    // The screen that did not exist until 2026-09-19, without which no restaurant could roster
+    // anybody. See ShiftsSetupScreen for the full story.
+    setupTitle: 'Shifts',
+    setupIntro:
+      'The shifts your restaurant runs. Everything about the roster, hours worked and who was on the floor starts here.',
+    setupEmpty:
+      'No shifts yet. Add your first one below — most restaurants start with a morning and an evening.',
+    addTitle: 'Add a shift',
+    addHint:
+      'A shift may end before it starts. An evening shift in a place that closes at two is 17:30 to 00:30, and that is fine.',
+    shiftName: 'Name',
+    startsAt: 'Starts',
+    endsAt: 'Ends',
+    addShift: 'Add shift',
+    adding: 'Adding…',
+    added: 'Shift added.',
+    crossesMidnight: 'Past midnight',
+    notInUse: 'Not in use',
     noStaffYet: 'Nobody has been added yet. Add your people in Staff, then come back here.',
     sectionLabel: 'Which section?',
     dayLabel: 'Which day?',

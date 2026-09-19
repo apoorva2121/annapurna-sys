@@ -27,6 +27,7 @@ import TableMapScreen from '@staff/screens/TableMapScreen';
 import MenuItemScreen from '@staff/screens/MenuItemScreen';
 import MenuScreen from '@staff/screens/MenuScreen';
 import MenuCodesScreen from '@staff/screens/MenuCodesScreen';
+import ShiftsSetupScreen from '@staff/screens/ShiftsSetupScreen';
 import ModifierGroupsScreen from '@staff/screens/ModifierGroupsScreen';
 import StockItemsScreen from '@staff/screens/StockItemsScreen';
 import HomeScreen from '@staff/screens/HomeScreen';
@@ -548,6 +549,17 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.RESTAURANT_CONFIGURE}>
               <TaxRatesScreen />
+        <Route
+          // The screen M12 never built. Its endpoint and its client hook both existed; nothing
+          // rendered either, so a real restaurant could not create a shift and therefore could not
+          // roster anybody. Beside the other things a restaurant sets up once.
+          path="settings/shifts"
+          element={
+            <RequirePermission permission={Permission.SHIFT_MANAGE}>
+              <ShiftsSetupScreen />
+            </RequirePermission>
+          }
+        />
             </RequirePermission>
           }
         />

@@ -134,6 +134,10 @@ export const HEADER_GROUPS: NavGroup[] = [
         label: strings.setup.navTax,
         permission: Permission.RESTAURANT_CONFIGURE,
       },
+      // M12's missing screen, added 2026-09-19. Behind `shift.manage` rather than
+      // `restaurant.configure`, because rostering and configuring are different jobs and the
+      // person who runs the rota is not always the person who sets up the restaurant.
+      { to: '/settings/shifts', label: strings.nav.shiftSetup, permission: Permission.SHIFT_MANAGE },
     ],
   },
   {

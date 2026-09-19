@@ -53,7 +53,7 @@ test, or the test may be written against a screen that no longer exists.
 | F18 | local `HEAD` | **Every attachment link 401s.** A browser cannot send the Bearer token an `<a href>` needs | **A** | ✅ **fixed** 2026-09-19 |
 | F19 | local `HEAD` | Upload never confirms success, so a working upload looks like a failed one | **A** | ✅ **fixed** 2026-09-19 |
 | F20 | local `HEAD` | M11 has no seeder — no sample conversations or messages | **A** | ready to build |
-| F21 | local `HEAD` | **No screen can create a shift.** The endpoint and the hook exist; nothing calls them | **A** | root cause found |
+| F21 | local `HEAD` | **No screen can create a shift.** The endpoint and the hook exist; nothing calls them | **A** | ✅ **fixed** 2026-09-19 |
 | F22 | local `HEAD` | With no shifts, the roster's button is permanently disabled and says nothing | **A** | ✅ **fixed** 2026-09-19 |
 | F23 | local `HEAD`, verified in a browser | `Button` is the one `shared/ui` component without `forwardRef`, so Radix focus management fails | **A** | ✅ **fixed** 2026-09-19 |
 
@@ -1317,3 +1317,24 @@ are one list now, partitioned, and `navigationDiscipline.test.ts` refuses a scre
 
     vitest 459 passed (was 455) · eslint 0 · tsc 0
     migrations 0056, 0057, 0058 applied to the local database and verified
+
+---
+
+## F21 — shipped 2026-09-19
+
+`/settings/shifts`, beside the other things a restaurant sets up once. Behind `shift.manage` rather
+than `restaurant.configure`: rostering and configuring are different jobs, and the person who runs
+the rota is not always the person who sets up the restaurant.
+
+**Verified against a database with no shifts** — the state the owner was actually in:
+
+    GET  /staff/shifts            -> {"items":[]}
+    POST /staff/shifts  Evening   -> 201, crosses_midnight: true   (17:30-00:30)
+    POST /staff/shifts  Morning   -> 201
+    GET  /staff/shifts            -> both, newest first
+
+`crosses_midnight` comes back true for the evening shift, which is ADR 0004 working: an evening
+shift in a place that closes at two ends before it starts, and that is not an error.
+
+**The chain this unblocks:** shift → roster → hours worked → workload score. The roster's "Staff"
+button can now be enabled at all, and `PerformanceRepository.worked()` has something to read.
