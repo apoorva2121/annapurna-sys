@@ -32,6 +32,7 @@ from app.core.enums import (
     ShiftAssignmentStatus,
 )
 from app.models.customers import Complaint, Feedback
+from app.models.identity import Employee
 from app.models.kitchen import KotTicket
 from app.models.orders import Order, OrderLine, OrderTable
 from app.models.performance import (
@@ -381,6 +382,35 @@ class PerformanceRepository(RestaurantScopedRepository[PerformanceScore]):
             PerformanceNote.answered_at.is_(None),
         )
         return int(await self.session.scalar(statement) or 0)
+
+    async def without_a_login(
+        self, employee_ids: Sequence[uuid.UUID]
+    ) -> Sequence[tuple[uuid.UUID, str]]:
+        """Which of these people have no way to sign in, and so no way to see their own score.
+
+        ADR 0011 §3 promises that **every employee can always see their own figures and the inputs
+        they were computed from**, and grants `performance.view.own` to every role to make that
+        structural rather than a setting. ADR 0007 makes an employee without a `user_account`
+        normal — in the seed, two kitchen staff and both cleaners. Those people are measured
+        (shifts, tasks and wastage all reference them) and cannot open the application, so the
+        guarantee fails silently for the lowest-paid staff it exists to protect.
+
+        **Both the id and the name.** The id is what the caller filters on; the name is what it
+        shows, because the answer reaches somebody who has to go and do something about it and
+        "two people" is not actionable while "Ravi and Sunita" is.
+        """
+        if not employee_ids:
+            return []
+        rows = await self.session.execute(
+            select(Employee.id, Employee.full_name)
+            .where(
+                Employee.organization_id == self.scope.organization_id,
+                Employee.id.in_(list(employee_ids)),
+                Employee.user_account_id.is_(None),
+            )
+            .order_by(Employee.full_name)
+        )
+        return [(row[0], row[1]) for row in rows.all()]
 
     async def awards(self, *, employee_id: uuid.UUID | None = None) -> Sequence[RecognitionAward]:
         query = select(RecognitionAward).where(

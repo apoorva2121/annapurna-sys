@@ -187,6 +187,29 @@ class PerformanceService:
         - **a period with an unanswered dispute is refused**, because freezing a number somebody
           has challenged, before answering them, is the exact move that turns feedback into
           surveillance.
+
+        And one exclusion, which is not a refusal and is the harder call.
+
+        **Somebody with no way to sign in is not given a frozen score.** ADR 0011 §3 promises every
+        employee can see their own figures, and grants `performance.view.own` to every role to make
+        it structural. ADR 0007 makes an employee without a `user_account` normal — in the seed,
+        two kitchen staff and both cleaners. Those people *are* measured, and they cannot open the
+        application, so the guarantee fails silently for exactly the lowest-paid staff it was
+        written to protect.
+
+        `docs/backlog.md` named the rule before M17 was built: *"a score for someone with no way to
+        see it should not be published or used for incentives."* This is that rule, and it is an
+        exclusion rather than a refusal on purpose:
+
+        - **refusing the publish** would block the whole feature in any restaurant with one cleaner
+          who has no phone, which is most of them;
+        - **scoring them anyway** would freeze a number about a person who cannot read it, which is
+          the definition of surveillance the ethics review was about.
+
+        So they are left out of the freeze, they keep appearing on the workload screen (which is
+        about the roster, not pay), and `unscored()` names them so the owner can see who and decide
+        what to do — a view-only login, or leaving them out of the incentive. **Choosing between
+        those is the owner's**, and it is still open in `docs/backlog.md`.
         """
         period = await self._require_period(period_id)
         if period.status != PerformancePeriodStatus.DRAFT.value:
@@ -204,7 +227,16 @@ class PerformanceService:
             )
 
         lines = await self.draft(period_id)
-        ranked = sorted(lines, key=lambda line: line.points, reverse=True)
+        # The exclusion described above. Computed once here rather than per line, because it is one
+        # query and a per-line lookup would be the module's only N+1 on its slowest path.
+        blind = {
+            employee_id
+            for employee_id, _ in await self._repository.without_a_login(
+                [line.employee_id for line in lines]
+            )
+        }
+        scorable = [line for line in lines if line.employee_id not in blind]
+        ranked = sorted(scorable, key=lambda line: line.points, reverse=True)
         now = datetime.now(UTC)
         for position, line in enumerate(ranked, start=1):
             self.session.add(
@@ -225,6 +257,22 @@ class PerformanceService:
         return period
 
     # ------------------------------------------------------------------ reading it
+
+    async def unscored(self, period_id: uuid.UUID) -> tuple[str, ...]:
+        """Who worked this period and has no way to see their own figures.
+
+        The other half of the exclusion in `publish`. Derived rather than stored: it is a question
+        about who holds a login *now*, and the answer should change the moment somebody is given
+        one — a column written at publish time would keep naming a person after the problem was
+        fixed, which is how a warning becomes furniture.
+        """
+        lines = await self.draft(period_id)
+        return tuple(
+            name
+            for _, name in await self._repository.without_a_login(
+                [line.employee_id for line in lines]
+            )
+        )
 
     async def mine(self, actor: Actor, period_id: uuid.UUID) -> Line | None:
         """A person's own figures — the one view every role holds, always (ADR 0011)."""

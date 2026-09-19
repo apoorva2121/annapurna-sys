@@ -23,11 +23,12 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.business_day import business_date_of
 from app.core.tenancy import TenantScope
 from app.repositories.reporting import (
     ConsumptionRow,
@@ -37,6 +38,7 @@ from app.repositories.reporting import (
     SalesDay,
     WasteRow,
 )
+from app.repositories.setup import RestaurantRepository
 
 # Two decimal places for money, four for a percentage before it is presented. Quantising once, at
 # the boundary, is the rule invariant 3 exists for.
@@ -171,6 +173,25 @@ class ReportingService:
         self.session = session
         self.scope = scope
         self._reports = ReportingRepository(session, scope)
+        self._restaurants = RestaurantRepository(session, scope)
+
+    async def business_date_now(self) -> date:
+        """**The restaurant's** today, not the server's.
+
+        A restaurant's day runs from `business_day_start` (invariant 4), so a report asked for at
+        2am is asking about the day that is still running — and `date.today()` would answer about
+        the one that has not started.
+
+        It lives here rather than in the route because of G-8: a route may not reach a repository,
+        and `reports.py` did, to read the timezone. `scripts/audit_guardrails.py` had been failing
+        the gate on it since M13, unread.
+        """
+        restaurant = await self._restaurants.get()
+        if restaurant is None:  # pragma: no cover - the actor's own restaurant always exists
+            raise RuntimeError("the actor's restaurant does not exist")
+        return business_date_of(
+            datetime.now(UTC), restaurant.timezone, restaurant.business_day_start
+        )
 
     # ------------------------------------------------------------------ sales
 

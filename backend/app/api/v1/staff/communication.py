@@ -49,7 +49,6 @@ from app.models.communication import (
     Task,
     TaskEvent,
 )
-from app.repositories.communication import AttachmentRepository
 from app.schemas.communication import (
     AddParticipantsRequest,
     ConversationCreateRequest,
@@ -72,6 +71,7 @@ from app.schemas.communication import (
     TaskStatusRequest,
     TaskUpdateRequest,
 )
+from app.services.attachments import attachments_for
 from app.services.conversations import ConversationService
 from app.services.message_stream import RETRY_MS, communication_events
 from app.services.people import Person, people
@@ -476,8 +476,8 @@ async def _messages(
 ) -> list[MessageResponse]:
     """Names and attachments for a whole page in two queries, not two per row."""
     names = await people(session, actor.scope, [row.sender_employee_id for row in messages])
-    attachments = await AttachmentRepository(session, actor.scope).for_owners(
-        AttachmentOwnerType.MESSAGE.value, [row.id for row in messages]
+    attachments = await attachments_for(
+        session, actor.scope, AttachmentOwnerType.MESSAGE.value, [row.id for row in messages]
     )
     return [_message_row(row, names, attachments) for row in messages]
 
@@ -506,8 +506,8 @@ async def _task_rows(
     session: SessionDep, actor: Actor, tasks: Sequence[Task]
 ) -> list[TaskResponse]:
     names = await people(session, actor.scope, [row.assigned_to for row in tasks])
-    attachments = await AttachmentRepository(session, actor.scope).for_owners(
-        AttachmentOwnerType.TASK.value, [row.id for row in tasks]
+    attachments = await attachments_for(
+        session, actor.scope, AttachmentOwnerType.TASK.value, [row.id for row in tasks]
     )
     return [_task_row(row, names, attachments) for row in tasks]
 

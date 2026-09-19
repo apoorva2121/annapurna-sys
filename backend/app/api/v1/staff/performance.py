@@ -288,6 +288,9 @@ def _metric(metric: Metric) -> MetricResponse:
 async def _period(service: PerformanceService, period_id: uuid.UUID) -> PeriodResponse:
     period = await service._require_period(period_id)
     unanswered = await service._repository.unanswered_disputes(period_id)
+    # Only for a period that has been frozen. On a draft nobody has a score yet, so naming everybody
+    # without a login would be an alarm about a thing that has not happened.
+    unscored = () if period.status == "draft" else await service.unscored(period_id)
     return PeriodResponse(
         id=period.id,
         incentive_scheme_id=period.incentive_scheme_id,
@@ -296,4 +299,5 @@ async def _period(service: PerformanceService, period_id: uuid.UUID) -> PeriodRe
         status=period.status,
         published_at=period.published_at,
         unanswered_disputes=unanswered,
+        unscored=unscored,
     )

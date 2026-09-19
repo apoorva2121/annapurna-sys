@@ -28,9 +28,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import SessionDep, require_permission
 from app.core.actor import Actor
-from app.core.business_day import business_date_of
 from app.core.permissions import PermissionCode
-from app.repositories.setup import RestaurantRepository
 from app.schemas.reporting import (
     ComparisonResponse,
     DishLineResponse,
@@ -64,18 +62,14 @@ def _service(session: SessionDep, actor: Actor) -> ReportingService:
 
 
 async def _today(session: SessionDep, actor: Actor) -> date:
-    """**The restaurant's** today, not the server's.
+    """**The restaurant's** today, not the server's — `ReportingService.business_date_now`.
 
-    A restaurant's day runs from `business_day_start` (invariant 4), so a report asked for at 2am
-    is asking about the day that is still running — and `date.today()` would answer about the one
-    that has not started.
+    The arithmetic moved into the service rather than staying here: a route may not reach a
+    repository (G-8), and reading the restaurant's timezone was exactly that. Left as a named
+    helper because five routes need it and `await _service(...).business_date_now()` inline in
+    each would be five chances to forget which "today" is meant.
     """
-    restaurant = await RestaurantRepository(session, actor.scope).get()
-    if restaurant is None:  # pragma: no cover - the actor's own restaurant always exists
-        raise RuntimeError("the actor's restaurant does not exist")
-    from datetime import UTC, datetime
-
-    return business_date_of(datetime.now(UTC), restaurant.timezone, restaurant.business_day_start)
+    return await _service(session, actor).business_date_now()
 
 
 def _bounds(since: date | None, until: date | None, today: date) -> tuple[date, date]:

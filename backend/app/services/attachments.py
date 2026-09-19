@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -428,3 +429,26 @@ class AttachmentService:
         return NotFoundError(
             "attachment.owner_not_found", "The thing you are attaching to could not be found."
         )
+
+
+async def attachments_for(
+    session: AsyncSession,
+    scope: TenantScope,
+    owner_type: str,
+    owner_ids: Sequence[uuid.UUID],
+) -> dict[uuid.UUID, list[Attachment]]:
+    """Every attachment for a page of owners, for a route that is shaping a response.
+
+    **A module-level service function rather than a method on `AttachmentService`**, mirroring
+    `app/services/people.py`. The class takes a `StoragePort` because uploading and downloading
+    need one; listing what is attached to fifty messages does not, and making a shaping helper
+    construct a storage backend to answer a read would be paying for a dependency to satisfy a
+    shape.
+
+    It exists at all because of G-8: a route may not reach a repository. `communication.py` did —
+    twice for messages and once for tasks — and `scripts/audit_guardrails.py` had been failing the
+    gate on it since M11, unread. The fix is this one function rather than a service method on each
+    of `ConversationService` and `TaskService`, because both would delegate here anyway and two
+    wrappers around one query is the kind of layering that makes people stop believing in layering.
+    """
+    return await AttachmentRepository(session, scope).for_owners(owner_type, owner_ids)

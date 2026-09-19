@@ -117,6 +117,11 @@ class PeriodResponse(_Schema):
     published_at: datetime | None
     # How many challenges are still unanswered. A period cannot be published while this is not zero.
     unanswered_disputes: int
+    # People who worked this period and have **no way to sign in**, so no way to see their own
+    # figures (ADR 0007 makes an employee without a login normal; ADR 0011 §3 promises everybody
+    # can see their own score). They are left out of the freeze rather than scored blind, and
+    # they are named here so the owner can decide what to do about it.
+    unscored: tuple[str, ...] = ()
 
 
 class PeriodCreateRequest(_Schema):

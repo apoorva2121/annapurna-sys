@@ -20,7 +20,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actor import Actor
@@ -40,7 +40,7 @@ from app.core.scoring import (
     visible_team,
 )
 from app.core.tenancy import TenantScope
-from app.models.identity import Employee
+from app.models.identity import Employee, UserAccount
 from app.models.orders import Order
 from app.models.performance import PerformanceScore
 from app.models.shifts import Shift, ShiftAssignment
@@ -48,6 +48,10 @@ from app.models.tenancy import Organization, Restaurant
 from app.services.performance import PerformanceService
 
 _DAY = date(2026, 9, 16)
+
+
+async def _count(session: AsyncSession, model: type[PerformanceScore]) -> int:
+    return int(await session.scalar(select(func.count()).select_from(model)) or 0)
 
 
 class World:
@@ -72,7 +76,15 @@ class World:
         )
 
 
-async def _world(session: AsyncSession, *, people: int = 2) -> World:
+async def _world(session: AsyncSession, *, people: int = 2, logins: bool = True) -> World:
+    """A restaurant and some people who work in it.
+
+    **Everybody gets a login by default**, which is not decoration. A published score is a score
+    somebody can open (ADR 0011 §3), and `publish` leaves out anybody who cannot — so a fixture
+    whose people have no `user_account` cannot test the freeze at all. That is what
+    `logins=False` is for: one test uses it to assert the exclusion, and every other test needs
+    the default because every other test is about a number that was actually frozen.
+    """
     organization = Organization(name="Spice Garden", slug=f"sg-{uuid.uuid4().hex[:8]}")
     session.add(organization)
     await session.flush()
@@ -87,8 +99,21 @@ async def _world(session: AsyncSession, *, people: int = 2) -> World:
     await session.flush()
     world = World(organization, restaurant)
     for index in range(people):
+        account = None
+        if logins:
+            # An identifier is required: `ck_user_account_has_an_identifier`. An account with
+            # neither an email nor a phone is an account nobody can sign in with, which is the
+            # thing this fixture exists to avoid.
+            account = UserAccount(
+                organization_id=organization.id,
+                status="active",
+                email=f"person{index}.{uuid.uuid4().hex[:6]}@spicegarden.test",
+            )
+            session.add(account)
+            await session.flush()
         person = Employee(
             organization_id=organization.id,
+            user_account_id=None if account is None else account.id,
             employee_code=f"E{uuid.uuid4().hex[:6]}",
             full_name=f"Person {index}",
             joined_on=date(2026, 1, 1),
@@ -244,6 +269,98 @@ class TestVolumeNeverStandsAlone:
 
 
 # --------------------------------------------------------------------- the freeze
+
+
+class TestNobodyIsScoredWhoCannotSeeIt:
+    """ADR 0011 §3 against ADR 0007, which `docs/backlog.md` flagged **before M17 was built** and
+    M17 shipped without answering:
+
+    > *"Every employee can always see their own score and its inputs"* — and an employee without a
+    > `user_account` is normal. In the seed that is two kitchen staff and both cleaners. They are
+    > measured and cannot open the application, so the guarantee failed silently for exactly the
+    > lowest-paid staff it was written to protect.
+
+    The rule the row stated, and the one these tests hold: **a score for somebody with no way to
+    see it is not published and not used for incentives.**
+    """
+
+    async def test_a_person_with_no_login_gets_no_frozen_score(
+        self, db_session: AsyncSession
+    ) -> None:
+        world = await _world(db_session, people=1, logins=False)
+        shift = await _shift(db_session, world)
+        await _worked(db_session, world, shift, world.people[0], hours=8)
+        await _served(db_session, world, world.people[0], covers=40)
+        _, period_id = await _scheme_and_period(db_session, world)
+        service = PerformanceService(db_session, world.scope)
+
+        await service.publish(world.actor(), period_id)
+
+        assert await service.mine(world.actor(), period_id) is None
+        assert await _count(db_session, PerformanceScore) == 0
+
+    async def test_the_period_still_publishes_and_names_who_was_left_out(
+        self, db_session: AsyncSession
+    ) -> None:
+        """**An exclusion, not a refusal**, and the reason is in the service's docstring: refusing
+        would block the whole feature in any restaurant with one cleaner who has no phone, which is
+        most of them. So the freeze happens, the person is left out of it, and the owner is told
+        who — because a silent exclusion from a bonus round is the other way to get this wrong.
+        """
+        world = await _world(db_session, people=2, logins=False)
+        # One of the two is given a login, so the period has somebody to score.
+        account = UserAccount(
+            organization_id=world.organization.id,
+            status="active",
+            email=f"has.a.login.{uuid.uuid4().hex[:6]}@spicegarden.test",
+        )
+        db_session.add(account)
+        await db_session.flush()
+        world.people[0].user_account_id = account.id
+        shift = await _shift(db_session, world)
+        for person in world.people:
+            await _worked(db_session, world, shift, person, hours=8)
+            await _served(db_session, world, person, covers=40)
+        _, period_id = await _scheme_and_period(db_session, world)
+        service = PerformanceService(db_session, world.scope)
+
+        period = await service.publish(world.actor(), period_id)
+
+        assert period.status == "published"
+        # Exactly one frozen score: the person who can read it.
+        assert await _count(db_session, PerformanceScore) == 1
+        assert await service.mine(world.actor(0), period_id) is not None
+        assert await service.mine(world.actor(1), period_id) is None
+        # And the owner is told, by name.
+        assert await service.unscored(period_id) == (world.people[1].full_name,)
+
+    async def test_giving_somebody_a_login_stops_naming_them(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Why `unscored` is derived rather than written at publish time: it is a question about
+        who holds a login *now*, and the answer has to change the moment somebody is given one. A
+        column stamped at the freeze would keep naming a person after the problem was fixed, which
+        is how a warning becomes furniture."""
+        world = await _world(db_session, people=1, logins=False)
+        shift = await _shift(db_session, world)
+        await _worked(db_session, world, shift, world.people[0], hours=8)
+        await _served(db_session, world, world.people[0], covers=40)
+        _, period_id = await _scheme_and_period(db_session, world)
+        service = PerformanceService(db_session, world.scope)
+        await service.publish(world.actor(), period_id)
+        assert await service.unscored(period_id) == (world.people[0].full_name,)
+
+        account = UserAccount(
+            organization_id=world.organization.id,
+            status="active",
+            email=f"now.has.one.{uuid.uuid4().hex[:6]}@spicegarden.test",
+        )
+        db_session.add(account)
+        await db_session.flush()
+        world.people[0].user_account_id = account.id
+        await db_session.flush()
+
+        assert await service.unscored(period_id) == ()
 
 
 class TestThePublishedPeriodNeverMoves:

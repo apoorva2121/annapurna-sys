@@ -108,3 +108,41 @@ person it is measuring in the first month.
 | `tests/test_m17_scoring.py` | 26 |
 | `tests/test_m17_endpoints.py` | 11 |
 | `frontend/src/staff/fairnessDiscipline.test.ts` | 6 |
+
+---
+
+## Amended 2026-09-19 · the thing this log should have said and did not
+
+M16's backlog sweep found a row that said **"Decide before M17 starts"**, and M17 started and
+shipped without deciding.
+
+> *Staff without a login cannot see their own performance score.* ADR 0011 §3 promises every
+> employee can always see their own figures and grants `performance.view.own` to every role to make
+> it structural. ADR 0007 makes an employee without a `user_account` normal — in the seed, two
+> kitchen staff and both cleaners. **So the guarantee failed silently for exactly the lowest-paid
+> staff it was written to protect**, and this module's whole claim to raising morale rested on it.
+
+The row had already decided the part that mattered: *"a score for someone with no way to see it
+should not be published or used for incentives."* That is now built.
+
+`publish` leaves those people out of the freeze, and `unscored()` names them on the period.
+**An exclusion, not a refusal**, and the reasoning is in the service's docstring:
+
+- refusing the publish would block the feature in any restaurant with one cleaner who has no
+  phone, which is most of them;
+- scoring them anyway would freeze a number about somebody who cannot read it, which is the
+  definition of surveillance the ethics review was about.
+
+`unscored()` is **derived rather than stored**, so it stops naming a person the moment they are
+given a login — a column stamped at publish time would keep naming them after the problem was
+fixed, which is how a warning becomes furniture.
+
+Writing it changed the test fixture in a way worth recording: `_world` now gives every employee a
+login by default. It had given none, so **every existing M17 test was scoring people who could not
+see their scores** — the product problem reproduced inside the suite that was supposed to be
+checking the product. One test failed immediately on the new rule (`assert None is not None`) and
+was right to.
+
+**Still the owner's:** *how* such a person sees their figures — a view-only login, a messaging
+summary, or a manager who shows them and records it. Until that is chosen they appear on the
+workload screen, which is about the roster rather than pay, and are left out of the money.
