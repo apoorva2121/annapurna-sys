@@ -1,0 +1,123 @@
+# A backup that is a *copy*, somewhere Neon cannot reach.
+#
+# `docs/observability.md` §7 promises "automated daily backups, 30-day retention, encrypted", and
+# for eighteen modules nothing implemented it. What existed was Neon's **history window** — a
+# rewind buffer of 6 hours to 30 days depending on plan — which is a different thing, and the
+# difference is the whole reason this file exists:
+#
+#   A history window lives *inside* the thing you would be restoring from. It answers "give me
+#   the database as it was on Tuesday". It does not answer "the project was deleted", "the
+#   account was suspended", or "a destructive migration ran and nobody noticed for eight days".
+#
+# So this is deliberately dumb and deliberately elsewhere: `pg_dump` to an S3-compatible bucket
+# that is not Neon and not the same vendor. The restore path for a dump is `pg_restore` into a new
+# database, which is slower than a Neon branch and is the point — the branch is the fast path for
+# the common case, and this is the one that still works when the fast path is gone.
+#
+# **Not armed until the two secrets exist.** The job checks for them and exits cleanly rather than
+# failing a red run every night for a repository that has not been configured — a workflow that
+# cries wolf nightly is a workflow somebody disables. `docs/deploy/production-runbook.md` §3a says
+# what to create.
+#
+# **Retention is the bucket's job, not this file's.** A lifecycle rule expiring objects after 30
+# days is one line of bucket configuration and cannot be forgotten; a `find -mtime +30` in a
+# workflow is a script that silently stops running. Set the rule when you create the bucket.
+
+name: Backup
+
+on:
+  schedule:
+    # 20:30 UTC = 02:00 IST, comfortably after the business day closes (invariant 4:
+    # `business_day_start` is 05:00, so 02:00 is still *yesterday's* trading — and that is fine,
+    # because a dump is a point in time and does not need to align with a business day).
+    - cron: "30 20 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    name: pg_dump → object storage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check this repository is configured for backups
+        id: configured
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BUCKET: ${{ secrets.BACKUP_BUCKET }}
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$BUCKET" ]; then
+            echo "Backups are not configured: set BACKUP_DATABASE_URL and BACKUP_BUCKET."
+            echo "See docs/deploy/production-runbook.md. Exiting without failing."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Postgres 16, matching the stack. A dump taken by an older client against a newer server
+      # fails outright, which is the good failure; the bad one is a version skew nobody notices
+      # until a restore.
+      - name: Install the Postgres 16 client
+        if: steps.configured.outputs.ready == 'true'
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client-16
+
+      - name: Dump
+        if: steps.configured.outputs.ready == 'true'
+        env:
+          # A **libpq** URL, not the asyncpg one the application uses: `postgresql://`, and keep
+          # `sslmode=require`. The two spellings are documented in
+          # docs/deploy/gcp-staging-runbook.md §1.7 and they are not interchangeable.
+          PGURL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          STAMP=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          echo "NAME=restaurant-os-$STAMP.dump" >> "$GITHUB_ENV"
+          # Custom format (-Fc): compressed, and `pg_restore` can read it selectively — which is
+          # what you want at 9pm when one table is wrong and the rest are fine.
+          pg_dump --format=custom --no-owner --no-privileges --file="restaurant-os-$STAMP.dump" "$PGURL"
+          ls -lh "restaurant-os-$STAMP.dump"
+
+      - name: Refuse to upload an empty dump
+        if: steps.configured.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          SIZE=$(stat -c%s "$NAME")
+          # A dump of a live restaurant is megabytes. Ten kilobytes means the connection succeeded
+          # and the database was empty or the role could read nothing — which uploads happily and
+          # is discovered during a restore, which is the worst possible moment.
+          if [ "$SIZE" -lt 10240 ]; then
+            echo "Dump is only $SIZE bytes. Refusing to upload a backup that is probably empty."
+            exit 1
+          fi
+
+      - name: Upload
+        if: steps.configured.outputs.ready == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_SECRET_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_REGION || 'auto' }}
+          BUCKET: ${{ secrets.BACKUP_BUCKET }}
+          ENDPOINT: ${{ secrets.BACKUP_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          # `--endpoint-url` so this works with any S3-compatible store (R2, GCS interop, MinIO),
+          # which is also what app/storage/s3.py already assumes. Server-side encryption is the
+          # bucket's default; it is not set here, so the bucket must have it on.
+          aws s3 cp "$NAME" "s3://$BUCKET/$NAME" ${ENDPOINT:+--endpoint-url "$ENDPOINT"}
+          echo "Uploaded $NAME"
+
+      - name: Say plainly that nothing was backed up
+        if: steps.configured.outputs.ready != 'true'
+        run: |
+          echo "::notice::No backup was taken. BACKUP_DATABASE_URL and BACKUP_BUCKET are unset."
+          echo "::notice::Neon's history window is NOT a backup — it lives inside the thing you"
+          echo "::notice::would be restoring from. See docs/runbooks/restore.md."

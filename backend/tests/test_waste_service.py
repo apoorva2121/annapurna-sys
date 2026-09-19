@@ -317,7 +317,17 @@ class TestTheSummary:
         )
         await _batch(db_session, restaurant, item, code="B1", quantity="5000", unit_cost="0.40")
         service = _service(db_session, restaurant)
-        today = datetime.now(UTC).date()
+        # **Not `datetime.now(UTC).date()`.** The event's business date is computed in the
+        # restaurant's timezone against `business_day_start` (invariant 4), and a UTC date
+        # disagrees with it for thirty minutes every day: at 23:40 UTC it is 05:10 in Kolkata, so
+        # the business date has rolled to tomorrow while the UTC date has not. This test passed for
+        # nine modules and then failed inside that window on a full gate run:
+        #
+        #     KeyError: <WastageStage.PREP: 'prep'>
+        #
+        # The service already knows the answer, so ask it rather than recomputing it — which is
+        # also the only version that stays true if the restaurant is ever not in Kolkata.
+        today = await service.business_date_now()
 
         for reason_id, quantity in (
             (storage_reason.id, Decimal("100")),
@@ -352,7 +362,8 @@ class TestTheSummary:
         restaurant, item, reason, actor = await _world(db_session, "wsstaffmeal")
         await _batch(db_session, restaurant, item, code="B1", quantity="5000", unit_cost="0.40")
         service = _service(db_session, restaurant)
-        today = datetime.now(UTC).date()
+        # The business date, not the UTC one. See the note in `test_it_groups_by_stage_and_reason`.
+        today = await service.business_date_now()
         await service.log(
             actor,
             stock_item_id=item.id,  # type: ignore[attr-defined]
