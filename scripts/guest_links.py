@@ -70,7 +70,7 @@ async def _rows(database_url: str) -> list[tuple[str, str, str, str]]:
                 .join(RestaurantTable, RestaurantTable.restaurant_id == Restaurant.id)
                 .join(DiningArea, DiningArea.id == RestaurantTable.dining_area_id)
                 .where(RestaurantTable.is_active.is_(True))
-                .order_by(Restaurant.name, DiningArea.seq, RestaurantTable.seq)
+                .order_by(Restaurant.name, DiningArea.seq, RestaurantTable.code)
             )
             return [tuple(row) for row in result.all()]  # type: ignore[misc]
     finally:
