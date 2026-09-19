@@ -97,6 +97,29 @@ describe('the communication screens keep their rules', () => {
     });
   });
 
+  // Rule 5, found the hard way on 2026-09-19: every attachment in the product returned
+  // `auth.required` when opened, and had since M11 shipped.
+  //
+  // This product authenticates with a Bearer token in an `Authorization` header, held in memory.
+  // **A browser following an `<a href>` sends cookies and cannot send that header**, so a link
+  // straight at `/api/v1/staff/attachments/{id}` is a request that can only ever be refused —
+  // `GET /attachments/{id}` requires an actor holding `message.send`.
+  //
+  // Rule 3 above reasons carefully about the *upload* leg and where the token may go. The download
+  // leg was left as a plain link. This is the other half of the same rule.
+  it('never opens an attachment with a bare link, because a browser cannot authenticate one', () => {
+    const code = only(control, '/AttachmentControl.tsx');
+
+    // Non-vacuous: the control must still render attachments at all.
+    expect(code).toContain('attachment.file_name');
+
+    // The defect, stated directly: an href the browser cannot authenticate.
+    expect(
+      code,
+      'an attachment is opened with a bare href, which a browser cannot authenticate',
+    ).not.toMatch(/href=\{attachmentHref/);
+  });
+
   // The waste nudge is a nudge. The owner decided this on 2026-09-18 and `docs/waste-model.md`
   // is why: anything that makes honest reporting harder gets you less honest reporting, not more
   // photographs. So the photo is asked for *after* the log is saved, and nothing gates the save.

@@ -1,6 +1,7 @@
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
-import type { ButtonHTMLAttributes, ReactElement } from 'react';
+import { forwardRef } from 'react';
+import type { ButtonHTMLAttributes } from 'react';
 
 import { cn } from '@shared/cn';
 
@@ -18,6 +19,14 @@ import { cn } from '@shared/cn';
  *
  * `asChild` renders a Link with a button's appearance. Use it whenever the thing navigates: a
  * `<Link>` nested inside a `<button>` is invalid HTML and cannot be opened in a new tab.
+ *
+ * **Wrapped in `forwardRef`, like every other component in this folder.** It was the only one that
+ * was not, and the omission was invisible: Radix passes a ref to whatever a `DialogTrigger` or
+ * `SheetTrigger` renders, and React answered with *"Function components cannot be given refs"* on
+ * every page carrying one. The click still worked — that rides on event delegation — so the
+ * warning printed for months and nothing looked broken. **What was broken is focus**: Radix uses
+ * that ref to return focus to the trigger when the overlay closes, which is the whole keyboard
+ * contract, and a busy till is exactly where people stop using a mouse.
  */
 const buttonVariants = cva(
   cn(
@@ -57,17 +66,14 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
     asChild?: boolean;
   };
 
-export function Button({
-  className,
-  variant,
-  size,
-  asChild = false,
-  type = 'button',
-  ...props
-}: ButtonProps): ReactElement {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { className, variant, size, asChild = false, type = 'button', ...props },
+  ref,
+) {
   const Component = asChild ? Slot : 'button';
   return (
     <Component
+      ref={ref}
       // Defaulted rather than omitted: a <button> with no type inside a form submits it, which is
       // how a "Cancel" ends up saving.
       {...(asChild ? {} : { type })}
@@ -75,6 +81,6 @@ export function Button({
       {...props}
     />
   );
-}
+});
 
 export { buttonVariants };

@@ -1349,6 +1349,11 @@ export const strings = {
     failed: 'That did not upload. Try again.',
     remove: 'Remove',
     open: 'Open',
+    opening: 'Opening…',
+    // Success, named. Silence after an upload reads as failure, and the natural response is to
+    // send the photo again — three times, over a restaurant's connection.
+    attached: (name: string) => `${name} is attached.`,
+    openFailed: 'That file could not be opened. Try again.',
     count: (count: number) => (count === 1 ? '1 attachment' : `${String(count)} attachments`),
   },
 
@@ -1383,6 +1388,11 @@ export const strings = {
     staffTitle: 'Put somebody on a shift',
     whoLabel: 'Who?',
     whichShiftLabel: 'Which shift?',
+    // A disabled control is only honest if something on screen explains it. Three lists feed one
+    // button here, and any of them being empty produced the same dead button with no way to tell
+    // which — found on 2026-09-19 by an owner who could not put anybody on a shift.
+    noShiftsYet: 'No shifts exist yet. Add one in Restaurant settings, then come back here.',
+    noStaffYet: 'Nobody has been added yet. Add your people in Staff, then come back here.',
     sectionLabel: 'Which section?',
     dayLabel: 'Which day?',
     // Invariant 4, said to a person rather than to a reader of the schema.
@@ -1505,6 +1515,14 @@ export const strings = {
     loading: 'Checking…',
     // An empty centre is the right answer when nothing is wrong, and it says so rather than
     // leaving somebody to wonder whether it is broken.
+    // Severity as a word, because colour never carries meaning alone (design-system rule 5) and
+    // because a stripe alone says "this one is different" without saying how.
+    severity: {
+      critical: 'Act now',
+      warning: 'Soon',
+      caution: 'Soon',
+      info: 'For information',
+    } as Record<string, string>,
     allClear: 'Nothing needs you right now.',
     allClearHint:
       'Alerts appear here on their own — stock gone negative, a batch about to expire, a complaint nobody has resolved, a task past its time, a till that did not balance.',

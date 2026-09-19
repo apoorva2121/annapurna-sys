@@ -217,6 +217,41 @@ function StaffIt(): ReactElement {
   return <StaffForm />;
 }
 
+/**
+ * Why the button below cannot be pressed.
+ *
+ * The button is disabled until a person, a shift and a day are all chosen — correct, and it was
+ * silent. With no shifts defined the shift list is empty, `shiftId` stays `null`, and the button
+ * can never be enabled: clicking did nothing and no error appeared, because no request was ever
+ * made. An owner spent an evening on that on 2026-09-19.
+ *
+ * Its own component because `StaffForm` went over eslint's complexity budget the moment two
+ * conditions were added — the budget doing its job rather than an inconvenience.
+ *
+ * `docs/ui/conventions.md`: an empty state says what will appear and how to make it appear. A
+ * disabled control is only honest if something on screen explains it.
+ */
+type ListState = { ready: boolean; any: boolean };
+
+function WhyNothingCanBeStaffed({
+  shifts,
+  staff,
+}: {
+  shifts: ListState;
+  staff: ListState;
+}): ReactElement {
+  // Each list answers for itself as soon as *it* has loaded, rather than both waiting on the
+  // slower one — a notice that appears late reads as a flicker.
+  const missing = shifts.ready && !shifts.any;
+  const nobody = staff.ready && !staff.any;
+  return (
+    <>
+      {missing ? <Notice tone="info" title={strings.shifts.noShiftsYet} /> : null}
+      {nobody ? <Notice tone="info" title={strings.shifts.noStaffYet} /> : null}
+    </>
+  );
+}
+
 /** One row of taps: a person, a shift, a day, a section. */
 function StaffForm(): ReactElement {
   const [employeeId, setEmployeeId] = useState<string | null>(null);
@@ -238,6 +273,11 @@ function StaffForm(): ReactElement {
   return (
     <section className="flex flex-col gap-2 border-b border-border pb-4">
       <h2 className="text-lg font-medium">{strings.shifts.staffTitle}</h2>
+
+      <WhyNothingCanBeStaffed
+        shifts={{ ready: !shifts.isPending, any: shiftOptions.length > 0 }}
+        staff={{ ready: !people.isPending, any: staff.length > 0 }}
+      />
 
       <Choices
         label={strings.shifts.whoLabel}

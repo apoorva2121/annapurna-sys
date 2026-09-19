@@ -110,9 +110,14 @@
   [data-theme] {
     --critical: 0 72% 41%;
     --critical-soft: 0 80% 96%;
-    --warning: 25 90% 40%;
+    /* 37%, not 40%: at 40% this ink was 4.06:1 on its own soft fill and 4.33:1 on the page,
+       both under the 4.5:1 AA floor. Hue and saturation are untouched — the lock is on what the
+       colour *means*, and a deeper orange means the same thing. Guarded by theme.test.ts. */
+    --warning: 25 90% 37%;
     --warning-soft: 25 90% 95%;
-    --caution: 45 93% 33%;
+    /* 29%, not 33%: yellow is the hardest of the six to read on a light ground, and at 33% this
+       was 3.63:1 on its own soft fill — the worst pair in the set. */
+    --caution: 45 93% 29%;
     --caution-soft: 45 93% 94%;
     --info: 217 91% 42%;
     --info-soft: 217 91% 96%;

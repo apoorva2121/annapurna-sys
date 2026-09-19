@@ -13,9 +13,10 @@
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useState } from 'react';
+import { createRef, useState } from 'react';
 import { describe, expect, it } from 'vitest';
 
+import { Button } from '@shared/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '@shared/ui/dialog';
 import { Label } from '@shared/ui/label';
 import { Switch } from '@shared/ui/switch';
@@ -62,6 +63,43 @@ describe('Switch', () => {
     await user.click(toggle);
 
     expect(toggle).toHaveAttribute('aria-checked', 'true');
+  });
+});
+
+describe('Button', () => {
+  // Found on 2026-09-19 by opening the design gallery and reading the console: `Button` was the
+  // only component in this folder not wrapped in `forwardRef`, and React had been warning
+  // "Function components cannot be given refs" on every page carrying a Dialog or Sheet trigger.
+  //
+  // Nothing looked broken, because a click rides on event delegation and still worked. What did
+  // not work is the ref Radix uses to put focus back on the trigger when an overlay closes.
+  it('forwards its ref, which is how Radix returns focus to a trigger', () => {
+    const ref = createRef<HTMLButtonElement>();
+    render(<Button ref={ref}>Send to kitchen</Button>);
+
+    expect(ref.current, 'Button dropped its ref — Radix focus management will fail').not.toBeNull();
+    expect(ref.current?.tagName).toBe('BUTTON');
+  });
+
+  it('returns focus to the trigger when a dialog closes', async () => {
+    const user = userEvent.setup();
+    render(
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button>Close the till?</Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogTitle>Close the till?</DialogTitle>
+        </DialogContent>
+      </Dialog>,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Close the till?' });
+    await user.click(trigger);
+    await user.keyboard('{Escape}');
+
+    // The keyboard contract: whoever opened it is where the cursor comes back to.
+    expect(document.activeElement).toBe(trigger);
   });
 });
 

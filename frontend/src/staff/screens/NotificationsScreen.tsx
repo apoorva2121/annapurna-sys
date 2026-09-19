@@ -57,10 +57,32 @@ export default function NotificationsScreen(): ReactElement {
 // stock that has gone negative, and a critical complaint — because a scale where everything is
 // red is a scale nobody reads.
 const TINTS: Record<string, string> = {
-  critical: 'border-critical/40 bg-critical-soft',
-  warning: 'border-caution/40 bg-caution-soft',
-  caution: 'border-caution/40 bg-caution-soft',
+  // **A severity stripe on a normal surface, not a tinted card.** The `-soft` fills are locked
+  // (`tokens.css`) so no theme may repaint them — which is right, because a festive theme that
+  // made red decorative would break the only promise the kitchen display makes. But locked means
+  // *always near-white*, and the Dark theme's `foreground` is near-white too: this card used to
+  // set `bg-critical-soft` and no ink, so its text inherited the page foreground and rendered at
+  // a contrast ratio of 1.04 against its own background. Identical colours are 1.0. It was
+  // invisible, and only in the dark.
+  //
+  // Design-system rule 11 is that a soft fill always carries its own strong ink. That pairing is
+  // right for a *badge* — a word and a colour — and wrong for a whole card, whose detail text
+  // would then be a paragraph of red. So the severity moves to a stripe and a badge, and the card
+  // keeps a normal surface where `foreground` is guaranteed readable in every theme.
+  critical: 'border-l-4 border-l-critical',
+  warning: 'border-l-4 border-l-caution',
+  caution: 'border-l-4 border-l-caution',
   info: 'border-border',
+};
+
+// Rule 11, on the one element it is meant for: soft fill, strong ink, and a word. Both halves of
+// each pair are locked tokens, so this contrast holds in every theme — which is exactly what the
+// card's inherited `foreground` could not promise.
+const BADGES: Record<string, string> = {
+  critical: 'bg-critical-soft text-critical',
+  warning: 'bg-caution-soft text-caution',
+  caution: 'bg-caution-soft text-caution',
+  info: 'bg-neutral-soft text-neutral',
 };
 
 // Where each kind of condition is dealt with. A notification that cannot be acted on from itself
@@ -82,9 +104,19 @@ function Row({ notice }: { notice: Notice }): ReactElement {
     <li className={cn('flex flex-col gap-2 rounded border p-4', TINTS[notice.severity])}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="font-semibold">{notice.subject}</span>
-        {/* The word, not only the tint. */}
-        <span className="text-xs uppercase tracking-wide text-muted-foreground">
-          {strings.notifications.kind[notice.kind] ?? notice.kind}
+        <span className="flex flex-wrap items-baseline gap-2">
+          {/* Severity as a word and a colour, never a colour alone. */}
+          <span
+            className={cn(
+              'rounded-full px-2 py-0.5 text-xs font-medium',
+              BADGES[notice.severity] ?? BADGES.info,
+            )}
+          >
+            {strings.notifications.severity[notice.severity] ?? notice.severity}
+          </span>
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">
+            {strings.notifications.kind[notice.kind] ?? notice.kind}
+          </span>
         </span>
       </div>
       <p className="text-sm">{notice.detail}</p>

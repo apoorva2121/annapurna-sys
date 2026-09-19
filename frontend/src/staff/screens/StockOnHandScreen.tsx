@@ -122,7 +122,7 @@ function ExpiringSection(): ReactElement {
             {batches.map((batch) => (
               <li
                 key={batch.batch_id}
-                className="flex flex-wrap items-baseline justify-between gap-2 rounded border border-caution/40 bg-caution-soft px-3 py-2 text-sm"
+                className="flex flex-wrap items-baseline justify-between gap-2 rounded border border-caution/40 bg-caution-soft px-3 py-2 text-sm text-caution"
               >
                 <span>
                   <span className="font-medium">{batch.name}</span> · {strings.stockLedger.expiringOn}{' '}
@@ -144,7 +144,7 @@ function NegativeBanner({ count }: { count: number }): ReactElement {
   return (
     <div
       role="status"
-      className="rounded border border-critical/40 bg-critical-soft px-4 py-3 text-sm"
+      className="rounded border border-critical/40 bg-critical-soft px-4 py-3 text-sm text-critical"
     >
       <p className="font-semibold">{strings.stockLedger.negativeBanner(count)}</p>
       <p className="mt-1 text-muted-foreground">{strings.stockLedger.negativeHelp}</p>

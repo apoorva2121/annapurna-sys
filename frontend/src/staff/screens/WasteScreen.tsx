@@ -240,7 +240,7 @@ function Logged({
           else* is right beside it — because `docs/waste-model.md`'s rule is that anything making
           honest reporting harder gets you less honest reporting, not more photographs. */}
       {wantsPhoto ? (
-        <section className="flex flex-col gap-2 rounded-md bg-caution-soft p-4">
+        <section className="flex flex-col gap-2 rounded-md bg-caution-soft p-4 text-caution">
           <h2 className="font-medium text-caution">{strings.waste.photoWanted}</h2>
           <p className="text-sm">{strings.waste.photoWantedHint}</p>
           <AttachmentControl

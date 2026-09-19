@@ -142,6 +142,86 @@ describe('contrast', () => {
   });
 });
 
+// The gap the design system had already written down and deferred: *"a Badge component and a
+// contrast test for text on each `-soft` fill — rule 11 is followed by hand until then."*
+//
+// Hand-following failed on 2026-09-19. The alerts screen set `bg-critical-soft` with no ink, so
+// its text inherited the page `foreground`; in the Dark theme that is near-white on a locked
+// near-white fill — a contrast ratio of **1.04**, where identical colours are 1.0. Invisible, and
+// only in the dark, which is why every existing test passed.
+//
+// Two rules, because the defect needed both to happen.
+describe('soft fills', () => {
+  const SOFT_PAIRS = [
+    ['--critical', '--critical-soft'],
+    ['--warning', '--warning-soft'],
+    ['--caution', '--caution-soft'],
+    ['--info', '--info-soft'],
+    ['--success', '--success-soft'],
+    ['--neutral', '--neutral-soft'],
+  ] as const;
+
+  // Both halves are locked, so this holds in every theme — which is the whole reason rule 11 says
+  // a soft fill carries its *own* ink rather than the page's.
+  it('each alert ink is readable on its own soft fill', () => {
+    const locked = declarationsUnder('[data-theme] {');
+    for (const [inkKey, fillKey] of SOFT_PAIRS) {
+      const ink = locked.get(inkKey);
+      const fill = locked.get(fillKey);
+      expect(ink, `${inkKey} is not declared in the locked block`).toBeDefined();
+      expect(fill, `${fillKey} is not declared in the locked block`).toBeDefined();
+      const ratio = contrastRatio(ink ?? '', fill ?? '');
+      expect(ratio, `${inkKey} is not a triple`).not.toBeNull();
+      expect(
+        ratio ?? 0,
+        `${inkKey} on ${fillKey} is ${(ratio ?? 0).toFixed(2)}:1 — a badge nobody can read`,
+      ).toBeGreaterThanOrEqual(4.5);
+
+      // The same ink is also used as plain text on the page — a red total, an amber hint. Checking
+      // only the badge pair would have left `--warning` at 4.33:1 against the page, which is how
+      // it was found: by hand, after the badge check had already flagged its sibling.
+      const onPage = contrastRatio(ink ?? '', BASELINE.get('--background') ?? '');
+      expect(
+        onPage ?? 0,
+        `${inkKey} on the page background is ${(onPage ?? 0).toFixed(2)}:1`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  // The rule that actually catches the defect: a tinted background always brings its own ink.
+  // Without this, a screen can take a locked near-white fill, inherit the page foreground, and be
+  // unreadable in exactly one theme.
+  it('is never used as a background without its matching ink', () => {
+    const sources = import.meta.glob<string>('../../{staff,guest}/**/*.tsx', {
+      query: '?raw',
+      import: 'default',
+      eager: true,
+    });
+    expect(Object.keys(sources).length).toBeGreaterThan(20);
+
+    const offenders: string[] = [];
+    for (const [path, source] of Object.entries(sources)) {
+      const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+      for (const match of code.matchAll(/class[Nn]ame=\{?["'`]([^"'`]*)["'`]/g)) {
+        const classes = match[1] ?? '';
+        const soft = /\bbg-(critical|warning|caution|info|success|neutral)-soft\b/.exec(classes);
+        if (soft === null) {
+          continue;
+        }
+        const hue = soft[1] ?? '';
+        if (!new RegExp(`\\btext-${hue}\\b`).test(classes)) {
+          offenders.push(`${path}: "${classes.trim()}"`);
+        }
+      }
+    }
+
+    expect(
+      offenders.join(' | '),
+      'a soft fill with no ink inherits the page foreground, unreadable in at least one theme',
+    ).toBe('');
+  });
+});
+
 describe('applying a theme', () => {
   it('writes the overrides a theme declares', () => {
     applyTheme('deepavali');

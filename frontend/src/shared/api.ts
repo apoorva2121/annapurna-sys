@@ -382,6 +382,47 @@ export async function apiPutBytes(path: string, file: Blob, contentType: string)
   }
 }
 
+/**
+ * GET one of *our own* paths and hand back the bytes, with this session's token attached.
+ *
+ * **Why this exists rather than an `<a href>`.** This product authenticates with a Bearer token in
+ * a header, and a browser following a link sends cookies and cannot send one — so an attachment
+ * link pointed straight at the API is a request that can only ever be refused. Every attachment in
+ * the product returned `auth.required` from M11 until 2026-09-19 for exactly that reason.
+ *
+ * **And not a token in the query string**, which is the other obvious fix: a URL travels into
+ * browser history, server logs and `Referer` headers, and a live API credential must not.
+ *
+ * Retries once through `refreshOnce` like every other call here, so an attachment opened after a
+ * long idle does not fail the way it would if this had been written as a bare `fetch`.
+ */
+export async function apiGetBlob(path: string): Promise<Blob> {
+  const headers: Record<string, string> = {};
+  if (accessToken !== null) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+  let response = await getBytes(path, headers);
+  if (response.status === 401) {
+    const token = await refreshOnce();
+    if (token !== null) {
+      headers.Authorization = `Bearer ${token}`;
+      response = await getBytes(path, headers);
+    }
+  }
+  if (!response.ok) {
+    throw await errorFrom(response);
+  }
+  return await response.blob();
+}
+
+async function getBytes(path: string, headers: Record<string, string>): Promise<Response> {
+  try {
+    return await fetch(`${API_BASE}${path}`, { method: 'GET', headers });
+  } catch {
+    throw unreachable();
+  }
+}
+
 async function putBytes(
   path: string,
   file: Blob,
