@@ -9,8 +9,13 @@
 export const strings = {
   scan: {
     loading: 'Opening…',
-    expiredTitle: 'This code has expired',
-    expiredBody: 'Please scan the QR code on your table again, or ask a member of staff.',
+    // Names no cause. The server returns one refusal for a slug that does not exist, a slug on a
+    // deactivated table, and a token that really did expire (`api/guest_deps.py`), because telling
+    // a stranger which one it was is an enumeration oracle. A heading saying "expired" puts the
+    // `why` back, and gets it wrong every time the code simply never existed — which is what
+    // happened on 2026-09-19 and cost an hour.
+    refusedTitle: 'This code did not work',
+    refusedBody: 'Please scan the QR code on your table again, or ask a member of staff.',
     offlineTitle: 'We could not reach the restaurant',
     offlineBody: 'Check your connection and try again.',
     retry: 'Try again',

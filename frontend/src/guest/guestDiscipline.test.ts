@@ -126,6 +126,30 @@ describe('the guest bundle keeps its promises', () => {
     }
   });
 
+  // Found the hard way on 2026-09-19: a QR pointed at staging carried a slug from a local database,
+  // and the screen said "This code has expired". The code had never existed. An hour went into
+  // looking for a token lifetime that was never involved.
+  //
+  // The backend is careful here and the frontend was undoing it. `api/guest_deps.py` returns ONE
+  // refusal for a slug that does not exist, a slug on a deactivated table and a token that really
+  // did expire — its comment reads "never *why*, because the difference ... is an enumeration
+  // oracle" (`docs/security.md`: "No enumeration"). Its message says only that the code is no
+  // longer valid. A heading that names expiry re-adds the `why` the backend removed, and names it
+  // wrongly most of the time.
+  it('never tells a guest why their code was refused', () => {
+    const words = file('strings.ts');
+    const scan = words.slice(words.indexOf('scan:'), words.indexOf('menu:'));
+
+    // The refusal may say the code does not work. It may not say what became of it, because the
+    // one message covers four causes and the screen cannot tell which it got.
+    for (const cause of [/expired/i, /timed out/i, /no longer valid/i, /too old/i]) {
+      const named = cause.source;
+      expect(scan, `the 401 heading asserts a cause the server refused to assert: ${named}`).not.toMatch(
+        cause,
+      );
+    }
+  });
+
   it('keeps every guest-facing word in the strings file', () => {
     // English only in month 1, in one place, so Hindi and Marathi are a data change rather than a
     // sweep through every screen. The consent notice is the exception and is versioned separately.
