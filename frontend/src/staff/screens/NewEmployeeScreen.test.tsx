@@ -43,6 +43,7 @@ function authFor(restaurant: RestaurantSummary): AuthState {
     hasMoreRestaurants: false,
     roles: ['owner'],
     permissions: new Set<string>(),
+    takesTables: true,
   };
   return {
     session,

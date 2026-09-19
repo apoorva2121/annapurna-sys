@@ -144,6 +144,15 @@ class Employee(TimestampedUUIDMixin, Base):
     )
     # Master-data tier (ADR 0008): deactivated, never deleted. Historical orders, shifts and
     # wastage events point at this row forever.
+    #: Serves tables, and may therefore be recorded as the waiter on one (ADR 0011).
+    #:
+    #: **A fact about the job, not a permission**, because a permission cannot express it: the
+    #: `owner` role is seeded with `["*"]`, which the seeder expands into every permission there
+    #: is, so an owner would hold any new one automatically. Migration 0057 has the long version.
+    #: Defaults to false — a new employee is not creditable as a waiter until somebody says so.
+    takes_tables: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

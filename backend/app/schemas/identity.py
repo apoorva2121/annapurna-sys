@@ -173,6 +173,11 @@ class MeResponse(_Schema):
     has_more_restaurants: bool = False
     roles: list[str]
     permissions: list[str]
+    # Whether this person serves tables. Sent because some screens are about *working the floor*
+    # rather than about authority, and authority cannot express it: an owner holds every
+    # permission there is (`["*"]`, expanded), so no permission can ever be absent from them.
+    # See migration 0057.
+    takes_tables: bool = False
 
 
 class RestaurantPageResponse(_Schema):
@@ -193,6 +198,9 @@ class EmployeeResponse(_ReadSchema):
     joined_on: date
     employment_type: EmploymentType
     is_active: bool
+    # Serves tables, and may therefore be recorded as the waiter on one. A fact about the job
+    # rather than a permission — see migration 0057 for why a permission could not express it.
+    takes_tables: bool
     deactivated_at: datetime | None
     # Whether this person can sign in at all. The account id itself is not exposed: it is of no
     # use to a client and it is the join key to the credentials table.
@@ -273,6 +281,7 @@ class EmployeeUpdateRequest(_Schema):
     phone: str | None = Field(default=None, max_length=20)
     date_of_birth: date | None = None
     employment_type: EmploymentType | None = None
+    takes_tables: bool | None = None
 
     _name = field_validator("full_name")(_two_letters)
     _validate_phone = field_validator("phone")(EmployeeCreateRequest._validate_phone.__func__)  # type: ignore[attr-defined]

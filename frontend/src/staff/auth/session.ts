@@ -62,6 +62,8 @@ export type MeResponse = {
   has_more_restaurants?: boolean;
   roles: string[];
   permissions: string[];
+  /** Serves tables. Optional for the same deploy-skew reason as `restaurants` above. */
+  takes_tables?: boolean;
 };
 
 /** The session as the app holds it. `permissions` is a Set because `can()` runs on every render of
@@ -76,6 +78,12 @@ export type Session = {
   hasMoreRestaurants: boolean;
   roles: string[];
   permissions: ReadonlySet<string>;
+  /** Serves tables, and therefore sees the screens that are about working the floor.
+   *
+   *  Separate from `permissions` on purpose: an owner holds every permission there is, so no
+   *  permission can ever be absent from them, and "this is not an owner's job" is not a statement
+   *  about authority. See migration 0057. */
+  takesTables: boolean;
 };
 
 function sessionFromMe(response: MeResponse): Session {
@@ -93,6 +101,9 @@ function sessionFromMe(response: MeResponse): Session {
     hasMoreRestaurants: response.has_more_restaurants ?? false,
     roles: response.roles,
     permissions: new Set(response.permissions),
+    // Defaulted to false during a deploy skew: the conservative direction is to hide a floor
+    // control from somebody rather than show one to an owner who does not want it.
+    takesTables: response.takes_tables ?? false,
   };
 }
 

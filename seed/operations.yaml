@@ -127,8 +127,18 @@ modifier_groups:
 
 # Which groups attach to which categories. The generator expands this to menu_item_modifier_group.
 modifier_attachments:
-  - {categories: [MAIN_VEG, MAIN_NONVEG],   groups: [SPICE_LEVEL, JAIN_PREF, ADDONS_GRAVY]}
-  - {categories: [STARTER_VEG, STARTER_NONVEG, CHINESE], groups: [SPICE_LEVEL, JAIN_PREF]}
+  - {categories: [MAIN_VEG, MAIN_NONVEG],   groups: [SPICE_LEVEL, ADDONS_GRAVY]}
+  - {categories: [STARTER_VEG, STARTER_NONVEG, CHINESE], groups: [SPICE_LEVEL]}
+  # Jain is a vegetarian practice, so this group attaches to veg dishes only — `food_types`
+  # narrows the rule to the dishes it can actually apply to. It used to reach every main and
+  # every starter, so a chicken curry offered "Jain (no onion/garlic)": an option no preparation
+  # can satisfy, and one that tells a Jain customer the restaurant does not know the word.
+  # The owner's decision, 2026-09-19.
+  #
+  # A category alone could not express this: CHINESE holds veg and non-veg side by side. The
+  # dish's own `food_type` is the field with the statutory basis (§A1), so it is never empty.
+  - {categories: [MAIN_VEG, MAIN_NONVEG, STARTER_VEG, STARTER_NONVEG, CHINESE],
+     groups: [JAIN_PREF], food_types: [veg]}
   - {categories: [RICE_BREAD],              groups: [BREAD_OPTS]}
 
 # ---------------------------------------------------------------- incentive scheme (M17 / ADR 0011)

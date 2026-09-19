@@ -38,6 +38,7 @@ const AUTH: AuthState = {
     hasMoreRestaurants: false,
     roles: ['manager'],
     permissions: new Set<string>(),
+    takesTables: true,
   } satisfies Session,
   signIn: () => Promise.resolve(),
   signOut: () => Promise.resolve(),

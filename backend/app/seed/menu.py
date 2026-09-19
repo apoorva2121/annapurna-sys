@@ -34,6 +34,7 @@ import yaml
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.enums import FoodType
 from app.models.menu import (
     MenuCategory,
     MenuItem,
@@ -331,6 +332,15 @@ async def _attachments(
     menu. The table stores it per dish because one dish in a category can opt out. This is where
     the first becomes the second — at load time, not as a stored rule that would then need
     reconciling against every exception forever.
+
+    **`food_types` narrows a rule to the dishes it can actually apply to**, which a category
+    cannot. Jain is the case that forced it: the option was attached to `MAIN_NONVEG` and
+    `STARTER_NONVEG`, so a chicken curry offered *"Jain (no onion/garlic)"* — an option that
+    cannot be satisfied on a non-veg dish under any preparation, and which tells a Jain customer
+    the restaurant does not know what the word means. Filtering by category alone could not fix
+    it either: `CHINESE` holds veg and non-veg dishes side by side, so the rule has to be read
+    off the dish's own `food_type` (`docs/compliance-rules.md` §A1), which is the field with the
+    statutory basis and therefore the one that is always filled in.
     """
     for record in records:
         # **Refused, not skipped.** Both of these used to filter silently: an unknown group code was
@@ -351,11 +361,23 @@ async def _attachments(
                 f"operations.yaml attaches options to categories {unknown_categories}, "
                 "which the menu does not define."
             )
+        unknown_types = [
+            value
+            for value in record.get("food_types", [])
+            if value not in {food_type.value for food_type in FoodType}
+        ]
+        if unknown_types:
+            raise MissingSeedReferenceError(
+                f"operations.yaml attaches options to food types {unknown_types}, "
+                "which are not veg, non_veg or egg."
+            )
         wanted = [groups[code] for code in record.get("groups", [])]
+        only_types = set(record.get("food_types", []))
         targets = [
             item
             for category_code in record.get("categories", [])
             for item in counts.by_category[category_code]
+            if not only_types or item.food_type in only_types
         ]
         # One read of the links already there for every dish this rule touches, not one per dish
         # (backlog-issues B9): a 400-dish menu with four rules was ~1600 statements.

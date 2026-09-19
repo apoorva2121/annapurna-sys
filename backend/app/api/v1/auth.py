@@ -180,6 +180,7 @@ async def me(actor: ActorDep, session: SessionDep) -> MeResponse:
         has_more_restaurants=profile.has_more_restaurants,
         roles=list(profile.access.role_codes),
         permissions=sorted(profile.access.permissions),
+        takes_tables=profile.employee.takes_tables,
     )
 
 

@@ -32,6 +32,7 @@ function renderScreen(permissions: string[]): void {
       hasMoreRestaurants: false,
       roles: ['manager'],
       permissions: new Set(permissions),
+      takesTables: true,
     },
     signIn: () => Promise.resolve(),
     signOut: () => Promise.resolve(),

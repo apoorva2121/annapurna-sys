@@ -13,6 +13,8 @@ import {
 } from '@staff/api/staff';
 import { useAuth } from '@staff/auth/AuthContext';
 import { Button } from '@shared/ui/button';
+import { Label } from '@shared/ui/label';
+import { Switch } from '@shared/ui/switch';
 import { Field } from '@staff/components/Field';
 import { Notice } from '@staff/components/Notice';
 import { errorProps, fieldErrors } from '@staff/components/errorProps';
@@ -50,12 +52,51 @@ function Loaded({ employee }: { employee: Employee }): ReactElement {
       </div>
 
       {can(Permission.EMPLOYEE_EDIT) && <Details employee={employee} />}
+      {can(Permission.EMPLOYEE_EDIT) && <TakesTables employee={employee} />}
       {can(Permission.EMPLOYEE_ROLE_ASSIGN) && <Roles employee={employee} />}
       {can(Permission.EMPLOYEE_PASSWORD_RESET) && employee.has_login && (
         <PasswordReset employee={employee} />
       )}
       {can(Permission.EMPLOYEE_DEACTIVATE) && <Activation employee={employee} />}
     </div>
+  );
+}
+
+/**
+ * Whether this person serves tables.
+ *
+ * **Not a permission, and it could not have been one.** The `owner` role is seeded `["*"]`, which
+ * the seeder expands into every permission there is — so an owner would hold any new
+ * "may serve a table" permission automatically, and was in fact offered as a waiter on every
+ * table until 2026-09-19. Checking the role name instead is refused by ADR 0007. So it is a fact
+ * about the job, set per person, which is also how a small restaurant actually works: the manager
+ * who genuinely covers Friday service gets the switch, and the one who never does, does not.
+ *
+ * It matters beyond a dropdown — ADR 0011 scores a waiter on the orders they served, so anybody
+ * wrongly creditable here enters everyone else's figures.
+ *
+ * Saves on change rather than behind a Save button, like the activation switch below it: there is
+ * one value and no draft state to lose.
+ */
+function TakesTables({ employee }: { employee: Employee }): ReactElement {
+  const update = useUpdateEmployee(employee.id);
+  return (
+    <section className="flex max-w-md flex-col gap-2">
+      <div className="flex items-center gap-3">
+        <Switch
+          id="takes-tables"
+          checked={employee.takes_tables}
+          disabled={update.isPending}
+          onCheckedChange={(next) => {
+            update.mutate({ takes_tables: next });
+          }}
+        />
+        <Label htmlFor="takes-tables">{strings.staff.takesTables}</Label>
+      </div>
+      <p className="text-sm text-muted-foreground">{strings.staff.takesTablesHint}</p>
+      {update.isError && <Notice tone="critical" {...errorProps(update.error)} />}
+      {update.isSuccess && <Notice tone="success" title={strings.staff.takesTablesSaved} />}
+    </section>
   );
 }
 

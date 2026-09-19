@@ -19,6 +19,8 @@ export type Employee = {
   phone: string | null;
   joined_on: string;
   employment_type: EmploymentType;
+  /** Serves tables, and may therefore be recorded as the waiter on one. */
+  takes_tables: boolean;
   is_active: boolean;
   deactivated_at: string | null;
   has_login: boolean;
@@ -50,6 +52,7 @@ export type NewEmployee = {
 };
 
 export type EmployeeChanges = {
+  takes_tables?: boolean;
   full_name?: string;
   phone?: string | null;
   employment_type?: EmploymentType;

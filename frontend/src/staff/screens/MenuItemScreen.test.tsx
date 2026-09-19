@@ -111,6 +111,7 @@ function auth(permissions: string[]): AuthState {
       hasMoreRestaurants: false,
       roles: ['manager'],
       permissions: held,
+      takesTables: true,
     } satisfies Session,
     signIn: () => Promise.resolve(),
     signOut: () => Promise.resolve(),

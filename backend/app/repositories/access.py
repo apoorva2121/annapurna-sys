@@ -197,12 +197,23 @@ class AccessRepository:
     async def order_takers(
         self, restaurant_id: uuid.UUID, *, employee_id: uuid.UUID | None = None
     ) -> Sequence[Employee]:
-        """Active staff who may take orders at this restaurant, by name (waiter assignment).
+        """Active staff who may be recorded as a table's waiter here, by name.
 
-        Judged by permission, never by role name (ADR 0007): whoever holds `order.create` here can
-        serve a table, which includes a manager covering the floor and excludes the accountant who
-        only reads orders. A login is not required — a waiter without a phone still serves the
-        table. Bounded at 200: a restaurant with more order takers than that is not a restaurant.
+        **Two conditions, and they answer different questions.** `order.create` is the authority —
+        never judged by role name (ADR 0007) — and `employee.takes_tables` is the fact: this person
+        serves tables. Until 2026-09-19 only the first was checked, and its docstring said so
+        approvingly: it "includes a manager covering the floor". It also included the **owner**,
+        who holds every permission by construction (`["*"]` in the seed, expanded), and who was
+        therefore offered as a waiter on every table.
+
+        A permission could not have fixed that — an owner would hold any new one too — so the
+        second condition is a column on the employee. Migration 0057 carries the reasoning.
+
+        It matters beyond a dropdown: ADR 0011 scores a waiter on the orders they served, so an
+        owner or a manager appearing here enters everyone else's performance figures.
+
+        A login is not required — a waiter without a phone still serves the table. Bounded at 200:
+        a restaurant with more order takers than that is not a restaurant.
         """
         query = (
             select(Employee)
@@ -212,6 +223,7 @@ class AccessRepository:
             .where(
                 EmployeeRoleAssignment.restaurant_id == restaurant_id,
                 Permission.code == "order.create",
+                Employee.takes_tables.is_(True),
                 Employee.is_active.is_(True),
             )
             .distinct()

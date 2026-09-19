@@ -36,10 +36,10 @@ test, or the test may be written against a screen that no longer exists.
 | F1 | staging `eb8bd6e`, phone | The staff header reads as a paragraph of text, not a set of links | **A** | designed, not built |
 | F2 | local, from F1 | Links are `text-info` on the home screen and unstyled in the header, while `tokens.css` documents `--brand` as the link colour | **A** (small) | not started |
 | F3 | local `HEAD` | 8 screens are linked in both the header and the home page — the same option twice on one screen | **A** | designed, not built |
-| F5 | local `HEAD` | A **manager** must no longer be assignable as a table's waiter | **A** | answered, not built |
-| F6 | local `HEAD` | The whole "Preparation preference" group comes off **non-veg** dishes | **A** | answered, not built |
-| F7 | local `HEAD` | "Ask for bill" is shown to the owner, where it is not an owner's action | **A** | answered, not built |
-| F8 | local `HEAD` | A **manager** cannot reset anyone's password — only the owner can | **A** | not built |
+| F5 | local `HEAD` | A **manager** must no longer be assignable as a table's waiter | **A** | ✅ **fixed** 2026-09-19 |
+| F6 | local `HEAD` | The whole "Preparation preference" group comes off **non-veg** dishes | **A** | ✅ **fixed** 2026-09-19 |
+| F7 | local `HEAD` | "Ask for bill" is shown to the owner, where it is not an owner's action | **A** | ✅ **fixed** 2026-09-19 |
+| F8 | local `HEAD` | A **manager** cannot reset anyone's password — only the owner can | **A** | ✅ **fixed** 2026-09-19 |
 | F9 | local `HEAD` | No "forgot password" anywhere; owner recovery to go by SMS/WhatsApp code | **B** | channel chosen, blocked on research |
 | F10 | local `HEAD` | A bill cannot be printed; only the credit note that corrects it can | **A** | answered, needs a research step |
 | F11 | local `HEAD` | Dishes, categories, variants **and modifier groups** show their internal code beside the name | **A** | answered, ready to build |
@@ -208,24 +208,40 @@ grouped. To be confirmed before the split is written.
 
 **Owner's words:** *"tables should be assigned to only waiters and not manager or owner, or admin."*
 
-**Two thirds of this is already true.** Assignment is judged by the `order.create` permission
-(`AccessRepository.order_takers`), never by a role name — ADR 0007. Reading
-`seed/organization.yaml`, exactly two roles hold it: **manager** and **waiter**. Owner, admin,
-chef, kitchen staff, store manager, cleaner and accountant do not, and so can never appear in the
-list. The owner's concern about owner/admin is already met.
+**CORRECTED 2026-09-19 while implementing it.** An earlier version of this finding said *"owner
+and admin already cannot be assigned"*, because `seed/organization.yaml` lists `order.create`
+under `manager` and `waiter` and not under `owner`. **That was wrong.** The `owner` role is
+`permissions: ["*"]`, and the identity seeder **expands the wildcard into every permission in the
+catalogue**. Checked against the running database:
+
+| role | holds `order.create` | permissions held |
+|---|---|---|
+| owner | **yes** | 55 |
+| manager | yes | 47 |
+| waiter | yes | 13 |
+| admin | no | 22 |
+
+So the **owner was being offered as a waiter on every table** — the exact thing reported — and only
+`admin` was already excluded. Reading a role's grants out of the YAML without accounting for `["*"]`
+is how this was missed; the database is the source of truth for what a role actually holds.
 
 **So the live question is the manager only**, and the current behaviour is deliberate:
 `order_takers`' docstring says it "includes a manager covering the floor and excludes the
 accountant who only reads orders."
 
-**Why this is not a one-line change if the answer is "waiters only".** ADR 0007 forbids judging by
-role name, so the fix cannot be `if role == 'waiter'`. And removing `order.create` from the manager
-role would stop a manager **taking an order at all**, which in a small Indian restaurant is normal
-and is almost certainly not what is wanted. Doing it properly means separating two ideas the
-product currently treats as one:
+**And a new permission could not have fixed it.** That was the obvious implementation and it is
+structurally impossible: an owner holds `["*"]`, so they would hold any new permission
+automatically, the moment it was added to the catalogue. **Nothing can be hidden from an owner by
+adding a permission.** ADR 0007 rules out checking the role name instead.
 
-- **may take an order** — `order.create`, which a manager should keep;
-- **may be credited as the table's waiter** — a new permission or employee attribute.
+So the two ideas the product treats as one are separated by a **column on the employee**:
+
+- **may take an order** — `order.create`, which a manager keeps;
+- **serves tables** — `employee.takes_tables`, a fact about the person's job rather than a grant of
+  authority, and set per person by the owner.
+
+That is also the truer model. A manager who genuinely covers Friday service gets the switch; one
+who never waits a table does not — without granting it to every manager everywhere.
 
 **Why it probably matters.** ADR 0011 scores a waiter on the orders they served. A manager who
 covers the floor for an hour enters the waiter statistics, which distorts everyone else's figures
@@ -357,12 +373,19 @@ whoever performed it to sign in as that person afterwards. A manager who resets 
 must not be able to use it — the existing flag already handles this and the grant does not weaken
 it. Worth an explicit test rather than an assumption.
 
-**One thing to decide with it:** should a manager be able to reset the *owner's* password? Almost
-certainly not — that is a path from manager to full control of the tills and the audit trail. The
-reset endpoint has no rank check today; `docs/security.md`'s rank ladder (a person may not assign a
-role above their own) exists for assignment but this endpoint is not covered by it. **Granting the
-manager this permission without a rank check would be a privilege-escalation route**, and that
-makes the check part of this finding rather than a follow-up.
+**CORRECTED 2026-09-19 while implementing it.** An earlier version of this finding warned that
+*"the reset endpoint has no rank check today"* and that granting the permission would open a path
+from manager to owner. **That was wrong, and it was written without reading the service.**
+
+`EmployeeService.reset_password` already calls `may_reset_password`, which is documented as
+deliberately stricter than every other guard: *"Appointing a peer is not escalation — a manager may
+appoint another manager. **Acting as** a peer is, because a password is the ability to be that
+person."* It requires **strictly** more senior, with one exception for two owners so co-owners can
+help each other and an owner is not locked out with no recovery path.
+
+So a manager still cannot reset an owner's or an admin's password, and this finding is a one-line
+grant after all. `password_reset_required` (P1-6) already ends the standing ability of whoever
+performed a reset to sign in as that person.
 
 ---
 
@@ -1201,3 +1224,38 @@ saw, and three screens that failed silently. `vitest` 439 passed (was 434); esli
 contrast rule and produce a paragraph of red text. Severity moved to a left stripe plus a badge —
 soft fill, strong ink, and a word — and the card keeps a normal surface where `foreground` is
 readable in every theme. Rule 11's pairing is right for a badge and wrong for a card.
+
+---
+
+## Batch 2 — shipped 2026-09-19
+
+**F5, F6, F7, F8.** Permissions, the seed and three migrations (0056–0058).
+
+**Two of my own findings were wrong, and implementing them is what found the errors:**
+
+- **F5 said the owner already could not be assigned as a waiter.** They could. The `owner` role is
+  `["*"]` and the seeder expands it into all 55 permissions, so the owner held `order.create` and
+  appeared on every table's waiter list — the exact thing reported. Reading grants out of the YAML
+  without accounting for the wildcard is how it was missed.
+- **F8 warned that granting a manager the password reset would open an escalation path.** It
+  would not: `may_reset_password` already requires strictly more senior and says so at length. The
+  finding was written without reading the service.
+
+**The consequence of the first is the shape of the whole fix.** A new permission could never have
+worked — an owner holds every permission that exists, including any added tomorrow — and ADR 0007
+forbids checking the role name. So "serves tables" became `employee.takes_tables`, a column: a fact
+about the person's job rather than a grant of authority, set per person. A manager who genuinely
+covers Friday service gets the switch; one who never waits a table does not.
+
+That column then answered F7 as well. "The table has asked for the bill" is a floor action, not an
+authority, and it could not be hidden from an owner by permission for the same reason. It is
+**hidden and not removed**: it is the only thing in the product that sets `bill_requested_at`,
+because the guest app is read-only, and that timestamp is what bill-to-settle time is measured
+from.
+
+**F6 needed a finer granularity than the owner asked for.** Removing the group from the two non-veg
+categories would have left it on `CHINESE`, which holds veg and non-veg dishes side by side. The
+attachment now filters on the dish's own `food_type` — the field with a statutory basis, and
+therefore the one that is never empty.
+
+    pytest (5 affected suites) 103 passed · vitest 440 passed · ruff, mypy, eslint, tsc clean

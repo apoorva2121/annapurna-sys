@@ -709,6 +709,17 @@ function GroupChoice({
 
 function ActionBar({ order, send }: { order: Order; send: SendMutation }): ReactElement {
   const askForBill = useOrderStep('bill');
+  // **"The table has asked for the bill" is a floor action, not an authority.** It was shown to
+  // everyone who could modify an order, which includes the owner — who reported it as clutter on
+  // 2026-09-19 — and it could not be hidden from them by permission, because an owner holds every
+  // permission there is. `takesTables` is the same signal that decides who may be a table's
+  // waiter, for the same reason. See migration 0057.
+  //
+  // It is hidden rather than removed: this button is the **only** thing in the product that sets
+  // `bill_requested_at`, because the guest app is read-only (M10). Removing it would silently end
+  // bill-to-settle timing, which is measured from when the customer first asked.
+  const { session } = useAuth();
+  const onTheFloor = session?.takesTables ?? false;
   const unsent = order.lines.some((line) => line.status === 'pending');
   const billable = order.lines.some((line) => !OFF_THE_BILL.has(line.status));
   return (
@@ -717,7 +728,7 @@ function ActionBar({ order, send }: { order: Order; send: SendMutation }): React
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           <CancelOrder order={order} />
-          {billable && order.bill_requested_at === null && (
+          {onTheFloor && billable && order.bill_requested_at === null && (
             <Button
               variant="secondary"
               size="lg"

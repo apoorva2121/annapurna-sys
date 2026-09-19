@@ -89,6 +89,13 @@ export const strings = {
     active: 'Active',
     inactive: 'Inactive',
     noLogin: 'No login',
+    // The owner's decision, 2026-09-19. Worded as the job rather than as a permission, because
+    // that is what it is: an owner holds every permission there is, so this could never have been
+    // one. See migration 0057.
+    takesTables: 'Serves tables',
+    takesTablesHint:
+      'Only people who serve tables can be recorded as a table’s waiter, and only they appear in performance figures for service.',
+    takesTablesSaved: 'Saved.',
     noRoles: 'No role yet',
     loading: 'Loading the staff list…',
     showMore: 'Show more',

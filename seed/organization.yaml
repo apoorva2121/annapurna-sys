@@ -178,6 +178,12 @@ roles:
       - cash.manage                    # M07 amendment
       - floor.manage                   # busy mode on the floor (backlog-issues B2)
       - order.assign                   # who serves a table (waiter assignment, 2026-09-14)
+      # A waiter locked out mid-shift is a weekly event; an owner locked out is not. Until
+      # 2026-09-19 only the owner could reset a password, so every forgotten password walked to
+      # them — and the login screen told people to "ask your manager or the owner", which was
+      # false. Escalation is already closed by `may_reset_password`: strictly more senior, so a
+      # manager still cannot take an owner's account.
+      - employee.password.reset        # `employee.view` is already granted below
       - kot.view, kot.update
       - menu.view, menu.manage
       - recipe.view, cost.view

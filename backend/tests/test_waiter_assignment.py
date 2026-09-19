@@ -45,9 +45,15 @@ async def _person(
     *,
     active: bool = True,
     restaurant_id: uuid.UUID | None = None,
+    takes_tables: bool | None = None,
 ) -> uuid.UUID:
     """Someone with no login, which is ordinary (ADR 0007): a waiter without a phone, served for by
-    a captain, is still the person serving the table."""
+    a captain, is still the person serving the table.
+
+    `takes_tables` follows the role here for the same reason migration 0057's backfill does — it is
+    the product's own system role, and it is what a restaurant would set on day one. Every test
+    that wants the other combination sets the flag explicitly.
+    """
     role = (
         await session.scalars(
             select(Role).where(Role.code == role_code, Role.organization_id.is_(None))
@@ -59,6 +65,7 @@ async def _person(
         full_name=name,
         joined_on=date(2026, 1, 1),
         employment_type=EmploymentType.FULL_TIME,
+        takes_tables=takes_tables if takes_tables is not None else role_code == "waiter",
         is_active=active,
     )
     session.add(employee)
@@ -356,9 +363,71 @@ class TestTheWaiterIsShownEverywhere:
         assert response.status_code == 200, response.text
         names = [person["full_name"] for person in response.json()["items"]]
         assert names == sorted(names)
-        assert {"Kavita Rane", "Waiter Person", "Manager Person"} <= set(names)
+        assert {"Kavita Rane", "Waiter Person"} <= set(names)
+        # The owner's decision of 2026-09-19: only people who take tables are offered as a table's
+        # waiter. A manager holds `order.create` — they can take an order — and is no longer
+        # *creditable* as the waiter on one, because ADR 0011 scores a waiter on the orders they
+        # served and a manager covering the floor entered everyone else's figures.
+        assert "Manager Person" not in names
         assert "Accountant Person" not in names
         assert "Mahesh Bhosale" not in names
+
+    async def test_an_owner_is_never_offered_as_a_tables_waiter(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The defect the owner reported on 2026-09-19, and the one a permission could not fix.
+
+        The `owner` role is seeded `["*"]`, which the identity seeder expands into **every**
+        permission — 55 today and any new one tomorrow. So the owner held `order.create` and was
+        offered as a waiter on every table, and adding an `order.serve` permission would have been
+        granted to them automatically. Hence `employee.takes_tables`, which is a fact about the
+        person's job rather than a grant of authority.
+        """
+        _, _, _ = await _setup(db_session, api_client)
+        manager = await _token(api_client, "manager")
+
+        response = await api_client.get(f"{STAFF}/waiters", headers=_auth(manager))
+
+        assert response.status_code == 200, response.text
+        names = [person["full_name"] for person in response.json()["items"]]
+        assert "Owner Person" not in names
+        assert "Waiter Person" in names, "this test would otherwise pass vacuously"
+
+    async def test_a_manager_who_does_cover_the_floor_can_be_marked_as_taking_tables(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The flag is per person, which is the point of it being a column rather than a role rule.
+
+        A small restaurant where the manager genuinely waits tables on a Friday sets their flag and
+        the product agrees with reality — without granting that to every manager everywhere.
+        """
+        world, _, _ = await _setup(db_session, api_client)
+        covering = await _person(db_session, world, "Sunita Joshi", "manager", takes_tables=True)
+        manager = await _token(api_client, "manager")
+
+        response = await api_client.get(f"{STAFF}/waiters", headers=_auth(manager))
+
+        assert response.status_code == 200, response.text
+        names = [person["full_name"] for person in response.json()["items"]]
+        assert "Sunita Joshi" in names
+        # And the one who was not marked is still absent, so the flag is doing the work.
+        assert "Manager Person" not in names
+        assert covering is not None
+
+    async def test_an_order_cannot_be_moved_to_somebody_who_does_not_take_tables(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """The list is a convenience; this is the boundary. A client that names an id directly
+        must be refused, or the dropdown is the only thing enforcing the rule."""
+        _, menu, waiter = await _setup(db_session, api_client)
+        order = await _open(api_client, waiter, menu)
+        manager = await _token(api_client, "manager")
+        owner_id = await _employee_id(db_session, "Owner Person")
+
+        response = await _move(api_client, manager, order, owner_id, "covering")
+
+        assert response.status_code == 422, response.text
+        assert response.json()["code"] == "order.waiter_not_eligible"
 
     async def test_a_waiter_cannot_read_the_waiter_list(
         self, db_session: AsyncSession, api_client: AsyncClient

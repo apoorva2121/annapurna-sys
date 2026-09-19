@@ -54,6 +54,7 @@ def _shape(employee: Employee, roles: list[str]) -> EmployeeResponse:
         joined_on=employee.joined_on,
         employment_type=employee.employment_type,
         is_active=employee.is_active,
+        takes_tables=employee.takes_tables,
         deactivated_at=employee.deactivated_at,
         has_login=employee.user_account_id is not None,
         roles=roles,

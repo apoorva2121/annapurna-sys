@@ -304,6 +304,11 @@ async def _employee(
         phone=record.phone,
         joined_on=record.joined,
         employment_type=record.employment_type,
+        # Mirrors migration 0057's backfill exactly, so a freshly seeded database and an upgraded
+        # one agree: somebody holding the `waiter` role anywhere serves tables. One seeded person
+        # manages at Koregaon Park and waits tables at Baner, and is therefore marked — which is
+        # true of them, and is the case the flag exists to let an owner decide per person.
+        takes_tables=_waits_tables(record),
     )
     session.add(employee)
     await session.flush()
@@ -328,6 +333,19 @@ async def _employee(
             )
         second_role = _role_or_fail(roles, record.also_at.role, record.code)
         await _assignment(session, employee.id, other.id, second_role.id, counts)
+
+
+def _waits_tables(record: EmployeeRecord) -> bool:
+    """Whether this person serves tables, from the roles the seed gives them.
+
+    The same rule as migration 0057's backfill: the `waiter` role, at any branch. A one-time
+    decision made from the product's own system role, not a runtime check on a role name — the
+    column exists precisely so the owner can change it per person afterwards.
+    """
+    postings = [record.role]
+    if record.also_at is not None:
+        postings.append(record.also_at.role)
+    return "waiter" in postings
 
 
 async def _login(

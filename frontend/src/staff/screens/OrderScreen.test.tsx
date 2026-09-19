@@ -161,7 +161,7 @@ const RESTAURANT: RestaurantSummary = {
   theme: { default: null, schedule: [] },
 };
 
-function authFor(permissions: string[]): AuthState {
+function authFor(permissions: string[], takesTables = true): AuthState {
   const held = new Set(permissions);
   return {
     session: {
@@ -174,6 +174,7 @@ function authFor(permissions: string[]): AuthState {
       hasMoreRestaurants: false,
       roles: [],
       permissions: held,
+      takesTables,
     } satisfies Session,
     signIn: () => Promise.resolve(),
     signOut: () => Promise.resolve(),
@@ -195,6 +196,7 @@ function renderScreen(
   permissions: string[] = ['order.modify'],
   // What a write answers. Backlog-issues B11 holds it open, or refuses it, to see the screen in between.
   write: () => Promise<Response> = () => Promise.resolve(json(order([PENDING_LINE]), 201)),
+  takesTables = true,
 ): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
     const url = String(input);
@@ -210,7 +212,7 @@ function renderScreen(
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={queryClient}>
-      <AuthContext.Provider value={authFor(permissions)}>
+      <AuthContext.Provider value={authFor(permissions, takesTables)}>
         <MemoryRouter initialEntries={['/orders/o1']}>
           <Routes>
             <Route path="/orders/:orderId" element={<OrderScreen />} />
@@ -311,6 +313,20 @@ describe('asking for the bill and cancelling', () => {
     await user.click(await screen.findByRole('button', { name: 'Ask for bill' }));
 
     expect(posted(fetchMock, '/staff/orders/o1/bill')).toEqual({ version: 3 });
+  });
+
+  // The owner's report, 2026-09-19: "in owners table page ask for bill option should not be
+  // there". It could not be hidden by permission — an owner holds every permission there is — so
+  // it follows `takesTables`, the same signal that decides who may be a table's waiter.
+  //
+  // Hidden, not removed: this button is the only thing that sets `bill_requested_at`, because the
+  // guest app is read-only (M10), and that timestamp is what bill-to-settle time is measured from.
+  it('is not offered to somebody who does not work the floor', async () => {
+    renderScreen(order([PENDING_LINE]), ['order.modify'], undefined, false);
+
+    // The screen has loaded: its other actions are present.
+    expect(await screen.findByRole('button', { name: 'Send to kitchen' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Ask for bill' })).toBeNull();
   });
 
   it('cancels only after it is confirmed and a reason is given', async () => {

@@ -93,6 +93,10 @@ async def _world(
             full_name=f"{role_code.title()} Person",
             joined_on=date(2026, 1, 1),
             employment_type=EmploymentType.FULL_TIME,
+            # The same rule as migration 0057's backfill and the seeder: holding the waiter role
+            # is what makes somebody creditable as a table's waiter. A test that wants the other
+            # combination — a manager who does cover the floor — sets the flag itself.
+            takes_tables=role_code == "waiter",
         )
         session.add(employee)
         await session.flush()

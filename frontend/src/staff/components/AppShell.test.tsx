@@ -40,6 +40,7 @@ function renderFor(permissions: string[]): void {
       hasMoreRestaurants: false,
       roles: [],
       permissions: held,
+      takesTables: true,
     } satisfies Session,
     signIn: () => Promise.resolve(),
     signOut: () => Promise.resolve(),

@@ -713,6 +713,37 @@ class TestPasswordReset:
 
         assert response.status_code == 403
 
+    async def test_a_manager_can_reset_a_waiters_password(
+        self, db_session: AsyncSession, api_client: AsyncClient
+    ) -> None:
+        """Granted on 2026-09-19, because the login screen already promised it.
+
+        Its "Forgot password?" disclosure reads *"Ask your manager or the owner"* — and only the
+        owner held `employee.password.reset`, so a manager asked for one could not do it. A waiter
+        locked out mid-shift is a weekly event and every one of them walked to the owner.
+
+        Escalation stays closed by `may_reset_password`, which requires strictly more senior —
+        `test_a_manager_cannot_reset_an_owner_s_password` above is the other half of this pair, and
+        it now fails on seniority rather than on the missing permission.
+        """
+        world = await _world(db_session, "manager", "waiter")
+        token = await _token(api_client, "manager")
+
+        response = await api_client.post(
+            f"/api/v1/staff/employees/{world.employees['waiter'].id}/password",
+            headers=_auth(token),
+            json={"new_password": "BackOnShift#1"},
+        )
+
+        assert response.status_code == 204, response.text
+
+        # P1-6: whoever performed the reset must not keep the ability to sign in as that person.
+        account = await db_session.scalar(
+            select(UserAccount).where(UserAccount.id == world.employees["waiter"].user_account_id)
+        )
+        assert account is not None
+        assert account.password_reset_required is True
+
     async def test_a_reset_clears_a_lockout(
         self, db_session: AsyncSession, api_client: AsyncClient
     ) -> None:

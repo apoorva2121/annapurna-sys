@@ -20,6 +20,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.enums import FoodType
 from app.models.menu import (
     MenuCategory,
     MenuItem,
@@ -171,6 +172,54 @@ class TestModifiersAreAttachedByCategory:
                 )
             ).all()
             assert spice.id in attached, f"{item.code} has no spice level"
+
+    async def test_jain_is_offered_on_veg_dishes_and_never_on_a_non_veg_one(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Found by the owner on 2026-09-19: a chicken curry offered "Jain (no onion/garlic)".
+
+        Jain dietary practice is vegetarian by definition, so the option cannot be satisfied on a
+        non-veg dish under any preparation. Worse than useless: a Jain customer shown it on chicken
+        learns the restaurant does not know what the word means.
+
+        **Category could not express this rule** — `CHINESE` holds veg and non-veg dishes side by
+        side — so the attachment is filtered on the dish's own `food_type`, the field with a
+        statutory basis (`docs/compliance-rules.md` §A1) and therefore the one that is never empty.
+        """
+        await _seed(db_session)
+        restaurant = await _koregaon(db_session)
+        jain = await db_session.scalar(
+            select(ModifierGroup).where(
+                ModifierGroup.restaurant_id == restaurant.id,
+                ModifierGroup.code == "JAIN_PREF",
+            )
+        )
+        assert jain is not None
+
+        items = (
+            await db_session.scalars(
+                select(MenuItem).where(MenuItem.restaurant_id == restaurant.id)
+            )
+        ).all()
+        attached_to = set(
+            (
+                await db_session.scalars(
+                    select(MenuItemModifierGroup.menu_item_id).where(
+                        MenuItemModifierGroup.modifier_group_id == jain.id
+                    )
+                )
+            ).all()
+        )
+
+        offered = [item for item in items if item.id in attached_to]
+        assert offered, "nothing offers Jain at all — this test would otherwise pass vacuously"
+
+        wrong = [item.code for item in offered if item.food_type != FoodType.VEG.value]
+        assert not wrong, f"Jain is offered on non-vegetarian dishes: {wrong}"
+
+        # And it is still offered where it belongs, so the fix is not "detach it from everything".
+        veg = [item for item in items if item.food_type == FoodType.VEG.value]
+        assert any(item.id in attached_to for item in veg), "no veg dish offers Jain any more"
 
     async def test_a_category_with_no_attachment_rule_gets_nothing(
         self, db_session: AsyncSession
