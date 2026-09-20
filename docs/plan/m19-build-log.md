@@ -300,6 +300,15 @@ the floor of the chart, inventing the catastrophe the module exists to detect.
 | `make test-web` | **499 passed**, 64 files (was 463); **508 after the review pass**, measured rather than assumed |
 | `vite build` | exit 0; analytics in its own 4.54 kB gzipped chunk |
 | `validate_palette.js` light + dark | ALL CHECKS PASS, exit 0 |
+| `make lint-api` | **0** — ruff, ruff format, mypy strict over 327 files |
+| `make test-api` | **exit 0** — **1900 passed** in 1:06:18, coverage **95.59%** against the 95% floor |
+| `make audit-docs` · `audit-guardrails` · `audit-deps` | **0 · 0 · 0** |
+
+The gate was run as separate targets rather than one `make check`, because `check` no longer fits
+in one invocation on this machine. **Exit codes were read, not the last lines** — `TEST_API_EXIT=0`
+— which is the habit CLAUDE.md records having produced a false "clean" claim twice. The coverage
+verdict and the exit code agree, which is the second half of that rule: `precision = 2` is what
+stopped them disagreeing between ~94.5% and 95%.
 
 ### What chunk B did not do
 
