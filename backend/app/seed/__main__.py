@@ -29,6 +29,7 @@ from app.seed.inventory import seed_inventory
 from app.seed.loader import SeedDataNotFoundError
 from app.seed.menu import seed_menu
 from app.seed.orders import seed_orders
+from app.seed.performance import seed_performance
 from app.seed.procurement import seed_procurement
 from app.seed.setup import seed_setup
 from app.seed.shifts import seed_shifts
@@ -87,6 +88,9 @@ async def seed() -> None:
             # auto-assignment failing to happen. It also has to come after `seed_setup`, because an
             # assignment names a dining area.
             shifts = await seed_shifts(session)
+            # After shifts: a performance period is only meaningful over hours that
+            # exist, and `seed_shifts` is what writes them.
+            performance = await seed_performance(session)
             # M15. The history, and then today. In that order for two reasons: an invoice sequence
             # is gapless per financial year, so the four months behind us have to take their
             # numbers before today's bill takes the next one; and the live snapshot below opens
@@ -139,6 +143,7 @@ async def seed() -> None:
         and customers.created_nothing
         and counts.created_nothing
         and shifts.created_nothing
+        and performance.created_nothing
     ):
         logger.info("Seed data already present; nothing to do.")
         return
@@ -169,6 +174,11 @@ async def seed() -> None:
         "Seeded %d shifts and %d roster assignments.",
         shifts.shifts_created,
         shifts.assignments_created,
+    )
+    logger.info(
+        "Seeded %d incentive schemes and %d performance periods.",
+        performance.schemes_created,
+        performance.periods_created,
     )
     logger.info(
         "Seeded %d wastage reasons and %d wastage events across the four stages.",

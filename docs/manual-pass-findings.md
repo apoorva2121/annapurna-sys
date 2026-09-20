@@ -46,10 +46,10 @@ test, or the test may be written against a screen that no longer exists.
 | F12 | new, owner's idea | A reference page listing every name and its code, since codes become invisible | **A** | ✅ **built** 2026-09-19 |
 | F24 | local `HEAD`, found by a test | A dish's cost breakdown names each ingredient by code, because the API sends no name | **A** | not started |
 | F13 | local `HEAD` | Nobody can look at a populated report: generated data is excluded from reports by design | **B** | question open |
-| F14 | local `HEAD` | Workload compares 120 days of orders against 2 days of attendance | **A** | question open |
+| F14 | local `HEAD` | Workload compares 120 days of orders against 2 days of attendance | **A** | ✅ **fixed** 2026-09-20 |
 | F15 | local `HEAD` | Alert cards are unreadable in the Dark theme — contrast 1.04 against a minimum of 4.5 | **A** | ✅ **fixed** 2026-09-19 |
 | F16 | local `HEAD` | "My performance" tells the owner to ask their manager; should it exist for them at all? | **B** | question open |
-| F17 | local `HEAD` | M17's incentive scheme is specified in the seed and **never loaded** — performance is empty for everyone | **A** | ready to build |
+| F17 | local `HEAD` | M17's incentive scheme is specified in the seed and **never loaded** — performance is empty for everyone | **A** | ✅ **fixed** 2026-09-20 |
 | F18 | local `HEAD` | **Every attachment link 401s.** A browser cannot send the Bearer token an `<a href>` needs | **A** | ✅ **fixed** 2026-09-19 |
 | F19 | local `HEAD` | Upload never confirms success, so a working upload looks like a failed one | **A** | ✅ **fixed** 2026-09-19 |
 | F20 | local `HEAD` | M11 has no seeder — no sample conversations or messages | **A** | ready to build |
@@ -1338,3 +1338,49 @@ shift in a place that closes at two ends before it starts, and that is not an er
 
 **The chain this unblocks:** shift → roster → hours worked → workload score. The roster's "Staff"
 button can now be enabled at all, and `PerformanceRepository.worked()` has something to read.
+
+---
+
+## F14 and F17 — shipped 2026-09-20
+
+**F14: the roster now reaches exactly as far back as the generated trading**, because a workload
+score divides one by the other. It is not a larger constant — a constant drifts again — but the same
+`SEED_DAYS` the generator reads, so `make seed-small` shortens both and neither can be changed
+alone. `tests/test_seed_roster_window.py` is what holds that.
+
+**F17: `app/seed/performance.py` exists.** It reads the scheme `seed/operations.yaml` had described
+for months and nothing had ever loaded.
+
+**Periods are seeded as drafts and none is published**, deliberately. Publishing is the freeze
+(ADR 0011) — it writes figures into `performance_score` and they are never recomputed. A seeder that
+published would have to invent who published it and freeze numbers nobody reviewed, and it would
+take from the owner the one action on that screen worth doing. A draft computes live, so what is on
+screen is real.
+
+**It calls the service rather than inserting rows**, so `validate_weights` still refuses a scheme
+where volume stands alone, and a seeded scheme cannot be one the application would reject.
+
+### Measured after seeding a 30-day window
+
+    roster       456 assignments, 358 clocked, 2026-08-21 -> 2026-09-27
+                 (was: 3 days back, 2 clocked)
+    trading      1189 orders, all with a waiter, 2026-08-22 -> 2026-09-20
+    performance  1 scheme, 2 periods
+    workload     6 people with hours, covers, orders, assists and share-of-work
+
+Hours cross-checked against SQL rather than trusted: 244.47 over 38 shifts, and 231.60 over 36 for
+the person deliberately left un-clocked one day. The API and the database agree to the minute.
+
+### Two things worth recording
+
+- **The seeder needed a real employee.** `create_scheme` is `@audited` and `audit_log` has a foreign
+  key to `employee`; a scope-shaped actor got a `ForeignKeyViolationError`. That is the audit trail
+  refusing to name somebody who does not exist, and it is right to. The scheme is attributed to the
+  restaurant's most senior employee — found by `min(Role.rank)`, not by role name (ADR 0007).
+- **My first verification measured nothing.** I called a URL that does not exist, parsed the 404
+  body as a result object and reported "people scored: 0" — which looked exactly like a real
+  finding. A check that cannot distinguish "empty" from "wrong address" is not a check.
+
+**The team screen shows two of six people, and that is correct**: `team()` returns the top third
+plus your own row and never a bottom ranking, because naming the top two of three names the third.
+The distribution screen shows all six.

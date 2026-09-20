@@ -12,10 +12,20 @@ is plausible rather than perfect applies to time as much as to money: a Pune res
 half past midnight is the ordinary case, and a seed with two tidy daytime shifts would never
 exercise the arithmetic that is most likely to be wrong.
 
-**Only yesterday and today are clocked in.** Future days are `scheduled`, which is what a roster
-looks like — and one person yesterday is deliberately left `scheduled` with no clock-in, so the
-"did not clock in" state exists on screen without a demonstrator having to construct it. That is
-M05's negative stock and M07's fifty-rupee-short till, applied here.
+**Every past day is clocked in; future days are `scheduled`**, which is what a roster looks like.
+One person yesterday is deliberately left `scheduled` with no clock-in, so the "did not clock in"
+state exists on screen without a demonstrator having to construct it. That is M05's negative stock
+and M07's fifty-rupee-short till, applied here.
+
+**The roster covers the same window as the trading, and that is load-bearing.** It used to reach
+three days back while `seed/generate.py` wrote **120 days** of orders. The owner asked to see the
+workload screen on 2026-09-19 and it would have compared 120 days of orders against *two* days of
+attendance — every per-hour figure inflated roughly sixtyfold, and attendance reading as though the
+whole team missed nearly every shift. Worse than an empty screen: plausible numbers that are wrong,
+on the one module whose output can reach somebody's pay (ADR 0011).
+
+So `_DAYS_BACK` is `SEED_DAYS`, the same variable the generator reads. `make seed-small` shortens
+both together, and the two can no longer drift apart.
 
 **Nobody is marked absent.** `absent` is a disciplinary fact with an author, and the seeder is not
 an author. Leaving it out is the same decision the service makes.
@@ -24,6 +34,7 @@ an author. Leaving it out is the same decision the service makes.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
@@ -38,6 +49,7 @@ from app.models.identity import Employee
 from app.models.setup import DiningArea
 from app.models.shifts import Shift, ShiftAssignment
 from app.models.tenancy import Restaurant
+from app.seed.generate import DEFAULT_DAYS
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +61,15 @@ _SHIFTS: tuple[tuple[str, time, time], ...] = (
     ("Evening", time(16, 0), time(0, 30)),
 )
 
-# How many days either side of today the roster covers: three back and a week forward. Enough that
-# the week grid has something in it in both directions and that yesterday's clocked-in shifts
-# exist, small enough that `make seed` stays fast.
-_DAYS_BACK = 3
+
+# How far back the roster reaches: **exactly as far as the generated trading**, because a workload
+# score divides one by the other. Read from the same `SEED_DAYS` the generator reads, so
+# `make seed-small` shortens both and neither can be changed without the other.
+def _days_back() -> int:
+    return int(os.environ.get("SEED_DAYS", DEFAULT_DAYS))
+
+
+# A week forward, so the roster grid has something in it in both directions.
 _DAYS_FORWARD = 7
 
 
@@ -143,7 +160,7 @@ async def _assignments(session: AsyncSession, restaurant: Restaurant) -> int:
         datetime.now(UTC), restaurant.timezone, restaurant.business_day_start
     )
     created = 0
-    for offset in range(-_DAYS_BACK, _DAYS_FORWARD + 1):
+    for offset in range(-_days_back(), _DAYS_FORWARD + 1):
         business_date = today + timedelta(days=offset)
         for index, (name, _start, _end) in enumerate(_SHIFTS):
             shift = shifts.get(name)
