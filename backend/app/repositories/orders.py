@@ -28,7 +28,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import Integer, Select, and_, cast, func, literal, or_, select, update
+from sqlalchemy import Integer, Select, and_, case, cast, func, literal, or_, select, update
 from sqlalchemy.orm import joinedload, selectinload
 
 from app.core.enums import (
@@ -136,9 +136,28 @@ class OrderRepository(RestaurantScopedRepository[Order]):
                 )
             )
         )
+        # `order_number` is Text, and the max is taken over the numbers **this allocator wrote** —
+        # not over everything the column can hold.
+        #
+        # It used to be a bare `MAX(CAST(order_number AS INTEGER))`, and that put the till on the
+        # floor: the M15 generator writes `260920-0048`, Postgres cannot cast it, and the statement
+        # raised. Opening a table returned 500 on every restaurant seeded from the generator, which
+        # is every demo. Reported as "not able to assign any waiter to any table".
+        #
+        # **The filter is a CASE rather than a WHERE, and that is the point.** A `WHERE` would be
+        # the obvious fix and is not a safe one: nothing obliges the planner to apply it before
+        # evaluating the cast in the select list, so the crash survives a change of plan. A CASE
+        # inside an aggregate's argument *is* guaranteed not to evaluate its unmatched branches —
+        # this is the idiom Postgres documents for avoiding exactly this class of error. (The
+        # construct Postgres warns about is the reverse: an aggregate inside a CASE.)
+        #
+        # `{1,9}` rather than `+` caps the value below int4's range, so a long digit string in the
+        # column is skipped rather than overflowing the cast — the same crash wearing a different
+        # error code. A daily counter never reaches nine digits.
+        plain_number = Order.order_number.op("~")(r"^[0-9]{1,9}$")
         highest = await self.session.scalar(
             self.scoped()
-            .with_only_columns(func.max(cast(Order.order_number, Integer)))
+            .with_only_columns(func.max(case((plain_number, cast(Order.order_number, Integer)))))
             .where(Order.business_date == business_date)
         )
         return str((highest or 0) + 1)

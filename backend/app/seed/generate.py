@@ -249,8 +249,11 @@ async def seed_history(
             if business_date < start or business_date > end_date:
                 continue
             # The counter restarts each day, because an order number reads as "which bill of which
-            # day" to the person quoting it. Uniqueness comes from the date in front of it, and
-            # `kot_ticket` is unique per business date for the same reason.
+            # day" to the person quoting it. Uniqueness comes from `uq_order_number_per_day`, which
+            # is over (restaurant, business_date, order_number) — so the date does not need to be
+            # *inside* the number, and putting it there is what broke the allocator (see the
+            # order_number line below). `kot_ticket` is unique per business date for the same
+            # reason.
             bills.extend(_build_day(world, business_date, rng, covers_scale))
         if not bills:
             continue
@@ -884,7 +887,17 @@ async def _write_week(
             {
                 "id": bill.order_id,
                 "restaurant_id": world.restaurant.id,
-                "order_number": f"{bill.business_date:%y%m%d}-{bill.number:04d}",
+                # The number the **product** would have written, not a prettier one of our own.
+                # `bill.number` already restarts at 1 each business day, which is the rule
+                # `OrderRepository.next_order_number` implements and the reason a waiter can call
+                # it across a kitchen at all.
+                #
+                # This used to be f"{business_date:%y%m%d}-{number:04d}". It read nicely and it put
+                # the till on the floor: the allocator takes MAX over the day's numbers, could not
+                # cast "260920-0048", and every attempt to open a table on a seeded restaurant
+                # returned 500. **Generated data that does not look like real data hides exactly
+                # the bugs a demo exists to surface** — here it manufactured one instead.
+                "order_number": str(bill.number),
                 "type": (OrderType.DINE_IN if bill.dine_in else OrderType.TAKEAWAY).value,
                 "channel": OrderChannel.POS.value,
                 "status": OrderStatus.SETTLED.value,
