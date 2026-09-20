@@ -297,7 +297,7 @@ the floor of the chart, inventing the catastrophe the module exists to detect.
 | Target | Result |
 |---|---|
 | `make lint-web` | **0** |
-| `make test-web` | **499 passed**, 64 files (was 463) |
+| `make test-web` | **499 passed**, 64 files (was 463); **505 after the review pass** |
 | `vite build` | exit 0; analytics in its own 4.54 kB gzipped chunk |
 | `validate_palette.js` light + dark | ALL CHECKS PASS, exit 0 |
 
@@ -308,6 +308,63 @@ absent, because a formula written before its query is a guess. The dashboard lat
 (criterion 10, 800 ms over 120 days of generated data) is **not yet measured** — it needs the M15
 generator's 120-day dataset, and measuring it on the 30-day seed would be the kind of green result
 that proves nothing.
+
+---
+
+## Chunk B — the review pass, and the four defects it found
+
+Committed separately from the chunk so each fix carries its own reasoning. None of these were caught
+by the tests that shipped with the chunk, which is the point of recording them: each names a class
+of thing the tests could not see.
+
+**1. `₹80,000.00` on every gridline.** Found by `dataviz`'s own last step — *render it and look at
+it* — which is the one step a validator cannot do. Ticks round to clean numbers, and two decimals
+repeated five times is noise that also eats the width the plot needs.
+
+The distinction that makes the fix safe: **an axis tick is a number `niceTicks()` generated, not a
+figure the server sent.** A gridline is a scale label and nobody reconciles one. The exact amount
+still reaches the reader through the tooltip and the table, both formatted from the server's own
+string. `formatINRAxis` carries that warning in its docstring and a test pins it —
+`formatINRAxis('79999.50')` is `₹80,000` where `formatINR('79999.50')` is `₹79,999.50`: right for a
+gridline, wrong for a bill.
+
+**2. The current branch drilled through a full document load.** `window.location.assign` was used
+for *every* branch, but only the cross-branch case needs it — that load is what carries the filter
+across the token re-issue. The branch already in scope had nothing to re-issue and was taking the
+expensive path for less than nothing: **the access token lives in a module variable, not in
+storage, so a document load throws it away.** Observed directly while checking the screen in a
+browser — a full navigation logged the session out.
+
+The regression test observes a document load without performing one, by replacing `window.location`
+with a stub whose `assign` is a spy, and it was verified by restoring the bug.
+
+**3. The chart's keyboard controls were focusable but invisible.** The `sr-only` list gives the
+chart a keyboard path, and a focusable element that stays clipped is *worse* than no control: a
+sighted keyboard user tabs into somewhere they cannot see. Screen reader users were never affected,
+because they navigate by list and heading rather than only by tab — **which is exactly why this
+ships without anybody noticing.** `focus:not-sr-only` undoes the clipping on focus, the same way a
+skip link does.
+
+The same list offered a control for **every** bucket, including buckets with no trading: fifty-six
+tab stops at the default day view, most of them offering to open bills that do not exist. Only
+buckets with something in them get one now.
+
+**4. Counts were not grouped.** Revenue read `₹1,20,000` while guests read `1200` beside it.
+
+Worth recording for *how* it was fixed rather than what: **`analyticsDiscipline.test.ts` refused the
+naive version**, because no analytics file outside `plot.ts` may call `Number()`. That rule fired
+correctly. A formatter reviewed as a formatter is a different artefact from a `Number()` buried in a
+screen, even though the two produce identical pixels — so `formatCount` went into `money.ts`, where
+it says in its own docstring that a count is an integer and therefore has no precision to lose
+(invariant 3 is about money).
+
+### Verified in a browser, both modes
+
+Chunk A and the chunk B tests both run headless. The screen was opened at `localhost:5173` as the
+seeded owner and checked in the Warm and Dark themes. The indigo holds against the dark theme's 9%
+ground exactly as the computed 4.08:1 predicted; the grid stays recessive in both. The tooltip was
+checked live: hovering 5 Sept shows `₹73,899.12` while the axis beside it reads `₹80,000` — which is
+the axis decision above, working as intended rather than merely argued.
 
 ---
 
