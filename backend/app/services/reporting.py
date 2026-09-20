@@ -228,7 +228,18 @@ class ReportingService:
         and the remainder after the explained waste is taken out is the number an owner acts on.
         """
         rows = await self._reports.consumption(since=since, until=until)
-        lines = [_variance_line(row) for row in rows if _is_material(row)]
+        # **Worst first, not alphabetical.** The first populated run of this report returned 59
+        # lines ordered by item name; ten had a non-zero unexplained value and the largest — 88% of
+        # the whole unexplained total — sat mid-alphabet under forty rows of zeros. An owner opened
+        # it and read `Birista (fried onion) 0.00`.
+        #
+        # The unexplained value is what this report is *about*, so it is what the order is by. Name
+        # breaks ties so two identical gaps do not swap places between requests — an order that
+        # moves between refreshes is its own small bug.
+        lines = sorted(
+            (_variance_line(row) for row in rows if _is_material(row)),
+            key=lambda line: (-line.unexplained_value, line.item_name),
+        )
         return VarianceReport(
             since=since,
             until=until,

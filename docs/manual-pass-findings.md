@@ -46,7 +46,7 @@ test, or the test may be written against a screen that no longer exists.
 | F12 | new, owner's idea | A reference page listing every name and its code, since codes become invisible | **A** | ✅ **built** 2026-09-19 |
 | F24 | local `HEAD`, found by a test | A dish's cost breakdown names each ingredient by code, because the API sends no name | **A** | ✅ **fixed** 2026-09-20 |
 | F13 | local `HEAD` | Nobody can look at a populated report: generated data is excluded from reports by design | **B** | ✅ **fixed** 2026-09-20 |
-| F25 | local `HEAD`, found while verifying F13 | The variance report is alphabetical, so the one line that matters is buried among 49 zeros | **A** | not started |
+| F25 | local `HEAD`, found while verifying F13 | The variance report is alphabetical, so the one line that matters is buried among 49 zeros | **A** | ✅ **fixed** 2026-09-20 |
 | F14 | local `HEAD` | Workload compares 120 days of orders against 2 days of attendance | **A** | ✅ **fixed** 2026-09-20 |
 | F15 | local `HEAD` | Alert cards are unreadable in the Dark theme — contrast 1.04 against a minimum of 4.5 | **A** | ✅ **fixed** 2026-09-19 |
 | F16 | local `HEAD` | "My performance" tells the owner to ask their manager; should it exist for them at all? | **B** | question open |
@@ -1529,3 +1529,26 @@ Each was written from the code without checking the thing itself, and each chang
   a result, and reported *"people scored: 0"* — indistinguishable from a real empty screen.
 
 **A green check that has never failed is not evidence.**
+
+---
+
+## F25 — shipped 2026-09-20
+
+Ordered by unexplained value, descending, with the item name breaking ties so the order does not
+move between refreshes.
+
+**Not** by dropping the zero rows. `_is_material` already excludes items that did not move; the
+forty-nine remaining zeros are items that moved and balanced, which is real information — it is
+what *is* accounted for. The report's subject is the gap, so the gap is what it sorts by.
+
+Against the same real data as before:
+
+    Wheat atta                        61,103.70
+    Marinated chicken tikka (raw)      3,842.20
+    Makhani gravy                      2,534.16
+    Butter salted                        773.97
+    Fresh cream 25pc                     677.47
+
+Where an owner previously read `Birista (fried onion) 0.00` first.
+
+    pytest test_reporting + test_reports_endpoints + test_reporting_latency -> 47 passed

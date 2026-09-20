@@ -407,6 +407,28 @@ class TestTheNumberTheModuleExistsFor:
 
         assert report.lines[0].unexplained_value == Decimal("0")
 
+    async def test_the_worst_unexplained_line_is_first(self, db_session: AsyncSession) -> None:
+        """Found on 2026-09-20 by reading the first populated report this product ever produced.
+
+        59 lines came back ordered by item name. Ten had a non-zero unexplained value, and the
+        largest — **88% of the entire unexplained total** — sat in the middle of the alphabet below
+        forty rows of zeros. `Birista (fried onion) 0.00` was the first thing an owner saw.
+
+        M19's rule for every screen in this product: *"either shows a shape a table cannot, or
+        produces an action with a rupee figure on it."* A report whose subject is the unexplained
+        gap has to lead with the largest one.
+        """
+        world = await _world(db_session)
+        # Balances exactly: real consumption, nothing unexplained. Alphabetically first.
+        await _item_with_ledger(db_session, world, name="Atta", theoretical="1000", actual="1000")
+        # The finding, alphabetically last.
+        await _item_with_ledger(db_session, world, name="Zeera", theoretical="1000", actual="3000")
+
+        report = await _service(db_session, world).food_cost_variance(since=_DAY, until=_DAY)
+
+        assert [line.item_name for line in report.lines] == ["Zeera", "Atta"]
+        assert report.lines[0].unexplained_value > report.lines[1].unexplained_value
+
     async def test_an_item_that_did_not_move_is_not_a_line_of_zeroes(
         self, db_session: AsyncSession
     ) -> None:
