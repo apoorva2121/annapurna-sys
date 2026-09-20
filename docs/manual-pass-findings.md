@@ -1481,3 +1481,51 @@ construct one were updated rather than defaulted, so nothing silently gets an em
 
     pytest test_costing + test_stock_endpoints -> 34 passed
     vitest 459 passed · ruff, mypy, eslint, tsc clean
+
+---
+
+## Final gate — 2026-09-20
+
+Run as the gate's own targets in sequence rather than one `make check`. Same commands, same
+coverage; the single invocation was killed twice for memory on a 13.35 GB machine, and pytest with
+a Postgres container and node with vitest never peak together when they are run apart. Recorded
+because *"I ran the gate"* and *"I ran the gate's targets separately"* are different claims.
+
+    make lint              LINT_EXIT=0        ruff · ruff format · mypy · eslint · tsc
+    make test-api          TESTAPI_EXIT=0     1892 passed in 47:44
+                                              coverage 95.33%, floor 95% — verdict and exit agree
+    make test-web          TESTWEB_EXIT=0     60 files, 459 tests
+    make audit-docs        AUDITDOCS_EXIT=0
+    make audit-guardrails  AUDITGUARD_EXIT=0
+    make audit-deps        AUDITDEPS_EXIT=0
+
+**21 of 25 findings fixed.** Open: F9 and F10, both blocked on Indian regulation that must be
+looked up and cited rather than recalled; F25, found while verifying F13 and deliberately not
+folded into it.
+
+### What this pass was actually about
+
+Four modules — M11, M13, M15, M17 — shipped complete, tested and with **no way for a person to open
+the screen and see them work**. Every one had passing tests. The owner found all four in an evening
+by looking. The durable lesson is in `app/seed/communication.py`'s docstring: *a module is not
+finished when its tests pass; it is finished when somebody can open it.*
+
+### Three things I asserted and had wrong
+
+Each was written from the code without checking the thing itself, and each changed a fix:
+
+1. **The owner holds every permission.** `["*"]` is expanded into all 55, so the owner was on every
+   table's waiter list — and no permission can ever be absent from them. That is why "serves
+   tables" is a column.
+2. **`may_reset_password` already existed.** I warned that granting managers the reset would open
+   an escalation path. It could not.
+3. **The login page has a "Forgot password?" control.** I said it had none.
+
+### Two checks that reported nothing and looked like findings
+
+- A soft-fill test passed while finding nothing: a mangled escape made its pattern match a control
+  character rather than a word boundary. Made to fail first, it found three more screens.
+- A verification of the performance seeder called a URL that does not exist, parsed the 404 body as
+  a result, and reported *"people scored: 0"* — indistinguishable from a real empty screen.
+
+**A green check that has never failed is not evidence.**
