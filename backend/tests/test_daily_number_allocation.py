@@ -1,4 +1,4 @@
-"""Allocating the next order number, when the day already holds a number it did not write.
+"""Allocating a daily counter, when the day already holds a number this product did not write.
 
 **The bug this file exists for.** `next_order_number` took `MAX(CAST(order_number AS INTEGER))`,
 which assumes every order number on a business date is a plain integer. `order_number` is a `Text`
@@ -28,8 +28,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import OrderStatus, OrderType
 from app.core.tenancy import TenantScope
+from app.models.kitchen import KotTicket
 from app.models.orders import Order
+from app.models.setup import Station
 from app.models.tenancy import Organization, Restaurant
+from app.repositories.kitchen import KitchenRepository
 from app.repositories.orders import OrderRepository
 
 BUSINESS_DATE = date(2026, 9, 20)
@@ -152,5 +155,105 @@ async def test_survives_anything_the_text_column_can_hold(
     await _order(db_session, scope, number)
 
     allocated = await OrderRepository(db_session, scope).next_order_number(BUSINESS_DATE)
+
+    assert allocated.isascii() and allocated.isdigit()
+
+
+# ---------------------------------------------------------------------------------------------
+# The same invariant, one table over. `next_ticket_number` had the identical bare cast, and the
+# generator writes `260920-0001-1` into `kot_ticket.ticket_number` — so "Send to kitchen" returned
+# 500 on exactly the restaurants where opening a table did.
+#
+# Fixing the order allocator alone left this one live, which is the argument for testing the
+# *class* of bug rather than the instance that was reported.
+
+
+async def _station(session: AsyncSession, scope: TenantScope) -> Station:
+    station = Station(
+        id=uuid.uuid4(),
+        restaurant_id=scope.restaurant_id,
+        code="HOT",
+        name="Hot kitchen",
+    )
+    session.add(station)
+    await session.flush()
+    return station
+
+
+async def _ticket(
+    session: AsyncSession,
+    scope: TenantScope,
+    order: Order,
+    station: Station,
+    number: str,
+    *,
+    sequence: int = 1,
+) -> None:
+    session.add(
+        KotTicket(
+            id=uuid.uuid4(),
+            restaurant_id=scope.restaurant_id,
+            order_id=order.id,
+            station_id=station.id,
+            ticket_number=number,
+            sequence_in_order=sequence,
+            target_minutes=15,
+            business_date=BUSINESS_DATE,
+            revision=1,
+            printed_at=datetime(2026, 9, 20, 12, 0, tzinfo=UTC),
+        )
+    )
+    await session.flush()
+
+
+async def test_ticket_allocates_past_a_generator_written_number(
+    db_session: AsyncSession,
+) -> None:
+    """The regression for "Send to kitchen": `260920-0001-1` must not stop the next ticket."""
+    scope = await _scope(db_session, "kot-koregaon")
+    order = await _order(db_session, scope, "1")
+    station = await _station(db_session, scope)
+    await _ticket(db_session, scope, order, station, "260920-0001-1")
+
+    number = await KitchenRepository(db_session, scope).next_ticket_number(BUSINESS_DATE)
+
+    assert number.isdigit(), f"an allocated ticket number must be plain digits, got {number!r}"
+
+
+async def test_ticket_ignores_an_unparseable_number_rather_than_counting_it(
+    db_session: AsyncSession,
+) -> None:
+    scope = await _scope(db_session, "kot-tandoor")
+    order = await _order(db_session, scope, "1")
+    station = await _station(db_session, scope)
+    await _ticket(db_session, scope, order, station, "260920-0001-1", sequence=1)
+    await _ticket(db_session, scope, order, station, "5", sequence=2)
+
+    assert await KitchenRepository(db_session, scope).next_ticket_number(BUSINESS_DATE) == "6"
+
+
+async def test_ticket_counts_normally_when_every_number_is_plain(
+    db_session: AsyncSession,
+) -> None:
+    """Guards the guard: the fix must not change the behaviour it was not about."""
+    scope = await _scope(db_session, "kot-camp")
+    order = await _order(db_session, scope, "1")
+    station = await _station(db_session, scope)
+    for sequence, number in enumerate(("1", "2", "3"), start=1):
+        await _ticket(db_session, scope, order, station, number, sequence=sequence)
+
+    assert await KitchenRepository(db_session, scope).next_ticket_number(BUSINESS_DATE) == "4"
+
+
+@pytest.mark.parametrize("number", ["260920-0001-1", "", "  ", "12a", "-3", "1.5", "٤٢"])
+async def test_ticket_survives_anything_the_text_column_can_hold(
+    db_session: AsyncSession, number: str
+) -> None:
+    scope = await _scope(db_session, f"kot{abs(hash(number)) % 10_000}")
+    order = await _order(db_session, scope, "1")
+    station = await _station(db_session, scope)
+    await _ticket(db_session, scope, order, station, number)
+
+    allocated = await KitchenRepository(db_session, scope).next_ticket_number(BUSINESS_DATE)
 
     assert allocated.isascii() and allocated.isdigit()

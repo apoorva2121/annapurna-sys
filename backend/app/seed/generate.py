@@ -880,6 +880,12 @@ async def _write_week(
     invoices: list[dict[str, object]] = []
     payments: list[dict[str, object]] = []
     tickets: list[dict[str, object]] = []
+    # Ticket numbers run per business date, exactly as `KitchenRepository.next_ticket_number`
+    # allocates them. It cannot be the per-bill `index`: `uq_kot_ticket_number_per_day` is over
+    # (restaurant_id, business_date, ticket_number), so every second bill of a day would collide.
+    # `bills` spans a week and each business date appears in exactly one week, so a dict keyed on
+    # the date is the whole counter.
+    ticket_numbers: dict[date, int] = {}
     movements: list[dict[str, object]] = []
 
     for bill in bills:
@@ -928,7 +934,7 @@ async def _write_week(
             )
         invoices.append(_invoice_row(world, bill, sequence))
         payments.append(_payment_row(world, bill, rng))
-        tickets.extend(_ticket_rows(world, bill, rng))
+        tickets.extend(_ticket_rows(world, bill, rng, ticket_numbers))
         movements.extend(_theoretical_rows(world, bill, batches))
         sequence += 1
 
@@ -1043,7 +1049,9 @@ def _in_the_bottleneck(placed: datetime, business_date: date) -> bool:
     return business_date.weekday() in BOTTLENECK_DAYS and BOTTLENECK_FROM <= local <= BOTTLENECK_TO
 
 
-def _ticket_rows(world: World, bill: Bill, rng: random.Random) -> list[dict[str, object]]:
+def _ticket_rows(
+    world: World, bill: Bill, rng: random.Random, ticket_numbers: dict[date, int]
+) -> list[dict[str, object]]:
     """One ticket per station, with the times M08 measures against.
 
     `target_minutes` is the standard, frozen; the actual is `ready_at - printed_at`. Invariant 7's
@@ -1058,6 +1066,8 @@ def _ticket_rows(world: World, bill: Bill, rng: random.Random) -> list[dict[str,
     rows = []
     ordered = sorted(by_station.items(), key=lambda pair: str(pair[0]))
     for index, (station_id, target) in enumerate(ordered, start=1):
+        ticket_number = ticket_numbers.get(bill.business_date, 0) + 1
+        ticket_numbers[bill.business_date] = ticket_number
         stretch = BOTTLENECK_FACTOR if slow else 1.0
         actual = max(2, int(target * stretch * rng.uniform(0.85, 1.15)))
         acknowledged = printed + timedelta(minutes=1)
@@ -1068,7 +1078,16 @@ def _ticket_rows(world: World, bill: Bill, rng: random.Random) -> list[dict[str,
                 "restaurant_id": world.restaurant.id,
                 "order_id": bill.order_id,
                 "station_id": station_id,
-                "ticket_number": f"{bill.business_date:%y%m%d}-{bill.number:04d}-{index}",
+                # The number the product writes, for the reason given on `order_number` above:
+                # generated data that does not look like real data hides the bugs a demo exists to
+                # surface. This ran as f"{date:%y%m%d}-{number:04d}-{index}" and made
+                # `next_ticket_number` raise, which turned "Send to kitchen" into a 500.
+                #
+                # **It is the per-day counter, not `index`.** `index` is this bill's station
+                # ordinal and repeats on every bill; the uniqueness constraint is per business
+                # date. `sequence_in_order` below is the one that genuinely is per bill, and
+                # `uq_kot_ticket_round` is what holds it to that.
+                "ticket_number": str(ticket_number),
                 "sequence_in_order": index,
                 "status": KotTicketStatus.READY.value,
                 "target_minutes": target,

@@ -26,7 +26,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 
-from sqlalchemy import Integer, Select, cast, func, literal, select, update
+from sqlalchemy import Integer, Select, case, cast, func, literal, select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import KotTicketStatus
@@ -153,9 +153,19 @@ class KitchenRepository(RestaurantScopedRepository[KotTicket]):
                 )
             )
         )
+        # The max is taken over the numbers **this allocator wrote**, not over everything the Text
+        # column can hold — the same guard, and for the same reason, as
+        # `OrderRepository.next_order_number`. The generator writes `260920-0001-1` here, which
+        # Postgres cannot cast, and a bare cast turned "Send to kitchen" into a 500 on every seeded
+        # restaurant. The CASE is deliberate: a WHERE would not oblige the planner to filter before
+        # evaluating the cast, while a CASE inside an aggregate's argument is guaranteed not to
+        # evaluate its unmatched branches.
+        plain_number = KotTicket.ticket_number.op("~")(r"^[0-9]{1,9}$")
         highest = await self.session.scalar(
             self.scoped()
-            .with_only_columns(func.max(cast(KotTicket.ticket_number, Integer)))
+            .with_only_columns(
+                func.max(case((plain_number, cast(KotTicket.ticket_number, Integer))))
+            )
             .where(KotTicket.business_date == business_date)
         )
         return str((highest or 0) + 1)
