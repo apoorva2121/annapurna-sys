@@ -32,16 +32,15 @@ function withoutComments(source: string): string {
 const CODES_SCREEN = './screens/MenuCodesScreen.tsx';
 
 /**
- * Screens that still print a code, with a reason, so the exemption is visible rather than absent.
+ * Screens exempt from rule 1, and the list is deliberately one entry long.
  *
- * `DishCostScreen` names each ingredient in a cost breakdown by its code, because the API does not
- * send a name for a costed line — removing the code would leave the row with nothing identifying
- * it at all. Its own comment says the screen exists so an owner can see *"₹63 of it is the chicken
- * tikka"*, which is exactly the sentence a code cannot say. Logged as F24 in
- * `docs/manual-pass-findings.md`; it needs `name` on the costed-line schema, which is a different
- * change from the owner's menu-screen report and is not folded into it.
+ * It briefly held `DishCostScreen` too, because that screen named each ingredient in a cost
+ * breakdown by its code and the API sent no name for a costed line. The exemption carried that
+ * reason in writing — and writing it down is what made it obvious it should be fixed instead.
+ * `CostedLine` now carries a `name` (F24), so the screen shows "chicken tikka" and the exemption
+ * is gone.
  */
-const EXEMPT = new Set([CODES_SCREEN, './screens/DishCostScreen.tsx']);
+const EXEMPT = new Set([CODES_SCREEN]);
 
 describe('the menu screens keep their rules', () => {
   it('reads the files it checks, so an empty parse cannot pass', () => {

@@ -236,7 +236,12 @@ function BreakdownRow({ variantId }: { variantId: string }): ReactElement {
           <ul className="space-y-1">
             {(cost.data?.lines ?? []).map((line) => (
               <li key={line.component_id} className="flex justify-between gap-4 text-sm">
-                <span className="font-mono">{line.code}</span>
+                {/* The name, not the code. This line used to read `PREP_CHICKEN_TIKKA`, while
+                    the comment above said the point was "₹63 of it is the chicken tikka" — the one
+                    sentence a code cannot say. Found on 2026-09-20 by the test written for F11,
+                    which flagged this screen and was then told to exempt it; the exemption said
+                    the API sent no name. It does now. */}
+                <span>{line.name}</span>
                 <span className="text-muted-foreground">{line.quantity}</span>
                 <span className="font-mono tabular-nums">{formatINR(line.cost)}</span>
               </li>

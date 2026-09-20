@@ -80,6 +80,8 @@ export type Recipe = {
 export type CostedLine = {
   component_id: string;
   code: string;
+  /** What a person calls it. The screen shows this; `code` is for an export or a recipe file. */
+  name: string;
   quantity: string;
   unit_cost: string;
   cost: string;

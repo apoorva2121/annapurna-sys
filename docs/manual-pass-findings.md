@@ -44,7 +44,7 @@ test, or the test may be written against a screen that no longer exists.
 | F10 | local `HEAD` | A bill cannot be printed; only the credit note that corrects it can | **A** | answered, needs a research step |
 | F11 | local `HEAD` | Dishes, categories, variants **and modifier groups** show their internal code beside the name | **A** | ✅ **fixed** 2026-09-19 |
 | F12 | new, owner's idea | A reference page listing every name and its code, since codes become invisible | **A** | ✅ **built** 2026-09-19 |
-| F24 | local `HEAD`, found by a test | A dish's cost breakdown names each ingredient by code, because the API sends no name | **A** | not started |
+| F24 | local `HEAD`, found by a test | A dish's cost breakdown names each ingredient by code, because the API sends no name | **A** | ✅ **fixed** 2026-09-20 |
 | F13 | local `HEAD` | Nobody can look at a populated report: generated data is excluded from reports by design | **B** | ✅ **fixed** 2026-09-20 |
 | F25 | local `HEAD`, found while verifying F13 | The variance report is alphabetical, so the one line that matters is buried among 49 zeros | **A** | not started |
 | F14 | local `HEAD` | Workload compares 120 days of orders against 2 days of attendance | **A** | ✅ **fixed** 2026-09-20 |
@@ -1461,3 +1461,23 @@ worth acting on.
 
 Not fixed here because it is a change to a shipped report's contract and to its tests, and it was
 not on the owner's list. Small, and worth doing next.
+
+---
+
+## F24 — shipped 2026-09-20
+
+`CostedLine` carries a `name`, the screen shows it, and the code stays on the line because an
+export and a recipe file both join on it.
+
+**The exemption is what fixed this.** `menuDiscipline.test.ts` flagged `DishCostScreen` when it was
+written, and the honest thing at the time was to exempt it *with the reason in writing* rather than
+weaken the rule. Writing the reason down — *"the API sends no name for a costed line, so removing
+the code would leave the row unidentifiable"* — is what made it obvious the API should send one.
+The exemption list is one entry long again.
+
+**The cost engine stayed ORM-free.** `Component` gained a plain `name: str`; its docstring's promise
+— *"no ORM, so this is testable with literals"* — is untouched, and the four test literals that
+construct one were updated rather than defaulted, so nothing silently gets an empty name.
+
+    pytest test_costing + test_stock_endpoints -> 34 passed
+    vitest 459 passed · ruff, mypy, eslint, tsc clean

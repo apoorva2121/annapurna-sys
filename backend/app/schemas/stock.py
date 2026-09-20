@@ -153,6 +153,8 @@ AnyRecipeResponse = PricedRecipeResponse | RecipeResponse
 class CostedLineResponse(_Schema):
     component_id: uuid.UUID
     code: str
+    #: What a person calls it. The screen shows this; `code` is for an export or a recipe file.
+    name: str
     quantity: Decimal
     unit_cost: Decimal
     cost: Decimal

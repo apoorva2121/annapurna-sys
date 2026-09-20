@@ -83,6 +83,9 @@ class Component:
 
     id: uuid.UUID
     code: str
+    #: What a person calls it. Carried so a breakdown can say "chicken tikka" rather than
+    #: `PREP_CHICKEN_TIKKA` — see `CostedLine`. Still no ORM here: this is a plain string.
+    name: str
     kind: str
     base_unit: str
     # Ingredients only. A preparation's cost comes from its own lines.
@@ -108,6 +111,10 @@ class CostedLine:
 
     component_id: uuid.UUID
     code: str
+    #: Added 2026-09-20. The screen printed `code` and its own comment said the point was
+    #: *"₹63 of it is the chicken tikka"* — which is the one sentence a code cannot say. The code
+    #: stays on the line because an export and a recipe file both join on it; the screen shows this.
+    name: str
     quantity: Decimal
     unit_cost: Decimal
     cost: Decimal
@@ -165,6 +172,7 @@ class CostEngine:
                 CostedLine(
                     component_id=line.component_id,
                     code=component.code,
+                    name=component.name,
                     quantity=line.quantity,
                     unit_cost=unit,
                     cost=cost,

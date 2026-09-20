@@ -241,6 +241,7 @@ class CostingRepository(ScopedRepository[StockItem]):
             components[item.id] = Component(
                 id=item.id,
                 code=item.code,
+                name=item.name,
                 kind=item.kind,
                 base_unit=item.base_unit,
                 price=Decimal(str(item.current_unit_cost)),

@@ -63,6 +63,7 @@ class _Seed:
             components[item_id] = Component(
                 id=item_id,
                 code=row["code"],
+                name=str(row.get("name", row["code"])),
                 kind="ingredient",
                 base_unit=row["base_unit"],
                 # `Decimal(str(...))` and never `Decimal(float)`: 0.28 as a float is
@@ -76,6 +77,7 @@ class _Seed:
             components[item_id] = Component(
                 id=item_id,
                 code=row["code"],
+                name=str(row.get("name", row["code"])),
                 kind="preparation",
                 base_unit=row["yield_unit"],
                 batch_yield=Decimal(str(row["batch_yield"])),
@@ -227,6 +229,7 @@ class TestRefusals:
             ids.of("RAW"): Component(
                 id=ids.of("RAW"),
                 code="RAW",
+                name="Raw thing",
                 kind="ingredient",
                 base_unit="g",
                 price=Decimal("1"),
@@ -238,6 +241,7 @@ class TestRefusals:
             components[ids.of(code)] = Component(
                 id=ids.of(code),
                 code=code,
+                name=code.title(),
                 kind="preparation",
                 base_unit="g",
                 batch_yield=Decimal("1000"),

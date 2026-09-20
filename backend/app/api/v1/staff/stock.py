@@ -247,6 +247,7 @@ async def variant_cost(
             CostedLineResponse(
                 component_id=line.component_id,
                 code=line.code,
+                name=line.name,
                 quantity=line.quantity,
                 unit_cost=line.unit_cost,
                 cost=line.cost,
