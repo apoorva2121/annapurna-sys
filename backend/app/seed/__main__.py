@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.seed.communication import seed_communication
 from app.seed.counts import seed_counts
 from app.seed.customers import seed_customer_feedback, seed_customers
 from app.seed.generate import DEFAULT_DAYS, seed_history
@@ -91,6 +92,7 @@ async def seed() -> None:
             # After shifts: a performance period is only meaningful over hours that
             # exist, and `seed_shifts` is what writes them.
             performance = await seed_performance(session)
+            communication = await seed_communication(session)
             # M15. The history, and then today. In that order for two reasons: an invoice sequence
             # is gapless per financial year, so the four months behind us have to take their
             # numbers before today's bill takes the next one; and the live snapshot below opens
@@ -144,6 +146,7 @@ async def seed() -> None:
         and counts.created_nothing
         and shifts.created_nothing
         and performance.created_nothing
+        and communication.created_nothing
     ):
         logger.info("Seed data already present; nothing to do.")
         return
@@ -179,6 +182,11 @@ async def seed() -> None:
         "Seeded %d incentive schemes and %d performance periods.",
         performance.schemes_created,
         performance.periods_created,
+    )
+    logger.info(
+        "Seeded %d conversations and %d messages.",
+        communication.conversations_created,
+        communication.messages_created,
     )
     logger.info(
         "Seeded %d wastage reasons and %d wastage events across the four stages.",

@@ -52,7 +52,7 @@ test, or the test may be written against a screen that no longer exists.
 | F17 | local `HEAD` | M17's incentive scheme is specified in the seed and **never loaded** — performance is empty for everyone | **A** | ✅ **fixed** 2026-09-20 |
 | F18 | local `HEAD` | **Every attachment link 401s.** A browser cannot send the Bearer token an `<a href>` needs | **A** | ✅ **fixed** 2026-09-19 |
 | F19 | local `HEAD` | Upload never confirms success, so a working upload looks like a failed one | **A** | ✅ **fixed** 2026-09-19 |
-| F20 | local `HEAD` | M11 has no seeder — no sample conversations or messages | **A** | ready to build |
+| F20 | local `HEAD` | M11 has no seeder — no sample conversations or messages | **A** | ✅ **fixed** 2026-09-20 |
 | F21 | local `HEAD` | **No screen can create a shift.** The endpoint and the hook exist; nothing calls them | **A** | ✅ **fixed** 2026-09-19 |
 | F22 | local `HEAD` | With no shifts, the roster's button is permanently disabled and says nothing | **A** | ✅ **fixed** 2026-09-19 |
 | F23 | local `HEAD`, verified in a browser | `Button` is the one `shared/ui` component without `forwardRef`, so Radix focus management fails | **A** | ✅ **fixed** 2026-09-19 |
@@ -1384,3 +1384,28 @@ the person deliberately left un-clocked one day. The API and the database agree 
 **The team screen shows two of six people, and that is correct**: `team()` returns the top third
 plus your own row and never a bottom ranking, because naming the top two of three names the third.
 The distribution screen shows all six.
+
+---
+
+## F20 — shipped 2026-09-20
+
+`app/seed/communication.py`: three threads of the kinds M11 was built for — an evening handover, a
+walk-in freezer that is icing up, and a manager telling the floor Sunday is full. Nine messages,
+more than one voice in each, backdated so the list has a believable order.
+
+It calls `ConversationService` rather than inserting rows, so the dedupe, the refusals and the
+revision counter the stream depends on all still apply, and a seeded thread cannot be one the
+application would reject.
+
+**Running it against the local database proved nothing**, and it is worth recording why. Threads
+were already there from hand testing, the get-or-create guard correctly skipped, and the log said
+*"Seed data already present; nothing to do."* That is the seeder working — and it is not evidence
+that it produces anything. `tests/test_seed_communication.py` answers the question on a clean
+database, which is the only place it can be answered: **5 passed**, 3 conversations, 9 messages.
+
+**No attachment is seeded, and that is named rather than hidden.** Every attachment in the product
+returned `auth.required` from M11 until F18 was fixed, and nobody saw it because no seeded thread
+had a file on one — the defect was reachable only by uploading by hand. A seeded attachment would
+have caught it on the first manual pass rather than the sixth. It is absent because an attachment
+needs bytes in object storage, which a seeder that must run identically on a laptop and in CI
+should not invent. Worth doing when the storage seam is next touched.
