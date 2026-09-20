@@ -308,3 +308,77 @@ absent, because a formula written before its query is a guess. The dashboard lat
 (criterion 10, 800 ms over 120 days of generated data) is **not yet measured** — it needs the M15
 generator's 120-day dataset, and measuring it on the 30-day seed would be the kind of green result
 that proves nothing.
+
+---
+
+## Chunk C — the fairness review, answered before the leakage card is written
+
+**Decision 3, answered by the owner on 2026-09-20: a leakage card names the pattern and its rupee
+figure, never the person; the drill-through opens the rows, which carry who.** The question was put
+with all three options costed — name them, name nobody and drill to rows, or name nobody and
+withhold the person column downstream. The owner chose the middle one. The third was rejected for a
+reason worth keeping: M07's bill screen already shows who settled a bill, so withholding it here
+would leave two screens disagreeing about the same recorded fact.
+
+Spec §6: *"Anything naming a person goes through the fairness review first … the same ethics
+questions answered in the build log before the screen is written."* This section is that answer. It
+was written before the first line of chunk C, which is the only ordering that makes it a gate
+rather than a justification.
+
+### The one decision that makes the rest easy: **no card in this queue names a person**
+
+The spec lists the leakage patterns as *"cancelled-after-KOT lines, reprints, unexplained comps,
+discounts clustered by login and shift"* — and three of those four are phrased as *per-login*
+figures. Clustering by login is the whole point of the pattern, and it is also precisely the thing
+`docs/workload-fairness.md` was written to constrain.
+
+**The queue shows the pattern and its rupee figure. It does not show who.** The reasons are not
+squeamishness:
+
+1. **`docs/waste-model.md` §4 and CLAUDE.md invariant 7 already say the number cannot carry the
+   accusation.** A missed waste log and theft produce exactly the same unexplained figure.
+   `VarianceReportScreen` was built on that rule — `reportDiscipline.test.ts` rule 4 refuses the
+   words `employee`, `staff_id`, `reported_by`, `waiter` and `blame` anywhere near the unexplained
+   figure — and an action queue that names somebody beside the same arithmetic would reintroduce,
+   on a more prominent screen, exactly what that test forbids on a quieter one.
+2. **Ethics question 5 — attribution is the weakest link — is unresolved *for this data*.** M17
+   could answer it because every metric it scores carries its own `count` that a person can point
+   at. A discount "clustered by login" carries no such handle: a shared till login, a captain
+   entering another waiter's order, or a manager approving a comp on somebody else's screen all
+   produce a cluster under a name that did not do it. M17's answer does not transfer, and the
+   honest response to an unresolved attribution question is not to name anybody.
+3. **Question 2 — punitive use is not ruled out — binds harder here than in M17.** M17's scores are
+   read by three endpoints and nothing else. A card that said *"₹4,200 of comps, mostly Ravi"*
+   beside a **Do it** button is a deduction waiting to be written, and the queue's own framing —
+   one action, now — is the framing that makes it one.
+
+**So the card names the pattern, the rupee figure and the window; the drill-through opens the
+rows.** The rows are the bills, and a bill has always carried who settled it — that is the audit
+trail M13 and M07 already built, reached deliberately by somebody who chose to look, rather than a
+name pushed onto a dashboard next to a number and a button. **That difference is the whole review.**
+
+### The eight questions, and which of them chunk C can even reach
+
+M17 answered all eight (`docs/plan/m17-build-log.md`). Most do not apply to a queue that names
+nobody; the three that still bite are recorded rather than waved through.
+
+| # | Question | Chunk C |
+|---|---|---|
+| 1 | An employee cannot dispute a score | **Not reached.** No score, no person, nothing to dispute. The *rule* is disputable by anyone who sees the card — that is what **Not true** is for |
+| 2 | Punitive use is not ruled out | **Binding.** No card names an individual, so no card can be used as evidence against one without somebody first opening the rows |
+| 3 | "Top contributors" leaks the bottom in a small team | **Binding, and the reason for the rule above.** In a three-waiter shop, *"discounts cluster on one login"* names a person however carefully it is worded. There is no `MIN_TEAM_SIZE` that fixes a cluster of one |
+| 4 | Attendance can score protected reasons | Not reached — no attendance input |
+| 5 | Attribution is the weakest link | **Binding, and unresolved for this data.** See reason 2 above |
+| 6 | Visible is not understandable | Applies to the card text, not to a score: every card is a sentence with a rupee figure, and Hindi/Marathi remain **unshipped** here exactly as in M17 |
+| 7 | The legal basis is unverified | Researched at M17: DPDP §7(i) makes employment purposes a legitimate use, recorded in `docs/compliance-rules.md` with both caveats. A queue naming nobody does not process employee personal data at all, so it does not rely on that finding |
+| 8 | There is no stop rule | **Still a gap**, named here rather than ticked. It was named as a gap in M17 too. The queue's own tuning report is not a stop rule |
+
+### What *Not true* does, and the one thing it must not do
+
+**Not true** tunes the rule and the tuning is published monthly — the spec's phrase is that the
+owner should *"see the product learning rather than being told it does"*.
+
+It must not become a per-person suppression. A rule dismissed as untrue for a reason
+(*"we comp staff meals on Tuesdays"*) is a fact about the restaurant; the same dismissal recorded
+against a login would be a quiet way of building the per-person view this review just refused.
+**The dismissal records the rule, the window and the reason — never a subject.**
