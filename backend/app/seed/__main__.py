@@ -32,6 +32,7 @@ from app.seed.menu import seed_menu
 from app.seed.orders import seed_orders
 from app.seed.performance import seed_performance
 from app.seed.procurement import seed_procurement
+from app.seed.reviewable import seed_reviewable
 from app.seed.setup import seed_setup
 from app.seed.shifts import seed_shifts
 from app.seed.stock import seed_stock
@@ -117,6 +118,12 @@ async def seed() -> None:
             # and what the shelf holds — and the ledger is only finished once everything that
             # consumes stock has run. Counting first would reconcile a book nobody had written in.
             counts = await seed_counts(session)
+            # **Last of all, and only when asked.** Clearing `is_demo` is what lets the seeded
+            # restaurant's figures reach the reports, so an owner can look at a populated screen
+            # and give feedback on it. It runs after generation, so the generator's own refusal to
+            # write history into a non-demo organization is never involved. Local only, behind an
+            # explicit flag, and a no-op without it — see `app/seed/reviewable.py`.
+            reviewable = await seed_reviewable(session)
             # The single commit. Everything above it is provisional until this line.
             await session.commit()
     finally:
@@ -188,6 +195,13 @@ async def seed() -> None:
         communication.conversations_created,
         communication.messages_created,
     )
+    if reviewable:
+        logger.warning(
+            "This database is REVIEWABLE: %d organization(s) are no longer marked as demo, so "
+            "their seeded trading appears in every report. For looking at screens, never for "
+            "anything that matters.",
+            reviewable,
+        )
     logger.info(
         "Seeded %d wastage reasons and %d wastage events across the four stages.",
         waste.reasons_created,

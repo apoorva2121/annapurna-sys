@@ -45,7 +45,8 @@ test, or the test may be written against a screen that no longer exists.
 | F11 | local `HEAD` | Dishes, categories, variants **and modifier groups** show their internal code beside the name | **A** | ✅ **fixed** 2026-09-19 |
 | F12 | new, owner's idea | A reference page listing every name and its code, since codes become invisible | **A** | ✅ **built** 2026-09-19 |
 | F24 | local `HEAD`, found by a test | A dish's cost breakdown names each ingredient by code, because the API sends no name | **A** | not started |
-| F13 | local `HEAD` | Nobody can look at a populated report: generated data is excluded from reports by design | **B** | question open |
+| F13 | local `HEAD` | Nobody can look at a populated report: generated data is excluded from reports by design | **B** | ✅ **fixed** 2026-09-20 |
+| F25 | local `HEAD`, found while verifying F13 | The variance report is alphabetical, so the one line that matters is buried among 49 zeros | **A** | not started |
 | F14 | local `HEAD` | Workload compares 120 days of orders against 2 days of attendance | **A** | ✅ **fixed** 2026-09-20 |
 | F15 | local `HEAD` | Alert cards are unreadable in the Dark theme — contrast 1.04 against a minimum of 4.5 | **A** | ✅ **fixed** 2026-09-19 |
 | F16 | local `HEAD` | "My performance" tells the owner to ask their manager; should it exist for them at all? | **B** | question open |
@@ -1409,3 +1410,54 @@ had a file on one — the defect was reachable only by uploading by hand. A seed
 have caught it on the first manual pass rather than the sixth. It is absent because an attachment
 needs bytes in object storage, which a seeder that must run identically on a laptop and in CI
 should not invent. Worth doing when the storage seam is next touched.
+
+---
+
+## F13 — shipped 2026-09-20
+
+`SEED_REVIEWABLE=1` clears `is_demo` **after** everything has been generated, so the seeded
+restaurant's trading reaches the reports. The generator's own lock is never involved — by the time
+this runs, generation is finished and the organization was demo throughout — and M13's exclusion is
+untouched; it simply no longer matches.
+
+Two guards, both tested: **`ENV` must be local** (no override, same rule as the seeded password) and
+**the flag must be set explicitly** (`SEED_REVIEWABLE=0` means no). `make seed` is unchanged and
+still produces a demo world excluded from every report. `tests/test_seed_reviewable.py`: **9 passed**.
+
+### The first populated report this product has ever produced
+
+    sales, 30 days   revenue 14,28,160.62 | covers 3,385 | average bill 1,201.14
+                     upi 7,74,287.30 · cash 3,34,761.94 · card 3,18,775.38
+
+    food-cost gap    theoretical 3,32,695.57
+                     actual      4,07,898.67
+                     variance      75,203.10
+                     explained      5,905.47   (waste somebody wrote down)
+                     UNEXPLAINED   69,554.03   <- the number the product exists for
+
+**A note on the payment split**: UPI ahead of cash and card is what an Indian restaurant's takings
+actually look like, which is a small sign the generator is modelling the right country.
+
+---
+
+## F25 · The variance report buries its own finding
+
+**Found while verifying F13**, not reported by the owner.
+
+The food-cost variance report returns **59 lines ordered by item name**. Only **10** have a non-zero
+unexplained value, and the largest — **Wheat atta at ₹61,103.70, which is 88% of the entire
+unexplained total** — sits in the middle of the alphabet, below forty-odd rows of zeros.
+
+M19's spec states the rule this breaks: *"every screen either shows a shape a table cannot, or
+produces an action with a rupee figure on it."* An owner opening this sees `Birista (fried onion)
+0.00`, `Biryani masala 0.00`, `Blanched spinach puree 0.00` and has to scroll to find the one line
+worth acting on.
+
+**Two parts, and the second matters more:**
+
+1. **Order by unexplained value, descending.** The report's own subject is that number.
+2. **Consider dropping the zero rows**, or collapsing them. `_is_material` already filters
+   something; forty-nine zero lines suggest the threshold is not doing what a reader needs.
+
+Not fixed here because it is a change to a shipped report's contract and to its tests, and it was
+not on the owner's list. Small, and worth doing next.
