@@ -96,6 +96,13 @@ describe('the baseline', () => {
       '--food-veg',
       '--food-nonveg',
       '--food-egg',
+      // The chart series palette. Locked because a series colour is identity, not paint: a theme
+      // that repainted them would change a branch's colour between two screenshots of the same
+      // week. They are also placed >= 25 degrees from every alert hue, which a theme override
+      // could quietly undo.
+      '--series-1',
+      '--series-2',
+      '--series-3',
     ]) {
       expect(Object.values(THEMEABLE)).not.toContain(locked);
     }

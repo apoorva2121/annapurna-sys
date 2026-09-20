@@ -6,7 +6,7 @@ Spec: `docs/modules/M19-analytics-spec.md`. Branch: `feat/m11-communication` —
 | Chunk | What | State |
 |---|---|---|
 | A | Trends: series endpoints, the metric table, the org decision implemented | **done** 2026-09-20 |
-| B | The charts, code-split, bundle test, drill-through | not started |
+| B | The charts, code-split, bundle test, drill-through | **done** 2026-09-20 |
 | C | The action queue | not started |
 | D | One forecast, scored | not started |
 
@@ -176,3 +176,135 @@ they now assert the other tenant exists and has trading of its own.
 
     pytest test_analytics_endpoints + test_m19_analytics -> 17 passed
     ruff, mypy clean
+
+---
+
+## Chunk B — finished 2026-09-20
+
+The analytics shell at `/analytics`, two charts, the branch comparison, and the drill-through.
+
+### The deviation, recorded rather than done quietly
+
+**The spec says "import a charting library only in a code-split route". No charting library was
+installed, and the charts are hand-drawn SVG.**
+
+The spec's own wording collides with a guardrail that predates it. `reportDiscipline.test.ts` rule 3
+asserts that `package.json` contains **no** charting library — `recharts`, `chart.js`, `d3`,
+`victory`, `nivo`, `echarts`, `plotly` — and it reads the *manifest*, not the bundle, so
+code-splitting does not satisfy it. Building chunk B literally as written would have required
+weakening an existing test whose stated reason still holds: *"half a megabyte in a PWA a waiter
+loads on a three-year-old Android is spent on four numbers somebody reads in two seconds."*
+
+Hand-drawn SVG satisfies **acceptance criterion 3 absolutely rather than conditionally** — a library
+that is not installed cannot reach any bundle — and it turned out to be the easier way to hit
+`dataviz`'s mark specs exactly (2px stroke, 8px end marker ringed in the surface colour, a 4px
+rounded data-end square at the baseline, a hairline solid grid) rather than bending a library's
+defaults toward them. `TrendChart.tsx` and `BarChart.tsx` together are about 450 lines.
+
+### Criterion 3, measured at the bundle rather than argued
+
+`vite build`, 2026-09-20:
+
+    dist/assets/AnalyticsScreen-CW-zjcuF.js    14.45 kB | gzip:  4.54 kB
+    dist/assets/staff-BsKOZi7H.js             557.29 kB | gzip: 153.55 kB
+    dist/assets/guest-Dpdh7IcJ.js              14.46 kB | gzip:  4.42 kB
+
+    grep -c 'stroke-series-1|fill-series-1'
+      AnalyticsScreen chunk ... 1
+      staff bundle ............ 0
+      guest bundle ............ 0
+
+So the charts cost a waiter **nothing**, and cost an owner who opens the screen 4.54 kB gzipped.
+`bundleBudget.test.ts` holds the line in source: no charting library in the manifest or in any
+import, the chart components have exactly one importer, the screen is reached only through
+`lazy()`, and the guest bundle references none of it. **Each of its four rules was verified by
+breaking it and watching it go red**, then reverting — a green discipline test that has never
+failed is a test nobody has checked.
+
+### Criterion 4, run rather than eyeballed
+
+The palette is three locked tokens, `--series-1/2/3`, added to the locked layer of `tokens.css`
+beside the alert set and the FSSAI marks — not to the themeable set. A series colour is **identity,
+not paint**: a theme that repainted it would change a branch's colour between two screenshots of the
+same week.
+
+    node scripts/validate_palette.js "#7069D3,#13A4AE,#68840B" --mode light --surface "#FFFFFF"
+    node scripts/validate_palette.js "#7069D3,#13A4AE,#68840B" --mode dark  --surface "#10141E"
+    -> ALL CHECKS PASS, exit 0, both modes
+
+One set serves both modes because each slot clears 3:1 against **both** grounds — indigo 4.52/4.08,
+teal 3.02/6.09, olive 4.29/4.29 — which is what makes locking legal instead of shipping two themed
+sets. Three intermediate palettes were rejected by the validator before this one: two for a teal
+below the 0.10 chroma floor (cyan is inherently low-chroma in OKLCH at mid lightness) and one for an
+olive/teal pair at deltaE 13.7, under the normal-vision floor of 15.
+
+**The HSL round-trip was checked, and it mattered.** The first set was validated as hex and then
+written as HSL triplets, which round to slightly different colours; the shipped tokens were
+re-validated as *what the browser actually renders*, not as what was intended.
+
+### Why only three slots, and why a fourth is not a free choice
+
+Every chart hue must sit **at least 25 degrees from every alert hue and from `--brand`** — the rule
+`docs/ui/design-system.md` lists as designed-but-unimplemented, applied here for the first time.
+Excluding 25 degrees either side of critical (0), warning (25), caution (45), success (142),
+neutral (215), info (217) and brand (322) leaves exactly three usable bands: **70-117, 167-190,
+242-297**. The three slots sit in them. A fourth series is a validator run, and if it cannot be
+placed the chart needs fewer series rather than a new colour. `theme.test.ts` now asserts the three
+are outside the themeable set.
+
+### Criterion 5
+
+One y-axis on every chart, and every baseline starts at zero. No categorical colour is an alert
+hue. Each chart draws **one** series, so the heading does the legend's job — a legend box with a
+single swatch restates the heading. `analyticsDiscipline.test.ts` rule 5 is written so that the day
+a second series appears, the legend stops being optional.
+
+The branch comparison is deliberately **two charts, not one with two axes**: spend per dine-in
+guest (slot 1) and guests per trading day (slot 2). That pairing is the recorded blind spot of the
+owner's decision 2 — a branch whose footfall has collapsed but whose remaining guests spend well
+looks healthy on spend alone — shown beside it rather than left to be discovered.
+
+### Criterion 6 — the drill-through lands on rows, not on a screen
+
+`SalesReportScreen` now reads `since`/`until` from the URL, so a bucket opens the bills that made
+it, already filtered. The window travels in the URL rather than in memory, so the link is shareable
+and survives a reload.
+
+**A branch row was the interesting case.** Another branch's rows are not merely a different screen —
+they are outside this token's scope (invariant 1), and `/staff/reports/sales` resolves from
+`actor.scope`. So the drill-through switches branch, and `switchBranch()` *loads the destination*
+rather than reloading in place: a document load preserves the URL, so the filter arrives with the
+new scope already in force. No handoff through storage, and so nothing that can go stale if the
+switch fails. `BranchSwitcher` was refactored onto the same function rather than keeping a second
+copy of the reload reasoning.
+
+### The invariant-3 question a chart forces, and how it was answered
+
+A chart must turn `"1234.50"` into a y-coordinate, which invariant 3 and `reportDiscipline` rule 1
+forbid doing to a rupee amount. Both are right about different things: **a pixel is not a figure
+anybody reconciles.** So the conversion lives in exactly one file, `charts/plot.ts`, which exists
+for geometry and never renders, and `analyticsDiscipline.test.ts` enforces the quarantine — no other
+analytics file may call `Number`/`parseFloat`/`parseInt`, and no plot helper may appear inside JSX.
+Every figure on screen is formatted from the server's own string through `formatINR`.
+
+`toPlotValue` is also stricter than `Number`: `"1e3"`, `"0x10"`, `"Infinity"` and `"1,234"` all
+become `null` (a gap) rather than a mark drawn somewhere absurd. And `null` stays `null` rather than
+becoming zero — a day the restaurant was shut has no average bill, and a zero draws a line through
+the floor of the chart, inventing the catastrophe the module exists to detect.
+
+### Runs
+
+| Target | Result |
+|---|---|
+| `make lint-web` | **0** |
+| `make test-web` | **499 passed**, 64 files (was 463) |
+| `vite build` | exit 0; analytics in its own 4.54 kB gzipped chunk |
+| `validate_palette.js` light + dark | ALL CHECKS PASS, exit 0 |
+
+### What chunk B did not do
+
+No forecast (chunk D) and no action queue (chunk C); their metric-table rows are still deliberately
+absent, because a formula written before its query is a guess. The dashboard latency budget
+(criterion 10, 800 ms over 120 days of generated data) is **not yet measured** — it needs the M15
+generator's 120-day dataset, and measuring it on the 30-day seed would be the kind of green result
+that proves nothing.

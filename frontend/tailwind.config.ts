@@ -70,6 +70,13 @@ export default {
         'food-nonveg': withAlpha('--food-nonveg'),
         'food-egg': withAlpha('--food-egg'),
 
+        // The chart series palette, locked like the alert set. Three slots and no more: every
+        // usable hue band between the six alert colours and the brand is taken. Adding a fourth
+        // means re-running dataviz's validator, not picking a colour. See tokens.css.
+        'series-1': withAlpha('--series-1'),
+        'series-2': withAlpha('--series-2'),
+        'series-3': withAlpha('--series-3'),
+
         // The scrim behind a modal. `bg-scrim/70` rather than shadcn's generated `bg-black/80`,
         // which is a palette colour no theme or ADR can reach.
         scrim: withAlpha('--scrim'),

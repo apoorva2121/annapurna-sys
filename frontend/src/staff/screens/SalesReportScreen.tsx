@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import { formatINR } from '@shared/money';
 import { Permission } from '@shared/permissions';
@@ -23,7 +23,17 @@ import { type SalesReport, useSalesReport } from '@staff/api/reports';
  * ever being parsed into a number (invariant 3).
  */
 export default function SalesReportScreen(): ReactElement {
-  const report = useSalesReport();
+  // M19 criterion 6: a figure on the trends screen opens the rows it came from, **already
+  // filtered**, which closes the M13 row that left this at "the right screen". The window arrives
+  // in the URL rather than in memory so the link is shareable, survives a reload, and survives the
+  // document load that a branch switch performs.
+  //
+  // `undefined` rather than `null` when absent: `useSalesReport` treats undefined as "the server's
+  // own default window", which is what an unfiltered visit should still get.
+  const [params] = useSearchParams();
+  const since = params.get('since') ?? undefined;
+  const until = params.get('until') ?? undefined;
+  const report = useSalesReport(since, until);
   // Decision 4: a day's revenue reaches the bills that made it. Gated, because the bills screen is
   // a manager's and an accountant reads the books without holding it.
   const { can } = useAuth();

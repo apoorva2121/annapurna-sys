@@ -148,6 +148,44 @@
     --food-nonveg: 22 65% 38%;
     --food-egg: 45 93% 33%;
 
+    /*
+     * The chart series palette. Locked for the same reason the alert set is, and one more.
+     *
+     * **Locked reason 1 — a series colour is identity, not paint.** `dataviz`: colour follows the
+     * entity, never its rank. If a theme repainted these, the same branch would change colour when
+     * somebody switched to Deepavali, and a reader comparing this week's screenshot with last
+     * week's would be comparing two different colours for one restaurant.
+     *
+     * **Locked reason 2 — every slot is >= 25 degrees from every alert hue and from `--brand`.**
+     * The alert set owns red, orange, yellow, green, blue; brand (322) means *interactive or
+     * selected*. That leaves exactly three usable bands — 70-117, 167-190, 242-297 — and these
+     * three sit in them. A fourth series is therefore NOT a free choice: it needs the validator
+     * run again, and if it cannot be placed the chart needs fewer series, not a new colour.
+     *
+     * **Chosen by running `dataviz`'s validator, not by eye** (M19 acceptance criterion 4), and
+     * chosen to pass on BOTH grounds so the set can be locked rather than flipped per theme:
+     *
+     *     node scripts/validate_palette.js "#7069D3,#13A4AE,#68840B" --mode light  --surface "#FFFFFF"
+     *     node scripts/validate_palette.js "#7069D3,#13A4AE,#68840B" --mode dark   --surface "#10141E"
+     *     -> ALL CHECKS PASS, exit 0, both modes (2026-09-20)
+     *
+     * Lightness band, chroma floor, CVD separation (worst adjacent dE 11.8 deutan), the
+     * normal-vision floor (worst 15.0) and contrast all pass. Contrast is >= 3:1 against white AND
+     * against the dark theme's 222 30% 9% ground — indigo 4.52/4.08, teal 3.02/6.09, olive
+     * 4.29/4.29 — which is what makes one locked set legal instead of two themed ones.
+     *
+     * The teal is the tight one: cyan is inherently low-chroma in OKLCH, so lighter than this it
+     * drops under 3:1 on white and darker it reads grey. Do not "tidy" it.
+     */
+    --series-1: 244 55% 62%;
+    --series-2: 184 80% 38%;
+    --series-3: 74 85% 28%;
+
+    /* NOTE: grid lines and axis text are deliberately NOT tokens here. They are furniture, they
+       must follow the theme, and `--border` and `--muted-foreground` already do exactly that —
+       locking a copy of them would paint a bright grid on the dark theme's 9% ground. Charts use
+       `stroke-border` and `text-muted-foreground`. */
+
     /* The scrim behind a dialog or a sheet. Locked, and not merely for tidiness: it is the only
        thing separating a modal from the live order behind it, and a festive theme that tinted it
        or lightened it would turn "you must deal with this first" into decoration. Black, carried at

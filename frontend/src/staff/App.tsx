@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { Suspense, lazy, type ReactElement } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { Permission } from '@shared/permissions';
@@ -62,6 +62,11 @@ import CustomersScreen from '@staff/screens/CustomersScreen';
 import FeedbackScreen from '@staff/screens/FeedbackScreen';
 import WasteScreen from '@staff/screens/WasteScreen';
 import WasteSummaryScreen from '@staff/screens/WasteSummaryScreen';
+import { strings } from '@staff/strings';
+
+/** Code-split, so the analytics screen and its charts are fetched only by somebody who opens
+ *  them. See the route below and `bundleBudget.test.ts`. */
+const AnalyticsScreen = lazy(() => import('@staff/screens/AnalyticsScreen'));
 
 /**
  * The staff application's routes.
@@ -190,6 +195,22 @@ export default function App(): ReactElement {
           element={
             <RequirePermission permission={Permission.REPORT_FINANCIAL_VIEW}>
               <SalesReportScreen />
+            </RequirePermission>
+          }
+        />
+        {/* M19 · the owner's trends. **The only lazily-loaded route in the staff app**, and
+            deliberately so: decision 2 says the charts must not grow the bundle a waiter loads on
+            a three-year-old Android. There is no charting library to split out — `reportDiscipline`
+            rule 3 keeps every one of them out of `package.json`, and the charts are hand-drawn SVG
+            — so what this splits is the screen and its two chart components. `bundleBudget.test.ts`
+            is what holds the line; this import is only how it is kept. */}
+        <Route
+          path="analytics"
+          element={
+            <RequirePermission permission={Permission.REPORT_FINANCIAL_VIEW}>
+              <Suspense fallback={<p className="p-6 text-muted-foreground">{strings.analytics.loading}</p>}>
+                <AnalyticsScreen />
+              </Suspense>
             </RequirePermission>
           }
         />

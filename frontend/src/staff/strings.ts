@@ -74,6 +74,7 @@ export const strings = {
     purchaseOrders: 'Purchase orders',
     myShifts: 'My shifts',
     reports: 'Reports',
+    analytics: 'Trends',
     workload: 'Workload',
     myPerformance: 'My performance',
     audit: 'Audit trail',
@@ -1721,6 +1722,68 @@ export const strings = {
     historyIntro:
       'Including what has since been put right. Nothing is ever deleted from this list.',
     empty: 'Nothing has been raised yet.',
+  },
+
+  analytics: {
+    title: 'Trends',
+    // Says what the screen is for in the owner's own terms. M19's rule: every screen either shows
+    // a shape a table cannot, or produces an action with a rupee figure on it.
+    intro: 'How the numbers have moved, and how your branches compare.',
+    loading: 'Working it out…',
+    empty: 'Nothing was taken in this period.',
+    noBranchData: 'No branch has traded in this period.',
+    // A branch with no dine-in guests has no spend per guest. Saying "no dine-in guests" rather
+    // than showing a zero keeps a shut branch out of last place, where zero would put it.
+    noDineIn: 'No dine-in guests',
+
+    metric: {
+      revenue: 'Revenue',
+      covers: 'Guests',
+      orders: 'Bills',
+      discounts: 'Discounts',
+      average_bill: 'Average bill',
+    } as Record<string, string | undefined>,
+    metricLabel: 'Show',
+
+    bucket: {
+      day: 'By day',
+      week: 'By week',
+    } as Record<string, string | undefined>,
+    bucketLabel: 'Group',
+
+    acrossBranches: 'All my branches together',
+    acrossBranchesHint:
+      'Revenue, guests and bills add up across branches. Tax never does — two branches can hold different GST registrations, so a combined tax figure would mean nothing.',
+    branchCount: (count: number) =>
+      count === 1 ? 'One branch' : `${String(count)} branches`,
+
+    comparisonTitle: 'Branches compared',
+    // Decision 2, the owner's: size-neutral, so a 22-seat branch can beat a 60-seat one.
+    comparisonBasis: 'Spend per dine-in guest',
+    comparisonBasisHint:
+      'Dine-in takings divided by guests seated. Takeaway and delivery are left out on purpose — they have no guest count, and counting them here would flatter a delivery-heavy branch.',
+    // The recorded blind spot of decision 2, shown beside it rather than left to be discovered.
+    footfallTitle: 'Guests a trading day',
+    footfallHint:
+      'Shown beside spend per guest because the two can disagree: a branch whose guests have stopped coming but whose remaining guests spend well looks healthy on spend alone.',
+    tradedDays: (traded: number, of: number) =>
+      `traded ${String(traded)} of ${String(of)} days`,
+    tradingDays: (days: number) =>
+      days === 1 ? 'traded 1 day' : `traded ${String(days)} days`,
+
+    // Drill-through. M19 criterion 6: every figure opens the rows it came from, already filtered.
+    openDay: (span: string, value: string) => `Open the bills for ${span} — ${value}`,
+    openBranch: (name: string, value: string) => `Open the sales report for ${name} — ${value}`,
+
+    tableTitle: 'The same figures as a table',
+    colPeriod: 'Period',
+    colValue: 'Value',
+    colTraded: 'Days traded',
+    colBranch: 'Branch',
+    colRevenue: 'Revenue',
+    colCovers: 'Guests',
+    colOrders: 'Bills',
+    colSpend: 'Spend per guest',
   },
 
   errors: {

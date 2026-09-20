@@ -95,6 +95,14 @@ export const HEADER_GROUPS: NavGroup[] = [
         label: strings.nav.reports,
         permission: Permission.REPORT_OPERATIONAL_VIEW,
       },
+      // M19. Behind the financial permission, like M13's money screens: the owner and the
+      // accountant hold it and the manager does not, so this is a screen a manager is not offered
+      // rather than one that opens onto blanks.
+      {
+        to: '/analytics',
+        label: strings.nav.analytics,
+        permission: Permission.REPORT_FINANCIAL_VIEW,
+      },
       { to: '/audit', label: strings.nav.audit, permission: Permission.AUDIT_VIEW },
       {
         to: '/workload',
