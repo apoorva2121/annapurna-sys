@@ -151,15 +151,22 @@ export function TrendChart(props: TrendChartProps): ReactElement {
         )}
       </svg>
 
-      {/* Keyboard and screen-reader reach for the same drill-through the pointer has. Visually
-          hidden rather than absent: a chart nobody can tab into is a chart some people cannot
-          use at all. */}
+      {/* Keyboard and screen-reader reach for the same drill-through the pointer has — a chart
+          nobody can tab into is a chart some people cannot use at all.
+
+          Two details that are not incidental. `focus:not-sr-only` makes each control **visible
+          when focused**: a focusable element that stays invisible is worse than no control,
+          because a sighted keyboard user tabs into somewhere they cannot see. And only buckets
+          that have something in them get a control, so a day the restaurant was shut is not a tab
+          stop offering to open bills that do not exist — which also takes the default day view
+          from fifty-six stops down to the days actually traded. */}
       {onSelect === undefined ? null : (
         <ul className="sr-only">
-          {points.map((point) => (
+          {drawable.map(({ point }) => (
             <li key={`key-${point.starts_on}`}>
               <button
                 type="button"
+                className="focus:not-sr-only focus:ring-ring focus:bg-card focus:ring-2 focus:px-2 focus:py-1"
                 onClick={() => {
                   onSelect(point);
                 }}

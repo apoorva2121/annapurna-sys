@@ -271,3 +271,25 @@ describe('the branch drill-through', () => {
     }
   });
 });
+
+describe('the keyboard path into the chart', () => {
+  it('offers no drill-through for a day the restaurant was shut', async () => {
+    renderScreen();
+    await screen.findByText('₹18,400.00');
+
+    // 3 Sept traded and 2 Sept did not. A control for 2 Sept would be a tab stop offering to open
+    // bills that do not exist — and at the default day view there would be one for every shut day.
+    expect(screen.getByRole('button', { name: /Open the bills for 3 Sep/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Open the bills for 2 Sep/ })).toBeNull();
+  });
+
+  it('makes the control visible when it takes focus', async () => {
+    renderScreen();
+    await screen.findByText('₹18,400.00');
+
+    // A focusable element that stays invisible is worse than no control: a sighted keyboard user
+    // tabs into somewhere they cannot see. `focus:not-sr-only` is what undoes the clipping.
+    const control = screen.getByRole('button', { name: /Open the bills for 3 Sep/ });
+    expect(control.className).toContain('focus:not-sr-only');
+  });
+});
