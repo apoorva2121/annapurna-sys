@@ -46,6 +46,11 @@ export type TrendChartProps = {
   /** Formats a figure for a person. Takes the **server string**, never a plot number — see
    *  `plot.ts`. Money goes through `formatINR`; a count renders as itself. */
   format: (value: string | null) => string;
+  /** Formats an **axis tick**, which is a number this chart generated rather than a figure the
+   *  server sent — so it is a scale label, not an amount anybody reconciles. Money drops its paise
+   *  here (`dataviz`: ticks round to clean numbers); the exact value stays in the tooltip and the
+   *  table. Defaults to `format`. */
+  formatTick?: (value: string) => string;
   /** How many business dates a whole bucket holds — 1 for a day, 7 for a week. A bucket with
    *  fewer traded days is marked, because a week the shop was shut for five days is not a quiet
    *  week and must not read as one. */
@@ -121,7 +126,7 @@ export function TrendChart(props: TrendChartProps): ReactElement {
           </clipPath>
         </defs>
 
-        <Grid ticks={ticks} scale={scale} format={format} />
+        <Grid ticks={ticks} scale={scale} format={props.formatTick ?? format} />
         <XLabels plotted={plotted} scale={scale} formatSpan={props.formatSpan} />
 
         <g clipPath={`url(#${clipId})`}>
@@ -178,7 +183,7 @@ function Grid({
 }: {
   ticks: number[];
   scale: Scale;
-  format: (value: string | null) => string;
+  format: (value: string) => string;
 }): ReactElement {
   return (
     <>

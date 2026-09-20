@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { formatDelta, formatINR, parseAmount, percentToFraction } from './money';
+import { formatDelta, formatINR, formatINRAxis, parseAmount, percentToFraction } from './money';
 
 describe('formatINR', () => {
   it('groups by the Indian system, not by thousands', () => {
@@ -114,5 +114,34 @@ describe('percentToFraction', () => {
     for (const typed of ['', '1e1', '101', '100.5', '-5', '5%', '12.345', '0x10']) {
       expect(percentToFraction(typed)).toBeNull();
     }
+  });
+});
+
+// M19 chunk B. A chart axis is a scale, not a figure anybody reconciles, so its ticks drop the
+// paise that would otherwise repeat on every gridline. The exact amount stays in the tooltip and
+// the table, both of which go through `formatINR`.
+describe('formatINRAxis', () => {
+  it('drops the paise a gridline does not need', () => {
+    expect(formatINRAxis('80000')).toBe('₹80,000');
+    expect(formatINRAxis('0')).toBe('₹0');
+    expect(formatINRAxis(20000)).toBe('₹20,000');
+  });
+
+  it('keeps Indian digit grouping, which is the whole reason Intl is used', () => {
+    // Three, then two, then two — 1,23,456 and not 123,456.
+    expect(formatINRAxis('123456')).toBe('₹1,23,456');
+  });
+
+  it('renders a dash rather than ₹NaN for something that is not a number', () => {
+    for (const value of [null, undefined, '', 'abc']) {
+      expect(formatINRAxis(value)).toBe('—');
+    }
+  });
+
+  // The guard against somebody reaching for this on a bill: it rounds, and a rounded rupee figure
+  // beside an exact one is how two numbers on one screen come to disagree.
+  it('rounds, which is why it is for axes only', () => {
+    expect(formatINRAxis('79999.50')).toBe('₹80,000');
+    expect(formatINR('79999.50')).toBe('₹79,999.50');
   });
 });

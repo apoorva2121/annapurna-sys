@@ -41,6 +41,33 @@ export function formatINR(amount: string | number | null | undefined): string {
   return RUPEES.format(value);
 }
 
+/** Rupees with no paise, for a chart axis. */
+const RUPEES_WHOLE = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
+
+/**
+ * `"80000"` → `"₹80,000"`. For **axis ticks only**.
+ *
+ * `dataviz`: *"Y-axis ticks: round to clean numbers"*. Two decimals on every tick is noise that
+ * also eats the horizontal space the plot needs, and an axis label is a *scale*, not a figure
+ * anybody reconciles — the exact amount is in the tooltip and in the table, both formatted from the
+ * server's own string by `formatINR`.
+ *
+ * Never use this for an amount a person might quote back: ₹80,000 where the figure is ₹79,999.50 is
+ * right for a gridline and wrong for a bill.
+ */
+export function formatINRAxis(amount: string | number | null | undefined): string {
+  if (amount === null || amount === undefined || amount === '') {
+    return '—';
+  }
+  const value = Number(amount);
+  return Number.isFinite(value) ? RUPEES_WHOLE.format(value) : '—';
+}
+
 /**
  * A price *change*, signed: `"+₹40.00"`, `"−₹20.00"`, or `"Free"` at zero.
  *
