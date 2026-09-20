@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { formatINR, formatINRAxis } from '@shared/money';
+import { formatCount, formatINR, formatINRAxis } from '@shared/money';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@shared/ui/table';
 import {
@@ -184,10 +184,12 @@ function Trend({
 
   // Money through `formatINR`, counts as themselves. Either way the argument is the server's own
   // string — never a number that came back out of the plot.
-  const format = (value: string | null): string => (money ? formatINR(value) : (value ?? '—'));
+  const format = (value: string | null): string =>
+    money ? formatINR(value) : formatCount(value);
   // An axis tick is a number this chart generated, not a figure the server sent, so it wears the
   // whole-rupee formatter: "₹80,000" on a gridline rather than "₹80,000.00" repeated five times.
-  const formatTick = (value: string): string => (money ? formatINRAxis(value) : value);
+  const formatTick = (value: string): string =>
+    money ? formatINRAxis(value) : formatCount(value);
 
   const span = (point: SeriesPoint): string =>
     point.starts_on === point.ends_on

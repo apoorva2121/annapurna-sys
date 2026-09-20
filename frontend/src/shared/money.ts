@@ -68,6 +68,30 @@ export function formatINRAxis(amount: string | number | null | undefined): strin
   return Number.isFinite(value) ? RUPEES_WHOLE.format(value) : '—';
 }
 
+/** Plain counts, grouped the Indian way. Not money — hence no ₹ — but the same grouping rule, and
+ *  the same reason for living here: `Intl` knows that Indian grouping is three, then two, then
+ *  two, and every hand-rolled version of that is wrong. */
+const COUNT = new Intl.NumberFormat('en-IN');
+
+/**
+ * `"1200"` → `"1,200"`. Guests, bills, covers — anything counted rather than charged.
+ *
+ * `dataviz` asks for axis ticks to be thousands-comma'd, and a count that is grouped on the axis
+ * and bare in the tooltip is the kind of small inconsistency a reader notices without being able
+ * to say why. So both go through this.
+ *
+ * A count is an integer and not a decimal string, so — unlike a rupee amount — there is no
+ * precision to lose here (CLAUDE.md invariant 3 is about money). Non-numbers render as a dash
+ * rather than `NaN`.
+ */
+export function formatCount(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+  const count = Number(value);
+  return Number.isFinite(count) ? COUNT.format(count) : '—';
+}
+
 /**
  * A price *change*, signed: `"+₹40.00"`, `"−₹20.00"`, or `"Free"` at zero.
  *

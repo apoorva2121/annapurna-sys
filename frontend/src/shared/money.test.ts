@@ -8,7 +8,14 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { formatDelta, formatINR, formatINRAxis, parseAmount, percentToFraction } from './money';
+import {
+  formatCount,
+  formatDelta,
+  formatINR,
+  formatINRAxis,
+  parseAmount,
+  percentToFraction,
+} from './money';
 
 describe('formatINR', () => {
   it('groups by the Indian system, not by thousands', () => {
@@ -143,5 +150,22 @@ describe('formatINRAxis', () => {
   it('rounds, which is why it is for axes only', () => {
     expect(formatINRAxis('79999.50')).toBe('₹80,000');
     expect(formatINR('79999.50')).toBe('₹79,999.50');
+  });
+});
+
+// M19 chunk B. Counts are grouped on the axis and in the tooltip alike: a figure grouped in one
+// place and bare in the other is the kind of small inconsistency a reader notices without being
+// able to say why.
+describe('formatCount', () => {
+  it('groups the Indian way, without a rupee sign', () => {
+    expect(formatCount('1200')).toBe('1,200');
+    expect(formatCount(123456)).toBe('1,23,456');
+    expect(formatCount('0')).toBe('0');
+  });
+
+  it('renders a dash rather than NaN for something that is not a number', () => {
+    for (const value of [null, undefined, '', 'abc']) {
+      expect(formatCount(value)).toBe('—');
+    }
   });
 });
