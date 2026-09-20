@@ -439,3 +439,40 @@ It must not become a per-person suppression. A rule dismissed as untrue for a re
 (*"we comp staff meals on Tuesdays"*) is a fact about the restaurant; the same dismissal recorded
 against a login would be a quiet way of building the per-person view this review just refused.
 **The dismissal records the rule, the window and the reason — never a subject.**
+
+### Chunk C's metric table, written before its queries
+
+Acceptance criterion 2: every metric gets its four-column row before it gets a query, because a
+formula written after the fact is a description of whatever the query happened to do.
+
+**A card with no rupee figure does not go in the queue** (spec §5) — that is what stops it filling
+with advice. Every row below therefore ends in rupees, and a pattern that cannot be priced is not a
+card.
+
+| Metric | Source tables | Formula | Render |
+|---|---|---|---|
+| `comp_value` | `order_discount` ⋈ `order` ⋈ `invoice` | `SUM(amount)` where `type = 'comp'` and the invoice is not cancelled, over the window's business dates | Card, ₹. Never charted |
+| `authorised_headroom` | `order_discount` | `SUM(authorised_amount)` where `type = 'comp'`, beside `comp_value`. **Not** `amount − authorised_amount` — see below | Card, ₹, as context beneath the figure |
+| `cancelled_after_kot_value` | `kot_ticket_line` ⋈ `order_line` | `SUM(order_line.line_total)` where the order line is `cancelled` **and** its KOT line reached `preparing` or beyond — food that was cooked and then binned | Card, ₹ |
+| `remake_value` | `kot_ticket_line` ⋈ `order_line` | `SUM(line_total)` where `kot_ticket_line.status = 'remake'`, grouped by `remake_reason` | Card, ₹ |
+| `unexplained_value` | derived | Already defined in chunk A's table. M13: `_variance_line`. **The queue reuses it rather than recomputing** — that is what criterion 2 is for | Card, ₹. Already the variance report's headline |
+
+### The card that will not be built, and why that is a finding rather than a gap
+
+The obvious leakage card is *"discounts taken above what was approved"*. **It would report ₹0
+forever.** Verified against the running database rather than recalled from the schema doc:
+
+    ck_order_discount_within_authorised  CHECK ((amount <= authorised_amount))
+
+`amount > authorised_amount` is **unrepresentable**. A card for it is theatre — a permanently green
+number that teaches an owner the queue is decorative, which is the one thing a queue of four cards
+cannot afford.
+
+**So the question is turned around.** The interesting figure is not whether somebody exceeded an
+authorisation — the database refuses that — but whether the *authorisation itself* was generous.
+That is `authorised_amount`, it is very much representable, and it is a question about a policy
+rather than about a person, which is what decision 3 asks of every card here.
+
+This is the same shape of finding as M17's freeze test, which could not void a settled order
+because invariant 6 forbids it: **a constraint that refuses the test is the constraint doing its
+job, and the test is better for being rewritten around it.**
