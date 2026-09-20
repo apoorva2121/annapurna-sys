@@ -137,6 +137,33 @@ source. The statuses below are copied from that table, not re-derived.
 | A tax invoice carries the supplier's GSTIN | CGST Rules, Rule 46 | in force | `test_a_regular_restaurant_without_its_gstin_cannot_issue_a_tax_invoice` |
 | **A composition bill of supply carries the words "composition taxable person, not eligible to collect tax on supplies" at the top** | CGST Rules, **Rule 5(1)(f)** | in force; **primary text read 2026-09-20** from CBIC's own PDF of the CGST Rules 2017 (Part A, as amended to 24-09-2021), pages 3–4 | `test_a_composition_bill_of_supply_carries_the_declaration` |
 | A composition restaurant displays "composition taxable person" on a signboard at each place of business | CGST Rules, Rule 5(1)(g) | in force; same source | **Not enforceable by software** — a physical signboard. Surfaced as advice, never as a check |
+
+### A8 · Sending an SMS to an Indian customer (researched 2026-09-20, nothing built)
+
+Researched because F9 — letting an owner recover their own password by a code to their phone —
+cannot be planned without it. **Nothing in the product sends an SMS today**, and this section
+exists so that whoever builds it starts from the instrument rather than from a vendor's blog.
+
+| Rule | Instrument | Status | Enforced by |
+|---|---|---|---|
+| Commercial communication to Indian subscribers is governed by TCCCPR 2018, which **mandates Distributed Ledger Technology** for registering senders, headers and consent | TRAI, Telecom Commercial Communications Customer Preference Regulations, **2018** — issued 19 July 2018 | **in force from 28 February 2019**, per TRAI's own summary of the regulation | Nothing. No code sends an SMS |
+| A sender must be registered, and messages carry a **registered header**; content is matched against a **registered template** | TCCCPR 2018 and the access providers' Codes of Practice | in force | Nothing |
+
+**What this means for the product, and it is not a technical problem.** Entity registration, a
+header and each message template are registered by the **business**, through the access providers'
+DLT platforms — not by software, and not by me. Until the pilot restaurant's organisation holds a
+registered header, an OTP the product sends is a message the network drops.
+
+**So the code is not the long pole.** A token table, an expiry and a screen are a few days. The
+registration is an owner action with a lead time nobody here controls, which is why F9 is not
+built: shipping a recovery flow that cannot deliver is worse than shipping none, because it fails
+at the moment somebody is already locked out.
+
+**Verified to the level stated, and no further.** TRAI's own site gives the regulation, its date
+and the DLT mandate. The operational specifics repeated everywhere — six-character alphabetical
+headers for transactional traffic, template scrubbing at the network, penalty ceilings — come from
+**vendor documentation, not from the instrument**, and are recorded here as *unverified*. Anyone
+building this reads the Codes of Practice before relying on any of them.
 | The invoice serial is consecutive, at most 16 characters, and unique per financial year | Rule 46(b) | in force | `test_every_invoice_number_a_year_can_reach_fits_the_rule`, `test_five_bills_settling_at_once_take_five_consecutive_numbers` |
 | The financial year starts on 1 April | General Clauses Act 1897, s.3(21) | in force | `test_an_invoice_number_carries_its_year` |
 | A cancelled invoice keeps its number | GSTR-1 Table 13 (documents issued) | in force (return practice) | `test_an_invoice_issued_in_error_is_cancelled_keeps_its_number_and_voids_its_order` |

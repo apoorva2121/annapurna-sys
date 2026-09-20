@@ -40,7 +40,7 @@ test, or the test may be written against a screen that no longer exists.
 | F6 | local `HEAD` | The whole "Preparation preference" group comes off **non-veg** dishes | **A** | ✅ **fixed** 2026-09-19 |
 | F7 | local `HEAD` | "Ask for bill" is shown to the owner, where it is not an owner's action | **A** | ✅ **fixed** 2026-09-19 |
 | F8 | local `HEAD` | A **manager** cannot reset anyone's password — only the owner can | **A** | ✅ **fixed** 2026-09-19 |
-| F9 | local `HEAD` | No "forgot password" anywhere; owner recovery to go by SMS/WhatsApp code | **B** | channel chosen, blocked on research |
+| F9 | local `HEAD` | No "forgot password" anywhere; owner recovery to go by SMS/WhatsApp code | **B** | **researched 2026-09-20**; now blocked on owner action A16, not on research |
 | F10 | local `HEAD` | A bill cannot be printed; only the credit note that corrects it can | **A** | ✅ **fixed** 2026-09-20 |
 | F11 | local `HEAD` | Dishes, categories, variants **and modifier groups** show their internal code beside the name | **A** | ✅ **fixed** 2026-09-19 |
 | F12 | new, owner's idea | A reference page listing every name and its code, since codes become invisible | **A** | ✅ **built** 2026-09-19 |
@@ -1589,3 +1589,39 @@ silence.
 note, never by handing somebody the same document again.
 
     vitest 463 passed (was 459) · eslint 0 · tsc 0
+
+---
+
+## F9 — researched 2026-09-20. The blocker moved; it did not clear.
+
+**The research is done and cited.** `docs/compliance-rules.md` §A8 now carries it, separating what
+came from TRAI from what came from vendors.
+
+From TRAI's own site: the **Telecom Commercial Communications Customer Preference Regulations,
+2018**, issued 19 July 2018, **in force from 28 February 2019**, mandate Distributed Ledger
+Technology for registering senders, headers and consent. Commercial communication travels under a
+**registered header**, and content is matched against a **registered template**.
+
+**My earlier guess was right about the shape and that is not the point.** It was marked
+*unverified* and would have been wrong to build on either way — the operational details everyone
+repeats (six-character alphabetical headers, network-level template scrubbing, the penalty ceiling)
+came from vendor documentation, and §A8 records them as unverified rather than promoting them
+because they are plausible.
+
+### Why this is still not built, and why that is the right answer
+
+Entity registration, a header and each template are registered **by the business**, through the
+access providers' DLT platforms. Not by software. Until the pilot restaurant's organisation holds a
+registered header, an OTP this product sends is a message the network drops.
+
+**So the code was never the long pole.** A token table, an expiry, a rate limit and a screen are a
+few days' work. The registration has a lead time nobody here controls, and shipping a recovery flow
+that cannot deliver is worse than shipping none: it fails at the exact moment somebody is already
+locked out of their own restaurant.
+
+**Added as owner action A16.** When a header exists, F9 is a few days and the security rules are
+already written down in this file: no enumeration, single-use, short expiry, hashed at rest, rate
+limited per number *and* per IP.
+
+**Until then the honest recovery path is a second owner account**, which costs nothing and should
+be in the pilot's setup notes.
