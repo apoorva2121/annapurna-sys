@@ -233,3 +233,41 @@ describe('drill-through', () => {
     expect(screen.getByText(/until=2026-09-03/)).toBeInTheDocument();
   });
 });
+
+describe('the branch drill-through', () => {
+  // Found by review, and by watching a full page load end the session in the dev app: the token
+  // lives in a module variable, not in storage, so a document load throws it away. The branch
+  // already in scope has nothing to re-issue, so it must never take that path.
+  it('stays inside the router for the branch already in scope', async () => {
+    const assign = vi.fn();
+    renderScreen();
+    await screen.findByText('Spend per dine-in guest');
+
+    // Replacing the whole `location` is how a jsdom test observes a document load without
+    // performing one. If the component calls it, the assertion below fails.
+    const original = window.location;
+    // Built field by field rather than spread: `Location` is a class instance, and spreading one
+    // drops its prototype (eslint no-misused-spread). These are the fields anything here reads.
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        assign,
+        href: original.href,
+        search: original.search,
+        pathname: original.pathname,
+        origin: original.origin,
+        reload: () => undefined,
+      },
+    });
+
+    try {
+      await userEvent.click(
+        screen.getByRole('button', { name: /Open the sales report for Spice Garden/ }),
+      );
+      expect(assign, 'a document load would discard the access token').not.toHaveBeenCalled();
+      expect(await screen.findByText(/since=2026-09-01/)).toBeInTheDocument();
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: original });
+    }
+  });
+});

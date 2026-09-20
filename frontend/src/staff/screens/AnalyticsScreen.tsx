@@ -252,6 +252,7 @@ function Trend({
 
 function Branches({ comparison }: { comparison: BranchComparison }): ReactElement {
   const { session } = useAuth();
+  const navigate = useNavigate();
 
   // The drill-through that crosses a tenant boundary. Another branch's rows are not merely another
   // screen — they are outside this token's scope (invariant 1) — so reaching them means switching,
@@ -260,7 +261,10 @@ function Branches({ comparison }: { comparison: BranchComparison }): ReactElemen
   const open = (row: BranchRow): void => {
     const destination = `/reports/sales?since=${comparison.since}&until=${comparison.until}`;
     if (row.restaurant_id === session?.restaurant.id) {
-      window.location.assign(destination);
+      // The branch already in scope needs no switch, and therefore no document load: a router
+      // navigation keeps the cached queries, the scroll position and — the part that matters —
+      // the access token, which lives in a module variable and does not survive a page load.
+      void navigate(destination);
       return;
     }
     void switchBranch(row.restaurant_id, destination);
