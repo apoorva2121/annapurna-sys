@@ -5,7 +5,7 @@ Spec: `docs/modules/M19-analytics-spec.md`. Branch: `feat/m11-communication` —
 
 | Chunk | What | State |
 |---|---|---|
-| A | Trends: series endpoints, the metric table, the org decision implemented | in progress |
+| A | Trends: series endpoints, the metric table, the org decision implemented | **done** 2026-09-20 |
 | B | The charts, code-split, bundle test, drill-through | not started |
 | C | The action queue | not started |
 | D | One forecast, scored | not started |
@@ -140,3 +140,39 @@ moment the branch is pushed.
 | Run | Result |
 |---|---|
 | `make check` (baseline, before chunk A) | see below |
+
+---
+
+## Chunk A — finished 2026-09-20
+
+`GET /analytics/trend` and `GET /analytics/branches`, behind `report.financial.view` — the same
+permission M13's money screens use, so these are screens a manager does not have rather than
+screens with blanks in them.
+
+**No response carries a tax field**, and a test asserts it against the wire rather than trusting the
+schema. Two restaurants under one organization can hold different GSTINs and different schemes, so
+a summed tax figure has no legal referent; the forbidden total is unrepresentable rather than
+discouraged.
+
+The comparison is ordered by spend per dine-in guest, the owner's chosen basis. A branch with no
+dine-in guests sorts **last**: `None` means "no answer", and ranking it first would put an empty
+restaurant at the head of the table.
+
+### What the endpoint tenant tests prove, and what they do not
+
+**Measured, not assumed.** Deleting the organization filter inside `_real_restaurants` leaves every
+endpoint test green. They cannot see it — the API gives no way to name a restaurant id, so
+`branch_ids` has already narrowed the set before that filter is reached.
+
+So the endpoint tests ask *"does this leak another tenant's trading"*, which is the question a
+client can actually pose. The second lock is tested where it can fail, at the repository, by
+`test_across_cannot_reach_another_organizations_branch` — which **does** go red when the filter is
+removed. Both layers are worth having: the day somebody adds an endpoint that takes branch ids from
+a request, the repository test is the one still standing.
+
+Two of the endpoint tests were also rewritten to be non-vacuous. `len(restaurant_ids) == 1` is true
+when the second tenant was never created, which is the shape of green test that proves nothing;
+they now assert the other tenant exists and has trading of its own.
+
+    pytest test_analytics_endpoints + test_m19_analytics -> 17 passed
+    ruff, mypy clean

@@ -34,7 +34,9 @@ STAFF = "/api/v1/staff"
 REPORTS = f"{STAFF}/reports"
 
 
-async def _trading(session: AsyncSession, client: AsyncClient, *roles: str) -> tuple[World, str]:
+async def _trading(
+    session: AsyncSession, client: AsyncClient, *roles: str, slug: str = "spice-garden"
+) -> tuple[World, str]:
     """A restaurant with people who can sign in, and one day's trading in it.
 
     `_identity_world` makes the organization, the restaurant and the logins; `test_reporting`'s
@@ -42,7 +44,9 @@ async def _trading(session: AsyncSession, client: AsyncClient, *roles: str) -> t
     other endpoint test uses, and a second way of making a restaurant would be a second thing to
     keep in step.
     """
-    identity = await _identity_world(session, *roles)
+    # `slug` makes a *second tenant* — M19's analytics tests point one organization's widened
+    # query at another's trading, which needs two of everything.
+    identity = await _identity_world(session, *roles, slug=slug)
     world = World(
         identity.organization,
         identity.restaurant,

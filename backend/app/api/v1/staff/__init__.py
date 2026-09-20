@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.v1.staff import (
+    analytics,
     attachments,
     audit,
     cash,
@@ -47,6 +48,7 @@ router.include_router(orders.router)
 router.include_router(performance.router)
 router.include_router(procurement.router)
 router.include_router(audit.router)
+router.include_router(analytics.router)
 router.include_router(reports.router)
 router.include_router(roles.router)
 router.include_router(setup.router)
