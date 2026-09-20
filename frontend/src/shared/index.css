@@ -40,3 +40,40 @@
     }
   }
 }
+
+/* ---------------------------------------------------------------- the till roll
+ *
+ * A bill prints on an 80mm thermal roll, which is what a restaurant hands a customer — the owner's
+ * choice on 2026-09-19, over A4. No driver is involved: the browser prints to a thermal printer
+ * like any other, and CLAUDE.md's exclusion is of "printer/hardware drivers", not of printing.
+ * Reading that exclusion too broadly is what left this product unable to produce a bill for
+ * sixteen modules, while it could already print a credit note (D27).
+ *
+ * 72mm of ink inside an 80mm roll: thermal printers do not print to the edge, and a bill clipped
+ * down its right-hand side loses the column the amounts are in.
+ *
+ * `@page` margins are zero because the roll has no margin to give; the padding below is the
+ * margin, and it is on the element so it survives a printer that ignores `@page`.
+ */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  .till-roll {
+    width: 72mm;
+    padding: 4mm;
+    /* Thermal paper is not white and the heads are not precise: black on transparent, always. */
+    color: #000;
+    background: none;
+    /* A bill is read once, at arm's length, often by somebody who has had a drink. */
+    font-size: 11pt;
+    line-height: 1.35;
+  }
+
+  /* Isolation is by `print:hidden` on everything that is not the document, which is how the credit
+     note already does it (D27) and how the app shell hides its own header. A `body > *` rule was
+     tried first and does nothing here: React mounts into a single `#root`, so the bill has no
+     siblings at body level to hide. */
+}

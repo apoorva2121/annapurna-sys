@@ -204,6 +204,15 @@ export type Invoice = {
   invoice_date: string;
   business_date: string;
   supplier_name: string;
+  /** Rule 46(a): a tax invoice carries the supplier's name, **address** and GSTIN. Frozen on the
+   *  invoice at settlement, so a restaurant that moves does not rewrite last year's bills. */
+  supplier_address: {
+    line1?: string | null;
+    line2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postcode?: string | null;
+  } | null;
   supplier_gstin: string | null;
   fssai_licence: string | null;
   recipient_name: string | null;

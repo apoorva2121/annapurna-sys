@@ -41,7 +41,7 @@ test, or the test may be written against a screen that no longer exists.
 | F7 | local `HEAD` | "Ask for bill" is shown to the owner, where it is not an owner's action | **A** | ✅ **fixed** 2026-09-19 |
 | F8 | local `HEAD` | A **manager** cannot reset anyone's password — only the owner can | **A** | ✅ **fixed** 2026-09-19 |
 | F9 | local `HEAD` | No "forgot password" anywhere; owner recovery to go by SMS/WhatsApp code | **B** | channel chosen, blocked on research |
-| F10 | local `HEAD` | A bill cannot be printed; only the credit note that corrects it can | **A** | answered, needs a research step |
+| F10 | local `HEAD` | A bill cannot be printed; only the credit note that corrects it can | **A** | ✅ **fixed** 2026-09-20 |
 | F11 | local `HEAD` | Dishes, categories, variants **and modifier groups** show their internal code beside the name | **A** | ✅ **fixed** 2026-09-19 |
 | F12 | new, owner's idea | A reference page listing every name and its code, since codes become invisible | **A** | ✅ **built** 2026-09-19 |
 | F24 | local `HEAD`, found by a test | A dish's cost breakdown names each ingredient by code, because the API sends no name | **A** | ✅ **fixed** 2026-09-20 |
@@ -1552,3 +1552,40 @@ Against the same real data as before:
 Where an owner previously read `Birista (fried onion) 0.00` first.
 
     pytest test_reporting + test_reports_endpoints + test_reporting_latency -> 47 passed
+
+---
+
+## F10 — shipped 2026-09-20, after reading the instrument
+
+**The research this was blocked on, done properly.** The declaration was read from **CBIC's own PDF
+of the CGST Rules 2017** (Part A, as amended to 24-09-2021), not from a summary:
+
+> **Rule 5(1)(f)** — *he shall mention the words "composition taxable person, not eligible to
+> collect tax on supplies" at the top of the bill of supply issued by him*
+
+**"supplies", not "supplier".** Several secondary sources — including ones that came back first in
+search — print "supplier". The instrument does not. That single word is the whole reason
+`docs/compliance-rules.md` forbids writing these from memory, and it would have shipped wrong.
+
+Rule 46's particulars were read from the same document and the layout follows them. Both rules are
+now rows in `docs/compliance-rules.md` §A7 with their instrument and the date the primary text was
+read. Rule 5(1)(g) — the signboard — is recorded there too and marked **not enforceable by
+software**: it is a physical sign, and a product that claimed to check it would be lying.
+
+**The gap survived sixteen modules on one misread word.** The row said *"Printing is out of scope
+for month 1 (CLAUDE.md)"*. CLAUDE.md excludes **"printer/hardware drivers"**. Browser printing is
+not a driver, and the product had been browser-printing credit notes since D27 — it could print the
+document that *corrects* a bill and not the bill.
+
+**80mm till roll**, the owner's choice over A4. `@page { size: 80mm auto }`, 72mm of ink inside it
+because thermal printers do not reach the edge and a clipped right margin takes the amounts column
+with it.
+
+**A bill of supply shows no tax at all** — not zeros. A composition restaurant may not collect any
+(CGST Act s.10), so printing `CGST 0.00` would be a statement about tax where the law requires
+silence.
+
+**A cancelled bill has no print button.** It keeps its number for GST and is corrected by a credit
+note, never by handing somebody the same document again.
+
+    vitest 463 passed (was 459) · eslint 0 · tsc 0

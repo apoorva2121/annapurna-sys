@@ -11,6 +11,7 @@ import { Notice } from '@staff/components/Notice';
 import { QuantityStepper } from '@staff/components/QuantityStepper';
 import { QueryState } from '@staff/components/QueryState';
 import { errorProps } from '@staff/components/errorProps';
+import { PrintableBill } from '@staff/components/PrintableBill';
 import { strings } from '@staff/strings';
 import {
   type CreditLineInput,
@@ -103,21 +104,48 @@ function InvoiceDetail({
   const cancelled = invoice.status === 'cancelled';
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold">
-          {strings.bills.invoiceTitle(invoice.invoice_number)}
-        </h1>
-        <p>
-          {`${strings.bills.statuses[invoice.status] ?? invoice.status} · ${strings.orders.orderLabel(order.order_number)}`}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
+        <div>
+          <h1 className="text-2xl font-semibold">
+            {strings.bills.invoiceTitle(invoice.invoice_number)}
+          </h1>
+          <p>
+            {`${strings.bills.statuses[invoice.status] ?? invoice.status} · ${strings.orders.orderLabel(order.order_number)}`}
+          </p>
+        </div>
+        {/* A cancelled bill is not reprinted: it keeps its number for GST and is corrected by a
+            credit note, never by handing somebody the same document again. */}
+        {!cancelled && (
+          <Button
+            variant="secondary"
+            onClick={() => {
+              window.print();
+            }}
+          >
+            {strings.bills.printBill}
+          </Button>
+        )}
       </div>
+
+      {/* Hidden on screen, and the only thing on the roll. Everything above and below it carries
+          `print:hidden`, which is how the credit note already does this (D27). */}
+      <PrintableBill
+        invoice={invoice}
+        order={order}
+        dishOf={(orderLineId) => {
+          const line = order.lines.find((each) => each.id === orderLineId);
+          return line === undefined ? '' : (names.dishes.get(line.menu_item_variant_id) ?? '');
+        }}
+      />
       {cancelled && (
         <Notice tone="info" title={strings.bills.cancelledTitle}>
           {invoice.cancel_reason ?? undefined}
         </Notice>
       )}
-      <InvoiceTotals invoice={invoice} />
-      <Payments invoice={invoice} />
+      <div id="bill-on-screen" className="flex flex-col gap-4 print:hidden">
+        <InvoiceTotals invoice={invoice} />
+        <Payments invoice={invoice} />
+      </div>
       <CreditNotes order={order} invoice={invoice} names={names} />
       {note !== null && (
         <IssuedNote

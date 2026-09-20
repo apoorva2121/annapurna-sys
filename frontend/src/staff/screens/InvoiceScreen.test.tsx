@@ -9,7 +9,7 @@
 // **Cancelling withdraws a legal document**, so it asks what the error was before it can be sent.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
@@ -169,12 +169,13 @@ type FetchMock = Mock<(input: unknown, init?: RequestInit) => Promise<Response>>
 function renderScreen(
   invoiceId: string | null = 'inv1',
   credited: unknown[] = [],
+  overrides: Record<string, unknown> = {},
 ): FetchMock {
   let cancelled = false;
   const invoice = (): Record<string, unknown> =>
     cancelled
-      ? { ...INVOICE, status: 'cancelled', cancel_reason: 'Billed to the wrong table' }
-      : { ...INVOICE, credited };
+      ? { ...INVOICE, ...overrides, status: 'cancelled', cancel_reason: 'Billed to the wrong table' }
+      : { ...INVOICE, ...overrides, credited };
   // The server as a route table: the first path suffix that matches answers. Only the credit-note
   // and cancel routes are ever posted to, so no responder needs to look at the method.
   const routes: [string, () => unknown][] = [
@@ -227,12 +228,17 @@ describe('InvoiceScreen', () => {
 
     expect(await screen.findByText('Invoice 2026-27/000001')).toBeInTheDocument();
     expect(screen.getByText('Issued · Order 7')).toBeInTheDocument();
-    expect(screen.getByText('₹940.00')).toBeInTheDocument();
-    expect(screen.getAllByText('₹23.50')).toHaveLength(2);
+
+    // Scoped to the screen layout since 2026-09-20: the printed bill (F10) renders every one of
+    // these figures a second time, in a form built for a 72mm roll. Counting across both would be
+    // counting two different documents as one.
+    const onScreen = within(document.querySelector<HTMLElement>('#bill-on-screen') as HTMLElement);
+    expect(onScreen.getByText('₹940.00')).toBeInTheDocument();
+    expect(onScreen.getAllByText('₹23.50')).toHaveLength(2);
     // Once as the total and once as the UPI payment that covered it. "UPI" alone is ambiguous here:
     // it is also a refund-method button.
     expect(screen.getByRole('heading', { name: 'Payments' })).toBeInTheDocument();
-    expect(screen.getAllByText('₹987.00')).toHaveLength(2);
+    expect(onScreen.getAllByText('₹987.00')).toHaveLength(2);
   });
 
   it('credits whole dishes with a refund, sending dishes and counts but never a price', async () => {
@@ -373,5 +379,68 @@ describe('what a guest can tell from the invoice', () => {
     const marks = await screen.findAllByRole('img', { name: /vegetarian|egg|non-veg/i });
 
     expect(marks.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// F10, 2026-09-20. A restaurant could not print a bill until this, which meant it could not run a
+// till — and `docs/compliance-rules.md` had carried the gap for sixteen modules behind a misread
+// word: it cited CLAUDE.md's exclusion of *printing*, which is actually of "printer/hardware
+// drivers". The product had been browser-printing credit notes since D27.
+/** The roll itself. Scoped explicitly: every figure on it also appears in the screen layout
+ *  above, so an unscoped query would match the wrong one and pass for the wrong reason. */
+function bill(): HTMLElement {
+  const found = document.querySelector<HTMLElement>('#printable-bill');
+  expect(found, 'the printable bill was not rendered').not.toBeNull();
+  return found as HTMLElement;
+}
+
+describe('the printed bill', () => {
+  it('lays out the particulars Rule 46 requires', async () => {
+    renderScreen();
+
+    await screen.findByText('Invoice 2026-27/000001');
+    const printed = within(bill());
+
+    // Rule 46(a) name and GSTIN, (b) the serial, (c) the date.
+    expect(printed.getByText('Spice Garden')).toBeTruthy();
+    expect(printed.getByText(/27AAAAA0000A1Z5/)).toBeTruthy();
+    expect(printed.getByText('2026-27/000001')).toBeTruthy();
+    expect(printed.getByText('2026-09-13')).toBeTruthy();
+    // (l) and (m): the tax, broken out, on a tax invoice.
+    expect(printed.getByText('CGST')).toBeTruthy();
+    expect(printed.getByText('SGST')).toBeTruthy();
+  });
+
+  it('does not put the composition declaration on a tax invoice', async () => {
+    renderScreen();
+    await screen.findByText('Invoice 2026-27/000001');
+
+    expect(within(bill()).queryByText(/composition taxable person/i)).toBeNull();
+  });
+
+  // The wording is verbatim from CBIC's own text of the CGST Rules 2017, read on 2026-09-20:
+  // "supplies", not "supplier". Several secondary sources say "supplier" and the instrument does
+  // not — which is exactly why `docs/compliance-rules.md` forbids writing these from memory.
+  it('carries Rule 5(1)(f) at the top of a bill of supply, word for word', async () => {
+    renderScreen('inv1', [], { document_type: 'bill_of_supply', cgst_total: '0.00', sgst_total: '0.00' });
+
+    await screen.findByText('Invoice 2026-27/000001');
+
+    expect(
+      within(bill()).getByText(
+        'Composition taxable person, not eligible to collect tax on supplies',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('shows no tax at all on a bill of supply', async () => {
+    // Not a rendering shortcut: a composition restaurant may not collect tax (CGST Act s.10), so
+    // printing "CGST 0.00" would be a statement about tax where the law requires silence.
+    renderScreen('inv1', [], { document_type: 'bill_of_supply', cgst_total: '0.00', sgst_total: '0.00' });
+    await screen.findByText('Invoice 2026-27/000001');
+    const printed = within(bill());
+
+    expect(printed.queryByText('CGST')).toBeNull();
+    expect(printed.queryByText('SGST')).toBeNull();
   });
 });
