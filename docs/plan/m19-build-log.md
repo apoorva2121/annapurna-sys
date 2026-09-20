@@ -297,7 +297,7 @@ the floor of the chart, inventing the catastrophe the module exists to detect.
 | Target | Result |
 |---|---|
 | `make lint-web` | **0** |
-| `make test-web` | **499 passed**, 64 files (was 463); **505 after the review pass** |
+| `make test-web` | **499 passed**, 64 files (was 463); **508 after the review pass**, measured rather than assumed |
 | `vite build` | exit 0; analytics in its own 4.54 kB gzipped chunk |
 | `validate_palette.js` light + dark | ALL CHECKS PASS, exit 0 |
 
