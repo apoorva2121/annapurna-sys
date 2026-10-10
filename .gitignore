@@ -90,3 +90,63 @@ Apoorva-actions-and-questions.xlsx
 .playwright-mcp/
 check-*.log
 .ignore
+
+# ---- added for publication (2026-10-10) ----
+# --- credentials: never commit these ---
+*.p12
+*.jks
+*.keystore
+service-account*.json
+credentials.json
+local.properties
+# --- os / editor noise ---
+desktop.ini
+*.swp
+# --- python ---
+.eggs/
+build/
+env/
+.tox/
+coverage.xml
+# --- data, models and run artefacts (too big, and reproducible) ---
+data/raw/
+data/interim/
+data/processed/
+data/external/
+*.parquet
+*.npy
+*.npz
+*.pt
+*.pth
+*.onnx
+*.joblib
+*.pkl
+*.h5
+*.ckpt
+mlruns/
+mlflow.db
+outputs/
+artifacts/
+wandb/
+*.sqlite
+*.db
+.chroma/
+chroma/
+chroma_db/
+
+# ---- loose scratch at the repository root: not part of the product ----
+# billing.png is a screenshot of a Google Cloud billing account INCLUDING the
+# billing account ID. It must never be committed.
+billing.png
+# Photographs of real restaurant bills used as design reference; they show real
+# businesses' details (GST numbers, addresses).
+restaurant_bill.png
+restuarant_bill_latest.png
+# A seed-data screenshot showing implausible food-cost percentages; misleading
+# as documentation.
+dishCost.png
+# Working bug sheet, superseded by docs/backlog.md.
+issues .xlsx
+# Third-party design guidelines collected for reference (Apple, Figma, Linear and
+# others). Not my work and not mine to redistribute.
+design-md/
